@@ -154,21 +154,22 @@ export default function ExperimentView() {
                             <span className="text-yellow-400 font-medium">金黄色小球</span>：原子核
                         </p>
                         <p>
-                            <span className="text-blue-400 font-medium">蓝色区域</span>：电子云
+                            <span className="text-green-400 font-medium">蓝绿色小球</span>：电子
                         </p>
                         <p>
-                            <span className="text-green-400 font-medium">绿色粒子</span>：α粒子
+                            <span className="text-blue-400 font-medium">彩色圆环</span>：电子轨道 (n=1-6)
                         </p>
                         <p>
-                            <span className="text-red-400 font-medium">红色轨迹</span>：大角度散射(&gt;90°)
+                            <span className="text-purple-400 font-medium">发光粒子</span>：光子
                         </p>
                     </div>
                     <div className="mt-3 pt-3 border-t border-white/10">
-                        <h4 className="text-xs font-semibold text-white mb-1.5">实验结论</h4>
+                        <h4 className="text-xs font-semibold text-white mb-1.5">玻尔原子模型</h4>
                         <ul className="text-xs text-slate-400 space-y-0.5">
-                            <li>• 大多数α粒子直接穿过</li>
-                            <li>• 极少数大角度散射</li>
-                            <li>• 理论比例：约1/8000发生大角度散射</li>
+                            <li>• 电子只能在特定能级上存在</li>
+                            <li>• 跃迁发射或吸收特定能量光子</li>
+                            <li>• 不同跃迁产生不同颜色光谱线</li>
+                            <li>• 能量公式：E<sub>n</sub> = -13.6/n² eV</li>
                         </ul>
                     </div>
                 </div>
