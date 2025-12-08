@@ -2,6 +2,8 @@
  * 氢原子能级跃迁物理计算模块
  */
 
+import * as THREE from 'three';
+
 // 物理常量
 export const PLANCK_CONSTANT = 6.626e-34; // 普朗克常量 (J·s)
 export const ELECTRON_CHARGE = 1.602e-19; // 电子电荷 (C)
@@ -26,11 +28,17 @@ export interface Transition {
     type: 'emission' | 'absorption';
 }
 
-// 激发模式
+// 激发模式 (保留用于兼容旧代码，推荐使用 SceneMode)
 export type ExcitationMode = 'photon' | 'electron' | 'spontaneous';
 
 // 原子类型
 export type AtomType = 'single' | 'group';
+
+// 场景模式
+export type SceneMode =
+    | 'stimulated-absorption'  // 受激吸收
+    | 'spontaneous-emission'   // 自发辐射
+    | 'stimulated-emission';   // 受激辐射
 
 /**
  * 计算氢原子能级能量
@@ -52,13 +60,14 @@ export function calculateRadius(n: number): number {
  * 获取能级颜色 (用于可视化)
  */
 export function getLevelColor(n: number): string {
+    // 渐变色：从内向外，暖色 -> 冷色
     const colors: Record<number, string> = {
-        1: '#ff4444', // 基态 - 红色
-        2: '#ff8800', // 第一激发态 - 橙色
-        3: '#ffcc00', // 第二激发态 - 黄色
-        4: '#44ff44', // 绿色
-        5: '#4488ff', // 蓝色
-        6: '#8844ff', // 紫色
+        1: '#ff4400', // 基态 - 深橙红
+        2: '#ff8800', // 橙色
+        3: '#ffcc00', // 黄色
+        4: '#00ff44', // 绿色
+        5: '#0088ff', // 蓝色
+        6: '#8800ff', // 紫色
     };
     return colors[n] || '#ffffff';
 }
@@ -234,3 +243,89 @@ export const ENERGY_LEVELS = generateEnergyLevels(6);
 
 // 预计算的所有可能跃迁
 export const ALL_TRANSITIONS = calculateAllTransitions(6);
+
+/**
+ * 获取给定场景和能级下的所有有效跃迁能量值
+ * 用于能量滑块上显示标记点
+ */
+export function getValidTransitionEnergies(
+    currentLevel: number,
+    sceneMode: SceneMode
+): number[] {
+    const energies: number[] = [];
+
+    if (sceneMode === 'stimulated-absorption') {
+        // 受激吸收：从当前能级向上跃迁
+        for (let n = currentLevel + 1; n <= 6; n++) {
+            const deltaE = Math.abs(calculateEnergy(n) - calculateEnergy(currentLevel));
+            energies.push(deltaE);
+        }
+        // 添加电离能量
+        const ionizationEnergy = Math.abs(calculateEnergy(currentLevel));
+        energies.push(ionizationEnergy);
+    } else if (sceneMode === 'stimulated-emission') {
+        // 受激辐射：从当前能级向下跃迁
+        for (let n = currentLevel - 1; n >= 1; n--) {
+            const deltaE = Math.abs(calculateEnergy(currentLevel) - calculateEnergy(n));
+            energies.push(deltaE);
+        }
+    }
+
+    // 保留两位小数并排序
+    return energies
+        .map(e => Math.round(e * 100) / 100)
+        .sort((a, b) => a - b);
+}
+
+/**
+ * 检查光子能量是否匹配某个有效跃迁能量
+ * @param photonEnergy 光子能量
+ * @param validEnergies 有效能量列表
+ * @param tolerance 容差（eV）
+ * @returns 匹配的能量值，如果不匹配返回 null
+ */
+export function matchValidEnergy(
+    photonEnergy: number,
+    validEnergies: number[],
+    tolerance: number = 0.05
+): number | null {
+    for (const validE of validEnergies) {
+        if (Math.abs(photonEnergy - validE) < tolerance) {
+            return validE;
+        }
+    }
+    return null;
+}
+
+/**
+ * 根据匹配的能量值确定目标能级
+ */
+export function getTargetLevel(
+    currentLevel: number,
+    matchedEnergy: number,
+    sceneMode: SceneMode
+): number | null {
+    if (sceneMode === 'stimulated-absorption') {
+        // 向上跃迁
+        for (let n = currentLevel + 1; n <= 6; n++) {
+            const deltaE = Math.abs(calculateEnergy(n) - calculateEnergy(currentLevel));
+            if (Math.abs(deltaE - matchedEnergy) < 0.01) {
+                return n;
+            }
+        }
+        // 检查是否是电离
+        const ionizationEnergy = Math.abs(calculateEnergy(currentLevel));
+        if (Math.abs(ionizationEnergy - matchedEnergy) < 0.01) {
+            return Infinity;
+        }
+    } else if (sceneMode === 'stimulated-emission') {
+        // 向下跃迁
+        for (let n = currentLevel - 1; n >= 1; n--) {
+            const deltaE = Math.abs(calculateEnergy(currentLevel) - calculateEnergy(n));
+            if (Math.abs(deltaE - matchedEnergy) < 0.01) {
+                return n;
+            }
+        }
+    }
+    return null;
+}

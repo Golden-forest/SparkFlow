@@ -9,6 +9,11 @@ import { SimulationState } from '@/utils/constants';
 // 导入实验注册
 import '@/experiments';
 
+// 导入自定义工具栏和类型
+import { SideToolbar } from '@/components/simulation/SideToolbar';
+import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
+import { getValidTransitionEnergies } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
+
 export default function ExperimentView() {
     const { experimentId: paramId } = useParams<{ experimentId: string }>();
     const location = useLocation();
@@ -16,12 +21,20 @@ export default function ExperimentView() {
     // 判断是否为卢瑟福微观视图（固定路由）
     const isRutherfordMicro = location.pathname === '/experiment/rutherford-scattering/micro';
     const experimentId = isRutherfordMicro ? 'rutherford-scattering' : paramId;
+    const isHydrogen = experimentId === 'hydrogen-transitions';
 
     const { state, start, pause, resume, reset, setExperiment, currentExperiment } = useSimulationStore();
 
     const [displayData, setDisplayData] = useState<Record<string, DisplayValue>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Hydrogen 特有状态
+    const [sceneMode, setSceneMode] = useState<SceneMode>('stimulated-absorption');
+    const [currentLevel, setCurrentLevel] = useState(1);
+    const [photonEnergy, setPhotonEnergy] = useState(10.2);
+    const [electronCount, setElectronCount] = useState<'single' | 'multi'>('single');
+    const [validEnergies, setValidEnergies] = useState<number[]>([]);
 
     // 加载实验
     useEffect(() => {
@@ -36,6 +49,13 @@ export default function ExperimentView() {
             }
             const experiment = ExperimentRegistry.create(experimentId);
             setExperiment(experiment);
+
+            // 初始化特定实验的状态
+            if (experimentId === 'hydrogen-transitions') {
+                // 默认值同步
+                setSceneMode(experiment.getParameter('excitationMode') as SceneMode || 'stimulated-absorption');
+                setCurrentLevel(experiment.getParameter('initialLevel') as number || 1);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : '加载实验失败');
         } finally {
@@ -47,16 +67,30 @@ export default function ExperimentView() {
         };
     }, [experimentId, setExperiment]);
 
-    // 刷新显示数据
+    // 刷新显示数据 & 计算有效能量
     useEffect(() => {
         if (!currentExperiment) return;
 
         const interval = setInterval(() => {
             setDisplayData(currentExperiment.getDisplayData());
+
+            // 如果是氢原子实验，并且正在运行（自发辐射可能自动改变能级），需要同步能级
+            if (isHydrogen && state === SimulationState.Running) {
+                // 注意：这里可能需要从 displayData 或 getParameter 获取实时能级
+                // 但目前架构中 parameter 通常是输入，displayData 是输出
+                // 我们暂时信任 React 状态作为 source of truth 用于控制
+            }
         }, 100);
 
         return () => clearInterval(interval);
-    }, [currentExperiment]);
+    }, [currentExperiment, isHydrogen, state]);
+
+    // 更新有效能量列表
+    useEffect(() => {
+        if (isHydrogen) {
+            setValidEnergies(getValidTransitionEnergies(currentLevel, sceneMode));
+        }
+    }, [currentLevel, sceneMode, isHydrogen]);
 
     const handlePlayPause = () => {
         if (state === SimulationState.Running) {
@@ -70,9 +104,42 @@ export default function ExperimentView() {
 
     const handleReset = () => {
         reset();
+        if (isHydrogen) {
+            // 重置 React 状态
+            // 保持当前模式，但重置能级
+            if (sceneMode === 'stimulated-absorption') {
+                setCurrentLevel(1);
+                handleHydrogenParam('initialLevel', 1);
+            } else {
+                setCurrentLevel(3); // 激发态默认
+                handleHydrogenParam('initialLevel', 3);
+            }
+        }
+    };
+
+    const handleHydrogenParam = (key: string, value: any) => {
+        if (!currentExperiment) return;
+        currentExperiment.setParameter(key, value);
+
+        if (key === 'excitationMode') setSceneMode(value);
+        if (key === 'initialLevel') setCurrentLevel(value);
+        if (key === 'inputEnergy') setPhotonEnergy(value);
+        if (key === 'atomType') setElectronCount(value === 'single' ? 'single' : 'multi');
     };
 
     const isPlaying = state === SimulationState.Running;
+
+    const handleEmit = () => {
+        // 确保仿真在运行
+        if (state !== SimulationState.Running) {
+            start();
+        }
+
+        // 触发发射信号
+        // 我们利用 Parameter Change 并不总是需要改变值，只要触发 notify 即可
+        // 但为了保险，我们用时间戳
+        handleHydrogenParam('triggerEmission', Date.now());
+    };
 
     if (isLoading) {
         return (
@@ -109,26 +176,28 @@ export default function ExperimentView() {
                     </h1>
                 </div>
 
-                {/* 简化的控制按钮 */}
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={handlePlayPause}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors ${isPlaying
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                            }`}
-                    >
-                        {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                        <span>{isPlaying ? '暂停' : state === SimulationState.Paused ? '继续' : '开始实验'}</span>
-                    </button>
-                    <button
-                        onClick={handleReset}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
-                    >
-                        <RotateCcw size={18} />
-                        <span>重置</span>
-                    </button>
-                </div>
+                {/* 控制按钮 - 仅在非氢原子实验显示 */}
+                {!isHydrogen && (
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handlePlayPause}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors ${isPlaying
+                                ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
+                                }`}
+                        >
+                            {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                            <span>{isPlaying ? '暂停' : state === SimulationState.Paused ? '继续' : '开始实验'}</span>
+                        </button>
+                        <button
+                            onClick={handleReset}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                        >
+                            <RotateCcw size={18} />
+                            <span>重置</span>
+                        </button>
+                    </div>
+                )}
             </header>
 
             {/* 3D场景 */}
@@ -143,11 +212,54 @@ export default function ExperimentView() {
                     <ExperimentScene experiment={currentExperiment} />
                 </SceneContainer>
 
-                {/* 数据统计面板 */}
-                <DataDisplay data={displayData} />
+                {/* 氢原子实验专用工具栏 (右侧) */}
+                {isHydrogen && (
+                    <SideToolbar
+                        sceneMode={sceneMode}
+                        onSceneModeChange={(mode) => {
+                            // 切换模式逻辑
+                            let newLevel = currentLevel;
+                            if (mode === 'stimulated-absorption') {
+                                // 切换到吸收模式，默认回到基态或保持（如果当前是基态）
+                                if (newLevel > 1) newLevel = 1;
+                            } else {
+                                // 切换到辐射模式，需要激发态
+                                // 如果从吸收切换过来且已经在激发态，保持
+                                // 否则默认设为 3
+                                if (sceneMode === 'stimulated-absorption' && currentLevel > 1) {
+                                    // keep currentLevel
+                                } else if (currentLevel <= 1) {
+                                    newLevel = 3;
+                                }
+                            }
 
-                {/* 实验说明卡片 - 右下角 */}
-                <div className="absolute bottom-4 right-4 w-64 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-white/10 p-3">
+                            setSceneMode(mode);
+                            setCurrentLevel(newLevel);
+
+                            // 同步到实验
+                            handleHydrogenParam('excitationMode', mode);
+                            handleHydrogenParam('initialLevel', newLevel);
+                        }}
+                        currentLevel={currentLevel}
+                        onLevelChange={(level) => handleHydrogenParam('initialLevel', level)}
+                        photonEnergy={photonEnergy}
+                        onPhotonEnergyChange={(energy) => handleHydrogenParam('inputEnergy', energy)}
+                        validEnergies={validEnergies}
+                        electronCount={electronCount}
+                        onElectronCountChange={(count) => handleHydrogenParam('atomType', count === 'single' ? 'single' : 'group')}
+                        isRunning={isPlaying}
+                        onTogglePlay={handlePlayPause}
+                        onReset={handleReset}
+                        onEmit={handleEmit}
+                    />
+                )}
+
+                {/* 数据统计面板 - 氢原子实验可能不需要这个通用面板，或者简化显示 */}
+                {!isHydrogen && <DataDisplay data={displayData} />}
+
+                {/* 实验说明卡片 - 右下角 (氢原子模式下需要让位给 SideToolbar, 改到左下角) */}
+                <div className={`absolute w-64 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-white/10 p-3 ${isHydrogen ? 'bottom-4 left-4' : 'bottom-4 right-4'
+                    }`}>
                     <h3 className="text-sm font-semibold text-white mb-2">实验说明</h3>
                     <div className="space-y-1.5 text-xs text-slate-300">
                         <p>
@@ -159,18 +271,11 @@ export default function ExperimentView() {
                         <p>
                             <span className="text-blue-400 font-medium">彩色圆环</span>：电子轨道 (n=1-6)
                         </p>
-                        <p>
-                            <span className="text-purple-400 font-medium">发光粒子</span>：光子
-                        </p>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                        <h4 className="text-xs font-semibold text-white mb-1.5">玻尔原子模型</h4>
-                        <ul className="text-xs text-slate-400 space-y-0.5">
-                            <li>• 电子只能在特定能级上存在</li>
-                            <li>• 跃迁发射或吸收特定能量光子</li>
-                            <li>• 不同跃迁产生不同颜色光谱线</li>
-                            <li>• 能量公式：E<sub>n</sub> = -13.6/n² eV</li>
-                        </ul>
+                        {isHydrogen && (
+                            <p>
+                                <span className="text-purple-400 font-medium">波动线条</span>：光子
+                            </p>
+                        )}
                     </div>
                 </div>
             </main>

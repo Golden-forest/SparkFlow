@@ -1,122 +1,165 @@
 import { Link } from 'react-router-dom';
-import { ExperimentCategory } from '../utils/constants';
 
 interface ExperimentCard {
     id: string;
-    name: string;
-    category: ExperimentCategory;
-    description: string;
-    thumbnail: string;
-    difficulty: 'basic' | 'intermediate' | 'advanced';
+    title: string;
+    subtitle: string;
+    diagram: React.ReactNode;
+    gradient: string;
 }
 
-// 临时实验数据
+// Hydrogen Atom Energy Level Diagram
+const HydrogenAtomDiagram = () => (
+    <div className="relative w-full h-32 flex items-center justify-center">
+        <svg width="200" height="120" viewBox="0 0 200 120" className="opacity-60">
+            {/* Energy Levels */}
+            <line x1="30" y1="20" x2="170" y2="20" stroke="currentColor" strokeWidth="1.5" className="text-blue-400"/>
+            <line x1="30" y1="50" x2="170" y2="50" stroke="currentColor" strokeWidth="1.5" className="text-blue-400"/>
+            <line x1="30" y1="80" x2="170" y2="80" stroke="currentColor" strokeWidth="1.5" className="text-blue-400"/>
+            <line x1="30" y1="110" x2="170" y2="110" stroke="currentColor" strokeWidth="2" className="text-green-400"/>
+
+            {/* Electrons */}
+            <circle cx="50" cy="20" r="4" fill="currentColor" className="text-white"/>
+            <circle cx="80" cy="50" r="4" fill="currentColor" className="text-white"/>
+            <circle cx="120" cy="80" r="4" fill="currentColor" className="text-white"/>
+            <circle cx="160" cy="110" r="5" fill="currentColor" className="text-green-400"/>
+
+            {/* Transition Arrow */}
+            <path d="M 50 25 Q 85 40 120 75" stroke="url(#gradient)" strokeWidth="2" fill="none" strokeDasharray="3,2" opacity="0.8"/>
+
+            {/* Gradient Definition */}
+            <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#60A5FA"/>
+                    <stop offset="100%" stopColor="#34D399"/>
+                </linearGradient>
+            </defs>
+
+            {/* Labels */}
+            <text x="8" y="25" fill="currentColor" fontSize="10" className="text-gray-400">n=3</text>
+            <text x="8" y="55" fill="currentColor" fontSize="10" className="text-gray-400">n=2</text>
+            <text x="8" y="85" fill="currentColor" fontSize="10" className="text-gray-400">n=1</text>
+            <text x="8" y="115" fill="currentColor" fontSize="10" className="text-green-400">n=0</text>
+        </svg>
+    </div>
+);
+
+// Rutherford Scattering Diagram
+const RutherfordScatteringDiagram = () => (
+    <div className="relative w-full h-32 flex items-center justify-center">
+        <svg width="220" height="120" viewBox="0 0 220 120" className="opacity-70">
+            {/* Gold Nucleus */}
+            <circle cx="110" cy="60" r="12" fill="url(#goldGradient)" opacity="0.9"/>
+
+            {/* Alpha Particles */}
+            <circle cx="30" cy="30" r="4" fill="url(#alphaGradient)"/>
+            <circle cx="30" cy="60" r="4" fill="url(#alphaGradient)"/>
+            <circle cx="30" cy="90" r="4" fill="url(#alphaGradient)"/>
+
+            {/* Scattering Paths */}
+            <path d="M 30 30 Q 110 25 190 20" stroke="url(#alphaGradient)" strokeWidth="2" fill="none" opacity="0.8"/>
+            <path d="M 30 60 L 30 60" stroke="url(#alphaGradient)" strokeWidth="2" fill="none" opacity="0.8"/>
+            <path d="M 30 90 Q 110 95 190 100" stroke="url(#alphaGradient)" strokeWidth="2" fill="none" opacity="0.8"/>
+
+            {/* Arrow heads */}
+            <polygon points="188,18 192,20 188,22" fill="url(#alphaGradient)" opacity="0.8"/>
+            <polygon points="188,98 192,100 188,102" fill="url(#alphaGradient)" opacity="0.8"/>
+
+            {/* Gradient Definitions */}
+            <defs>
+                <radialGradient id="goldGradient">
+                    <stop offset="0%" stopColor="#FFD700"/>
+                    <stop offset="100%" stopColor="#FFA500"/>
+                </radialGradient>
+                <linearGradient id="alphaGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#FF6B6B"/>
+                    <stop offset="100%" stopColor="#FF8E8E"/>
+                </linearGradient>
+            </defs>
+
+            {/* Labels */}
+            <text x="20" y="25" fill="currentColor" fontSize="10" className="text-red-400">α</text>
+            <text x="20" y="55" fill="currentColor" fontSize="10" className="text-red-400">α</text>
+            <text x="20" y="85" fill="currentColor" fontSize="10" className="text-red-400">α</text>
+            <text x="110" y="80" fill="currentColor" fontSize="8" className="text-yellow-400 text-center">Nucleus</text>
+        </svg>
+    </div>
+);
+
 const experiments: ExperimentCard[] = [
     {
-        id: 'rutherford-scattering',
-        name: '卢瑟福α粒子散射实验',
-        category: ExperimentCategory.AtomicPhysics,
-        description: '通过α粒子轰击金箔,观察散射现象,揭示原子核式结构',
-        thumbnail: '/thumbnails/rutherford.jpg',
-        difficulty: 'intermediate',
+        id: 'hydrogen-transitions',
+        title: 'Hydrogen Atom',
+        subtitle: 'Energy Level Transitions',
+        diagram: <HydrogenAtomDiagram />,
+        gradient: 'from-blue-900/20 via-purple-900/10 to-teal-900/20',
     },
     {
-        id: 'hydrogen-transitions',
-        name: '氢原子能级跃迁',
-        category: ExperimentCategory.AtomicPhysics,
-        description: '观察氢原子电子在不同能级间跃迁,理解光谱线的产生',
-        thumbnail: '/thumbnails/hydrogen.jpg',
-        difficulty: 'basic',
+        id: 'rutherford-scattering',
+        title: 'Rutherford',
+        subtitle: 'Alpha Particle Scattering',
+        diagram: <RutherfordScatteringDiagram />,
+        gradient: 'from-red-900/20 via-orange-900/10 to-yellow-900/20',
     },
 ];
 
-const difficultyColors = {
-    basic: 'bg-green-500/20 text-green-300',
-    intermediate: 'bg-yellow-500/20 text-yellow-300',
-    advanced: 'bg-red-500/20 text-red-300',
-};
-
-const difficultyLabels = {
-    basic: '基础',
-    intermediate: '中级',
-    advanced: '高级',
-};
-
 export default function Home() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-            {/* Header */}
-            <header className="border-b border-white/10 bg-slate-900/50 backdrop-blur-sm">
-                <div className="container mx-auto px-6 py-6">
-                    <h1 className="text-3xl font-bold text-white">
-                        高中物理虚拟实验室
-                    </h1>
-                    <p className="mt-2 text-slate-300">
-                        交互式3D物理实验仿真平台
-                    </p>
-                </div>
+        <div className="min-h-screen bg-[#0D1117] flex flex-col" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', paddingLeft: '80px', paddingRight: '80px' }}>
+            {/* Header - Centered */}
+            <header className="pt-16 pb-12">
+                <h1 className="text-[56px] leading-[1.1] font-[700] text-center tracking-[-0.02em] bg-gradient-to-br from-[#F0F6FC] to-[#00FF41] bg-clip-text text-transparent">
+                    AI Lab
+                </h1>
             </header>
 
-            {/* Main Content */}
-            <main className="container mx-auto px-6 py-12">
-                <section>
-                    <h2 className="mb-8 text-2xl font-semibold text-white">
-                        原子物理实验
-                    </h2>
+            {/* Experiment Cards - Apple Style Poster Design */}
+            <main className="flex-1 flex items-center justify-start py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 w-full">
+                    {experiments.map((exp) => (
+                        <Link
+                            key={exp.id}
+                            to={`/experiment/${exp.id}`}
+                            className="group relative overflow-hidden bg-gradient-to-br ${exp.gradient} backdrop-blur-sm border border-[#30363D] rounded-[20px] p-12 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#161B22] hover:border-[#00FF41]/30 hover:transform hover:-translate-y-[12px] hover:shadow-[0_25px_50px_rgba(0,255,65,0.15)] hover:shadow-[0_0_0_1px_rgba(0,255,65,0.2)]"
+                        >
+                            {/* Background Glow Effect */}
+                            <div className="absolute inset-2 bg-gradient-to-br from-white/[0.03] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-[500ms] rounded-[16px]" />
 
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {experiments.map((exp) => (
-                            <Link
-                                key={exp.id}
-                                to={`/experiment/${exp.id}`}
-                                className="group relative overflow-hidden rounded-xl bg-slate-800/50 backdrop-blur-sm border border-white/10 transition-all hover:border-blue-500/50 hover:shadow-xl hover:shadow-blue-500/20"
-                            >
-                                {/* Thumbnail */}
-                                <div className="aspect-video bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                                    <div className="text-6xl opacity-50">⚛️</div>
+                            {/* Content Container */}
+                            <div className="relative z-10 flex flex-col h-full">
+                                {/* Header */}
+                                <div className="mb-6" style={{paddingLeft: '16px', paddingRight: '16px', paddingTop: '8px'}}>
+                                    <h3 className="text-[28px] leading-[1.1] font-[700] text-[#F0F6FC] mb-2 group-hover:text-white transition-colors duration-[400ms] tracking-tight">
+                                        {exp.title}
+                                    </h3>
+                                    <p className="text-[16px] leading-[1.5] font-[500] text-[#8B949E] group-hover:text-[#C9D1D9] transition-colors duration-[400ms]">
+                                        {exp.subtitle}
+                                    </p>
                                 </div>
 
-                                {/* Content */}
-                                <div className="p-6">
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
-                                            {exp.name}
-                                        </h3>
-                                        <span
-                                            className={`rounded-full px-2 py-1 text-xs font-medium ${difficultyColors[exp.difficulty]
-                                                }`}
-                                        >
-                                            {difficultyLabels[exp.difficulty]}
-                                        </span>
+                                {/* Diagram */}
+                                <div className="flex-1 flex items-center justify-center mb-8">
+                                    <div className="transform transition-all duration-[400ms] group-hover:scale-105">
+                                        {exp.diagram}
                                     </div>
-                                    <p className="text-sm text-slate-400">{exp.description}</p>
                                 </div>
 
-                                {/* Hover Effect */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                            </Link>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Coming Soon */}
-                <section className="mt-16">
-                    <h2 className="mb-6 text-2xl font-semibold text-white/50">
-                        即将推出
-                    </h2>
-                    <div className="grid gap-4 md:grid-cols-4">
-                        {['力学实验', '电磁学实验', '光学实验', '热学实验'].map(
-                            (category) => (
-                                <div
-                                    key={category}
-                                    className="rounded-lg bg-slate-800/30 border border-white/5 p-6 text-center"
-                                >
-                                    <p className="text-slate-500">{category}</p>
+                                {/* Call to Action */}
+                                <div className="flex items-center justify-between mt-auto" style={{paddingLeft: '16px', paddingRight: '16px', paddingBottom: '16px'}}>
+                                    <span className="text-[14px] font-[600] text-[#00FF41] opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0">
+                                        Explore Physics →
+                                    </span>
+                                    <div className="w-8 h-8 rounded-full bg-[#00FF41]/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform scale-75 group-hover:scale-100">
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                            <path d="M6 3L11 8L6 13" stroke="#00FF41" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                    </div>
                                 </div>
-                            )
-                        )}
-                    </div>
-                </section>
+                            </div>
+
+                           </Link>
+                    ))}
+                </div>
             </main>
         </div>
     );
