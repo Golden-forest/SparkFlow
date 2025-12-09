@@ -109,7 +109,7 @@ export default function Home() {
             {/* Header - Centered */}
             <header className="pt-16 pb-12">
                 <h1 className="text-[56px] leading-[1.1] font-[700] text-center tracking-[-0.02em] bg-gradient-to-br from-[#F0F6FC] to-[#00FF41] bg-clip-text text-transparent">
-                    AI Lab
+                    Spark Flow
                 </h1>
             </header>
 
