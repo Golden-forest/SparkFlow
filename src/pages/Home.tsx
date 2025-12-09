@@ -146,9 +146,20 @@ export default function Home() {
 
                                 {/* Call to Action */}
                                 <div className="flex items-center justify-between mt-auto" style={{paddingLeft: '16px', paddingRight: '16px', paddingBottom: '16px'}}>
-                                    <span className="text-[14px] font-[600] text-[#00FF41] opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0">
-                                        Explore Physics →
-                                    </span>
+                                    <div className="flex gap-3">
+                                        <span className="text-[14px] font-[600] text-[#00FF41] opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0">
+                                            Explore Physics →
+                                        </span>
+                                        {exp.id === 'hydrogen-transitions' && (
+                                            <Link
+                                                to="/experiment/hydrogen-transitions/abstract"
+                                                className="text-[14px] font-[600] text-purple-400 opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0 hover:text-purple-300"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                Abstract Demo →
+                                            </Link>
+                                        )}
+                                    </div>
                                     <div className="w-8 h-8 rounded-full bg-[#00FF41]/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform scale-75 group-hover:scale-100">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M6 3L11 8L6 13" stroke="#00FF41" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
