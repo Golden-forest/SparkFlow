@@ -103,14 +103,14 @@ export function calculateWavelength(deltaE: number): number {
  * 根据波长获取光子颜色
  */
 export function getPhotonColor(wavelength: number): string {
-    if (wavelength < 380) return '#8b00ff'; // 紫外
-    if (wavelength < 450) return '#4b0082'; // 紫
-    if (wavelength < 495) return '#0000ff'; // 蓝
-    if (wavelength < 570) return '#00ff00'; // 绿
-    if (wavelength < 590) return '#ffff00'; // 黄
-    if (wavelength < 620) return '#ff7f00'; // 橙
-    if (wavelength < 750) return '#ff0000'; // 红
-    return '#8b0000'; // 红外
+    if (wavelength < 380) return '#ff00ff'; // 紫外 - 亮紫
+    if (wavelength < 450) return '#8000ff'; // 紫 - 亮紫
+    if (wavelength < 495) return '#00aaff'; // 蓝 - 亮蓝
+    if (wavelength < 570) return '#00ff80'; // 绿 - 亮绿
+    if (wavelength < 590) return '#ffff00'; // 黄 - 亮黄
+    if (wavelength < 620) return '#ffaa00'; // 橙 - 亮橙
+    if (wavelength < 750) return '#ff4400'; // 红 - 亮红
+    return '#ff0044'; // 红外 - 亮红
 }
 
 /**

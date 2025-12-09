@@ -198,6 +198,17 @@ export default function ExperimentView() {
                         </button>
                     </div>
                 )}
+
+                {/* 氢原子实验跳转按钮 */}
+                {isHydrogen && (
+                    <Link
+                        to="/experiment/hydrogen-transitions/abstract"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                    >
+                        <span>切换到抽象演示</span>
+                        <ArrowLeft className="rotate-180" size={18} />
+                    </Link>
+                )}
             </header>
 
             {/* 3D场景 */}

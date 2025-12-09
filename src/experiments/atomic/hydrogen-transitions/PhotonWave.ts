@@ -19,7 +19,9 @@ export interface PhotonWaveConfig {
  * 用正弦波表示光子，展示波动性和相位
  */
 export class PhotonWave {
+    private group: THREE.Group; // 用于管理主线条和辉光线条的组
     private line: THREE.Line;
+    private glowLine: THREE.Line; // 辉光线条
     private points: THREE.Vector3[] = [];
     private config: PhotonWaveConfig;
     private currentPosition: THREE.Vector3;
@@ -38,22 +40,48 @@ export class PhotonWave {
         this.currentPosition = config.startPosition.clone();
         this.isIncoming = config.isIncoming;
 
-        // 创建材质
-        const colorVal = getPhotonColor(config.wavelength);
-        const material = new THREE.LineBasicMaterial({
-            color: colorVal || 0xff0000,
-            linewidth: 2,
-            transparent: false, // 暂时关闭透明度以排查可见性问题
-            opacity: 1.0,
-            depthTest: false,
-        });
+        // 创建组，用于管理主线条和辉光线条
+        this.group = new THREE.Group();
 
         // 初始生成点
         this.calculatePoints();
-        const geometry = new THREE.BufferGeometry().setFromPoints(this.points);
+        
+        // 获取光子颜色
+        const colorVal = getPhotonColor(config.wavelength);
+        
+        // 创建主线条材质
+        const mainMaterial = new THREE.LineBasicMaterial({
+            color: colorVal || 0xff0000,
+            linewidth: 3,
+            transparent: false,
+            opacity: 1.0,
+            depthTest: false,
+        });
+        
+        // 创建辉光材质（更粗、半透明）
+        const glowMaterial = new THREE.LineBasicMaterial({
+            color: colorVal || 0xff0000,
+            linewidth: 8,
+            transparent: true,
+            opacity: 0.4,
+            depthTest: false,
+        });
 
-        this.line = new THREE.Line(geometry, material);
+        // 创建几何形状
+        const geometry = new THREE.BufferGeometry().setFromPoints(this.points);
+        const glowGeometry = new THREE.BufferGeometry().setFromPoints(this.points);
+
+        // 创建线条对象
+        this.glowLine = new THREE.Line(glowGeometry, glowMaterial);
+        this.line = new THREE.Line(geometry, mainMaterial);
+        
+        // 设置渲染顺序，确保辉光在线条下方
+        this.glowLine.renderOrder = 998;
         this.line.renderOrder = 999;
+        
+        // 将线条添加到组中
+        this.group.add(this.glowLine);
+        this.group.add(this.line);
     }
 
     private calculatePoints(): void {
@@ -97,10 +125,18 @@ export class PhotonWave {
     private createWaveGeometry(): void {
         this.calculatePoints();
         const geometry = new THREE.BufferGeometry().setFromPoints(this.points);
+        const glowGeometry = new THREE.BufferGeometry().setFromPoints(this.points);
 
+        // 更新主线条
         if (this.line) {
             this.line.geometry.dispose();
             this.line.geometry = geometry;
+        }
+        
+        // 更新辉光线条
+        if (this.glowLine) {
+            this.glowLine.geometry.dispose();
+            this.glowLine.geometry = glowGeometry;
         }
     }
 
@@ -143,7 +179,10 @@ export class PhotonWave {
         if (this.lifetime > fadeStart) {
             const fadeProgress = (this.lifetime - fadeStart) / (this.maxLifetime - fadeStart);
             const opacity = 1.0 * (1 - fadeProgress); // Use 1.0 as base opacity
+            const glowOpacity = 0.4 * (1 - fadeProgress); // 辉光透明度单独计算
+            
             (this.line.material as THREE.LineBasicMaterial).opacity = opacity;
+            (this.glowLine.material as THREE.LineBasicMaterial).opacity = glowOpacity;
         }
 
         return true;
@@ -152,8 +191,8 @@ export class PhotonWave {
     /**
      * 获取3D对象
      */
-    getObject(): THREE.Line {
-        return this.line;
+    getObject(): THREE.Object3D {
+        return this.group;
     }
 
     /**
@@ -175,8 +214,16 @@ export class PhotonWave {
      * 清理资源
      */
     dispose(): void {
+        // 清理主线条资源
         this.line.geometry.dispose();
         (this.line.material as THREE.Material).dispose();
+        
+        // 清理辉光线条资源
+        this.glowLine.geometry.dispose();
+        (this.glowLine.material as THREE.Material).dispose();
+        
+        // 移除组中的所有对象
+        this.group.clear();
     }
 }
 
