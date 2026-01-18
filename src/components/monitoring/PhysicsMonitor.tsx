@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { QuantitySelector, type MonitoredQuantity } from './QuantitySelector';
@@ -48,6 +48,25 @@ export function PhysicsMonitor({
   onToggleExpand,
 }: PhysicsMonitorProps): JSX.Element {
   /**
+   * Validate selectedQuantities against available quantities
+   * Auto-cleanup invalid selections to prevent undefined access
+   */
+  const validSelectedQuantities = useMemo(
+    () =>
+      selectedQuantities.filter((id) => quantities.some((q) => q.id === id)),
+    [selectedQuantities, quantities]
+  );
+
+  /**
+   * Auto-cleanup invalid selections
+   */
+  useEffect(() => {
+    if (validSelectedQuantities.length !== selectedQuantities.length) {
+      onSelectionChange(validSelectedQuantities);
+    }
+  }, [validSelectedQuantities, selectedQuantities.length, onSelectionChange]);
+
+  /**
    * Render collapsed state - just a toggle button
    */
   if (!isExpanded) {
@@ -55,7 +74,8 @@ export function PhysicsMonitor({
       <button
         onClick={onToggleExpand}
         className="absolute right-0 top-1/2 -translate-y-1/2 bg-slate-800/90 backdrop-blur-md p-2 rounded-l-lg border border-l border-white/10 hover:bg-slate-700 transition-colors z-50"
-        title="Show Physics Monitor"
+        aria-label="Expand Physics Monitor"
+        aria-expanded={false}
       >
         <ChevronLeft size={20} className="text-white" />
       </button>
@@ -85,7 +105,8 @@ export function PhysicsMonitor({
               <button
                 onClick={onToggleExpand}
                 className="p-1 hover:bg-white/10 rounded transition-colors"
-                title="Hide Physics Monitor"
+                aria-label="Collapse Physics Monitor"
+                aria-expanded={true}
               >
                 <ChevronRight size={20} className="text-slate-400 hover:text-white" />
               </button>
@@ -94,7 +115,7 @@ export function PhysicsMonitor({
             {/* Quantity selector */}
             <QuantitySelector
               quantities={quantities}
-              selectedIds={selectedQuantities}
+              selectedIds={validSelectedQuantities}
               onChange={onSelectionChange}
             />
 
@@ -102,8 +123,8 @@ export function PhysicsMonitor({
 
             {/* Real-time values display */}
             <div className="space-y-3 mb-4">
-              {selectedQuantities.map(id => {
-                const quantity = quantities.find(q => q.id === id);
+              {validSelectedQuantities.map((id) => {
+                const quantity = quantities.find((q) => q.id === id);
                 return quantity ? (
                   <div
                     key={id}
@@ -128,7 +149,7 @@ export function PhysicsMonitor({
               })}
 
               {/* Empty state */}
-              {selectedQuantities.length === 0 && (
+              {validSelectedQuantities.length === 0 && (
                 <div className="text-center py-8 text-slate-500 text-sm">
                   No quantities selected.<br />
                   Select quantities above to monitor.
@@ -137,11 +158,11 @@ export function PhysicsMonitor({
             </div>
 
             {/* Real-time charts */}
-            {selectedQuantities.length > 0 && (
+            {validSelectedQuantities.length > 0 && (
               <>
                 <div className="h-px bg-white/10 my-4" />
                 <div className="space-y-4">
-                  {selectedQuantities.map(id => {
+                  {validSelectedQuantities.map((id) => {
                     const quantity = quantities.find(q => q.id === id);
                     return quantity ? (
                       <div key={id}>

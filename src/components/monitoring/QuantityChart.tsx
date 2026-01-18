@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -43,11 +43,16 @@ export function QuantityChart({
 }: QuantityChartProps): JSX.Element {
   /**
    * Limit displayed data to most recent points for performance
+   * Memoized to prevent recreation on every render
    */
-  const displayData = data.slice(-maxPoints).map((value, index) => ({
-    index,
-    value,
-  }));
+  const displayData = useMemo(
+    () =>
+      data.slice(-maxPoints).map((value, index) => ({
+        index,
+        value,
+      })),
+    [data, maxPoints]
+  );
 
   return (
     <div style={{ height }}>

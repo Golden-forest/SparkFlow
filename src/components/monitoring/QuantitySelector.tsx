@@ -94,6 +94,8 @@ export function QuantitySelector({
               checked={selectedIds.includes(quantity.id)}
               onChange={() => handleToggle(quantity.id)}
               className="rounded border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 focus:ring-1"
+              aria-label={`Toggle ${quantity.name} monitoring`}
+              aria-checked={selectedIds.includes(quantity.id)}
             />
             {/* Color indicator */}
             <div
