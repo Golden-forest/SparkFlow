@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { ExperimentBase, type ExperimentMetadata, type ExperimentConfig, type DisplayValue } from '@/experiments/base';
-import { ExperimentCategory, EARTH_GRAVITY } from '@/utils/constants';
+import { ExperimentCategory } from '@/utils/constants';
 import { PhysicsObjectFactory } from './objects/PhysicsObject';
 import { RampFactory } from './objects/Ramp';
+import { PhysicsEngine } from './physics/PhysicsEngine';
 import type { SimulationObject, ObjectType } from './types/ObjectTypes';
 import type { RampConfig, SimulationRamp } from './types/RampTypes';
 
@@ -217,75 +218,43 @@ export class MotionCollisionLab extends ExperimentBase {
   update(deltaTime: number): void {
     if (!this.isRunning) return;
 
-    // 更新物理（位置、重力）
-    this.updatePhysics(deltaTime);
+    // 更新位置
+    PhysicsEngine.updatePositions(this.simulationObjects, deltaTime);
+
+    // 地面碰撞检测
+    PhysicsEngine.detectGroundCollision(this.simulationObjects);
+
+    // 物体间碰撞检测
+    const collisions = PhysicsEngine.detectObjectCollisions(this.simulationObjects);
+    collisions.forEach((targets, id) => {
+      const obj1 = this.simulationObjects.get(id)!;
+      targets.forEach(targetId => {
+        const obj2 = this.simulationObjects.get(targetId)!;
+        PhysicsEngine.resolveCollision(obj1, obj2);
+      });
+    });
+
+    // 更新轨迹
+    this.updateTrajectories();
 
     // 更新时间
     this.simulationTime += deltaTime;
   }
 
   /**
-   * 更新物理状态 - 正确的欧拉积分顺序
-   * 1. 应用重力加速度 → 更新速度
-   * 2. 使用新速度 → 更新位置
-   * 3. 检测碰撞 → 修正位置和速度
+   * 更新轨迹
    */
-  private updatePhysics(deltaTime: number): void {
+  private updateTrajectories(): void {
     this.simulationObjects.forEach(obj => {
-      // 步骤1: 应用重力加速度更新速度
-      obj.velocity.y -= EARTH_GRAVITY * deltaTime;
-
-      // 步骤2: 使用新速度更新位置
-      const displacement = obj.velocity.clone().multiplyScalar(deltaTime);
-      obj.mesh.position.add(displacement);
-      obj.position.copy(obj.mesh.position);
-
-      // 步骤3: 地面碰撞检测和响应
-      this.handleGroundCollision(obj);
-    });
-  }
-
-  /**
-   * 处理地面碰撞
-   * 正确处理不同物体类型的碰撞边界
-   */
-  private handleGroundCollision(obj: SimulationObject): void {
-    // 根据物体类型确定碰撞边界
-    let collisionBoundary: number;
-
-    if (obj.type === 'sphere' && obj.radius !== undefined) {
-      // 球体使用半径
-      collisionBoundary = obj.radius;
-    } else if (obj.type === 'box' || obj.type === 'plank') {
-      // 盒子和木板使用高度的一半
-      collisionBoundary = (obj.height || 1) / 2;
-    } else {
-      // 默认边界
-      collisionBoundary = 0.5;
-    }
-
-    // 检测是否与地面碰撞
-    if (obj.mesh.position.y - collisionBoundary <= 0) {
-      // 修正位置，防止穿地
-      obj.mesh.position.y = collisionBoundary;
-      obj.position.y = collisionBoundary;
-
-      // 速度响应：反弹（非完全弹性碰撞）
-      if (obj.velocity.y < 0) {
-        const restitution = obj.restitution || 0.8; // 恢复系数
-        obj.velocity.y *= -restitution;
-
-        // 地面摩擦力
-        const friction = obj.friction || 0.98;
-        obj.velocity.x *= friction;
-        obj.velocity.z *= friction;
-
-        // 防止微小抖动：速度过小时直接归零
-        if (Math.abs(obj.velocity.y) < 0.1) {
-          obj.velocity.y = 0;
+      // 每隔一定帧数记录一次位置
+      if (this.simulationTime % 0.1 < 0.02) { // 约每0.1秒记录一次
+        obj.trajectory.push(obj.position.clone());
+        // 限制轨迹长度
+        if (obj.trajectory.length > 1000) {
+          obj.trajectory.shift();
         }
       }
-    }
+    });
   }
 
   /**
