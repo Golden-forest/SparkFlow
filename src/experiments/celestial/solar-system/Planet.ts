@@ -21,10 +21,13 @@ export class Planet {
         
         // 创建材质（普通和选中状态）
         this.normalMaterial = this.mesh.material as THREE.MeshStandardMaterial;
+
+        // 选中时增强发光效果，但保留纹理
         this.selectedMaterial = new THREE.MeshStandardMaterial({
+            map: (this.normalMaterial as THREE.MeshStandardMaterial).map,  // 保留纹理
             color: this.normalMaterial.color,
-            emissive: this.normalMaterial.emissive,  // Keep same emissive
-            emissiveIntensity: 0.8,                    // Much stronger glow when selected
+            emissive: this.normalMaterial.emissive,
+            emissiveIntensity: 0.4,              // 选中时增强发光（但保持纹理可见）
             metalness: this.normalMaterial.metalness,
             roughness: this.normalMaterial.roughness
         });
@@ -41,13 +44,23 @@ export class Planet {
         // 直接使用可视化数据中的尺寸参数
         const size = Math.max(0.1, this.params.size);
 
-        const geometry = new THREE.SphereGeometry(size, 32, 32);
+        const geometry = new THREE.SphereGeometry(size, 64, 64);
+
+        // 加载行星纹理贴图
+        const textureLoader = new THREE.TextureLoader();
+        const texturePath = `/textures/planets/${this.params.name.toLowerCase()}.jpg`;
+        const texture = textureLoader.load(texturePath);
+        texture.colorSpace = THREE.SRGBColorSpace;
+
+        // 创建材质 - 让纹理完全显示，仅在边缘加微弱发光
         const material = new THREE.MeshStandardMaterial({
-            color: this.params.color,
+            map: texture,                      // 纹理贴图
+            color: 0xffffff,                   // 使用白色让纹理完全显示
             metalness: 0.1,
-            roughness: 0.4,
-            emissive: this.params.color,        // NEW: Use planet color
-            emissiveIntensity: 0.8              // NEW: Very strong glow for energy field effect
+            roughness: 0.8,                    // 提高粗糙度让纹理更明显
+            emissive: this.params.color,       // 使用行星颜色作为发光色
+            emissiveIntensity: 0.05,           // 非常微弱的发光，仅在暗部可见
+            transparent: false
         });
 
         const mesh = new THREE.Mesh(geometry, material);

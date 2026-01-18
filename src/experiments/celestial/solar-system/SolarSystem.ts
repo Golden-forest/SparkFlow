@@ -138,11 +138,18 @@ export class SolarSystem extends ExperimentBase {
         if (!this.scene) return;
 
         const sunData = SOLAR_SYSTEM_VISUAL_DATA.sun;
-        const sunGeometry = new THREE.SphereGeometry(sunData.radius, 32, 32);
+        const sunGeometry = new THREE.SphereGeometry(sunData.radius, 64, 64);
+
+        // 加载太阳纹理
+        const textureLoader = new THREE.TextureLoader();
+        const sunTexture = textureLoader.load('/textures/planets/sun.jpg');
+        sunTexture.colorSpace = THREE.SRGBColorSpace;
+
         const sunMaterial = new THREE.MeshStandardMaterial({
-            color: sunData.color,
+            map: sunTexture,                  // 添加太阳纹理
+            color: 0xffffff,                  // 白色让纹理完全显示
             emissive: sunData.emissive,
-            emissiveIntensity: 2.5, // 增强自发光强度从 2.0 到 2.5
+            emissiveIntensity: 0.8,           // 大幅降低发光让纹理可见
             metalness: 0,
             roughness: 1
         });
