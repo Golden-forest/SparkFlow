@@ -391,6 +391,32 @@ pnpm test
 
 ## 编码规范
 
+### UI 国际化规范
+
+> [!IMPORTANT]
+> **所有面向用户的界面文本必须使用英文**
+
+1. **实验标题和描述**
+   - 实验类 `metadata.name` 必须使用英文
+   - 描述使用专业准确的科技英文术语
+
+2. **按钮和控件**
+   - 统一术语：`Back`、`Start`、`Pause`、`Resume`、`Reset`
+   - 使用祈使句，简洁明确
+
+3. **物理术语翻译标准**
+   - 受激吸收 → `Stimulated Absorption`
+   - 自发辐射 → `Spontaneous Emission`
+   - 受激辐射 → `Stimulated Emission`
+   - 能级跃迁 → `Energy Level Transition`
+   - 散射 → `Scattering`
+
+4. **按钮样式统一**
+   - 使用渐变背景：`bg-gradient-to-r from-{color}-600 to-{color}-500`
+   - 添加阴影：`shadow-lg shadow-{color}-900/30`
+   - 统一间距：`gap-2.5 px-5 py-2.5`
+   - 过渡动画：`transition-all duration-200`
+
 ### TypeScript 规范
 
 ```typescript
@@ -518,6 +544,13 @@ test('用户可以调节α粒子入射速度', async ({ page }) => {
 
 ## 变更记录
 
+### 2026-01-18 - 国际化与UI规范
+
+- ✨ **新增 UI 国际化规范**：所有用户界面文本必须使用英文
+- ✨ **统一按钮样式标准**：渐变背景、阴影效果、平滑动画
+- 📝 **物理术语翻译标准**：Stimulated Absorption、Spontaneous Emission 等
+- 🎨 **视觉风格统一**：科技未来主义设计语言
+
 ### 2025-12-04 21:25 - 架构重构
 
 **重大更新**: 基于行业调研，全面重构架构设计
@@ -585,4 +618,4 @@ test('用户可以调节α粒子入射速度', async ({ page }) => {
 
 ---
 
-*本文档随项目发展持续更新，最后修改时间: 2025-12-08*
+*本文档随项目发展持续更新，最后修改时间: 2026-01-18*
