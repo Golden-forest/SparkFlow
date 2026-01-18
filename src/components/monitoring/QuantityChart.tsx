@@ -58,8 +58,8 @@ export function QuantityChart({
 
           {/* Y-axis with auto-scaling */}
           <YAxis
-            domain={['auto', 'auto'}}
-            tickFormatter={(value) => value.toFixed(1)}
+            domain={['auto', 'auto']}
+            tickFormatter={function(value: unknown) { return Number(value).toFixed(1); }}
             stroke="#64748b"
             tick={{ fill: '#94a3b8', fontSize: 10 }}
             width={35}
@@ -75,7 +75,7 @@ export function QuantityChart({
             }}
             labelStyle={{ color: '#cbd5e1', fontSize: 12 }}
             itemStyle={{ color: '#fff', fontSize: 12 }}
-            formatter={(value: number) => [value.toFixed(2), unit]}
+            formatter={function(value: number) { return [value.toFixed(2), unit]; }}
             cursor={{ stroke: color, strokeWidth: 1 }}
           />
 
