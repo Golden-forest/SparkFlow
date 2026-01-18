@@ -6,6 +6,7 @@
 
 export { ProjectileMotion } from './projectile-motion';
 export { CircularMotion } from './circular-motion';
+export { Pendulum } from './pendulum';
 export { SimpleHarmonicMotion } from './simple-harmonic-motion';
 
 // Future experiments:
