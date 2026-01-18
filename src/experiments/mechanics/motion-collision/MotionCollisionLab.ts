@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { ExperimentBase, type ExperimentMetadata, type ExperimentConfig, type DisplayValue } from '@/experiments/base';
 import { ExperimentCategory, EARTH_GRAVITY } from '@/utils/constants';
 import { PhysicsObjectFactory } from './objects/PhysicsObject';
+import { RampFactory } from './objects/Ramp';
 import type { SimulationObject, ObjectType } from './types/ObjectTypes';
+import type { RampConfig, SimulationRamp } from './types/RampTypes';
 
 /**
  * 运动与碰撞实验室
@@ -49,6 +51,9 @@ export class MotionCollisionLab extends ExperimentBase {
   private simulationObjects: Map<string, SimulationObject> = new Map();
   private nextObjectId = 1;
   private simulationTime = 0;
+
+  // 斜面管理
+  private ramps: Map<string, SimulationRamp> = new Map();
 
   /**
    * 创建物体
@@ -109,6 +114,28 @@ export class MotionCollisionLab extends ExperimentBase {
     this.simulationObjects.delete(objectId);
 
     return true;
+  }
+
+  /**
+   * 添加斜面
+   */
+  addRamp(config: RampConfig): void {
+    const ramp = RampFactory.create(config);
+    this.ramps.set(config.id, { ...config, mesh: ramp });
+    this.addToScene(ramp);
+  }
+
+  /**
+   * 移除斜面
+   */
+  removeRamp(id: string): void {
+    const ramp = this.ramps.get(id);
+    if (ramp) {
+      this.removeFromScene(ramp.mesh);
+      ramp.mesh.geometry.dispose();
+      (ramp.mesh.material as THREE.Material).dispose();
+      this.ramps.delete(id);
+    }
   }
 
   /**
@@ -318,6 +345,14 @@ export class MotionCollisionLab extends ExperimentBase {
       }
     });
     this.simulationObjects.clear();
+
+    // 清理所有斜面
+    this.ramps.forEach(ramp => {
+      this.removeFromScene(ramp.mesh);
+      ramp.mesh.geometry.dispose();
+      (ramp.mesh.material as THREE.Material).dispose();
+    });
+    this.ramps.clear();
 
     // 清理 PhysicsObjectFactory 的共享材质
     PhysicsObjectFactory.dispose();
