@@ -89,25 +89,6 @@ export function TrajectoryLine({
     const lineColor = new THREE.Color(color);
 
     if (fadeEffect) {
-      // Use vertex colors for fade effect
-      const colors: number[] = [];
-      const pointCount = limitedPositions.length;
-
-      for (let i = 0; i < pointCount; i++) {
-        // Calculate fade factor (older points are more transparent)
-        const fadeFactor = i / (pointCount - 1);
-        colors.push(
-          lineColor.r * fadeFactor,
-          lineColor.g * fadeFactor,
-          lineColor.b * fadeFactor
-        );
-      }
-
-      // Add vertex colors to geometry
-      if (geometryRef.current) {
-        geometryRef.current.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-      }
-
       return new THREE.LineBasicMaterial({
         vertexColors: true,
         linewidth: lineWidth,
@@ -123,7 +104,29 @@ export function TrajectoryLine({
         opacity,
       });
     }
-  }, [color, lineWidth, opacity, fadeEffect, limitedPositions.length]);
+  }, [color, lineWidth, opacity, fadeEffect]);
+
+  // Update vertex colors for fade effect
+  useEffect(() => {
+    if (fadeEffect && geometryRef.current && limitedPositions.length >= 2) {
+      const lineColor = new THREE.Color(color);
+      const colors: number[] = [];
+      const pointCount = limitedPositions.length;
+
+      for (let i = 0; i < pointCount; i++) {
+        // Calculate fade factor (older points are more transparent)
+        const fadeFactor = i / (pointCount - 1);
+        colors.push(
+          lineColor.r * fadeFactor,
+          lineColor.g * fadeFactor,
+          lineColor.b * fadeFactor
+        );
+      }
+
+      // Add vertex colors to geometry
+      geometryRef.current.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    }
+  }, [fadeEffect, limitedPositions.length, color]);
 
   return (
     <primitive

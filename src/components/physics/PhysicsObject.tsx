@@ -92,7 +92,9 @@ export function PhysicsObject({
   metalness = 0.1,
 }: PhysicsObjectProps): JSX.Element {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [trajectoryHistory, setTrajectoryHistory] = useState<THREE.Vector3[]>([]);
+  const trajectoryHistoryRef = useRef<THREE.Vector3[]>([]);
+  const lastUpdateRef = useRef<number>(0);
+  const [, forceUpdate] = useState(0);
 
   // Update mesh position when position prop changes
   useEffect(() => {
@@ -101,17 +103,25 @@ export function PhysicsObject({
     }
   }, [position]);
 
-  // Update trajectory history
-  useFrame(() => {
+  // Update trajectory history with throttling (update every 0.1s)
+  useFrame(({ clock }) => {
     if (showTrajectory) {
-      setTrajectoryHistory(prev => {
-        const newHistory = [...prev, position.clone()];
+      const currentTime = clock.getElapsedTime();
+      const timeSinceLastUpdate = currentTime - lastUpdateRef.current;
+
+      // Throttle updates to every 0.1 seconds
+      if (timeSinceLastUpdate >= 0.1) {
+        trajectoryHistoryRef.current.push(position.clone());
+
         // Limit history size
-        if (newHistory.length > trajectoryMaxPoints) {
-          return newHistory.slice(-trajectoryMaxPoints);
+        if (trajectoryHistoryRef.current.length > trajectoryMaxPoints) {
+          trajectoryHistoryRef.current = trajectoryHistoryRef.current.slice(-trajectoryMaxPoints);
         }
-        return newHistory;
-      });
+
+        lastUpdateRef.current = currentTime;
+        // Trigger re-render to update trajectory line
+        forceUpdate(prev => prev + 1);
+      }
     }
   });
 
@@ -181,9 +191,9 @@ export function PhysicsObject({
       )}
 
       {/* Trajectory line */}
-      {showTrajectory && trajectoryHistory.length >= 2 && (
+      {showTrajectory && trajectoryHistoryRef.current.length >= 2 && (
         <TrajectoryLine
-          positions={trajectoryHistory}
+          positions={trajectoryHistoryRef.current}
           color={trajectoryColor}
           maxPoints={trajectoryMaxPoints}
           visible={true}

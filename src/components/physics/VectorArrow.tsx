@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -82,19 +82,22 @@ export function VectorArrow({
 
   if (!visible) return null;
 
+  // Create ArrowHelper instance only when dependencies change
+  const arrowHelper = useMemo(() => {
+    return new THREE.ArrowHelper(
+      direction,
+      origin,
+      arrowLength,
+      new THREE.Color(color),
+      calculatedHeadLength,
+      calculatedHeadWidth
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [direction, origin, arrowLength, color, calculatedHeadLength, calculatedHeadWidth]);
+
   return (
     <>
-      <primitive
-        ref={arrowRef}
-        object={new THREE.ArrowHelper(
-          direction,
-          origin,
-          arrowLength,
-          new THREE.Color(color),
-          calculatedHeadLength,
-          calculatedHeadWidth
-        )}
-      />
+      <primitive ref={arrowRef} object={arrowHelper} />
       {label && (
         <Html
           position={origin.clone().add(direction.clone().multiplyScalar(arrowLength))}
