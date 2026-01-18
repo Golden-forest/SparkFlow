@@ -5,8 +5,8 @@
  */
 
 export { ProjectileMotion } from './projectile-motion';
+export { CircularMotion } from './circular-motion';
+export { SimpleHarmonicMotion } from './simple-harmonic-motion';
 
 // Future experiments:
-// export { CircularMotion } from './circular-motion';
-// export { SimpleHarmonicMotion } from './simple-harmonic-motion';
 // export { Collision } from './collision';
