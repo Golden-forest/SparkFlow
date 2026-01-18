@@ -369,29 +369,29 @@ export default function MacroExperimentView() {
         <div className="h-screen flex flex-col bg-slate-900">
             <header className="flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur-sm px-6 py-4 z-10">
                 <div className="flex items-center gap-4">
-                    <Link to="/" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                        <ArrowLeft size={20} />
-                        <span>返回</span>
+                    <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10">
+                        <ArrowLeft size={18} />
+                        <span className="font-medium">Back</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
-                    <h1 className="text-xl font-semibold text-white">卢瑟福α粒子散射实验 - 实验装置</h1>
+                    <h1 className="text-xl font-semibold text-white tracking-wide">Rutherford α-Particle Scattering - Device View</h1>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setIsRunning(!isRunning)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isRunning ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'
-                            } text-white`}
+                        className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-lg ${isRunning ? 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white shadow-orange-900/30' : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-emerald-900/30'
+                            }`}
                     >
                         {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                        {isRunning ? '暂停' : '开始'}
+                        <span className="tracking-wide">{isRunning ? 'Pause' : 'Start'}</span>
                     </button>
                     <button
                         onClick={handleReset}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                        className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-medium transition-all duration-200 shadow-lg shadow-slate-900/30 border border-white/10"
                     >
                         <RotateCcw size={18} />
-                        重置
+                        <span className="tracking-wide">Reset</span>
                     </button>
                 </div>
             </header>
@@ -416,22 +416,22 @@ export default function MacroExperimentView() {
 
                 {/* 右下角数据面板 */}
                 <div className="absolute bottom-4 right-4 w-64 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-white/10 p-3">
-                    <h3 className="text-sm font-semibold text-white mb-2">实验数据</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2">Experiment Data</h3>
                     <div className="space-y-1 text-xs">
                         <div className="flex justify-between">
-                            <span className="text-slate-400">发射粒子</span>
+                            <span className="text-slate-400">Particles Emitted</span>
                             <span className="text-white font-mono">{stats.total}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-yellow-400">直接穿过</span>
+                            <span className="text-yellow-400">Direct Passage</span>
                             <span className="text-white font-mono">{stats.direct} ({stats.total > 0 ? ((stats.direct / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-orange-400">小角度散射</span>
+                            <span className="text-orange-400">Small Angle Scatter</span>
                             <span className="text-white font-mono">{stats.small} ({stats.total > 0 ? ((stats.small / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-red-400">大角度散射</span>
+                            <span className="text-red-400">Large Angle Scatter</span>
                             <span className="text-white font-mono">{stats.large} ({stats.total > 0 ? ((stats.large / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                     </div>
@@ -442,7 +442,7 @@ export default function MacroExperimentView() {
                             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 rounded-lg transition-colors"
                         >
                             <ZoomIn size={16} />
-                            查看微观视图
+                            View Microscopic
                         </button>
                     </div>
                 </div>
@@ -452,15 +452,15 @@ export default function MacroExperimentView() {
                     <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                            <span className="text-slate-300">直接穿过</span>
+                            <span className="text-slate-300">Direct Passage</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-orange-400"></div>
-                            <span className="text-slate-300">小角度散射</span>
+                            <span className="text-slate-300">Small Angle</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <span className="text-slate-300">大角度散射</span>
+                            <span className="text-slate-300">Large Angle</span>
                         </div>
                     </div>
                 </div>

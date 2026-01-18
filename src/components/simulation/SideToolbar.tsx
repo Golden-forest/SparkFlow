@@ -56,20 +56,20 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                 {/* 标题 */}
                 <div className="flex items-center gap-2 border-b border-white/10 pb-4">
                     <Atom className="text-blue-400" size={24} />
-                    <h3 className="text-white font-semibold">控制面板</h3>
+                    <h3 className="text-white font-semibold">Control Panel</h3>
                 </div>
 
                 {/* 场景选择 */}
                 <div className="flex flex-col gap-2">
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">实验场景</span>
+                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Experiment Mode</span>
                     <select
                         value={sceneMode}
                         onChange={(e) => onSceneModeChange(e.target.value as SceneMode)}
                         className="bg-slate-800 text-white text-sm rounded-lg border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
                     >
-                        <option value="stimulated-absorption">受激吸收 (Absorb)</option>
-                        <option value="spontaneous-emission">自发辐射 (Spontaneous)</option>
-                        <option value="stimulated-emission">受激辐射 (Stimulated)</option>
+                        <option value="stimulated-absorption">Stimulated Absorption</option>
+                        <option value="spontaneous-emission">Spontaneous Emission</option>
+                        <option value="stimulated-emission">Stimulated Emission</option>
                     </select>
                 </div>
 
@@ -79,7 +79,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                 <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                            {sceneMode === 'stimulated-absorption' ? '初始能级' : '激发态能级'}
+                            {sceneMode === 'stimulated-absorption' ? 'Initial Energy Level' : 'Excited State Level'}
                         </span>
                         <span className="text-white font-mono bg-slate-800 px-2 py-0.5 rounded text-sm">
                             n = {currentLevel}
@@ -109,7 +109,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                         <div className="h-px bg-white/10" />
                         <div className="flex flex-col gap-3">
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">光子能量</span>
+                                <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Photon Energy</span>
                                 <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${validEnergies.includes(photonEnergy)
                                         ? 'bg-green-500/20 text-green-400'
                                         : 'bg-slate-700 text-slate-300'
@@ -149,12 +149,12 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                                     }`}
                             >
                                 <span className="text-yellow-300">⚡</span>
-                                发射光子
+                                Emit Photon
                             </button>
                             <p className="text-[10px] text-slate-500 text-center leading-tight">
                                 {validEnergies.includes(photonEnergy)
-                                    ? '能量匹配！可以激发跃迁'
-                                    : '能量未匹配，光子将穿过原子'}
+                                    ? 'Energy matched! Transition possible'
+                                    : 'Energy mismatch, photon will pass through'}
                             </p>
                         </div>
                     </>
@@ -165,7 +165,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                     <>
                         <div className="h-px bg-white/10" />
                         <div className="flex flex-col gap-2">
-                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">电子数量</span>
+                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">Electron Count</span>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => onElectronCountChange('single')}
@@ -174,7 +174,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                                             : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
                                         }`}
                                 >
-                                    单电子
+                                    Single Electron
                                 </button>
                                 <button
                                     onClick={() => onElectronCountChange('multi')}
@@ -183,7 +183,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                                             : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
                                         }`}
                                 >
-                                    多电子
+                                    Multiple Electrons
                                 </button>
                             </div>
                         </div>
@@ -197,7 +197,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                                     }`}
                             >
                                 {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                                {isRunning ? '暂停实验' : '开始实验'}
+                                {isRunning ? 'Pause Experiment' : 'Start Experiment'}
                             </button>
                         </div>
                     </>
@@ -210,7 +210,7 @@ export const SideToolbar: React.FC<SideToolbarProps> = ({
                         className="w-full flex items-center justify-center gap-2 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-sm"
                     >
                         <RotateCcw size={16} />
-                        重置所有状态
+                        Reset All States
                     </button>
                 </div>
             </div>

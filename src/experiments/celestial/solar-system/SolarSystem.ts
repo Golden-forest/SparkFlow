@@ -13,12 +13,12 @@ import { CAMERA_CONFIG, SOLAR_SYSTEM_VISUAL_DATA, SATELLITE_VISUAL_DATA } from '
 export class SolarSystem extends ExperimentBase {
     readonly metadata = {
         id: 'solar-system',
-        name: '天体运动模拟',
+        name: 'Celestial Motion Simulation',
         category: 'celestial' as ExperimentCategory,
-        description: '探索太阳系行星运动和地球卫星轨道',
+        description: 'Explore planetary motion in the solar system and Earth satellite orbits',
         difficulty: 'intermediate' as ExperimentDifficulty,
         duration: 20,
-        keywords: ['太阳系', '行星', '卫星', '轨道', '万有引力'],
+        keywords: ['solar system', 'planets', 'satellites', 'orbits', 'gravitation'],
         thumbnail: '/thumbnails/solar-system.png',
     };
 

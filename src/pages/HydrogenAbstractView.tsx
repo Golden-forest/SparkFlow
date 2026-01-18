@@ -534,14 +534,14 @@ export default function HydrogenAbstractView() {
                 <div className="flex items-center gap-4">
                     <Link
                         to="/experiment/hydrogen-transitions"
-                        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10"
                     >
-                        <ArrowLeft size={20} />
-                        <span>返回实验</span>
+                        <ArrowLeft size={18} />
+                        <span className="font-medium">Back to Experiment</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
-                    <h1 className="text-xl font-semibold text-white">
-                        氢原子能级跃迁 - 抽象演示
+                    <h1 className="text-xl font-semibold text-white tracking-wide">
+                        Hydrogen Energy Level Transitions - Abstract Demo
                     </h1>
                 </div>
             </header>
@@ -567,10 +567,10 @@ export default function HydrogenAbstractView() {
                         />
                         {/* Titles */}
                         <text x={width * 0.25} y={40} textAnchor="middle" fill="#ffffff" opacity={0.5} fontSize={14}>
-                            跃迁演示区域
+                            Transition Demo Area
                         </text>
                         <text x={width * 0.75} y={40} textAnchor="middle" fill="#ffffff" opacity={0.5} fontSize={14}>
-                            跃迁能级图
+                            Energy Level Diagram
                         </text>
 
                         {/* 0.5 Incident Particles */}
