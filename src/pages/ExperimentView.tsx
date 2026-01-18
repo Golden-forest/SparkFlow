@@ -205,14 +205,14 @@ export default function ExperimentView() {
                 <div className="flex items-center gap-4">
                     <Link
                         to={isRutherfordMicro ? '/experiment/rutherford-scattering' : '/'}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10"
                     >
-                        {isRutherfordMicro ? <ZoomOut size={20} /> : <ArrowLeft size={20} />}
-                        <span>{isRutherfordMicro ? '返回装置视图' : '返回'}</span>
+                        {isRutherfordMicro ? <ZoomOut size={18} /> : <ArrowLeft size={18} />}
+                        <span className="font-medium">{isRutherfordMicro ? 'Back to Device' : 'Back'}</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
-                    <h1 className="text-xl font-semibold text-white">
-                        {currentExperiment?.metadata.name ?? '实验'}
+                    <h1 className="text-xl font-semibold text-white tracking-wide">
+                        {currentExperiment?.metadata.name ?? 'Experiment'}
                     </h1>
                 </div>
 
@@ -221,20 +221,20 @@ export default function ExperimentView() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={handlePlayPause}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors ${isPlaying
-                                ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                : 'bg-green-600 hover:bg-green-700 text-white'
+                            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-lg ${isPlaying
+                                ? 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white shadow-orange-900/30'
+                                : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-emerald-900/30'
                                 }`}
                         >
                             {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                            <span>{isPlaying ? '暂停' : state === SimulationState.Paused ? '继续' : '开始实验'}</span>
+                            <span className="tracking-wide">{isPlaying ? 'Pause' : state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
                         </button>
                         <button
                             onClick={handleReset}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                            className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-medium transition-all duration-200 shadow-lg shadow-slate-900/30 border border-white/10"
                         >
                             <RotateCcw size={18} />
-                            <span>重置</span>
+                            <span className="tracking-wide">Reset</span>
                         </button>
                     </div>
                 )}
@@ -305,21 +305,7 @@ export default function ExperimentView() {
                     />
                 )}
 
-                {/* 数据统计面板 - 氢原子实验可能不需要这个通用面板，或者简化显示 */}
-                {!isHydrogen && <DataDisplay data={displayData} />}
-
-                {/* 实验说明卡片 - 右下角 (氢原子模式下需要让位给 SideToolbar, 改到左下角) */}
-                <div className={`absolute w-64 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-white/10 p-3 ${isHydrogen ? 'bottom-4 left-4' : 'bottom-4 right-4'
-                    }`}>
-                    <h3 className="text-sm font-semibold text-white mb-2">实验说明</h3>
-                    <div className="space-y-1.5 text-xs text-slate-300">
-                        {getExperimentDescription(experimentId).map((item, index) => (
-                            <p key={index}>
-                                <span className={`${item.colorClass} font-medium`}>{item.label}</span>：{item.description}
-                            </p>
-                        ))}
-                    </div>
-                </div>
+                {/* 数据统计面板和实验说明已移除 */}
             </main>
         </div>
     );

@@ -57,8 +57,13 @@ function CameraController({
                 ref={controlsRef}
                 enableDamping
                 dampingFactor={0.05}
+                enablePan={true}
+                enableZoom={true}
                 minDistance={1}
-                maxDistance={100}
+                maxDistance={200}
+                panSpeed={0.5}
+                rotateSpeed={0.5}
+                zoomSpeed={0.8}
             />
         </>
     );
