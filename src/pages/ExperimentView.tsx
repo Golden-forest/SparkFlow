@@ -62,6 +62,7 @@ export default function ExperimentView() {
     const isRutherfordMicro = location.pathname === '/experiment/rutherford-scattering/micro';
     const experimentId = isRutherfordMicro ? 'rutherford-scattering' : paramId;
     const isHydrogen = experimentId === 'hydrogen-transitions';
+    const isMotionLab = experimentId === 'motion-collision'; // Task 2.4: 运动与碰撞实验室标识
 
     const { state, start, pause, resume, reset, setExperiment, currentExperiment } = useSimulationStore();
 
