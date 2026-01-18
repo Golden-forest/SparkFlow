@@ -41,3 +41,22 @@ export const SimulationState = {
 } as const;
 
 export type SimulationState = typeof SimulationState[keyof typeof SimulationState];
+
+// 力学实验类别
+export const MechanicsExperimentType = {
+    PROJECTILE_MOTION: 'projectile-motion',
+    CIRCULAR_MOTION: 'circular-motion',
+    SIMPLE_HARMONIC_MOTION: 'simple-harmonic-motion',
+    COLLISION: 'collision',
+} as const;
+
+export type MechanicsExperimentType = typeof MechanicsExperimentType[keyof typeof MechanicsExperimentType];
+
+// 标准重力加速度 (m/s²)
+export const STANDARD_GRAVITY = 9.80665;
+
+// 地球表面重力加速度近似值
+export const EARTH_GRAVITY = 9.8;
+
+// 空气阻力系数（可选，虽然我们使用理想化模型）
+export const AIR_DENSITY = 1.225; // kg/m³ at sea level
