@@ -160,11 +160,11 @@ export class SolarSystem extends ExperimentBase {
 
         // 添加太阳光晕效果
         // 外层光晕（大而淡）
-        const outerGlowGeometry = new THREE.SphereGeometry(10, 32, 32); // 比太阳稍大（半径8）
+        const outerGlowGeometry = new THREE.SphereGeometry(6.5, 32, 32); // 缩小光晕（太阳半径5）
         const outerGlowMaterial = new THREE.MeshBasicMaterial({
             color: 0xffaa00,
             transparent: true,
-            opacity: 0.25, // 增强外层光晕不透明度从 0.15 到 0.25
+            opacity: 0.15, // 降低不透明度让光晕更柔和
             side: THREE.BackSide, // 渲染球体内部
         });
         const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
@@ -172,11 +172,11 @@ export class SolarSystem extends ExperimentBase {
         this.sunGlows.push(outerGlow); // 追踪光晕网格以便清理
 
         // 内层光晕（小而亮）
-        const innerGlowGeometry = new THREE.SphereGeometry(9, 32, 32);
+        const innerGlowGeometry = new THREE.SphereGeometry(5.8, 32, 32); // 紧贴太阳表面
         const innerGlowMaterial = new THREE.MeshBasicMaterial({
             color: 0xffdd00,
             transparent: true,
-            opacity: 0.25,
+            opacity: 0.2, // 降低不透明度
             side: THREE.BackSide,
         });
         const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
@@ -210,7 +210,8 @@ export class SolarSystem extends ExperimentBase {
 
         this.satellites = SATELLITE_VISUAL_DATA.satellites.map(params => {
             const satellite = new Satellite(this.scene!, params);
-            satellite.getMesh().visible = false; // 初始隐藏
+            satellite.getMesh().visible = false; // 初始隐藏卫星本身
+            satellite.getOrbitLine().visible = false; // 初始隐藏卫星轨道线
             return satellite;
         });
     }

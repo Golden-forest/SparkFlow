@@ -41,7 +41,7 @@ export interface VisualSatelliteParams {
 export const SOLAR_SYSTEM_VISUAL_DATA = {
     // 太阳参数
     sun: {
-        radius: 8,                      // 使用新的大小设置
+        radius: 5,                      // 视觉平衡：降低至 5（从 8），让行星更明显
         color: 0xffdd00,
         emissive: 0xffaa00,
         emissiveIntensity: 2,
@@ -49,14 +49,14 @@ export const SOLAR_SYSTEM_VISUAL_DATA = {
 
     // 行星数据
     planets: [
-        { name: '水星', orbit: 8,   size: 0.3, color: 0x8C7853, speed: 4.0,   period: '88天' },
-        { name: '金星', orbit: 12,  size: 0.5, color: 0xFFC649, speed: 1.6,   period: '225天' },
-        { name: '地球', orbit: 16,  size: 0.5, color: 0x4169E1, speed: 1.0,   period: '365天' },
-        { name: '火星', orbit: 20,  size: 0.4, color: 0xCD5C5C, speed: 0.53,  period: '687天' },
-        { name: '木星', orbit: 28,  size: 1.5, color: 0xD8CA9D, speed: 0.24,  period: '12年' },
-        { name: '土星', orbit: 36,  size: 1.2, color: 0xFAD5A5, speed: 0.10,  period: '29年' },
-        { name: '天王星', orbit: 44, size: 0.9, color: 0x4FD0E7, speed: 0.04,  period: '84年' },
-        { name: '海王星', orbit: 52, size: 0.9, color: 0x4169E1, speed: 0.02,  period: '165年' },
+        { name: '水星', orbit: 12,  size: 0.5, color: 0x8C7853, speed: 4.0,   period: '88天' },
+        { name: '金星', orbit: 18,  size: 0.8, color: 0xFFC649, speed: 1.6,   period: '225天' },
+        { name: '地球', orbit: 26,  size: 0.9, color: 0x4169E1, speed: 1.0,   period: '365天' },
+        { name: '火星', orbit: 34,  size: 0.7, color: 0xCD5C5C, speed: 0.53,  period: '687天' },
+        { name: '木星', orbit: 48,  size: 2.2, color: 0xD8CA9D, speed: 0.24,  period: '12年' },
+        { name: '土星', orbit: 64,  size: 1.8, color: 0xFAD5A5, speed: 0.10,  period: '29年' },
+        { name: '天王星', orbit: 78, size: 1.4, color: 0x4FD0E7, speed: 0.04,  period: '84年' },
+        { name: '海王星', orbit: 92, size: 1.4, color: 0x4169E1, speed: 0.02,  period: '165年' },
     ] as VisualPlanetParams[],
 };
 
