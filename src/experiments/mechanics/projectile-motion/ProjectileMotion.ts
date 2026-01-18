@@ -186,26 +186,28 @@ export class ProjectileMotion extends ExperimentBase {
   }
 
   private updateTrajectoryLine(): void {
-    if (!this.showTrajectory || this.trajectoryHistory.length < 2) {
+    // Check if trajectory should be shown
+    const showTrajectory = this.getParameter('showTrajectory') as boolean;
+    if (!showTrajectory || this.trajectoryHistory.length < 2) {
       return;
     }
 
-    // 移除旧轨迹线
-    if (this.trajectoryLine) {
-      this.removeFromScene(this.trajectoryLine);
+    // Reuse geometry and material, only update vertices
+    if (!this.trajectoryLine) {
+      const geometry = new THREE.BufferGeometry();
+      const material = new THREE.LineBasicMaterial({
+        color: 0x00ff00,
+        transparent: true,
+        opacity: 0.6,
+      });
+      this.trajectoryLine = new THREE.Line(geometry, material);
+      this.addToScene(this.trajectoryLine);
     }
 
-    // 创建新轨迹线
+    // Update only vertex positions
     const points = this.trajectoryHistory;
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({
-      color: 0x00ff00,
-      transparent: true,
-      opacity: 0.6,
-    });
-
-    this.trajectoryLine = new THREE.Line(geometry, material);
-    this.addToScene(this.trajectoryLine);
+    this.trajectoryLine.geometry.setFromPoints(points);
+    this.trajectoryLine.geometry.attributes.position.needsUpdate = true;
   }
 
   private resetProjectile(): void {
@@ -348,6 +350,11 @@ export class ProjectileMotion extends ExperimentBase {
     // 清理轨迹线
     if (this.trajectoryLine) {
       this.removeFromScene(this.trajectoryLine);
+      // Properly dispose geometry and material to prevent memory leaks
+      this.trajectoryLine.geometry.dispose();
+      if (this.trajectoryLine.material instanceof THREE.Material) {
+        this.trajectoryLine.material.dispose();
+      }
       this.trajectoryLine = null;
     }
 
