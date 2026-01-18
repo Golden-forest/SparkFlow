@@ -23,8 +23,8 @@ export class Satellite {
         this.normalMaterial = this.mesh.material as THREE.MeshStandardMaterial;
         this.selectedMaterial = new THREE.MeshStandardMaterial({
             color: this.normalMaterial.color,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.5,
+            emissive: this.normalMaterial.emissive, // Keep satellite's glow color
+            emissiveIntensity: 0.8,                  // Same strong glow
             metalness: this.normalMaterial.metalness,
             roughness: this.normalMaterial.roughness
         });
@@ -44,8 +44,10 @@ export class Satellite {
         const geometry = new THREE.SphereGeometry(size, 16, 16);
         const material = new THREE.MeshStandardMaterial({
             color: this.params.color,
-            metalness: 0.5,
-            roughness: 0.5
+            metalness: 0.1,              // Lower metalness for glow effect
+            roughness: 0.4,              // Lower roughness for smooth surface
+            emissive: this.params.color, // NEW: Use satellite color for glow
+            emissiveIntensity: 0.8       // NEW: Strong glow like energy fields
         });
 
         const mesh = new THREE.Mesh(geometry, material);
@@ -79,13 +81,18 @@ export class Satellite {
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0x888888,
-            opacity: 0.4,
-            transparent: true
+        const material = new THREE.LineDashedMaterial({
+            color: 0x00ffff,           // Cyan color for satellites (brighter than planets)
+            dashSize: 0.4,             // Slightly smaller dashes
+            gapSize: 0.2,              // Smaller gaps
+            scale: 1,
+            transparent: true,
+            opacity: 0.5,              // More visible since satellites are smaller
         });
 
-        return new THREE.Line(geometry, material);
+        const orbitLine = new THREE.Line(geometry, material);
+        orbitLine.computeLineDistances(); // CRITICAL: Required for dashed lines to render
+        return orbitLine;
     }
 
     /**

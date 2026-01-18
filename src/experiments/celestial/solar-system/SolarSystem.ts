@@ -142,7 +142,7 @@ export class SolarSystem extends ExperimentBase {
         const sunMaterial = new THREE.MeshStandardMaterial({
             color: sunData.color,
             emissive: sunData.emissive,
-            emissiveIntensity: sunData.emissiveIntensity,
+            emissiveIntensity: 2.5, // 增强自发光强度从 2.0 到 2.5
             metalness: 0,
             roughness: 1
         });
@@ -157,7 +157,7 @@ export class SolarSystem extends ExperimentBase {
         const outerGlowMaterial = new THREE.MeshBasicMaterial({
             color: 0xffaa00,
             transparent: true,
-            opacity: 0.15,
+            opacity: 0.25, // 增强外层光晕不透明度从 0.15 到 0.25
             side: THREE.BackSide, // 渲染球体内部
         });
         const outerGlow = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
@@ -176,8 +176,13 @@ export class SolarSystem extends ExperimentBase {
         this.sun.add(innerGlow);
         this.sunGlows.push(innerGlow); // 追踪光晕网格以便清理
 
-        // 添加太阳光
-        const sunLight = new THREE.PointLight(sunData.color, 2, 200);
+        // 添加太阳光 (增强科技未来感氛围)
+        const sunLight = new THREE.PointLight(
+            0xffdd00,    // 暖黄色
+            3,           // 增强强度从0.8到3
+            300,         // 增加距离从200到300
+            1            // Decay
+        );
         this.addToScene(sunLight);
     }
 
@@ -209,12 +214,15 @@ export class SolarSystem extends ExperimentBase {
     private setupLights(): void {
         if (!this.scene) return;
 
-        // 环境光
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        // 环境光 (冷蓝色营造科技未来感氛围)
+        const ambientLight = new THREE.AmbientLight(
+            0x404080,    // 冷蓝色 (从中性灰改为冷蓝)
+            0.3          // 稍微提高强度从0.2到0.3
+        );
         this.addToScene(ambientLight);
 
-        // 方向光（用于补光）
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.2);
+        // 方向光（用于补光,降低强度）
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.1);
         directionalLight.position.set(100, 100, 100);
         this.addToScene(directionalLight);
     }

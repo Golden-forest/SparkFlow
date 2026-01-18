@@ -23,8 +23,8 @@ export class Planet {
         this.normalMaterial = this.mesh.material as THREE.MeshStandardMaterial;
         this.selectedMaterial = new THREE.MeshStandardMaterial({
             color: this.normalMaterial.color,
-            emissive: 0xffffff,
-            emissiveIntensity: 0.3,
+            emissive: this.normalMaterial.emissive,  // Keep same emissive
+            emissiveIntensity: 0.8,                    // Much stronger glow when selected
             metalness: this.normalMaterial.metalness,
             roughness: this.normalMaterial.roughness
         });
@@ -44,8 +44,10 @@ export class Planet {
         const geometry = new THREE.SphereGeometry(size, 32, 32);
         const material = new THREE.MeshStandardMaterial({
             color: this.params.color,
-            metalness: 0.3,
-            roughness: 0.7
+            metalness: 0.1,
+            roughness: 0.4,
+            emissive: this.params.color,        // NEW: Use planet color
+            emissiveIntensity: 0.8              // NEW: Very strong glow for energy field effect
         });
 
         const mesh = new THREE.Mesh(geometry, material);
@@ -71,13 +73,18 @@ export class Planet {
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0x666666,
-            opacity: 0.3,
-            transparent: true
+        const material = new THREE.LineDashedMaterial({
+            color: 0x4488ff,           // Tech blue color
+            dashSize: 0.5,             // Dash length
+            gapSize: 0.3,              // Gap between dashes
+            scale: 1,
+            transparent: true,
+            opacity: 0.4,
         });
 
-        return new THREE.Line(geometry, material);
+        const orbitLine = new THREE.Line(geometry, material);
+        orbitLine.computeLineDistances(); // CRITICAL: Enables dashed rendering
+        return orbitLine;
     }
 
     /**

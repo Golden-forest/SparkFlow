@@ -116,7 +116,9 @@ export function SceneContainer({
                 toneMapping: THREE.ACESFilmicToneMapping,
                 toneMappingExposure: 1.0,
             }}
-            style={{ background: backgroundColor }}
+            style={{
+                background: 'linear-gradient(to bottom, #0a0e27 0%, #0f172a 100%)'
+            }}
         >
             <CameraController
                 position={cameraPosition}
