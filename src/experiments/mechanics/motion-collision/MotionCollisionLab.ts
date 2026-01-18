@@ -4,6 +4,7 @@ import { ExperimentCategory } from '@/utils/constants';
 import { PhysicsObjectFactory } from './objects/PhysicsObject';
 import { RampFactory } from './objects/Ramp';
 import { PhysicsEngine } from './physics/PhysicsEngine';
+import { TrajectoryManager } from './components/TrajectoryManager';
 import type { SimulationObject, ObjectType } from './types/ObjectTypes';
 import type { RampConfig, SimulationRamp } from './types/RampTypes';
 
@@ -53,6 +54,11 @@ export class MotionCollisionLab extends ExperimentBase {
   private nextObjectId = 1;
   private simulationTime = 0;
 
+  // 轨迹管理
+  private trajectoryLines: Map<string, THREE.Line> = new Map();
+  private trajectoryRecordTimes: Map<string, number> = new Map();
+  private showTrajectory = true; // 参数控制
+
   // 斜面管理
   private ramps: Map<string, SimulationRamp> = new Map();
 
@@ -93,6 +99,18 @@ export class MotionCollisionLab extends ExperimentBase {
   removeObject(objectId: string): boolean {
     const obj = this.simulationObjects.get(objectId);
     if (!obj) return false;
+
+    // 移除轨迹线
+    const line = this.trajectoryLines.get(objectId);
+    if (line) {
+      this.removeFromScene(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+      this.trajectoryLines.delete(objectId);
+    }
+
+    // 清除轨迹记录时间
+    this.trajectoryRecordTimes.delete(objectId);
 
     // 从场景中移除
     if (obj.mesh) {
@@ -207,9 +225,17 @@ export class MotionCollisionLab extends ExperimentBase {
     this.simulationTime = 0;
     // 清除所有轨迹
     this.simulationObjects.forEach(obj => {
-      obj.trajectory = [];
+      TrajectoryManager.clearTrajectory(obj);
       obj.velocity.set(0, 0, 0);
     });
+
+    // 清除所有轨迹线的几何体
+    this.trajectoryLines.forEach(line => {
+      line.geometry.setFromPoints([]);
+    });
+
+    // 清除轨迹记录时间
+    this.trajectoryRecordTimes.clear();
   }
 
   /**
@@ -245,16 +271,52 @@ export class MotionCollisionLab extends ExperimentBase {
    * 更新轨迹
    */
   private updateTrajectories(): void {
-    this.simulationObjects.forEach(obj => {
-      // 每隔一定帧数记录一次位置
-      if (this.simulationTime % 0.1 < 0.02) { // 约每0.1秒记录一次
-        obj.trajectory.push(obj.position.clone());
-        // 限制轨迹长度
-        if (obj.trajectory.length > 1000) {
-          obj.trajectory.shift();
-        }
+    this.simulationObjects.forEach((obj, id) => {
+      // 获取该对象的上次记录时间，如果没有则使用0
+      const lastRecordTime = this.trajectoryRecordTimes.get(id) || 0;
+
+      // 更新轨迹数据，并获取新的记录时间
+      const newRecordTime = TrajectoryManager.updateTrajectory(
+        obj,
+        this.simulationTime,
+        this.showTrajectory,
+        lastRecordTime
+      );
+
+      // 存储新的记录时间
+      this.trajectoryRecordTimes.set(id, newRecordTime);
+
+      // 获取或创建轨迹线
+      let line = this.trajectoryLines.get(id);
+      if (!line) {
+        line = TrajectoryManager.createTrajectoryLine(
+          obj.type === 'sphere' ? 0x00ff41 : 0x60a5fa
+        );
+        this.trajectoryLines.set(id, line);
+        this.addToScene(line);
       }
+
+      // 更新轨迹线
+      TrajectoryManager.updateTrajectoryGeometry(line, obj.trajectory);
+
+      // 根据showTrajectory参数控制可见性
+      line.visible = this.showTrajectory && obj.trajectory.length >= 2;
     });
+  }
+
+  /**
+   * 设置参数
+   */
+  setParameter(key: string, value: unknown): void {
+    switch (key) {
+      case 'showTrajectory':
+        this.showTrajectory = value as boolean;
+        // 更新所有轨迹线的可见性
+        this.trajectoryLines.forEach(line => {
+          line.visible = this.showTrajectory;
+        });
+        break;
+    }
   }
 
   /**
@@ -295,6 +357,14 @@ export class MotionCollisionLab extends ExperimentBase {
    * 销毁实验
    */
   dispose(): void {
+    // 清理所有轨迹线
+    this.trajectoryLines.forEach(line => {
+      this.removeFromScene(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    });
+    this.trajectoryLines.clear();
+
     // 清理所有仿真对象
     this.simulationObjects.forEach(obj => {
       if (obj.mesh) {
