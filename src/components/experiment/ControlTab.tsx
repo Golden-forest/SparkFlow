@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import * as THREE from 'three';
+import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
+import type { MonitoredQuantity } from '@/components/monitoring/QuantitySelector';
+import { useSimulationStore } from '@/stores/simulationStore';
 import type { SimulationObject } from '@/experiments/mechanics/motion-collision/types/ObjectTypes';
 
 interface ObjectControlTabProps {
@@ -76,7 +79,85 @@ function ControlContent() {
 }
 
 function MonitorContent() {
-  return <div>Monitor Panel Content</div>;
+  const [selectedQuantities, setSelectedQuantities] = useState<string[]>(['velocity', 'position']);
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Get monitoring history from store
+  const history = useSimulationStore(state => state.monitoringHistory);
+  // TODO: Task 2.4 - Populate history with real-time physics data from simulation engine
+
+  // Demo objects for initial implementation
+  const demoObjects = useMemo(() => new Map<string, SimulationObject>([
+    ['demo-1', {
+      id: 'demo-1',
+      type: 'sphere' as const,
+      position: new THREE.Vector3(0, 1, 0),
+      velocity: new THREE.Vector3(2, 0, 0),
+      mass: 1.0,
+      radius: 0.5,
+      mesh: null as unknown as THREE.Mesh,
+      trajectory: [],
+      isSelected: false,
+    }]
+  ]), []);
+
+  // Compute current values for each monitored quantity
+  const monitoredQuantities: MonitoredQuantity[] = useMemo(() => {
+    const obj = demoObjects.get('demo-1');
+    if (!obj) {
+      console.warn('[MonitorContent] No demo objects available for monitoring');
+      return [];
+    }
+
+    return [
+      {
+        id: 'velocity',
+        name: 'Velocity',
+        unit: 'm/s',
+        color: '#00ff41',
+        currentValue: obj.velocity.length(),
+      },
+      {
+        id: 'acceleration',
+        name: 'Acceleration',
+        unit: 'm/s²',
+        color: '#ff6b6b',
+        currentValue: 1.5, // Demo value - will be calculated from physics engine in Task 2.4
+      },
+      {
+        id: 'momentum',
+        name: 'Momentum',
+        unit: 'kg·m/s',
+        color: '#60a5fa',
+        currentValue: obj.velocity.length() * obj.mass,
+      },
+      {
+        id: 'kineticEnergy',
+        name: 'Kinetic Energy',
+        unit: 'J',
+        color: '#fbbf24',
+        currentValue: 0.5 * obj.mass * Math.pow(obj.velocity.length(), 2),
+      },
+      {
+        id: 'position',
+        name: 'Position',
+        unit: 'm',
+        color: '#a78bfa',
+        currentValue: obj.position.length(),
+      },
+    ];
+  }, [demoObjects]);
+
+  return (
+    <PhysicsMonitor
+      quantities={monitoredQuantities}
+      history={history}
+      selectedQuantities={selectedQuantities}
+      onSelectionChange={setSelectedQuantities}
+      isExpanded={isExpanded}
+      onToggleExpand={() => setIsExpanded(!isExpanded)}
+    />
+  );
 }
 
 export function ObjectControlTab({

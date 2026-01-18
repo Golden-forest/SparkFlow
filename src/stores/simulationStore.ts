@@ -2,12 +2,20 @@ import { create } from 'zustand';
 import type { IExperiment } from '@/experiments/base';
 import { SimulationState } from '@/utils/constants';
 
+/**
+ * Historical data for monitored quantities
+ */
+export interface MonitoringHistory {
+  [quantityId: string]: number[];
+}
+
 interface SimulationStore {
     // 状态
     state: SimulationState;
     currentExperiment: IExperiment | null;
     elapsedTime: number;
     deltaTime: number;
+    monitoringHistory: MonitoringHistory;
 
     // 动作
     setExperiment: (experiment: IExperiment | null) => void;
@@ -17,6 +25,7 @@ interface SimulationStore {
     resume: () => void;
     reset: () => void;
     tick: (deltaTime: number) => void;
+    updateMonitoringHistory: (history: MonitoringHistory) => void;
 }
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
@@ -24,6 +33,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     currentExperiment: null,
     elapsedTime: 0,
     deltaTime: 0,
+    monitoringHistory: {},
 
     setExperiment: (experiment) => {
         const prev = get().currentExperiment;
@@ -34,6 +44,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             currentExperiment: experiment,
             state: SimulationState.Idle,
             elapsedTime: 0,
+            monitoringHistory: {},
         });
     },
 
@@ -67,7 +78,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         const { currentExperiment } = get();
         if (currentExperiment) {
             currentExperiment.reset();
-            set({ state: SimulationState.Idle, elapsedTime: 0 });
+            set({ state: SimulationState.Idle, elapsedTime: 0, monitoringHistory: {} });
         }
     },
 
@@ -81,4 +92,6 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             });
         }
     },
+
+    updateMonitoringHistory: (history) => set({ monitoringHistory: history }),
 }));
