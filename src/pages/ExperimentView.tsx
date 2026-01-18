@@ -14,6 +14,46 @@ import { SideToolbar } from '@/components/simulation/SideToolbar';
 import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 import { getValidTransitionEnergies } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 
+// 实验说明内容类型
+interface ExperimentDescriptionItem {
+    colorClass: string;
+    label: string;
+    description: string;
+}
+
+// 根据实验ID获取说明内容
+function getExperimentDescription(experimentId: string | undefined): ExperimentDescriptionItem[] {
+    if (!experimentId) return [];
+
+    switch (experimentId) {
+        case 'solar-system':
+            return [
+                { colorClass: 'text-yellow-400', label: '金黄色大球', description: '太阳' },
+                { colorClass: 'text-orange-400', label: '彩色小球', description: '行星' },
+                { colorClass: 'text-slate-400', label: '灰白色圆环', description: '行星轨道' },
+                { colorClass: 'text-blue-400', label: '当前视图', description: '太阳系视图 / 卫星视图' },
+            ];
+
+        case 'rutherford-scattering':
+            return [
+                { colorClass: 'text-yellow-400', label: '金黄色小球', description: '原子核' },
+                { colorClass: 'text-green-400', label: '蓝绿色小球', description: '电子' },
+                { colorClass: 'text-blue-400', label: '彩色圆环', description: '电子轨道 (n=1-6)' },
+            ];
+
+        case 'hydrogen-transitions':
+            return [
+                { colorClass: 'text-yellow-400', label: '金黄色小球', description: '原子核' },
+                { colorClass: 'text-green-400', label: '蓝绿色小球', description: '电子' },
+                { colorClass: 'text-blue-400', label: '彩色圆环', description: '电子轨道 (n=1-6)' },
+                { colorClass: 'text-purple-400', label: '波动线条', description: '光子' },
+            ];
+
+        default:
+            return [];
+    }
+}
+
 export default function ExperimentView() {
     const { experimentId: paramId } = useParams<{ experimentId: string }>();
     const location = useLocation();
@@ -273,20 +313,11 @@ export default function ExperimentView() {
                     }`}>
                     <h3 className="text-sm font-semibold text-white mb-2">实验说明</h3>
                     <div className="space-y-1.5 text-xs text-slate-300">
-                        <p>
-                            <span className="text-yellow-400 font-medium">金黄色小球</span>：原子核
-                        </p>
-                        <p>
-                            <span className="text-green-400 font-medium">蓝绿色小球</span>：电子
-                        </p>
-                        <p>
-                            <span className="text-blue-400 font-medium">彩色圆环</span>：电子轨道 (n=1-6)
-                        </p>
-                        {isHydrogen && (
-                            <p>
-                                <span className="text-purple-400 font-medium">波动线条</span>：光子
+                        {getExperimentDescription(experimentId).map((item, index) => (
+                            <p key={index}>
+                                <span className={`${item.colorClass} font-medium`}>{item.label}</span>：{item.description}
                             </p>
-                        )}
+                        ))}
                     </div>
                 </div>
             </main>

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface ExperimentCard {
     id: string;
@@ -86,6 +86,32 @@ const RutherfordScatteringDiagram = () => (
     </div>
 );
 
+// Solar System Diagram
+const SolarSystemDiagram = () => (
+    <div className="relative w-full h-32 flex items-center justify-center">
+        <svg width="200" height="120" viewBox="0 0 200 120" className="opacity-60">
+            {/* Sun */}
+            <circle cx="100" cy="60" r="15" fill="#FFD700" opacity="0.9" />
+            
+            {/* Planets */}
+            <circle cx="60" cy="60" r="3" fill="#8C7853" />
+            <circle cx="75" cy="60" r="5" fill="#FFC649" />
+            <circle cx="90" cy="60" r="5" fill="#4169E1" />
+            <circle cx="110" cy="60" r="4" fill="#CD5C5C" />
+            <circle cx="130" cy="60" r="8" fill="#D8CA9D" />
+            <circle cx="150" cy="60" r="7" fill="#FAD5A5" />
+            <circle cx="165" cy="60" r="6" fill="#4FD0E7" />
+            <circle cx="180" cy="60" r="6" fill="#4169E1" />
+            
+            {/* Orbits */}
+            <circle cx="100" cy="60" r="40" stroke="#444" strokeWidth="0.5" fill="none" opacity="0.4" />
+            <circle cx="100" cy="60" r="55" stroke="#444" strokeWidth="0.5" fill="none" opacity="0.4" />
+            <circle cx="100" cy="60" r="70" stroke="#444" strokeWidth="0.5" fill="none" opacity="0.4" />
+            <circle cx="100" cy="60" r="90" stroke="#444" strokeWidth="0.5" fill="none" opacity="0.4" />
+        </svg>
+    </div>
+);
+
 const experiments: ExperimentCard[] = [
     {
         id: 'hydrogen-transitions',
@@ -101,9 +127,18 @@ const experiments: ExperimentCard[] = [
         diagram: <RutherfordScatteringDiagram />,
         gradient: 'from-red-900/20 via-orange-900/10 to-yellow-900/20',
     },
+    {
+        id: 'solar-system',
+        title: 'Solar System',
+        subtitle: 'Celestial Motion Simulation',
+        diagram: <SolarSystemDiagram />,
+        gradient: 'from-blue-900/20 via-cyan-900/10 to-indigo-900/20',
+    },
 ];
 
 export default function Home() {
+    const navigate = useNavigate();
+    
     return (
         <div className="min-h-screen bg-[#0D1117] flex flex-col" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', paddingLeft: '80px', paddingRight: '80px' }}>
             {/* Header - Centered */}
@@ -117,10 +152,10 @@ export default function Home() {
             <main className="flex-1 flex items-center justify-start py-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 w-full">
                     {experiments.map((exp) => (
-                        <Link
+                        <div
                             key={exp.id}
-                            to={`/experiment/${exp.id}`}
-                            className="group relative overflow-hidden bg-gradient-to-br ${exp.gradient} backdrop-blur-sm border border-[#30363D] rounded-[20px] p-12 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#161B22] hover:border-[#00FF41]/30 hover:transform hover:-translate-y-[12px] hover:shadow-[0_25px_50px_rgba(0,255,65,0.15)] hover:shadow-[0_0_0_1px_rgba(0,255,65,0.2)]"
+                            onClick={() => navigate(`/experiment/${exp.id}`)}
+                            className="group relative overflow-hidden bg-gradient-to-br ${exp.gradient} backdrop-blur-sm border border-[#30363D] rounded-[20px] p-12 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:bg-[#161B22] hover:border-[#00FF41]/30 hover:transform hover:-translate-y-[12px] hover:shadow-[0_25px_50px_rgba(0,255,65,0.15)] hover:shadow-[0_0_0_1px_rgba(0,255,65,0.2)] cursor-pointer"
                         >
                             {/* Background Glow Effect */}
                             <div className="absolute inset-2 bg-gradient-to-br from-white/[0.03] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-[500ms] rounded-[16px]" />
@@ -151,13 +186,26 @@ export default function Home() {
                                             Explore Physics →
                                         </span>
                                         {exp.id === 'hydrogen-transitions' && (
-                                            <Link
-                                                to="/experiment/hydrogen-transitions/abstract"
-                                                className="text-[14px] font-[600] text-purple-400 opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0 hover:text-purple-300"
-                                                onClick={(e) => e.stopPropagation()}
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate("/experiment/hydrogen-transitions/abstract");
+                                                }}
+                                                className="text-[14px] font-[600] text-purple-400 opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0 hover:text-purple-300 cursor-pointer"
                                             >
                                                 Abstract Demo →
-                                            </Link>
+                                            </div>
+                                        )}
+                                        {exp.id === 'solar-system' && (
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate("/experiment/solar-system/satellite");
+                                                }}
+                                                className="text-[14px] font-[600] text-cyan-400 opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform translate-y-2 group-hover:translate-y-0 hover:text-cyan-300 cursor-pointer"
+                                            >
+                                                Satellite View →
+                                            </div>
                                         )}
                                     </div>
                                     <div className="w-8 h-8 rounded-full bg-[#00FF41]/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-[400ms] transform scale-75 group-hover:scale-100">
@@ -168,7 +216,7 @@ export default function Home() {
                                 </div>
                             </div>
 
-                           </Link>
+                           </div>
                     ))}
                 </div>
             </main>
