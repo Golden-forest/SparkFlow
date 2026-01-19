@@ -296,28 +296,43 @@ export default function ExperimentView() {
     const [pendulumSelectedQuantities, setPendulumSelectedQuantities] = useState<string[]>(['period', 'velocity']);
     const [isPendulumMonitorExpanded, setIsPendulumMonitorExpanded] = useState(true);
 
-    // 运动与碰撞实验的监控数据（占位符，Task 5.2完善）
+    // Motion-collision lab monitored quantities (Task 3.2 - Using real data)
     const motionLabMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
-        if (!isMotionLab) return [];
+        if (!isMotionLab || !currentExperiment) return [];
 
-        // TODO: Task 5.2 - 从实际实验对象获取数据
+        const data = currentExperiment.getDisplayData();
+
         return [
             {
                 id: 'velocity',
                 name: 'Velocity',
                 unit: 'm/s',
                 color: '#00ff41',
-                currentValue: 0,
+                currentValue: safeNumberValue(data.velocity?.value),
+            },
+            {
+                id: 'acceleration',
+                name: 'Acceleration',
+                unit: 'm/s²',
+                color: '#ff6b6b',
+                currentValue: safeNumberValue(data.acceleration?.value),
             },
             {
                 id: 'momentum',
                 name: 'Momentum',
                 unit: 'kg·m/s',
                 color: '#60a5fa',
-                currentValue: 0,
+                currentValue: safeNumberValue(data.momentum?.value),
+            },
+            {
+                id: 'kineticEnergy',
+                name: 'Kinetic Energy',
+                unit: 'J',
+                color: '#fbbf24',
+                currentValue: safeNumberValue(data.kineticEnergy?.value),
             },
         ];
-    }, [isMotionLab]);
+    }, [isMotionLab, currentExperiment]);
 
     const [motionLabSelectedQuantities, setMotionLabSelectedQuantities] = useState<string[]>(['velocity']);
     const [isMotionLabMonitorExpanded, setIsMotionLabMonitorExpanded] = useState(true);
