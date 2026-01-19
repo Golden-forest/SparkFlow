@@ -4,20 +4,21 @@ import { GravityCalculator } from './GravityCalculator';
 
 /**
  * Props for PendulumControlPanel component
+ *
+ * @param pendulumLength - Current pendulum length in meters (0.5-10)
+ * @param onLengthChange - Callback when pendulum length changes
+ * @param mass - Bob mass in kilograms (0.1-10)
+ * @param onMassChange - Callback when mass changes
+ * @param initialAngle - Initial angle in degrees (5-60)
+ * @param onAngleChange - Callback when initial angle changes
  */
 export interface PendulumControlPanelProps {
-  /** Current pendulum length in meters */
   pendulumLength: number;
-  /** Callback when pendulum length changes */
-  onLengthChange: (length: number) => void;
-  /** Bob mass in kg */
+  onLengthChange: (value: number) => void;
   mass: number;
-  /** Callback when mass changes */
-  onMassChange: (mass: number) => void;
-  /** Initial angle in degrees */
+  onMassChange: (value: number) => void;
   initialAngle: number;
-  /** Callback when initial angle changes */
-  onAngleChange: (angle: number) => void;
+  onAngleChange: (value: number) => void;
 }
 
 /**
@@ -56,6 +57,22 @@ export function PendulumControlPanel({
   // Handle time changes from stopwatch
   const handleTimeChange = (newTime: number) => {
     setTotalTime(newTime);
+  };
+
+  // Input validation handlers with clamping
+  const handleLengthChange = (value: number[]) => {
+    const clampedValue = Math.max(0.5, Math.min(10, value[0]));
+    onLengthChange(clampedValue);
+  };
+
+  const handleMassChange = (value: number[]) => {
+    const clampedValue = Math.max(0.1, Math.min(10, value[0]));
+    onMassChange(clampedValue);
+  };
+
+  const handleAngleChange = (value: number[]) => {
+    const clampedValue = Math.max(5, Math.min(60, value[0]));
+    onAngleChange(clampedValue);
   };
 
   return (
