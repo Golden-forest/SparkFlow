@@ -339,15 +339,39 @@ export class MotionCollisionLab extends ExperimentBase {
     // 显示第一个对象的数据
     const firstObject = Array.from(this.simulationObjects.values())[0];
     if (firstObject) {
+      const v = firstObject.velocity.length();
+      const m = firstObject.mass;
+
       data.velocity = {
         label: 'Velocity',
-        value: firstObject.velocity.length().toFixed(2),
+        value: v.toFixed(2),
         unit: 'm/s',
       };
       data.position = {
         label: 'Position',
         value: `(${firstObject.position.x.toFixed(1)}, ${firstObject.position.y.toFixed(1)}, ${firstObject.position.z.toFixed(1)})`,
         unit: 'm',
+      };
+
+      // 新增：加速度
+      data.acceleration = {
+        label: 'Acceleration',
+        value: firstObject.acceleration.length().toFixed(2),
+        unit: 'm/s²',
+      };
+
+      // 新增：动量 p = mv
+      data.momentum = {
+        label: 'Momentum',
+        value: (m * v).toFixed(2),
+        unit: 'kg·m/s',
+      };
+
+      // 新增：动能 Ek = ½mv²
+      data.kineticEnergy = {
+        label: 'Kinetic Energy',
+        value: (0.5 * m * v * v).toFixed(2),
+        unit: 'J',
       };
     }
 
