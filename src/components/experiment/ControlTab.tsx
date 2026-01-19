@@ -75,6 +75,7 @@ function ControlContent() {
       mesh: null as unknown as THREE.Mesh, // Not needed for UI demo
       trajectory: [],
       isSelected: false,
+      acceleration: new THREE.Vector3(0, -9.8, 0), // 重力加速度
     }]
   ]);
 
@@ -112,6 +113,7 @@ function MonitorContent() {
       mesh: null as unknown as THREE.Mesh,
       trajectory: [],
       isSelected: false,
+      acceleration: new THREE.Vector3(0, -9.8, 0), // 重力加速度
     }]
   ]), []);
 

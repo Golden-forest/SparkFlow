@@ -65,7 +65,7 @@ export class MotionCollisionLab extends ExperimentBase {
   /**
    * 创建物体
    */
-  createObject(config: Omit<SimulationObject, 'mesh' | 'trajectory' | 'isSelected'>): SimulationObject {
+  createObject(config: Omit<SimulationObject, 'mesh' | 'trajectory' | 'isSelected' | 'acceleration'>): SimulationObject {
     const mesh = PhysicsObjectFactory.create(config);
 
     return {
@@ -73,6 +73,7 @@ export class MotionCollisionLab extends ExperimentBase {
       mesh,
       trajectory: [],
       isSelected: false,
+      acceleration: new THREE.Vector3(0, -9.8, 0), // 新增：初始化为重力加速度
     };
   }
 

@@ -22,4 +22,5 @@ export interface SimulationObject extends PhysicsObjectConfig {
   mesh: THREE.Mesh;
   trajectory: THREE.Vector3[];
   isSelected: boolean;
+  acceleration: THREE.Vector3; // 新增：加速度向量
 }
