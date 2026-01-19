@@ -16,7 +16,7 @@ import { getValidTransitionEnergies } from '@/experiments/atomic/hydrogen-transi
 
 // 导入TabPanel相关组件
 import { TabPanel } from '@/components/experiment/TabPanel';
-import { ControlTab } from '@/components/experiment/ControlTab';
+import { ControlTab, ObjectControlTab } from '@/components/experiment/ControlTab';
 import { PendulumControlPanel } from '@/components/experiment/PendulumControlPanel';
 import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
 import type { MonitoredQuantity } from '@/components/monitoring/QuantitySelector';
@@ -91,6 +91,9 @@ export default function ExperimentView() {
     const [pendulumLength, setPendulumLength] = useState(2.0);
     const [pendulumMass, setPendulumMass] = useState(1.0);
     const [pendulumAngle, setPendulumAngle] = useState(15);
+
+    // Motion-collision lab 特有状态 (Task 5.1)
+    const [motionLabObjects, setMotionLabObjects] = useState<Map<string, SimulationObject>>(new Map());
 
     // 加载实验
     useEffect(() => {
@@ -199,6 +202,79 @@ export default function ExperimentView() {
         if (key === 'initialAngle') setPendulumAngle(value);
     };
 
+    // Motion-collision lab object management handlers (Task 5.2-5.4)
+    const handleMotionLabAddObject = (type: 'sphere' | 'box' | 'plank') => {
+        if (!currentExperiment || typeof currentExperiment.createObject !== 'function') return;
+
+        // Create default object config based on type
+        const defaultConfig = {
+            sphere: {
+                type: 'sphere' as const,
+                position: new THREE.Vector3(0, 1, 0),
+                velocity: new THREE.Vector3(0, 0, 0),
+                mass: 1.0,
+                radius: 0.5,
+            },
+            box: {
+                type: 'box' as const,
+                position: new THREE.Vector3(0, 0.5, 0),
+                velocity: new THREE.Vector3(0, 0, 0),
+                mass: 1.0,
+                width: 1,
+                height: 1,
+                depth: 1,
+            },
+            plank: {
+                type: 'plank' as const,
+                position: new THREE.Vector3(0, 0.1, 0),
+                velocity: new THREE.Vector3(0, 0, 0),
+                mass: 2.0,
+                width: 2,
+                height: 0.2,
+                depth: 0.5,
+            },
+        };
+
+        const config = defaultConfig[type];
+        const newObject = currentExperiment.createObject(config);
+
+        // Sync updated objects to React state
+        if (typeof currentExperiment.getSimulationObjects === 'function') {
+            const objects = currentExperiment.getSimulationObjects();
+            setMotionLabObjects(new Map(objects));
+        }
+    };
+
+    const handleMotionLabRemoveObject = (id: string) => {
+        if (!currentExperiment || typeof currentExperiment.removeObject !== 'function') return;
+
+        const success = currentExperiment.removeObject(id);
+
+        if (success && typeof currentExperiment.getSimulationObjects === 'function') {
+            // Sync updated objects to React state
+            const objects = currentExperiment.getSimulationObjects();
+            setMotionLabObjects(new Map(objects));
+        }
+    };
+
+    const handleMotionLabUpdateObject = (id: string, params: Partial<SimulationObject>) => {
+        if (!currentExperiment) return;
+
+        // Get current objects and update the specified one
+        if (typeof currentExperiment.getSimulationObjects !== 'function') return;
+
+        const objects = currentExperiment.getSimulationObjects();
+        const obj = objects.get(id);
+
+        if (!obj) return;
+
+        // Update object properties
+        Object.assign(obj, params);
+
+        // Note: We don't need to call setParameter here as we're directly modifying the object
+        // The sync effect will update our React state
+    };
+
     const isPlaying = state === SimulationState.Running;
 
     // Type-safe value extraction helper (Task 5.1 code review fix)
@@ -254,6 +330,18 @@ export default function ExperimentView() {
         }, 100); // Update every 100ms
 
         return () => clearInterval(interval);
+    }, [isMotionLab, currentExperiment]);
+
+    // Sync motion-collision lab objects (Task 5.1)
+    useEffect(() => {
+        if (!isMotionLab || !currentExperiment) return;
+
+        // Check if experiment supports dynamic object management
+        if (typeof currentExperiment.getSimulationObjects !== 'function') return;
+
+        // Sync objects from experiment to React state
+        const objects = currentExperiment.getSimulationObjects();
+        setMotionLabObjects(new Map(objects));
     }, [isMotionLab, currentExperiment]);
 
     // Calculate pendulum experiment monitoring data
@@ -501,15 +589,17 @@ export default function ExperimentView() {
                     </TabPanel>
                 )}
 
-                {/* Motion & Collision Lab Control Panel (Task 5.1 - Basic integration, Task 5.2 for full features) */}
+                {/* Motion & Collision Lab Control Panel (Task 5.5 - Full ObjectControlTab integration) */}
                 {isMotionLab && (
                     <TabPanel>
                         <ControlTab
                             controlContent={
-                                <div className="text-slate-400 text-sm p-4">
-                                    <div className="mb-2 text-2xl">🚧 Under Construction</div>
-                                    <div className="text-xs">Object controls (add/remove/edit) will be available in Task 5.2</div>
-                                </div>
+                                <ObjectControlTab
+                                    objects={motionLabObjects}
+                                    onAddObject={handleMotionLabAddObject}
+                                    onRemoveObject={handleMotionLabRemoveObject}
+                                    onUpdateObject={handleMotionLabUpdateObject}
+                                />
                             }
                             monitorContent={
                                 <PhysicsMonitor
