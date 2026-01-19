@@ -334,7 +334,7 @@ export default function ExperimentView() {
         ];
     }, [isMotionLab, currentExperiment]);
 
-    const [motionLabSelectedQuantities, setMotionLabSelectedQuantities] = useState<string[]>(['velocity']);
+    const [motionLabSelectedQuantities, setMotionLabSelectedQuantities] = useState<string[]>(['velocity', 'momentum', 'kineticEnergy']);
     const [isMotionLabMonitorExpanded, setIsMotionLabMonitorExpanded] = useState(true);
 
     const handleEmit = () => {
