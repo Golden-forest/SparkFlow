@@ -13,7 +13,19 @@ interface ObjectControlTabProps {
   onUpdateObject: (id: string, params: Partial<SimulationObject>) => void;
 }
 
-export const ControlTab = React.memo(() => {
+/**
+ * Props for flexible ControlTab component (Task 5.1)
+ */
+export interface ControlTabProps {
+  controlContent?: React.ReactNode;
+  monitorContent?: React.ReactNode;
+}
+
+/**
+ * Flexible ControlTab component that accepts custom content
+ * Used for pendulum and motion-collision experiments
+ */
+export const ControlTab = React.memo(({ controlContent, monitorContent }: ControlTabProps) => {
   const [activeTab, setActiveTab] = useState<'control' | 'monitor'>('control');
 
   return (
@@ -43,10 +55,12 @@ export const ControlTab = React.memo(() => {
       </div>
 
       {/* Tab内容 */}
-      {activeTab === 'control' ? <ControlContent /> : <MonitorContent />}
+      {activeTab === 'control' ? controlContent : monitorContent}
     </div>
   );
 });
+
+ControlTab.displayName = 'ControlTab';
 
 function ControlContent() {
   // Demo: Show ObjectControlTab with sample data

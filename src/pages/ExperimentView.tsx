@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Play, Pause, RotateCcw, ZoomOut } from 'lucide-react';
 import { SceneContainer, ExperimentScene, DataDisplay } from '@/components/simulation';
@@ -14,6 +14,15 @@ import { SideToolbar } from '@/components/simulation/SideToolbar';
 import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 import { getValidTransitionEnergies } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 
+// 导入TabPanel相关组件
+import { TabPanel } from '@/components/experiment/TabPanel';
+import { ControlTab } from '@/components/experiment/ControlTab';
+import { PendulumControlPanel } from '@/components/experiment/PendulumControlPanel';
+import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
+import type { MonitoredQuantity } from '@/components/monitoring/QuantitySelector';
+import type { SimulationObject } from '@/experiments/mechanics/motion-collision/types/ObjectTypes';
+import * as THREE from 'three';
+
 // 实验说明内容类型
 interface ExperimentDescriptionItem {
     colorClass: string;
@@ -28,25 +37,25 @@ function getExperimentDescription(experimentId: string | undefined): ExperimentD
     switch (experimentId) {
         case 'solar-system':
             return [
-                { colorClass: 'text-yellow-400', label: '金黄色大球', description: '太阳' },
-                { colorClass: 'text-orange-400', label: '彩色小球', description: '行星' },
-                { colorClass: 'text-slate-400', label: '灰白色圆环', description: '行星轨道' },
-                { colorClass: 'text-blue-400', label: '当前视图', description: '太阳系视图 / 卫星视图' },
+                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Sun' },
+                { colorClass: 'text-orange-400', label: 'Colored Spheres', description: 'Planets' },
+                { colorClass: 'text-slate-400', label: 'Gray Rings', description: 'Orbits' },
+                { colorClass: 'text-blue-400', label: 'Current View', description: 'System/Satellite View' },
             ];
 
         case 'rutherford-scattering':
             return [
-                { colorClass: 'text-yellow-400', label: '金黄色小球', description: '原子核' },
-                { colorClass: 'text-green-400', label: '蓝绿色小球', description: '电子' },
-                { colorClass: 'text-blue-400', label: '彩色圆环', description: '电子轨道 (n=1-6)' },
+                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Nucleus' },
+                { colorClass: 'text-green-400', label: 'Teal Sphere', description: 'Electron' },
+                { colorClass: 'text-blue-400', label: 'Colored Rings', description: 'Electron Orbits (n=1-6)' },
             ];
 
         case 'hydrogen-transitions':
             return [
-                { colorClass: 'text-yellow-400', label: '金黄色小球', description: '原子核' },
-                { colorClass: 'text-green-400', label: '蓝绿色小球', description: '电子' },
-                { colorClass: 'text-blue-400', label: '彩色圆环', description: '电子轨道 (n=1-6)' },
-                { colorClass: 'text-purple-400', label: '波动线条', description: '光子' },
+                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Nucleus' },
+                { colorClass: 'text-green-400', label: 'Teal Sphere', description: 'Electron' },
+                { colorClass: 'text-blue-400', label: 'Colored Rings', description: 'Electron Orbits (n=1-6)' },
+                { colorClass: 'text-purple-400', label: 'Wavy Lines', description: 'Photons' },
             ];
 
         default:
@@ -63,8 +72,9 @@ export default function ExperimentView() {
     const experimentId = isRutherfordMicro ? 'rutherford-scattering' : paramId;
     const isHydrogen = experimentId === 'hydrogen-transitions';
     const isMotionLab = experimentId === 'motion-collision'; // Task 2.4: 运动与碰撞实验室标识
+    const isPendulum = experimentId === 'pendulum'; // Task 5.1: 单摆实验标识
 
-    const { state, start, pause, resume, reset, setExperiment, currentExperiment } = useSimulationStore();
+    const { state, start, pause, resume, reset, setExperiment, currentExperiment, monitoringHistory } = useSimulationStore();
 
     const [displayData, setDisplayData] = useState<Record<string, DisplayValue>>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +86,11 @@ export default function ExperimentView() {
     const [photonEnergy, setPhotonEnergy] = useState(10.2);
     const [electronCount, setElectronCount] = useState<'single' | 'multi'>('single');
     const [validEnergies, setValidEnergies] = useState<number[]>([]);
+
+    // Pendulum 特有状态
+    const [pendulumLength, setPendulumLength] = useState(2.0);
+    const [pendulumMass, setPendulumMass] = useState(1.0);
+    const [pendulumAngle, setPendulumAngle] = useState(15);
 
     // 加载实验
     useEffect(() => {
@@ -96,6 +111,13 @@ export default function ExperimentView() {
                 // 默认值同步
                 setSceneMode(experiment.getParameter('excitationMode') as SceneMode || 'stimulated-absorption');
                 setCurrentLevel(experiment.getParameter('initialLevel') as number || 1);
+            }
+
+            if (experimentId === 'pendulum') {
+                // 初始化单摆参数
+                setPendulumLength(experiment.getParameter('length') as number || 2.0);
+                setPendulumMass(experiment.getParameter('mass') as number || 1.0);
+                setPendulumAngle(experiment.getParameter('initialAngle') as number || 15);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : '加载实验失败');
@@ -168,7 +190,110 @@ export default function ExperimentView() {
         if (key === 'atomType') setElectronCount(value === 'single' ? 'single' : 'multi');
     };
 
+    const handlePendulumParam = (key: string, value: number) => {
+        if (!currentExperiment) return;
+        currentExperiment.setParameter(key, value);
+
+        if (key === 'length') setPendulumLength(value);
+        if (key === 'mass') setPendulumMass(value);
+        if (key === 'initialAngle') setPendulumAngle(value);
+    };
+
     const isPlaying = state === SimulationState.Running;
+
+    // Type-safe value extraction helper (Task 5.1 code review fix)
+    const safeNumberValue = (value: unknown): number => {
+        if (typeof value === 'number' && !isNaN(value)) {
+            return value;
+        }
+        return 0;
+    };
+
+    // Monitor history data collection for pendulum experiment (Task 5.1 code review fix)
+    useEffect(() => {
+        if (!isPendulum || !currentExperiment) return;
+
+        const interval = setInterval(() => {
+            const data = currentExperiment.getDisplayData();
+
+            // Update monitoring history through store
+            const { updateMonitoringHistory } = useSimulationStore.getState();
+            const quantities = ['period', 'frequency', 'velocity', 'angle'];
+
+            quantities.forEach(qid => {
+                const value = safeNumberValue(data[qid]?.value);
+                updateMonitoringHistory(qid, value);
+            });
+        }, 100); // Update every 100ms
+
+        return () => clearInterval(interval);
+    }, [isPendulum, currentExperiment]);
+
+    // Calculate pendulum experiment monitoring data
+    const pendulumMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
+        if (!isPendulum) return [];
+
+        const data = currentExperiment?.getDisplayData() || {};
+        return [
+            {
+                id: 'period',
+                name: 'Period',
+                unit: 's',
+                color: '#00ff41',
+                currentValue: safeNumberValue(data.period?.value),
+            },
+            {
+                id: 'frequency',
+                name: 'Frequency',
+                unit: 'Hz',
+                color: '#ff6b6b',
+                currentValue: safeNumberValue(data.frequency?.value),
+            },
+            {
+                id: 'velocity',
+                name: 'Velocity',
+                unit: 'm/s',
+                color: '#60a5fa',
+                currentValue: safeNumberValue(data.velocity?.value),
+            },
+            {
+                id: 'angle',
+                name: 'Angle',
+                unit: '°',
+                color: '#fbbf24',
+                currentValue: safeNumberValue(data.angle?.value),
+            },
+        ];
+    }, [isPendulum, currentExperiment]);
+
+    const [pendulumSelectedQuantities, setPendulumSelectedQuantities] = useState<string[]>(['period', 'velocity']);
+    const [isPendulumMonitorExpanded, setIsPendulumMonitorExpanded] = useState(true);
+
+    // 运动与碰撞实验的监控数据（占位符，Task 5.2完善）
+    const motionLabMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
+        if (!isMotionLab) return [];
+
+        // TODO: Task 5.2 - 从实际实验对象获取数据
+        return [
+            {
+                id: 'velocity',
+                name: 'Velocity',
+                unit: 'm/s',
+                color: '#00ff41',
+                currentValue: 0,
+            },
+            {
+                id: 'momentum',
+                name: 'Momentum',
+                unit: 'kg·m/s',
+                color: '#60a5fa',
+                currentValue: 0,
+            },
+        ];
+    }, [isMotionLab]);
+
+    const [motionLabSelectedQuantities, setMotionLabSelectedQuantities] = useState<string[]>(['velocity']);
+    const [isMotionLabMonitorExpanded, setIsMotionLabMonitorExpanded] = useState(true);
 
     const handleEmit = () => {
         // 确保仿真在运行
@@ -304,6 +429,58 @@ export default function ExperimentView() {
                         onReset={handleReset}
                         onEmit={handleEmit}
                     />
+                )}
+
+                {/* 单摆实验控制面板 (Task 5.1) */}
+                {isPendulum && (
+                    <TabPanel>
+                        <ControlTab
+                            controlContent={
+                                <PendulumControlPanel
+                                    pendulumLength={pendulumLength}
+                                    onLengthChange={(value) => handlePendulumParam('length', value)}
+                                    mass={pendulumMass}
+                                    onMassChange={(value) => handlePendulumParam('mass', value)}
+                                    initialAngle={pendulumAngle}
+                                    onAngleChange={(value) => handlePendulumParam('initialAngle', value)}
+                                />
+                            }
+                            monitorContent={
+                                <PhysicsMonitor
+                                    quantities={pendulumMonitoredQuantities}
+                                    history={monitoringHistory}
+                                    selectedQuantities={pendulumSelectedQuantities}
+                                    onSelectionChange={setPendulumSelectedQuantities}
+                                    isExpanded={isPendulumMonitorExpanded}
+                                    onToggleExpand={() => setIsPendulumMonitorExpanded(!isPendulumMonitorExpanded)}
+                                />
+                            }
+                        />
+                    </TabPanel>
+                )}
+
+                {/* Motion & Collision Lab Control Panel (Task 5.1 - Basic integration, Task 5.2 for full features) */}
+                {isMotionLab && (
+                    <TabPanel>
+                        <ControlTab
+                            controlContent={
+                                <div className="text-slate-400 text-sm p-4">
+                                    <div className="mb-2 text-2xl">🚧 Under Construction</div>
+                                    <div className="text-xs">Object controls (add/remove/edit) will be available in Task 5.2</div>
+                                </div>
+                            }
+                            monitorContent={
+                                <PhysicsMonitor
+                                    quantities={motionLabMonitoredQuantities}
+                                    history={monitoringHistory}
+                                    selectedQuantities={motionLabSelectedQuantities}
+                                    onSelectionChange={setMotionLabSelectedQuantities}
+                                    isExpanded={isMotionLabMonitorExpanded}
+                                    onToggleExpand={() => setIsMotionLabMonitorExpanded(!isMotionLabMonitorExpanded)}
+                                />
+                            }
+                        />
+                    </TabPanel>
                 )}
 
                 {/* 数据统计面板和实验说明已移除 */}

@@ -2,11 +2,11 @@
 
 **日期**: 2026-01-19
 **执行方法**: Subagent-Driven Development
-**状态**: Phase 1 完成 ✅, Phase 2 完成 ✅, Phase 3 完成 ✅, Phase 4 完成 ✅
+**状态**: Phase 1 完成 ✅, Phase 2 完成 ✅, Phase 3 完成 ✅, Phase 4 完成 ✅, Phase 5 进行中 🚧
 
 ---
 
-## ✅ 已完成任务 (14/17)
+## ✅ 已完成任务 (15/17)
 
 ### Phase 1: 创建统一的运动与碰撞实验室（核心功能）✅ 100%
 
@@ -186,7 +186,42 @@
 
 ---
 
-## 📋 待完成任务 (9/17)
+### Phase 5: 集成与测试 (3个任务)
+
+#### ✅ Task 5.1: 更新ExperimentView集成新UI
+**Commit**: `pending` - feat(ui): integrate TabPanel controls for pendulum and motion-collision experiments
+
+**实现内容**:
+- 在ExperimentView中集成了TabPanel组件
+- 为单摆实验添加了PendulumControlPanel控制面板
+- 为运动与碰撞实验添加了占位符控制面板（Task 5.2完善）
+- 实现了参数处理函数handlePendulumParam
+- 添加了单摆实验的监控数据计算和显示
+- 实现了监控历史数据自动采集（每100ms更新）
+- 添加了类型安全的值提取函数safeNumberValue
+
+**关键特性**:
+- 单摆实验集成：PendulumControlPanel + PhysicsMonitor + TabPanel
+- 运动与碰撞实验基础集成：占位符 + PhysicsMonitor + TabPanel
+- 监控数据：period, frequency, velocity, angle
+- 实时数据采集：自动更新monitoringHistory
+- 类型安全：使用safeNumberValue替代类型断言
+- UI国际化：修复实验说明中文违规问题
+
+**代码审查**: 发现2个Critical问题，全部修复 ✅
+- Critical #1: 实验说明使用中文 - 已修复为英文
+- Critical #2: 监控历史数据未实现 - 已添加数据采集逻辑
+- Important #1: 类型断言不安全 - 已添加safeNumberValue函数
+- Important #2: 占位符文本改进 - 已优化为友好提示
+
+**文件修改**:
+- `src/pages/ExperimentView.tsx`: +90行（状态管理、参数处理、监控数据、TabPanel渲染）
+- `src/components/experiment/ControlTab.tsx`: 重构为可复用组件
+- `src/experiments/index.ts`: 注册MotionCollisionLab实验
+
+---
+
+## 📋 待完成任务 (2/17)
 
 ### Phase 3: 单摆实验重构 (4个任务)
 - Task 3.1: 创建单摆专用实验类（移除弹簧）
@@ -199,7 +234,6 @@
 - Task 4.2: 优化相机和光照
 
 ### Phase 5: 集成与测试 (3个任务)
-- Task 5.1: 更新ExperimentView集成新UI
 - Task 5.2: 更新首页实验卡片
 - Task 5.3: 测试所有功能
 
@@ -209,31 +243,31 @@
 
 ### 完成度
 - **总任务数**: 17
-- **已完成**: 14 (82.4%)
+- **已完成**: 15 (88.2%)
 - **进行中**: 0 (0%)
-- **待完成**: 3 (17.6%)
+- **待完成**: 2 (11.8%)
 
 ### Phase进度
 - **Phase 1**: ✅ 100% (4/4)
 - **Phase 2**: ✅ 100% (4/4)
 - **Phase 3**: ✅ 100% (4/4)
-- **Phase 4**: ✅ 100% (2/2) - 完成
-- **Phase 5**: ⏳ 0% (0/3) - **下一步**
+- **Phase 4**: ✅ 100% (2/2)
+- **Phase 5**: 🚧 33% (1/3) - **进行中**
 
 ### 代码统计
 - **总提交数**: 15次
 - **新增文件**: 21个
-- **代码行数**: ~2375+ 行（不含测试和文档）
-- **修复问题**: 17个（3 Critical + 13 Important + 1 Minor）
+- **代码行数**: ~2465+ 行（不含测试和文档）
+- **修复问题**: 21个（5 Critical + 15 Important + 1 Minor）
 
 ---
 
 ## 🎯 质量指标
 
 ### 代码审查结果
-- **总审查次数**: 13次
-- **发现问题**: 17个
-- **已修复**: 17个 (100%)
+- **总审查次数**: 16次
+- **发现问题**: 21个
+- **已修复**: 21个 (100%)
 - **修复率**: 100% ✅
 
 ### TypeScript编译
@@ -289,14 +323,17 @@
 ## 🔄 下一步行动
 
 ### 立即任务
-1. **Task 5.1**: 更新ExperimentView集成新UI - **下一步**
-   - 集成TabPanel到实验视图
-   - 为单摆和运动碰撞实验添加控制面板
-   - 连接组件状态和实验参数
+1. **Task 5.2**: 更新首页实验卡片 - **下一步**
+   - 更新实验注册在mechanics/index.ts
+   - 替换旧4个力学实验卡片为新2个实验
+   - 验证实验卡片链接正确
 
 ### 后续任务
-2. **Task 5.2**: 更新首页实验卡片
-3. **Task 5.3**: 测试所有功能
+2. **Task 5.3**: 测试所有功能
+   - 单摆实验完整测试
+   - 运动碰撞实验测试
+   - UI交互测试
+   - 性能测试
 
 ---
 
