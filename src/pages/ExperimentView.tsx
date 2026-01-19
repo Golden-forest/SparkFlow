@@ -288,6 +288,23 @@ export default function ExperimentView() {
         setShowTrajectory(show);
     };
 
+    // Load scene preset (Task 7.4)
+    const handleLoadPreset = (preset: any) => {
+        if (!currentExperiment || typeof currentExperiment.loadScenePreset !== 'function') return;
+
+        // Load the preset
+        currentExperiment.loadScenePreset(preset.objects);
+
+        // Sync updated objects to React state
+        if (typeof currentExperiment.getSimulationObjects === 'function') {
+            const objects = currentExperiment.getSimulationObjects();
+            setMotionLabObjects(new Map(objects));
+        }
+
+        // Reset simulation state
+        reset();
+    };
+
     const isPlaying = state === SimulationState.Running;
 
     // Type-safe value extraction helper (Task 5.1 code review fix)
@@ -614,6 +631,7 @@ export default function ExperimentView() {
                                     onUpdateObject={handleMotionLabUpdateObject}
                                     showTrajectory={showTrajectory}
                                     onToggleTrajectory={handleToggleTrajectory}
+                                    onLoadPreset={handleLoadPreset}
                                 />
                             }
                             monitorContent={

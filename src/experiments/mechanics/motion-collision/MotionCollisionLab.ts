@@ -166,6 +166,35 @@ export class MotionCollisionLab extends ExperimentBase {
   }
 
   /**
+   * 加载场景预设 (Task 7.2)
+   */
+  loadScenePreset(objects: Omit<SimulationObject, 'mesh' | 'trajectory' | 'isSelected' | 'acceleration'>[]): void {
+    // 清除所有现有对象
+    const objectIds = Array.from(this.simulationObjects.keys());
+    objectIds.forEach(id => this.removeObject(id));
+
+    // 清除所有轨迹线
+    this.trajectoryLines.forEach(line => {
+      this.removeFromScene(line);
+      line.geometry.dispose();
+      (line.material as THREE.Material).dispose();
+    });
+    this.trajectoryLines.clear();
+
+    // 创建新对象
+    objects.forEach(config => {
+      const obj = this.createObject(config);
+      this.simulationObjects.set(obj.id, obj);
+      if (obj.mesh) {
+        this.addToScene(obj.mesh);
+      }
+    });
+
+    // 重置时间
+    this.simulationTime = 0;
+  }
+
+  /**
    * 设置场景
    */
   protected async setupScene(): Promise<void> {

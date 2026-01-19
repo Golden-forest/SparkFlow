@@ -5,6 +5,8 @@ import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
 import type { MonitoredQuantity } from '@/components/monitoring/QuantitySelector';
 import { useSimulationStore } from '@/stores/simulationStore';
 import type { SimulationObject } from '@/experiments/mechanics/motion-collision/types/ObjectTypes';
+import { ScenePresetSelector } from '@/components/experiment/ScenePresetSelector';
+import type { ScenePreset } from '@/experiments/mechanics/motion-collision/presets/ScenePresets';
 
 interface ObjectControlTabProps {
   objects: Map<string, SimulationObject>;
@@ -13,6 +15,7 @@ interface ObjectControlTabProps {
   onUpdateObject: (id: string, params: Partial<SimulationObject>) => void;
   showTrajectory?: boolean;
   onToggleTrajectory?: (show: boolean) => void;
+  onLoadPreset?: (preset: ScenePreset) => void;
 }
 
 /**
@@ -185,11 +188,17 @@ export function ObjectControlTab({
   onUpdateObject,
   showTrajectory,
   onToggleTrajectory,
+  onLoadPreset,
 }: ObjectControlTabProps) {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Scene Preset Selector (Task 7.4) */}
+      {onLoadPreset !== undefined && (
+        <ScenePresetSelector onLoadPreset={onLoadPreset} />
+      )}
+
       {/* Display Settings (Task 6.1) */}
       {onToggleTrajectory !== undefined && (
         <div className="space-y-2">
