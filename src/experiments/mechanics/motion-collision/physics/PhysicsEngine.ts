@@ -16,6 +16,9 @@ export class PhysicsEngine {
     deltaTime: number
   ): void {
     objects.forEach(obj => {
+      // 初始化加速度（重力加速度）
+      obj.acceleration.set(0, -EARTH_GRAVITY, 0);
+
       // 步骤1: 应用重力加速度更新速度
       obj.velocity.y -= EARTH_GRAVITY * deltaTime;
 
