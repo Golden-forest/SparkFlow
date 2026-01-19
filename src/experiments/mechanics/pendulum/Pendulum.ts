@@ -105,6 +105,9 @@ export class Pendulum extends ExperimentBase {
   protected async setupScene(): Promise<void> {
     if (!this.scene) return;
 
+    // 创建地面
+    this.createGround();
+
     // 创建悬挂点
     this.createPivotPoint();
 
@@ -116,6 +119,25 @@ export class Pendulum extends ExperimentBase {
 
     // 初始化单摆状态
     this.resetPendulum();
+  }
+
+  /**
+   * 创建地面
+   */
+  private createGround(): void {
+    if (!this.scene) return;
+
+    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1a2e,
+      roughness: 0.9,
+      metalness: 0.1,
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.01;
+    ground.receiveShadow = true;
+    this.addToScene(ground);
   }
 
   /**
