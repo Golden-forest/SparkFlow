@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group, Separator } from 'react-resizable-panels';
 import { QuantitySelector, type MonitoredQuantity } from './QuantitySelector';
 import { QuantityChart } from './QuantityChart';
 
@@ -87,14 +87,14 @@ export function PhysicsMonitor({
    */
   return (
     <div className="absolute right-0 top-20 bottom-8 flex z-50">
-      <PanelGroup direction="horizontal">
+      <Group orientation="horizontal">
         {/* 3D scene area (auto-resized by parent) */}
         <Panel defaultSize={70} minSize={30} maxSize={85}>
           {/* Empty - this is where the 3D scene renders */}
         </Panel>
 
         {/* Resizable handle */}
-        <PanelResizeHandle className="w-1 bg-white/10 hover:bg-white/20 cursor-col-resize transition-colors" />
+        <Separator className="w-1 bg-white/10 hover:bg-white/20 cursor-col-resize transition-colors" />
 
         {/* Monitoring panel */}
         <Panel defaultSize={30} minSize={15} maxSize={50}>
@@ -186,7 +186,7 @@ export function PhysicsMonitor({
             )}
           </div>
         </Panel>
-      </PanelGroup>
+      </Group>
     </div>
   );
 }
