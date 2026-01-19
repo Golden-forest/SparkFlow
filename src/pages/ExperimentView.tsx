@@ -229,6 +229,26 @@ export default function ExperimentView() {
         return () => clearInterval(interval);
     }, [isPendulum, currentExperiment]);
 
+    // Motion-collision lab monitoring data collection (Task 3.1)
+    useEffect(() => {
+        if (!isMotionLab || !currentExperiment) return;
+
+        const interval = setInterval(() => {
+            const data = currentExperiment.getDisplayData();
+
+            // Update monitoring history through store
+            const { updateMonitoringHistory } = useSimulationStore.getState();
+            const quantities = ['velocity', 'acceleration', 'momentum', 'kineticEnergy'];
+
+            quantities.forEach(qid => {
+                const value = safeNumberValue(data[qid]?.value);
+                updateMonitoringHistory(qid, value);
+            });
+        }, 100); // Update every 100ms
+
+        return () => clearInterval(interval);
+    }, [isMotionLab, currentExperiment]);
+
     // Calculate pendulum experiment monitoring data
     const pendulumMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
         if (!isPendulum) return [];
