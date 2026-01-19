@@ -105,6 +105,9 @@ export class Pendulum extends ExperimentBase {
   protected async setupScene(): Promise<void> {
     if (!this.scene) return;
 
+    // 设置灯光
+    this.setupLights();
+
     // 创建地面
     this.createGround();
 
@@ -119,6 +122,25 @@ export class Pendulum extends ExperimentBase {
 
     // 初始化单摆状态
     this.resetPendulum();
+  }
+
+  /**
+   * 设置灯光
+   */
+  private setupLights(): void {
+    if (!this.scene) return;
+
+    // 环境光 - 提供柔和的填充光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    this.addToScene(ambientLight);
+
+    // 主光源 - 产生阴影
+    const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    mainLight.position.set(10, 20, 10);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    this.addToScene(mainLight);
   }
 
   /**
