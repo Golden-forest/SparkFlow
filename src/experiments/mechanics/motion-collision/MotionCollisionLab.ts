@@ -159,6 +159,13 @@ export class MotionCollisionLab extends ExperimentBase {
   }
 
   /**
+   * 获取所有仿真对象 (Task 4.2: IExperiment接口实现)
+   */
+  getSimulationObjects(): Map<string, SimulationObject> {
+    return this.simulationObjects;
+  }
+
+  /**
    * 设置场景
    */
   protected async setupScene(): Promise<void> {

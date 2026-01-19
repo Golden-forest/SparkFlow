@@ -94,4 +94,11 @@ export interface IExperiment {
 
     // 事件处理(可选)
     onInteraction?(event: InteractionEvent): void;
+
+    // 动态对象管理(可选) - 用于支持动态添加/删除仿真对象的实验
+    createObject?(config: any): any;
+    removeObject?(id: string): boolean;
+    addRamp?(config: any): void;
+    removeRamp?(id: string): void;
+    getSimulationObjects?(): Map<string, any>;
 }
