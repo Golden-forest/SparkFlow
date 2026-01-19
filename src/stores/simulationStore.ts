@@ -25,7 +25,7 @@ interface SimulationStore {
     resume: () => void;
     reset: () => void;
     tick: (deltaTime: number) => void;
-    updateMonitoringHistory: (history: MonitoringHistory) => void;
+    updateMonitoringHistory: (quantityId: string, value: number) => void;
 }
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
@@ -93,5 +93,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         }
     },
 
-    updateMonitoringHistory: (history) => set({ monitoringHistory: history }),
+    updateMonitoringHistory: (quantityId: string, value: number) => set(state => {
+        const currentHistory = state.monitoringHistory[quantityId] || [];
+        const newHistory = [...currentHistory, value].slice(-100); // 保留最新100个数据点
+
+        return {
+            monitoringHistory: {
+                ...state.monitoringHistory,
+                [quantityId]: newHistory,
+            },
+        };
+    }),
 }));
