@@ -11,6 +11,8 @@ interface ObjectControlTabProps {
   onAddObject: (type: 'sphere' | 'box' | 'plank') => void;
   onRemoveObject: (id: string) => void;
   onUpdateObject: (id: string, params: Partial<SimulationObject>) => void;
+  showTrajectory?: boolean;
+  onToggleTrajectory?: (show: boolean) => void;
 }
 
 /**
@@ -181,11 +183,37 @@ export function ObjectControlTab({
   onAddObject,
   onRemoveObject,
   onUpdateObject,
+  showTrajectory,
+  onToggleTrajectory,
 }: ObjectControlTabProps) {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Display Settings (Task 6.1) */}
+      {onToggleTrajectory !== undefined && (
+        <div className="space-y-2">
+          <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+            Display Settings
+          </span>
+          <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-white/10">
+            <span className="text-sm text-slate-300">Show Trajectory</span>
+            <button
+              onClick={() => onToggleTrajectory(!showTrajectory)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                showTrajectory ? 'bg-blue-600' : 'bg-slate-600'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  showTrajectory ? 'left-7' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 添加物体按钮组 */}
       <div className="space-y-2">
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">

@@ -94,6 +94,7 @@ export default function ExperimentView() {
 
     // Motion-collision lab 特有状态 (Task 5.1)
     const [motionLabObjects, setMotionLabObjects] = useState<Map<string, SimulationObject>>(new Map());
+    const [showTrajectory, setShowTrajectory] = useState(true); // Task 6.1: 轨迹显示开关状态
 
     // 加载实验
     useEffect(() => {
@@ -121,6 +122,11 @@ export default function ExperimentView() {
                 setPendulumLength(experiment.getParameter('length') as number || 2.0);
                 setPendulumMass(experiment.getParameter('mass') as number || 1.0);
                 setPendulumAngle(experiment.getParameter('initialAngle') as number || 15);
+            }
+
+            if (experimentId === 'motion-collision') {
+                // 初始化轨迹显示状态 (Task 6.1)
+                setShowTrajectory(experiment.getParameter('showTrajectory') as boolean || true);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : '加载实验失败');
@@ -273,6 +279,13 @@ export default function ExperimentView() {
 
         // Note: We don't need to call setParameter here as we're directly modifying the object
         // The sync effect will update our React state
+    };
+
+    // Toggle trajectory display (Task 6.1)
+    const handleToggleTrajectory = (show: boolean) => {
+        if (!currentExperiment) return;
+        currentExperiment.setParameter('showTrajectory', show);
+        setShowTrajectory(show);
     };
 
     const isPlaying = state === SimulationState.Running;
@@ -599,6 +612,8 @@ export default function ExperimentView() {
                                     onAddObject={handleMotionLabAddObject}
                                     onRemoveObject={handleMotionLabRemoveObject}
                                     onUpdateObject={handleMotionLabUpdateObject}
+                                    showTrajectory={showTrajectory}
+                                    onToggleTrajectory={handleToggleTrajectory}
                                 />
                             }
                             monitorContent={
