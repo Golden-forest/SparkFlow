@@ -206,6 +206,13 @@ export default function ExperimentView() {
         if (typeof value === 'number' && !isNaN(value)) {
             return value;
         }
+        // Handle string numbers (from .toFixed(2))
+        if (typeof value === 'string') {
+            const parsed = parseFloat(value);
+            if (!isNaN(parsed)) {
+                return parsed;
+            }
+        }
         return 0;
     };
 
