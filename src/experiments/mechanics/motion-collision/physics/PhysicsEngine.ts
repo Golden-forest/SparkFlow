@@ -119,10 +119,12 @@ export class PhysicsEngine {
   /**
    * 处理弹性碰撞
    * 包含位置修正，防止物体重叠
+   * 步骤3: 更新加速度（碰撞产生瞬时加速度）
    */
   static resolveCollision(
     obj1: SimulationObject,
-    obj2: SimulationObject
+    obj2: SimulationObject,
+    deltaTime: number
   ): void {
     const m1 = obj1.mass;
     const m2 = obj2.mass;
@@ -173,6 +175,10 @@ export class PhysicsEngine {
       return;
     }
 
+    // 保存初始速度（用于计算加速度）
+    const v1Initial = v1.clone();
+    const v2Initial = v2.clone();
+
     // 一维弹性碰撞公式（沿法线方向）
     const v1Final = v1.clone().multiplyScalar((m1 - m2) / (m1 + m2))
       .add(v2.clone().multiplyScalar(2 * m2 / (m1 + m2)));
@@ -181,5 +187,13 @@ export class PhysicsEngine {
 
     obj1.velocity.copy(v1Final);
     obj2.velocity.copy(v2Final);
+
+    // 步骤3: 更新加速度（碰撞产生瞬时加速度）
+    // 加速度 = 速度变化 / 时间
+    const deltaV1 = v1Final.clone().sub(v1Initial).divideScalar(deltaTime);
+    const deltaV2 = v2Final.clone().sub(v2Initial).divideScalar(deltaTime);
+
+    obj1.acceleration.copy(deltaV1);
+    obj2.acceleration.copy(deltaV2);
   }
 }

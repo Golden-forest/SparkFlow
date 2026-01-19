@@ -257,7 +257,7 @@ export class MotionCollisionLab extends ExperimentBase {
       const obj1 = this.simulationObjects.get(id)!;
       targets.forEach(targetId => {
         const obj2 = this.simulationObjects.get(targetId)!;
-        PhysicsEngine.resolveCollision(obj1, obj2);
+        PhysicsEngine.resolveCollision(obj1, obj2, deltaTime);
       });
     });
 
