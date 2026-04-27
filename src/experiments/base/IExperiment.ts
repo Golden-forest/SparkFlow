@@ -31,6 +31,44 @@ export interface ParameterDefinition {
 }
 
 /**
+ * Action definition for experiment controls
+ */
+export interface ActionDefinition {
+    key: string;
+    label: string;
+    variant?: 'primary' | 'secondary';
+}
+
+/**
+ * Declarative control schema
+ */
+export interface ControlSchema {
+    title?: string;
+    parameters: ParameterDefinition[];
+    actions?: ActionDefinition[];
+}
+
+/**
+ * Quantity definition for monitor panels
+ */
+export interface MonitorQuantityDefinition {
+    key: string;
+    label: string;
+    unit?: string;
+    color: string;
+}
+
+/**
+ * Declarative monitor schema
+ */
+export interface MonitorSchema {
+    title?: string;
+    quantities: MonitorQuantityDefinition[];
+    defaultSelected?: string[];
+    sampleIntervalMs?: number;
+}
+
+/**
  * 显示数据接口
  */
 export interface DisplayValue {
@@ -92,13 +130,20 @@ export interface IExperiment {
     // 数据输出
     getDisplayData(): Record<string, DisplayValue>;
 
+    // 声明式 UI schema
+    getControlSchema?(): ControlSchema;
+    getMonitorSchema?(): MonitorSchema;
+
+    // 用户触发实验动作
+    triggerAction?(key: string): void;
+
     // 事件处理(可选)
     onInteraction?(event: InteractionEvent): void;
 
     // 动态对象管理(可选) - 用于支持动态添加/删除仿真对象的实验
-    createObject?(config: any): any;
+    createObject?(config: unknown): unknown;
     removeObject?(id: string): boolean;
-    addRamp?(config: any): void;
+    addRamp?(config: unknown): void;
     removeRamp?(id: string): void;
-    getSimulationObjects?(): Map<string, any>;
+    getSimulationObjects?(): ReadonlyMap<string, unknown>;
 }

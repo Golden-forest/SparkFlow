@@ -6,6 +6,8 @@ import type {
     ParameterDefinition,
     DisplayValue,
     InteractionEvent,
+    ControlSchema,
+    MonitorSchema,
 } from './IExperiment';
 
 /**
@@ -120,28 +122,70 @@ export abstract class ExperimentBase implements IExperiment {
      * 设置参数值
      */
     setParameter(key: string, value: number | string | boolean): void {
-        if (this.parameters.has(key)) {
-            this.parameters.set(key, value);
-            this.onParameterChange(key, value);
-        }
+        const isDefinedParameter = this.parameters.has(key) || this.config.parameters.some((parameter) => parameter.key === key);
+        if (!isDefinedParameter) return;
+
+        this.parameters.set(key, value);
+        this.onParameterChange(key, value);
     }
 
     /**
      * 子类可重写：参数变化时的响应
      */
-    protected onParameterChange(key: string, value: number | string | boolean): void { }
+    protected onParameterChange(key: string, value: number | string | boolean): void {
+        void key;
+        void value;
+    }
 
     /**
      * 获取参数值
      */
     getParameter(key: string): number | string | boolean {
-        return this.parameters.get(key) ?? 0;
+        if (this.parameters.has(key)) {
+            return this.parameters.get(key) as number | string | boolean;
+        }
+
+        const definition = this.config.parameters.find((parameter) => parameter.key === key);
+        if (definition) {
+            return definition.defaultValue;
+        }
+
+        return 0;
     }
 
     /**
      * 获取显示数据 - 子类实现
      */
     abstract getDisplayData(): Record<string, DisplayValue>;
+
+    /**
+     * 获取通用控制 schema
+     */
+    getControlSchema(): ControlSchema {
+        return {
+            title: 'Controls',
+            parameters: this.config.parameters,
+        };
+    }
+
+    /**
+     * 获取通用监控 schema，默认由页面回退策略处理
+     */
+    getMonitorSchema(): MonitorSchema {
+        return {
+            title: 'Monitor',
+            quantities: [],
+            defaultSelected: [],
+            sampleIntervalMs: 100,
+        };
+    }
+
+    /**
+     * 通用动作触发，子类可覆盖
+     */
+    triggerAction(key: string): void {
+        void key;
+    }
 
     /**
      * 交互事件处理(可选)
