@@ -1,135 +1,104 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Play, Pause, RotateCcw, ZoomOut } from 'lucide-react';
-import { SceneContainer, ExperimentScene, DataDisplay } from '@/components/simulation';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
+import { ExperimentWorkbench } from '@/components/experiment';
+import { ExperimentScene, SceneContainer } from '@/components/simulation';
+import type {
+    ControlSchema,
+    DisplayValue,
+    MonitorQuantityDefinition,
+    MonitorSchema,
+    ParameterDefinition,
+} from '@/experiments/base';
+import { ExperimentRegistry } from '@/experiments/base';
+import '@/experiments';
 import { useSimulationStore } from '@/stores/simulationStore';
-import { ExperimentRegistry, type DisplayValue } from '@/experiments/base';
 import { SimulationState } from '@/utils/constants';
 
-// 导入实验注册
-import '@/experiments';
+const MONITOR_COLORS = ['#22d3ee', '#34d399', '#f59e0b', '#f87171', '#60a5fa', '#a78bfa'];
 
-// 导入自定义工具栏和类型
-import { SideToolbar } from '@/components/simulation/SideToolbar';
-import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
-import { getValidTransitionEnergies } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
-
-// 导入TabPanel相关组件
-import { TabPanel } from '@/components/experiment/TabPanel';
-import { ControlTab, ObjectControlTab } from '@/components/experiment/ControlTab';
-import { PendulumControlPanel } from '@/components/experiment/PendulumControlPanel';
-import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
-import type { MonitoredQuantity } from '@/components/monitoring/QuantitySelector';
-import type { SimulationObject } from '@/experiments/mechanics/motion-collision/types/ObjectTypes';
-import * as THREE from 'three';
-
-// 实验说明内容类型
-interface ExperimentDescriptionItem {
-    colorClass: string;
-    label: string;
-    description: string;
+function readNumericValue(item: DisplayValue | undefined): number | null {
+    if (!item) return null;
+    if (typeof item.value === 'number' && Number.isFinite(item.value)) {
+        return item.value;
+    }
+    if (typeof item.value === 'string') {
+        const parsed = Number.parseFloat(item.value);
+        if (Number.isFinite(parsed)) {
+            return parsed;
+        }
+    }
+    return null;
 }
 
-// 根据实验ID获取说明内容
-function getExperimentDescription(experimentId: string | undefined): ExperimentDescriptionItem[] {
-    if (!experimentId) return [];
+function buildFallbackMonitorSchema(displayData: Record<string, DisplayValue>): MonitorSchema {
+    const quantities: MonitorQuantityDefinition[] = Object.entries(displayData)
+        .filter(([, value]) => readNumericValue(value) !== null)
+        .map(([key, value], index) => ({
+            key,
+            label: value.label,
+            unit: value.unit,
+            color: MONITOR_COLORS[index % MONITOR_COLORS.length],
+        }));
 
-    switch (experimentId) {
-        case 'solar-system':
-            return [
-                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Sun' },
-                { colorClass: 'text-orange-400', label: 'Colored Spheres', description: 'Planets' },
-                { colorClass: 'text-slate-400', label: 'Gray Rings', description: 'Orbits' },
-                { colorClass: 'text-blue-400', label: 'Current View', description: 'System/Satellite View' },
-            ];
+    return {
+        title: 'Monitor',
+        quantities,
+        defaultSelected: quantities.slice(0, Math.min(3, quantities.length)).map((item) => item.key),
+        sampleIntervalMs: 100,
+    };
+}
 
-        case 'rutherford-scattering':
-            return [
-                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Nucleus' },
-                { colorClass: 'text-green-400', label: 'Teal Sphere', description: 'Electron' },
-                { colorClass: 'text-blue-400', label: 'Colored Rings', description: 'Electron Orbits (n=1-6)' },
-            ];
-
-        case 'hydrogen-transitions':
-            return [
-                { colorClass: 'text-yellow-400', label: 'Golden Sphere', description: 'Nucleus' },
-                { colorClass: 'text-green-400', label: 'Teal Sphere', description: 'Electron' },
-                { colorClass: 'text-blue-400', label: 'Colored Rings', description: 'Electron Orbits (n=1-6)' },
-                { colorClass: 'text-purple-400', label: 'Wavy Lines', description: 'Photons' },
-            ];
-
-        default:
-            return [];
-    }
+function buildDefaultControlSchema(parameters: ParameterDefinition[]): ControlSchema {
+    return {
+        title: 'Controls',
+        parameters,
+    };
 }
 
 export default function ExperimentView() {
-    const { experimentId: paramId } = useParams<{ experimentId: string }>();
-    const location = useLocation();
+    const { experimentId } = useParams<{ experimentId: string }>();
 
-    // 判断是否为卢瑟福微观视图（固定路由）
-    const isRutherfordMicro = location.pathname === '/experiment/rutherford-scattering/micro';
-    const experimentId = isRutherfordMicro ? 'rutherford-scattering' : paramId;
-    const isHydrogen = experimentId === 'hydrogen-transitions';
-    const isMotionLab = experimentId === 'motion-collision'; // Task 2.4: 运动与碰撞实验室标识
-    const isPendulum = experimentId === 'pendulum'; // Task 5.1: 单摆实验标识
+    const state = useSimulationStore((store) => store.state);
+    const start = useSimulationStore((store) => store.start);
+    const pause = useSimulationStore((store) => store.pause);
+    const resume = useSimulationStore((store) => store.resume);
+    const reset = useSimulationStore((store) => store.reset);
+    const setExperiment = useSimulationStore((store) => store.setExperiment);
+    const currentExperiment = useSimulationStore((store) => store.currentExperiment);
+    const monitoringHistory = useSimulationStore((store) => store.monitoringHistory);
+    const updateMonitoringHistory = useSimulationStore((store) => store.updateMonitoringHistory);
 
-    const { state, start, pause, resume, reset, setExperiment, currentExperiment, monitoringHistory } = useSimulationStore();
-
-    const [displayData, setDisplayData] = useState<Record<string, DisplayValue>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [displayData, setDisplayData] = useState<Record<string, DisplayValue>>({});
+    const [parameterValues, setParameterValues] = useState<Record<string, number | string | boolean>>({});
+    const [selectedMonitorIds, setSelectedMonitorIds] = useState<string[]>([]);
 
-    // Hydrogen 特有状态
-    const [sceneMode, setSceneMode] = useState<SceneMode>('stimulated-absorption');
-    const [currentLevel, setCurrentLevel] = useState(1);
-    const [photonEnergy, setPhotonEnergy] = useState(10.2);
-    const [electronCount, setElectronCount] = useState<'single' | 'multi'>('single');
-    const [validEnergies, setValidEnergies] = useState<number[]>([]);
-
-    // Pendulum 特有状态
-    const [pendulumLength, setPendulumLength] = useState(2.0);
-    const [pendulumMass, setPendulumMass] = useState(1.0);
-    const [pendulumAngle, setPendulumAngle] = useState(15);
-
-    // Motion-collision lab 特有状态 (Task 5.1)
-    const [motionLabObjects, setMotionLabObjects] = useState<Map<string, SimulationObject>>(new Map());
-    const [showTrajectory, setShowTrajectory] = useState(true); // Task 6.1: 轨迹显示开关状态
-
-    // 加载实验
     useEffect(() => {
         if (!experimentId) return;
 
         setIsLoading(true);
         setError(null);
+        setDisplayData({});
+        setParameterValues({});
+        setSelectedMonitorIds([]);
 
         try {
             if (!ExperimentRegistry.has(experimentId)) {
-                throw new Error(`实验 "${experimentId}" 未注册`);
+                throw new Error(`Experiment "${experimentId}" is not registered.`);
             }
+
             const experiment = ExperimentRegistry.create(experimentId);
             setExperiment(experiment);
 
-            // 初始化特定实验的状态
-            if (experimentId === 'hydrogen-transitions') {
-                // 默认值同步
-                setSceneMode(experiment.getParameter('excitationMode') as SceneMode || 'stimulated-absorption');
-                setCurrentLevel(experiment.getParameter('initialLevel') as number || 1);
-            }
-
-            if (experimentId === 'pendulum') {
-                // 初始化单摆参数
-                setPendulumLength(experiment.getParameter('length') as number || 2.0);
-                setPendulumMass(experiment.getParameter('mass') as number || 1.0);
-                setPendulumAngle(experiment.getParameter('initialAngle') as number || 15);
-            }
-
-            if (experimentId === 'motion-collision') {
-                // 初始化轨迹显示状态 (Task 6.1)
-                setShowTrajectory(experiment.getParameter('showTrajectory') as boolean || true);
-            }
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '加载实验失败');
+            const values: Record<string, number | string | boolean> = {};
+            experiment.config.parameters.forEach((parameter) => {
+                values[parameter.key] = parameter.defaultValue;
+            });
+            setParameterValues(values);
+        } catch (loadError) {
+            setError(loadError instanceof Error ? loadError.message : 'Failed to load experiment.');
         } finally {
             setIsLoading(false);
         }
@@ -139,516 +108,184 @@ export default function ExperimentView() {
         };
     }, [experimentId, setExperiment]);
 
-    // 刷新显示数据 & 计算有效能量
+    const controlSchema = useMemo(() => {
+        if (!currentExperiment) {
+            return buildDefaultControlSchema([]);
+        }
+        return currentExperiment.getControlSchema?.() ?? buildDefaultControlSchema(currentExperiment.config.parameters);
+    }, [currentExperiment]);
+
+    const monitorSchema = useMemo(() => {
+        if (!currentExperiment) {
+            return {
+                title: 'Monitor',
+                quantities: [],
+                defaultSelected: [],
+                sampleIntervalMs: 100,
+            };
+        }
+        const schema = currentExperiment.getMonitorSchema?.();
+        if (schema && schema.quantities.length > 0) {
+            return schema;
+        }
+        return buildFallbackMonitorSchema(displayData);
+    }, [currentExperiment, displayData]);
+
     useEffect(() => {
         if (!currentExperiment) return;
 
-        const interval = setInterval(() => {
-            setDisplayData(currentExperiment.getDisplayData());
+        const sampleInterval = Math.max(40, monitorSchema.sampleIntervalMs ?? 100);
+        const timer = setInterval(() => {
+            const data = currentExperiment.getDisplayData();
+            setDisplayData(data);
 
-            // 如果是氢原子实验，并且正在运行（自发辐射可能自动改变能级），需要同步能级
-            if (isHydrogen && state === SimulationState.Running) {
-                // 注意：这里可能需要从 displayData 或 getParameter 获取实时能级
-                // 但目前架构中 parameter 通常是输入，displayData 是输出
-                // 我们暂时信任 React 状态作为 source of truth 用于控制
-            }
-        }, 100);
+            const activeSchema = currentExperiment.getMonitorSchema?.();
+            const resolvedSchema =
+                activeSchema && activeSchema.quantities.length > 0
+                    ? activeSchema
+                    : buildFallbackMonitorSchema(data);
 
-        return () => clearInterval(interval);
-    }, [currentExperiment, isHydrogen, state]);
+            resolvedSchema.quantities.forEach((quantity) => {
+                const numericValue = readNumericValue(data[quantity.key]);
+                if (numericValue !== null) {
+                    updateMonitoringHistory(quantity.key, numericValue);
+                }
+            });
+        }, sampleInterval);
 
-    // 更新有效能量列表
+        return () => clearInterval(timer);
+    }, [currentExperiment, monitorSchema.sampleIntervalMs, updateMonitoringHistory]);
+
     useEffect(() => {
-        if (isHydrogen) {
-            setValidEnergies(getValidTransitionEnergies(currentLevel, sceneMode));
-        }
-    }, [currentLevel, sceneMode, isHydrogen]);
+        const validIds = new Set(monitorSchema.quantities.map((item) => item.key));
+        setSelectedMonitorIds((previous) => {
+            const kept = previous.filter((id) => validIds.has(id));
+            if (kept.length > 0) {
+                return kept;
+            }
+            const defaults = (monitorSchema.defaultSelected ?? []).filter((id) => validIds.has(id));
+            if (defaults.length > 0) {
+                return defaults;
+            }
+            return monitorSchema.quantities.slice(0, Math.min(3, monitorSchema.quantities.length)).map((item) => item.key);
+        });
+    }, [monitorSchema]);
+
+    const isRunning = state === SimulationState.Running;
 
     const handlePlayPause = () => {
         if (state === SimulationState.Running) {
             pause();
-        } else if (state === SimulationState.Paused) {
-            resume();
-        } else {
-            start();
+            return;
         }
+        if (state === SimulationState.Paused) {
+            resume();
+            return;
+        }
+        start();
     };
 
     const handleReset = () => {
         reset();
-        if (isHydrogen) {
-            // 重置 React 状态
-            // 保持当前模式，但重置能级
-            if (sceneMode === 'stimulated-absorption') {
-                setCurrentLevel(1);
-                handleHydrogenParam('initialLevel', 1);
-            } else {
-                setCurrentLevel(3); // 激发态默认
-                handleHydrogenParam('initialLevel', 3);
-            }
-        }
+        if (!currentExperiment) return;
+        const values: Record<string, number | string | boolean> = {};
+        currentExperiment.config.parameters.forEach((parameter) => {
+            values[parameter.key] = currentExperiment.getParameter(parameter.key);
+        });
+        setParameterValues(values);
     };
 
-    const handleHydrogenParam = (key: string, value: any) => {
+    const handleParameterChange = (key: string, value: number | string | boolean) => {
         if (!currentExperiment) return;
         currentExperiment.setParameter(key, value);
-
-        if (key === 'excitationMode') setSceneMode(value);
-        if (key === 'initialLevel') setCurrentLevel(value);
-        if (key === 'inputEnergy') setPhotonEnergy(value);
-        if (key === 'atomType') setElectronCount(value === 'single' ? 'single' : 'multi');
+        setParameterValues((previous) => ({
+            ...previous,
+            [key]: value,
+        }));
     };
 
-    const handlePendulumParam = (key: string, value: number) => {
-        if (!currentExperiment) return;
-        currentExperiment.setParameter(key, value);
-
-        if (key === 'length') setPendulumLength(value);
-        if (key === 'mass') setPendulumMass(value);
-        if (key === 'initialAngle') setPendulumAngle(value);
-    };
-
-    // Motion-collision lab object management handlers (Task 5.2-5.4)
-    const handleMotionLabAddObject = (type: 'sphere' | 'box' | 'plank') => {
-        if (!currentExperiment || typeof currentExperiment.createObject !== 'function') return;
-
-        // Create default object config based on type
-        const defaultConfig = {
-            sphere: {
-                type: 'sphere' as const,
-                position: new THREE.Vector3(0, 1, 0),
-                velocity: new THREE.Vector3(0, 0, 0),
-                mass: 1.0,
-                radius: 0.5,
-            },
-            box: {
-                type: 'box' as const,
-                position: new THREE.Vector3(0, 0.5, 0),
-                velocity: new THREE.Vector3(0, 0, 0),
-                mass: 1.0,
-                width: 1,
-                height: 1,
-                depth: 1,
-            },
-            plank: {
-                type: 'plank' as const,
-                position: new THREE.Vector3(0, 0.1, 0),
-                velocity: new THREE.Vector3(0, 0, 0),
-                mass: 2.0,
-                width: 2,
-                height: 0.2,
-                depth: 0.5,
-            },
-        };
-
-        const config = defaultConfig[type];
-        const newObject = currentExperiment.createObject(config);
-
-        // Sync updated objects to React state
-        if (typeof currentExperiment.getSimulationObjects === 'function') {
-            const objects = currentExperiment.getSimulationObjects();
-            setMotionLabObjects(new Map(objects));
-        }
-    };
-
-    const handleMotionLabRemoveObject = (id: string) => {
-        if (!currentExperiment || typeof currentExperiment.removeObject !== 'function') return;
-
-        const success = currentExperiment.removeObject(id);
-
-        if (success && typeof currentExperiment.getSimulationObjects === 'function') {
-            // Sync updated objects to React state
-            const objects = currentExperiment.getSimulationObjects();
-            setMotionLabObjects(new Map(objects));
-        }
-    };
-
-    const handleMotionLabUpdateObject = (id: string, params: Partial<SimulationObject>) => {
-        if (!currentExperiment) return;
-
-        // Get current objects and update the specified one
-        if (typeof currentExperiment.getSimulationObjects !== 'function') return;
-
-        const objects = currentExperiment.getSimulationObjects();
-        const obj = objects.get(id);
-
-        if (!obj) return;
-
-        // Update object properties
-        Object.assign(obj, params);
-
-        // Note: We don't need to call setParameter here as we're directly modifying the object
-        // The sync effect will update our React state
-    };
-
-    // Toggle trajectory display (Task 6.1)
-    const handleToggleTrajectory = (show: boolean) => {
-        if (!currentExperiment) return;
-        currentExperiment.setParameter('showTrajectory', show);
-        setShowTrajectory(show);
-    };
-
-    // Load scene preset (Task 7.4)
-    const handleLoadPreset = (preset: any) => {
-        if (!currentExperiment || typeof currentExperiment.loadScenePreset !== 'function') return;
-
-        // Load the preset
-        currentExperiment.loadScenePreset(preset.objects);
-
-        // Sync updated objects to React state
-        if (typeof currentExperiment.getSimulationObjects === 'function') {
-            const objects = currentExperiment.getSimulationObjects();
-            setMotionLabObjects(new Map(objects));
-        }
-
-        // Reset simulation state
-        reset();
-    };
-
-    const isPlaying = state === SimulationState.Running;
-
-    // Type-safe value extraction helper (Task 5.1 code review fix)
-    const safeNumberValue = (value: unknown): number => {
-        if (typeof value === 'number' && !isNaN(value)) {
-            return value;
-        }
-        // Handle string numbers (from .toFixed(2))
-        if (typeof value === 'string') {
-            const parsed = parseFloat(value);
-            if (!isNaN(parsed)) {
-                return parsed;
-            }
-        }
-        return 0;
-    };
-
-    // Monitor history data collection for pendulum experiment (Task 5.1 code review fix)
-    useEffect(() => {
-        if (!isPendulum || !currentExperiment) return;
-
-        const interval = setInterval(() => {
-            const data = currentExperiment.getDisplayData();
-
-            // Update monitoring history through store
-            const { updateMonitoringHistory } = useSimulationStore.getState();
-            const quantities = ['period', 'frequency', 'velocity', 'angle'];
-
-            quantities.forEach(qid => {
-                const value = safeNumberValue(data[qid]?.value);
-                updateMonitoringHistory(qid, value);
-            });
-        }, 100); // Update every 100ms
-
-        return () => clearInterval(interval);
-    }, [isPendulum, currentExperiment]);
-
-    // Motion-collision lab monitoring data collection (Task 3.1)
-    useEffect(() => {
-        if (!isMotionLab || !currentExperiment) return;
-
-        const interval = setInterval(() => {
-            const data = currentExperiment.getDisplayData();
-
-            // Update monitoring history through store
-            const { updateMonitoringHistory } = useSimulationStore.getState();
-            const quantities = ['velocity', 'acceleration', 'momentum', 'kineticEnergy'];
-
-            quantities.forEach(qid => {
-                const value = safeNumberValue(data[qid]?.value);
-                updateMonitoringHistory(qid, value);
-            });
-        }, 100); // Update every 100ms
-
-        return () => clearInterval(interval);
-    }, [isMotionLab, currentExperiment]);
-
-    // Sync motion-collision lab objects (Task 5.1)
-    useEffect(() => {
-        if (!isMotionLab || !currentExperiment) return;
-
-        // Check if experiment supports dynamic object management
-        if (typeof currentExperiment.getSimulationObjects !== 'function') return;
-
-        // Sync objects from experiment to React state
-        const objects = currentExperiment.getSimulationObjects();
-        setMotionLabObjects(new Map(objects));
-    }, [isMotionLab, currentExperiment]);
-
-    // Calculate pendulum experiment monitoring data
-    const pendulumMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
-        if (!isPendulum) return [];
-
-        const data = currentExperiment?.getDisplayData() || {};
-        return [
-            {
-                id: 'period',
-                name: 'Period',
-                unit: 's',
-                color: '#00ff41',
-                currentValue: safeNumberValue(data.period?.value),
-            },
-            {
-                id: 'frequency',
-                name: 'Frequency',
-                unit: 'Hz',
-                color: '#ff6b6b',
-                currentValue: safeNumberValue(data.frequency?.value),
-            },
-            {
-                id: 'velocity',
-                name: 'Velocity',
-                unit: 'm/s',
-                color: '#60a5fa',
-                currentValue: safeNumberValue(data.velocity?.value),
-            },
-            {
-                id: 'angle',
-                name: 'Angle',
-                unit: '°',
-                color: '#fbbf24',
-                currentValue: safeNumberValue(data.angle?.value),
-            },
-        ];
-    }, [isPendulum, currentExperiment]);
-
-    const [pendulumSelectedQuantities, setPendulumSelectedQuantities] = useState<string[]>(['period', 'velocity']);
-    const [isPendulumMonitorExpanded, setIsPendulumMonitorExpanded] = useState(true);
-
-    // Motion-collision lab monitored quantities (Task 3.2 - Using real data)
-    const motionLabMonitoredQuantities = useMemo((): MonitoredQuantity[] => {
-        if (!isMotionLab || !currentExperiment) return [];
-
-        const data = currentExperiment.getDisplayData();
-
-        return [
-            {
-                id: 'velocity',
-                name: 'Velocity',
-                unit: 'm/s',
-                color: '#00ff41',
-                currentValue: safeNumberValue(data.velocity?.value),
-            },
-            {
-                id: 'acceleration',
-                name: 'Acceleration',
-                unit: 'm/s²',
-                color: '#ff6b6b',
-                currentValue: safeNumberValue(data.acceleration?.value),
-            },
-            {
-                id: 'momentum',
-                name: 'Momentum',
-                unit: 'kg·m/s',
-                color: '#60a5fa',
-                currentValue: safeNumberValue(data.momentum?.value),
-            },
-            {
-                id: 'kineticEnergy',
-                name: 'Kinetic Energy',
-                unit: 'J',
-                color: '#fbbf24',
-                currentValue: safeNumberValue(data.kineticEnergy?.value),
-            },
-        ];
-    }, [isMotionLab, currentExperiment]);
-
-    const [motionLabSelectedQuantities, setMotionLabSelectedQuantities] = useState<string[]>(['velocity', 'momentum', 'kineticEnergy']);
-    const [isMotionLabMonitorExpanded, setIsMotionLabMonitorExpanded] = useState(true);
-
-    const handleEmit = () => {
-        // 确保仿真在运行
-        if (state !== SimulationState.Running) {
-            start();
-        }
-
-        // 触发发射信号
-        // 我们利用 Parameter Change 并不总是需要改变值，只要触发 notify 即可
-        // 但为了保险，我们用时间戳
-        handleHydrogenParam('triggerEmission', Date.now());
+    const handleAction = (key: string) => {
+        currentExperiment?.triggerAction?.(key);
     };
 
     if (isLoading) {
         return (
-            <div className="h-screen flex items-center justify-center bg-slate-900">
-                <div className="text-white text-xl">加载中...</div>
+            <div className="flex h-screen items-center justify-center bg-slate-950">
+                <p className="text-xl text-slate-100">Loading experiment...</p>
             </div>
         );
     }
 
-    if (error) {
+    if (error || !currentExperiment) {
         return (
-            <div className="h-screen flex flex-col items-center justify-center bg-slate-900">
-                <div className="text-red-400 text-xl mb-4">{error}</div>
-                <Link to="/" className="text-blue-400 hover:underline">返回首页</Link>
+            <div className="flex h-screen flex-col items-center justify-center bg-slate-950">
+                <p className="mb-4 text-xl text-red-300">{error ?? 'Experiment unavailable.'}</p>
+                <Link to="/" className="text-cyan-300 transition-colors hover:text-cyan-200 hover:underline">
+                    Back to Home
+                </Link>
             </div>
         );
     }
 
     return (
-        <div className="h-screen flex flex-col bg-slate-900">
-            {/* 顶部导航栏 */}
-            <header className="flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur-sm px-6 py-4 z-10">
+        <div className="flex h-screen flex-col bg-slate-950">
+            <header className="z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/90 px-6 py-4 backdrop-blur-sm">
                 <div className="flex items-center gap-4">
                     <Link
-                        to={isRutherfordMicro ? '/experiment/rutherford-scattering' : '/'}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10"
+                        to="/"
+                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-4 py-2 text-slate-200 transition-colors hover:bg-slate-800"
                     >
-                        {isRutherfordMicro ? <ZoomOut size={18} /> : <ArrowLeft size={18} />}
-                        <span className="font-medium">{isRutherfordMicro ? 'Back to Device' : 'Back'}</span>
+                        <ArrowLeft size={18} />
+                        <span className="font-medium">Back</span>
                     </Link>
-                    <div className="h-6 w-px bg-white/10" />
-                    <h1 className="text-xl font-semibold text-white tracking-wide">
-                        {currentExperiment?.metadata.name ?? 'Experiment'}
-                    </h1>
+                    <h1 className="text-xl font-semibold tracking-wide text-white">{currentExperiment.metadata.name}</h1>
                 </div>
 
-                {/* 控制按钮 - 仅在非氢原子实验显示 */}
-                {!isHydrogen && (
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handlePlayPause}
-                            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-lg ${isPlaying
-                                ? 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white shadow-orange-900/30'
-                                : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-emerald-900/30'
-                                }`}
-                        >
-                            {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                            <span className="tracking-wide">{isPlaying ? 'Pause' : state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
-                        </button>
-                        <button
-                            onClick={handleReset}
-                            className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-medium transition-all duration-200 shadow-lg shadow-slate-900/30 border border-white/10"
-                        >
-                            <RotateCcw size={18} />
-                            <span className="tracking-wide">Reset</span>
-                        </button>
-                    </div>
-                )}
-
-              {/* 氢原子实验跳转按钮 */}
-                {isHydrogen && (
-                    <Link
-                        to="/experiment/hydrogen-transitions/abstract"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors"
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handlePlayPause}
+                        className={`flex items-center gap-2.5 rounded-lg px-5 py-2.5 font-medium text-white shadow-lg transition-all ${
+                            isRunning
+                                ? 'bg-gradient-to-r from-amber-600 to-orange-500 shadow-orange-900/30 hover:from-amber-500 hover:to-orange-400'
+                                : 'bg-gradient-to-r from-cyan-600 to-sky-500 shadow-cyan-900/30 hover:from-cyan-500 hover:to-sky-400'
+                        }`}
                     >
-                        <span>Abstract Demo</span>
-                        <ArrowLeft className="rotate-180" size={18} />
-                    </Link>
-                )}
+                        {isRunning ? <Pause size={18} /> : <Play size={18} />}
+                        <span>{isRunning ? 'Pause' : state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
+                    </button>
+                    <button
+                        onClick={handleReset}
+                        className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-slate-800 px-5 py-2.5 font-medium text-slate-100 transition-colors hover:bg-slate-700"
+                    >
+                        <RotateCcw size={18} />
+                        <span>Reset</span>
+                    </button>
+                </div>
             </header>
 
-            {/* 3D场景 */}
-            <main className="flex-1 relative">
+            <main className="relative flex-1">
                 <SceneContainer
-                    cameraPosition={currentExperiment?.config.camera.position ?? [0, 12, 8]}
-                    cameraTarget={currentExperiment?.config.camera.target ?? [0, 0, 0]}
-                    cameraFov={currentExperiment?.config.camera.fov ?? 50}
+                    cameraPosition={currentExperiment.config.camera.position}
+                    cameraTarget={currentExperiment.config.camera.target}
+                    cameraFov={currentExperiment.config.camera.fov ?? 50}
                     showGrid={false}
                     showAxes={false}
                 >
                     <ExperimentScene experiment={currentExperiment} />
                 </SceneContainer>
 
-                {/* 氢原子实验专用工具栏 (右侧) */}
-                {isHydrogen && (
-                    <SideToolbar
-                        sceneMode={sceneMode}
-                        onSceneModeChange={(mode) => {
-                            // 切换模式逻辑
-                            let newLevel = currentLevel;
-                            if (mode === 'stimulated-absorption') {
-                                // 切换到吸收模式，默认回到基态或保持（如果当前是基态）
-                                if (newLevel > 1) newLevel = 1;
-                            } else {
-                                // 切换到辐射模式，需要激发态
-                                // 如果从吸收切换过来且已经在激发态，保持
-                                // 否则默认设为 3
-                                if (sceneMode === 'stimulated-absorption' && currentLevel > 1) {
-                                    // keep currentLevel
-                                } else if (currentLevel <= 1) {
-                                    newLevel = 3;
-                                }
-                            }
-
-                            setSceneMode(mode);
-                            setCurrentLevel(newLevel);
-
-                            // 同步到实验
-                            handleHydrogenParam('excitationMode', mode);
-                            handleHydrogenParam('initialLevel', newLevel);
-                        }}
-                        currentLevel={currentLevel}
-                        onLevelChange={(level) => handleHydrogenParam('initialLevel', level)}
-                        photonEnergy={photonEnergy}
-                        onPhotonEnergyChange={(energy) => handleHydrogenParam('inputEnergy', energy)}
-                        validEnergies={validEnergies}
-                        electronCount={electronCount}
-                        onElectronCountChange={(count) => handleHydrogenParam('atomType', count === 'single' ? 'single' : 'group')}
-                        isRunning={isPlaying}
-                        onTogglePlay={handlePlayPause}
-                        onReset={handleReset}
-                        onEmit={handleEmit}
-                    />
-                )}
-
-                {/* 单摆实验控制面板 (Task 5.1) */}
-                {isPendulum && (
-                    <TabPanel>
-                        <ControlTab
-                            controlContent={
-                                <PendulumControlPanel
-                                    pendulumLength={pendulumLength}
-                                    onLengthChange={(value) => handlePendulumParam('length', value)}
-                                    mass={pendulumMass}
-                                    onMassChange={(value) => handlePendulumParam('mass', value)}
-                                    initialAngle={pendulumAngle}
-                                    onAngleChange={(value) => handlePendulumParam('initialAngle', value)}
-                                />
-                            }
-                            monitorContent={
-                                <PhysicsMonitor
-                                    quantities={pendulumMonitoredQuantities}
-                                    history={monitoringHistory}
-                                    selectedQuantities={pendulumSelectedQuantities}
-                                    onSelectionChange={setPendulumSelectedQuantities}
-                                    isExpanded={isPendulumMonitorExpanded}
-                                    onToggleExpand={() => setIsPendulumMonitorExpanded(!isPendulumMonitorExpanded)}
-                                />
-                            }
-                        />
-                    </TabPanel>
-                )}
-
-                {/* Motion & Collision Lab Control Panel (Task 5.5 - Full ObjectControlTab integration) */}
-                {isMotionLab && (
-                    <TabPanel>
-                        <ControlTab
-                            controlContent={
-                                <ObjectControlTab
-                                    objects={motionLabObjects}
-                                    onAddObject={handleMotionLabAddObject}
-                                    onRemoveObject={handleMotionLabRemoveObject}
-                                    onUpdateObject={handleMotionLabUpdateObject}
-                                    showTrajectory={showTrajectory}
-                                    onToggleTrajectory={handleToggleTrajectory}
-                                    onLoadPreset={handleLoadPreset}
-                                />
-                            }
-                            monitorContent={
-                                <PhysicsMonitor
-                                    quantities={motionLabMonitoredQuantities}
-                                    history={monitoringHistory}
-                                    selectedQuantities={motionLabSelectedQuantities}
-                                    onSelectionChange={setMotionLabSelectedQuantities}
-                                    isExpanded={isMotionLabMonitorExpanded}
-                                    onToggleExpand={() => setIsMotionLabMonitorExpanded(!isMotionLabMonitorExpanded)}
-                                />
-                            }
-                        />
-                    </TabPanel>
-                )}
-
-                {/* 数据统计面板和实验说明已移除 */}
+                <ExperimentWorkbench
+                    title={currentExperiment.metadata.name}
+                    controlSchema={controlSchema}
+                    monitorSchema={monitorSchema}
+                    parameterValues={parameterValues}
+                    onParameterChange={handleParameterChange}
+                    onAction={handleAction}
+                    displayData={displayData}
+                    monitorHistory={monitoringHistory}
+                    selectedMonitorIds={selectedMonitorIds}
+                    onSelectedMonitorIdsChange={setSelectedMonitorIds}
+                />
             </main>
         </div>
     );

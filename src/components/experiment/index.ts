@@ -4,3 +4,4 @@ export { Stopwatch } from './Stopwatch';
 export { GravityCalculator } from './GravityCalculator';
 export { PendulumControlPanel } from './PendulumControlPanel';
 export type { PendulumControlPanelProps } from './PendulumControlPanel';
+export { ExperimentWorkbench } from './ExperimentWorkbench';
