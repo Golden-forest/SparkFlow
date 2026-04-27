@@ -166,6 +166,23 @@ Both modes stay in sync — dragging updates the slider, slider updates the 3D p
 
 ---
 
+## Implementation Scope (v1)
+
+> **Note:** Some advanced features from the original design are deferred to future iterations to keep the initial implementation focused.
+
+### Deferred to v2
+
+- **Light Refraction:** Prism dispersion (multi-wavelength ray splitting), rectangular slab double refraction (entry + exit surface), curved surface normal calculation for semicircle/hemisphere shapes
+- **Double-Slit Interference:** Intensity curve I(y) overlay on the observation screen
+
+### In Scope for v1
+
+- **Light Refraction:** Single-surface Snell's law refraction, total internal reflection, 4 medium block shapes (visual geometry only, physics uses flat interface), Fresnel reflectance
+- **Boyle's Law:** Full implementation including 3D drag + slider dual-mode interaction, gas molecule particle system, P-V monitoring
+- **Double-Slit Interference:** Wavefront animation, interference pattern rendering on screen, wavelength-color mapping
+
+---
+
 ## Implementation Strategy
 
 ### Reusable Infrastructure
