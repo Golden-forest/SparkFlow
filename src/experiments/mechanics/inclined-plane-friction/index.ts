@@ -1,0 +1,1 @@
+export { InclinedPlaneFriction } from './InclinedPlaneFriction';
