@@ -19,12 +19,12 @@ import { ScatteringPhysics, type AlphaParticle } from './ScatteringPhysics';
 export class RutherfordExperiment extends ExperimentBase {
     readonly metadata: ExperimentMetadata = {
         id: 'rutherford-scattering',
-        name: '卢瑟福α粒子散射实验',
+        name: 'Rutherford Alpha Scattering',
         category: ExperimentCategory.AtomicPhysics,
-        description: '通过观察α粒子穿过金箔的散射现象，揭示原子的核式结构',
+        description: 'Observe alpha-particle scattering through gold foil to reveal atomic nuclear structure',
         difficulty: 'basic',
         duration: 10,
-        keywords: ['卢瑟福', 'α粒子', '散射', '原子核', '核式结构'],
+        keywords: ['rutherford', 'alpha particle', 'scattering', 'nucleus', 'atomic structure'],
         thumbnail: '/thumbnails/rutherford.jpg',
     };
 
@@ -299,25 +299,38 @@ export class RutherfordExperiment extends ExperimentBase {
 
         return {
             totalEmitted: {
-                label: '已发射粒子',
+                label: 'Emitted Particles',
                 value: this.totalEmitted,
-                unit: '个',
+                unit: 'count',
             },
             largeAngle: {
-                label: '大角度散射',
+                label: 'Large-Angle Events',
                 value: this.largeAngleCount,
-                unit: '个',
+                unit: 'count',
             },
             ratio: {
-                label: '大角度比例',
+                label: 'Large-Angle Ratio',
                 value: ratio,
                 unit: '%',
             },
             theoretical: {
-                label: '理论比例(≈1/8000)',
+                label: 'Reference Ratio (~1/8000)',
                 value: theoreticalRatio,
                 unit: '%',
             },
+        };
+    }
+
+    getMonitorSchema() {
+        return {
+            title: 'Monitor',
+            quantities: [
+                { key: 'totalEmitted', label: 'Emitted Particles', unit: 'count', color: '#22d3ee' },
+                { key: 'largeAngle', label: 'Large-Angle Events', unit: 'count', color: '#f97316' },
+                { key: 'ratio', label: 'Large-Angle Ratio', unit: '%', color: '#34d399' },
+            ],
+            defaultSelected: ['ratio', 'largeAngle'],
+            sampleIntervalMs: 100,
         };
     }
 

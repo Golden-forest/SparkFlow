@@ -176,7 +176,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                     disabled={isRunning}
                                     className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg font-bold text-sm shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    发射{incidentType === 'photon' ? '光子' : '电子'}
+                                    Emit {incidentType === 'photon' ? 'Photon' : 'Electron'}
                                 </button>
                             </div>
                         </div>
@@ -275,7 +275,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                     }`}
                             >
                                 {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                                {isRunning ? '暂停跃迁' : '开始自发辐射'}
+                                {isRunning ? 'Pause Transition' : 'Start Spontaneous Emission'}
                             </button>
 
                             <button

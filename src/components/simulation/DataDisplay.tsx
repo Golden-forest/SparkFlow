@@ -12,7 +12,7 @@ export function DataDisplay({ data }: DataDisplayProps) {
     return (
         <div className="absolute bottom-4 left-4 min-w-64 rounded-xl bg-slate-800/90 backdrop-blur-sm border border-white/10 p-4">
             <h4 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">
-                实时数据
+                Live Data
             </h4>
             <div className="space-y-2">
                 {entries.map(([key, item]) => (

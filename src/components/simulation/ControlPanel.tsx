@@ -57,7 +57,7 @@ interface ControlPanelProps {
 }
 
 export function ControlPanel({
-    title = '实验参数',
+    title = 'Experiment Parameters',
     parameters,
     values,
     onParameterChange,

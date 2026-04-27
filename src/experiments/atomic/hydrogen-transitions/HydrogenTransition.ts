@@ -1,19 +1,15 @@
 import * as THREE from 'three';
 import { ExperimentBase, registerExperiment } from '../../base';
 import type { DisplayValue } from '../../base';
-import type { ExperimentCategory, ExperimentDifficulty } from '@/utils/constants';
+import { ExperimentCategory, type ExperimentDifficulty } from '@/utils/constants';
 import {
     ENERGY_LEVELS,
-    calculateTransition,
-    calculateAllTransitions,
-    calculateSpectralLineCount,
     getValidTransitionEnergies,
     matchValidEnergy,
     getTargetLevel,
     calculateEnergy,
-    getLevelColor,
 } from './TransitionPhysics';
-import type { ExcitationMode, AtomType, Transition, SceneMode } from './TransitionPhysics';
+import type { AtomType, SceneMode } from './TransitionPhysics';
 import { PhotonWave, createIncomingPhoton, createEmittedPhoton } from './PhotonWave';
 
 /**
@@ -23,12 +19,12 @@ import { PhotonWave, createIncomingPhoton, createEmittedPhoton } from './PhotonW
 export class HydrogenTransition extends ExperimentBase {
     readonly metadata = {
         id: 'hydrogen-transitions',
-        name: '氢原子能级跃迁',
-        category: 'atomic' as ExperimentCategory,
-        description: '探索氢原子能级结构，观察光子激发、电子碰撞激发和自发辐射过程',
+        name: 'Hydrogen Energy-Level Transitions',
+        category: ExperimentCategory.AtomicPhysics,
+        description: 'Explore hydrogen energy levels and observe absorption, spontaneous emission, and stimulated emission',
         difficulty: 'intermediate' as ExperimentDifficulty,
         duration: 15,
-        keywords: ['氢原子', '能级', '跃迁', '光子', '玻尔模型'],
+        keywords: ['hydrogen', 'energy levels', 'transition', 'photon', 'bohr model'],
         thumbnail: '/thumbnails/hydrogen-transitions.png',
     };
 
@@ -44,35 +40,40 @@ export class HydrogenTransition extends ExperimentBase {
         parameters: [
             {
                 key: 'excitationMode',
-                label: '场景模式',
+                label: 'Transition Mode',
                 type: 'select' as const,
                 defaultValue: 'stimulated-absorption',
                 options: [
-                    { value: 'stimulated-absorption', label: '受激吸收' },
-                    { value: 'spontaneous-emission', label: '自发辐射' },
-                    { value: 'stimulated-emission', label: '受激辐射' },
+                    { value: 'stimulated-absorption', label: 'Stimulated Absorption' },
+                    { value: 'spontaneous-emission', label: 'Spontaneous Emission' },
+                    { value: 'stimulated-emission', label: 'Stimulated Emission' },
                 ],
             },
             {
                 key: 'inputEnergy',
-                label: '光子能量',
+                label: 'Photon Energy',
                 type: 'number' as const,
                 defaultValue: 10.2,
                 min: 0,
                 max: 15,
+                step: 0.1,
+                unit: 'eV',
             },
             {
                 key: 'initialLevel',
-                label: '当前能级',
+                label: 'Initial Level',
                 type: 'number' as const,
                 defaultValue: 1,
+                min: 1,
+                max: 6,
+                step: 1,
             },
             {
                 key: 'atomType',
-                label: '电子模式',
+                label: 'Atom Group',
                 type: 'select' as const,
                 defaultValue: 'single',
-                options: [{ value: 'single', label: '单电子' }, { value: 'group', label: '多电子' }]
+                options: [{ value: 'single', label: 'Single Atom' }, { value: 'group', label: 'Atom Group' }]
             }
         ],
     };
@@ -213,8 +214,8 @@ export class HydrogenTransition extends ExperimentBase {
     }
 
     protected onStart(): void {
-        // 当用户点击工具栏的 "开始/发射" 按钮时触发
-        // 根据场景执行不同逻辑
+        // Triggered when the user starts the simulation.
+        // Behavior depends on the selected mode.
 
         if (this.sceneMode === 'stimulated-absorption') {
             this.emitIncomingPhoton();
@@ -223,6 +224,35 @@ export class HydrogenTransition extends ExperimentBase {
         } else if (this.sceneMode === 'spontaneous-emission') {
             this.startSpontaneous();
         }
+    }
+
+    getControlSchema() {
+        return {
+            title: 'Controls',
+            parameters: this.config.parameters,
+            actions: [
+                { key: 'emitPhoton', label: 'Emit Photon', variant: 'primary' as const },
+            ],
+        };
+    }
+
+    triggerAction(key: string): void {
+        if (key === 'emitPhoton') {
+            this.emitIncomingPhoton();
+        }
+    }
+
+    getMonitorSchema() {
+        return {
+            title: 'Monitor',
+            quantities: [
+                { key: 'currentLevel', label: 'Current Level', unit: 'n', color: '#22d3ee' },
+                { key: 'inputEnergy', label: 'Photon Energy', unit: 'eV', color: '#f59e0b' },
+                { key: 'photonCount', label: 'Active Photons', unit: 'count', color: '#34d399' },
+            ],
+            defaultSelected: ['currentLevel', 'photonCount'],
+            sampleIntervalMs: 100,
+        };
     }
 
     protected onReset(): void {
@@ -242,7 +272,7 @@ export class HydrogenTransition extends ExperimentBase {
         this.updateElectrons();
     }
 
-    protected onParameterChange(key: string, value: any): void {
+    protected onParameterChange(key: string, value: number | string | boolean): void {
         if (key === 'excitationMode') {
             this.sceneMode = value as SceneMode;
             // 切换模式时重置部分状态
@@ -278,7 +308,7 @@ export class HydrogenTransition extends ExperimentBase {
         this.transitionQueue = [];
 
         // 为每个电子安排随机跃迁
-        this.electrons.forEach((electron, index) => {
+        this.electrons.forEach((electron) => {
             const currentN = electron.userData.currentN;
             if (currentN > 1) {
                 // 将跃迁计划存储在 queue 中，但在 update 中根据时间触发
@@ -466,9 +496,24 @@ export class HydrogenTransition extends ExperimentBase {
     getDisplayData(): Record<string, DisplayValue> {
         return {
             status: {
-                label: '状态',
-                value: this.sceneMode === 'stimulated-absorption' ? '等待激发' : '辐射中'
-            }
+                label: 'Mode Status',
+                value: this.sceneMode === 'stimulated-absorption' ? 'Ready for Absorption' : 'Emission Active',
+            },
+            currentLevel: {
+                label: 'Current Level',
+                value: this.currentLevel,
+                unit: 'n',
+            },
+            inputEnergy: {
+                label: 'Photon Energy',
+                value: this.inputEnergy,
+                unit: 'eV',
+            },
+            photonCount: {
+                label: 'Active Photons',
+                value: this.photons.length,
+                unit: 'count',
+            },
         };
     }
 }

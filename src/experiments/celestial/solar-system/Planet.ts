@@ -48,7 +48,7 @@ export class Planet {
 
         // 加载行星纹理贴图
         const textureLoader = new THREE.TextureLoader();
-        const texturePath = `/textures/planets/${this.params.name.toLowerCase()}.jpg`;
+        const texturePath = `/textures/planets/${this.params.textureFile}.jpg`;
         const texture = textureLoader.load(texturePath);
         texture.colorSpace = THREE.SRGBColorSpace;
 

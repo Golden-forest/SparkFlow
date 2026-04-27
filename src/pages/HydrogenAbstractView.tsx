@@ -336,7 +336,7 @@ export default function HydrogenAbstractView() {
                                 // Interaction failed (passed through)
                                 // Show "Energies don't match" feedback?
                                 setFeedbackMessage({
-                                    text: "能量不匹配",
+                                    text: 'Energy mismatch',
                                     x: hitX,
                                     y: p.y - 20,
                                     alpha: 1

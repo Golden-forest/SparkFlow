@@ -8,13 +8,12 @@
  * - 目的是让学生直观理解天体运动的相对关系
  */
 
-import * as THREE from 'three';
-
 /**
  * 视觉行星参数接口
  */
 export interface VisualPlanetParams {
     name: string;           // 行星名称
+    textureFile: string;    // 纹理文件名（不含扩展名）
     orbit: number;          // 轨道半径（示意性单位）
     size: number;           // 行星大小（示意性单位）
     color: number;          // 颜色（十六进制）
@@ -49,14 +48,14 @@ export const SOLAR_SYSTEM_VISUAL_DATA = {
 
     // 行星数据
     planets: [
-        { name: '水星', orbit: 12,  size: 0.5, color: 0x8C7853, speed: 4.0,   period: '88天' },
-        { name: '金星', orbit: 18,  size: 0.8, color: 0xFFC649, speed: 1.6,   period: '225天' },
-        { name: '地球', orbit: 26,  size: 0.9, color: 0x4169E1, speed: 1.0,   period: '365天' },
-        { name: '火星', orbit: 34,  size: 0.7, color: 0xCD5C5C, speed: 0.53,  period: '687天' },
-        { name: '木星', orbit: 48,  size: 2.2, color: 0xD8CA9D, speed: 0.24,  period: '12年' },
-        { name: '土星', orbit: 64,  size: 1.8, color: 0xFAD5A5, speed: 0.10,  period: '29年' },
-        { name: '天王星', orbit: 78, size: 1.4, color: 0x4FD0E7, speed: 0.04,  period: '84年' },
-        { name: '海王星', orbit: 92, size: 1.4, color: 0x4169E1, speed: 0.02,  period: '165年' },
+        { name: 'Mercury', textureFile: 'mercury', orbit: 12, size: 0.5, color: 0x8C7853, speed: 4.0, period: '88 days' },
+        { name: 'Venus', textureFile: 'venus', orbit: 18, size: 0.8, color: 0xFFC649, speed: 1.6, period: '225 days' },
+        { name: 'Earth', textureFile: 'earth', orbit: 26, size: 0.9, color: 0x4169E1, speed: 1.0, period: '365 days' },
+        { name: 'Mars', textureFile: 'mars', orbit: 34, size: 0.7, color: 0xCD5C5C, speed: 0.53, period: '687 days' },
+        { name: 'Jupiter', textureFile: 'jupiter', orbit: 48, size: 2.2, color: 0xD8CA9D, speed: 0.24, period: '12 years' },
+        { name: 'Saturn', textureFile: 'saturn', orbit: 64, size: 1.8, color: 0xFAD5A5, speed: 0.1, period: '29 years' },
+        { name: 'Uranus', textureFile: 'uranus', orbit: 78, size: 1.4, color: 0x4FD0E7, speed: 0.04, period: '84 years' },
+        { name: 'Neptune', textureFile: 'neptune', orbit: 92, size: 1.4, color: 0x4169E1, speed: 0.02, period: '165 years' },
     ] as VisualPlanetParams[],
 };
 
@@ -72,10 +71,10 @@ export const SATELLITE_VISUAL_DATA = {
 
     // 卫星数据
     satellites: [
-        { name: '国际空间站', orbit: 4.5, size: 0.15, color: 0xFFFFFF, inclination: 0.9,  speed: 3.5, type: '近地轨道' },
-        { name: '极地卫星',     orbit: 5.5, size: 0.12, color: 0x0000FF, inclination: 1.57, speed: 2.8, type: '极地轨道' },
-        { name: 'GPS卫星',      orbit: 7.5, size: 0.12, color: 0xFF0000, inclination: 0.95, speed: 1.8, type: '中轨道' },
-        { name: '同步卫星',     orbit: 10,  size: 0.15, color: 0x00FF00, inclination: 0,    speed: 1.0, type: '同步轨道' },
+        { name: 'ISS', orbit: 4.5, size: 0.15, color: 0xFFFFFF, inclination: 0.9, speed: 3.5, type: 'Low Earth Orbit' },
+        { name: 'Polar Satellite', orbit: 5.5, size: 0.12, color: 0x0000FF, inclination: 1.57, speed: 2.8, type: 'Polar Orbit' },
+        { name: 'GPS Satellite', orbit: 7.5, size: 0.12, color: 0xFF0000, inclination: 0.95, speed: 1.8, type: 'Medium Earth Orbit' },
+        { name: 'Geostationary Satellite', orbit: 10, size: 0.15, color: 0x00FF00, inclination: 0, speed: 1.0, type: 'Geostationary Orbit' },
     ] as VisualSatelliteParams[],
 };
 
@@ -108,15 +107,15 @@ export const CAMERA_CONFIG = {
 export const VIEW_CONFIG = {
     // 太阳系视图
     solarSystem: {
-        name: '太阳系视图',
-        description: '展示八大行星围绕太阳的运动',
+        name: 'Solar System View',
+        description: 'Shows the eight planets orbiting the Sun',
         speedMultiplier: 0.0001,  // 基础速度倍率
     },
 
     // 卫星视图
     satellite: {
-        name: '卫星轨道视图',
-        description: '展示不同类型人造卫星围绕地球的运动',
+        name: 'Satellite Orbit View',
+        description: 'Shows different types of satellites orbiting Earth',
         speedMultiplier: 0.0005,  // 基础速度倍率
     },
 };

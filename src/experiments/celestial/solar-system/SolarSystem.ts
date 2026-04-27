@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ExperimentBase } from '../../base';
-import type { DisplayValue } from '../../base';
-import type { ExperimentCategory, ExperimentDifficulty } from '@/utils/constants';
+import type { DisplayValue, InteractionEvent } from '../../base';
+import { ExperimentCategory, type ExperimentDifficulty } from '@/utils/constants';
 import { Planet } from './Planet';
 import { Satellite } from './Satellite';
 import { CAMERA_CONFIG, SOLAR_SYSTEM_VISUAL_DATA, SATELLITE_VISUAL_DATA } from './VisualData';
@@ -14,7 +14,7 @@ export class SolarSystem extends ExperimentBase {
     readonly metadata = {
         id: 'solar-system',
         name: 'Celestial Motion Simulation',
-        category: 'celestial' as ExperimentCategory,
+        category: ExperimentCategory.Celestial,
         description: 'Explore planetary motion in the solar system and Earth satellite orbits',
         difficulty: 'intermediate' as ExperimentDifficulty,
         duration: 20,
@@ -34,7 +34,7 @@ export class SolarSystem extends ExperimentBase {
         parameters: [
             {
                 key: 'timeScale',
-                label: '时间流速',
+                label: 'Time Scale',
                 type: 'number' as const,
                 defaultValue: 1,
                 min: 0.1,
@@ -43,15 +43,15 @@ export class SolarSystem extends ExperimentBase {
             },
             {
                 key: 'showOrbits',
-                label: '显示轨道',
+                label: 'Show Orbits',
                 type: 'boolean' as const,
                 defaultValue: true,
             },
             {
                 key: 'selectedPlanet',
-                label: '当前选择',
+                label: 'Selected Body',
                 type: 'select' as const,
-                defaultValue: '地球',
+                defaultValue: 'Earth',
                 options: SOLAR_SYSTEM_VISUAL_DATA.planets.map(planet => ({
                     value: planet.name,
                     label: planet.name
@@ -59,12 +59,12 @@ export class SolarSystem extends ExperimentBase {
             },
             {
                 key: 'viewMode',
-                label: '视图模式',
+                label: 'View Mode',
                 type: 'select' as const,
                 defaultValue: 'solar',
                 options: [
-                    { value: 'solar', label: '太阳系视图' },
-                    { value: 'satellite', label: '卫星视图' },
+                    { value: 'solar', label: 'Solar System View' },
+                    { value: 'satellite', label: 'Satellite View' },
                 ],
             },
         ],
@@ -101,7 +101,7 @@ export class SolarSystem extends ExperimentBase {
         this.setupLights();
 
         // 6. 默认选中地球
-        this.selectPlanet('地球');
+        this.selectPlanet('Earth');
     }
 
     /**
@@ -155,7 +155,7 @@ export class SolarSystem extends ExperimentBase {
         });
 
         this.sun = new THREE.Mesh(sunGeometry, sunMaterial);
-        this.sun.userData = { type: 'sun', name: '太阳' };
+        this.sun.userData = { type: 'sun', name: 'Sun' };
         this.addToScene(this.sun);
 
         // 添加太阳光晕效果
@@ -236,7 +236,7 @@ export class SolarSystem extends ExperimentBase {
     }
 
     protected onStart(): void {
-        // 当用户点击工具栏的 "开始" 按钮时触发
+        // Hook for simulation start.
     }
 
     protected onReset(): void {
@@ -247,19 +247,19 @@ export class SolarSystem extends ExperimentBase {
         this.satellites.forEach(satellite => {
             satellite.setSelected(false);
         });
-        this.selectPlanet('地球');
+        this.selectPlanet('Earth');
     }
 
-    protected onParameterChange(key: string, value: any): void {
+    protected onParameterChange(key: string, value: number | string | boolean): void {
         if (key === 'timeScale') {
-            this.timeScale = value;
+            this.timeScale = Number(value);
         } else if (key === 'showOrbits') {
-            this.showOrbits = value;
-            this.toggleOrbits(value);
+            this.showOrbits = Boolean(value);
+            this.toggleOrbits(Boolean(value));
         } else if (key === 'selectedPlanet') {
-            this.selectPlanet(value);
+            this.selectPlanet(String(value));
         } else if (key === 'viewMode') {
-            this.switchViewMode(value);
+            this.switchViewMode(value === 'satellite' ? 'satellite' : 'solar');
         }
     }
 
@@ -293,7 +293,7 @@ export class SolarSystem extends ExperimentBase {
 
             // 淡出所有行星，除了地球
             this.planets.forEach(planet => {
-                if (planet.getName() !== '地球') {
+                if (planet.getName() !== 'Earth') {
                     this.animateObjectOpacity([planet], 0, fadeDuration);
                     planet.getOrbitLine().visible = false;
                 } else {
@@ -356,7 +356,7 @@ export class SolarSystem extends ExperimentBase {
             if (planet.getName() === planetName) {
                 planet.setSelected(true);
                 this.selectedPlanet = planet;
-                if (planetName === '地球') {
+                if (planetName === 'Earth') {
                     this.earthPosition = planet.getPosition();
                 }
             } else {
@@ -389,7 +389,7 @@ export class SolarSystem extends ExperimentBase {
                 // 太阳系视图：更新所有行星，地球会绕太阳运动
                 this.planets.forEach(planet => {
                     planet.update(scaledDelta);
-                    if (planet.getName() === '地球') {
+                    if (planet.getName() === 'Earth') {
                         this.earthPosition = planet.getPosition();
                     }
                 });
@@ -409,7 +409,7 @@ export class SolarSystem extends ExperimentBase {
     }
 
     getDisplayData(): Record<string, DisplayValue> {
-        const selectedPlanetName = this.selectedPlanet?.getName() || '地球';
+        const selectedPlanetName = this.selectedPlanet?.getName() || 'Earth';
         const selectedPlanet = this.planets.find(p => p.getName() === selectedPlanetName);
 
         const planetData = selectedPlanet ? selectedPlanet.getParams() : null;
@@ -419,41 +419,55 @@ export class SolarSystem extends ExperimentBase {
 
         return {
             currentView: {
-                label: '当前视图',
-                value: this.currentViewMode === 'solar' ? '太阳系' : '卫星系统'
+                label: 'Current View',
+                value: this.currentViewMode === 'solar' ? 'Solar System' : 'Satellite System'
             },
             selectedPlanet: {
-                label: '选中天体',
+                label: 'Selected Body',
                 value: selectedPlanetName
             },
             ...(planetData && {
                 orbitalPeriod: {
-                    label: '公转周期',
+                    label: 'Orbital Period',
                     value: planetData.period,
                 },
                 relativeSpeed: {
-                    label: '相对速度',
-                    value: `${relativeSpeed.toFixed(2)}x`,
-                    unit: '地球=1.0'
+                    label: 'Relative Speed',
+                    value: relativeSpeed,
+                    unit: 'Earth=1.0x'
                 }
             }),
             planetCount: {
-                label: '行星数量',
+                label: 'Planets',
                 value: this.planets.length
             },
             satelliteCount: {
-                label: '卫星数量',
+                label: 'Satellites',
                 value: this.satellites.length
             },
             timeScale: {
-                label: '时间流速',
-                value: this.timeScale.toFixed(1),
+                label: 'Time Scale',
+                value: this.timeScale,
                 unit: 'x'
             }
         };
     }
 
-    public onInteraction?(event: any): void {
+    getMonitorSchema() {
+        return {
+            title: 'Monitor',
+            quantities: [
+                { key: 'planetCount', label: 'Planets', unit: 'count', color: '#22d3ee' },
+                { key: 'satelliteCount', label: 'Satellites', unit: 'count', color: '#34d399' },
+                { key: 'timeScale', label: 'Time Scale', unit: 'x', color: '#f59e0b' },
+                { key: 'relativeSpeed', label: 'Relative Speed', unit: 'Earth=1.0x', color: '#a78bfa' },
+            ],
+            defaultSelected: ['timeScale', 'relativeSpeed', 'planetCount'],
+            sampleIntervalMs: 120,
+        };
+    }
+
+    public onInteraction?(event: InteractionEvent): void {
         // 处理交互事件，如点击行星
         if (event.type === 'click' && event.object) {
             const object = event.object;

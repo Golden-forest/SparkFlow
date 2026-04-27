@@ -419,6 +419,21 @@ export class Pendulum extends ExperimentBase {
     };
   }
 
+  getMonitorSchema() {
+    return {
+      title: 'Monitor',
+      quantities: [
+        { key: 'period', label: 'Period', unit: 's', color: '#22d3ee' },
+        { key: 'frequency', label: 'Frequency', unit: 'Hz', color: '#34d399' },
+        { key: 'velocity', label: 'Velocity', unit: 'm/s', color: '#f59e0b' },
+        { key: 'angle', label: 'Angle', unit: 'deg', color: '#f97316' },
+        { key: 'mechanicalEnergy', label: 'Mechanical Energy', unit: 'J', color: '#a78bfa' },
+      ],
+      defaultSelected: ['period', 'velocity', 'mechanicalEnergy'],
+      sampleIntervalMs: 100,
+    };
+  }
+
   dispose(): void {
     // 清理资源
     this.pendulumDataHistory = [];

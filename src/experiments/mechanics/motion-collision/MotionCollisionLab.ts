@@ -5,7 +5,7 @@ import { PhysicsObjectFactory } from './objects/PhysicsObject';
 import { RampFactory } from './objects/Ramp';
 import { PhysicsEngine } from './physics/PhysicsEngine';
 import { TrajectoryManager } from './components/TrajectoryManager';
-import type { SimulationObject, ObjectType } from './types/ObjectTypes';
+import type { SimulationObject } from './types/ObjectTypes';
 import type { RampConfig, SimulationRamp } from './types/RampTypes';
 
 /**
@@ -412,6 +412,20 @@ export class MotionCollisionLab extends ExperimentBase {
     }
 
     return data;
+  }
+
+  getMonitorSchema() {
+    return {
+      title: 'Monitor',
+      quantities: [
+        { key: 'velocity', label: 'Velocity', unit: 'm/s', color: '#22d3ee' },
+        { key: 'acceleration', label: 'Acceleration', unit: 'm/s2', color: '#f59e0b' },
+        { key: 'momentum', label: 'Momentum', unit: 'kg*m/s', color: '#34d399' },
+        { key: 'kineticEnergy', label: 'Kinetic Energy', unit: 'J', color: '#a78bfa' },
+      ],
+      defaultSelected: ['velocity', 'momentum', 'kineticEnergy'],
+      sampleIntervalMs: 100,
+    };
   }
 
   /**

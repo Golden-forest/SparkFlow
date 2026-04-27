@@ -37,7 +37,7 @@ export function useExperiment(experimentId: string | undefined, options: UseExpe
             setParameterValues(initialValues);
 
         } catch (err) {
-            setError(err instanceof Error ? err.message : '加载实验失败');
+            setError(err instanceof Error ? err.message : 'Failed to load experiment.');
         } finally {
             setIsLoading(false);
         }

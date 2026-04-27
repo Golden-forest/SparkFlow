@@ -71,7 +71,7 @@ export interface SatelliteParams {
 /** @deprecated 此常量已不再使用，请使用 VisualData.ts 中的 PLANETS */
 export const PLANETS: PlanetParams[] = [
     {
-        name: '水星',
+        name: 'Mercury',
         radius: 2.4397e6,
         mass: 3.3011e23,
         color: '#8C7853',
@@ -80,7 +80,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 6.139e-7
     },
     {
-        name: '金星',
+        name: 'Venus',
         radius: 6.0518e6,
         mass: 4.8675e24,
         color: '#FFC649',
@@ -89,7 +89,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: -2.99e-7 // 反向自转
     },
     {
-        name: '地球',
+        name: 'Earth',
         radius: 6.371e6,
         mass: 5.97237e24,
         color: '#4169E1',
@@ -98,7 +98,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 7.2921159e-5
     },
     {
-        name: '火星',
+        name: 'Mars',
         radius: 3.3895e6,
         mass: 6.39e23,
         color: '#CD5C5C',
@@ -107,7 +107,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 7.088e-5
     },
     {
-        name: '木星',
+        name: 'Jupiter',
         radius: 6.9911e7,
         mass: 1.8982e27,
         color: '#D8CA9D',
@@ -116,7 +116,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 1.758e-4
     },
     {
-        name: '土星',
+        name: 'Saturn',
         radius: 5.8232e7,
         mass: 5.6834e26,
         color: '#FAD5A5',
@@ -125,7 +125,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 1.638e-4
     },
     {
-        name: '天王星',
+        name: 'Uranus',
         radius: 2.5362e7,
         mass: 8.681e25,
         color: '#4FD0E7',
@@ -134,7 +134,7 @@ export const PLANETS: PlanetParams[] = [
         rotationSpeed: 1.48e-4
     },
     {
-        name: '海王星',
+        name: 'Neptune',
         radius: 2.4622e7,
         mass: 1.02413e26,
         color: '#4169E1',
@@ -148,7 +148,7 @@ export const PLANETS: PlanetParams[] = [
 /** @deprecated 此常量已不再使用，请使用 VisualData.ts 中的 SATELLITES */
 export const SATELLITES: SatelliteParams[] = [
     {
-        name: '国际空间站',
+        name: 'ISS',
         radius: 10,
         mass: 4.2e5,
         color: '#FFFFFF',
@@ -157,7 +157,7 @@ export const SATELLITES: SatelliteParams[] = [
         inclination: 0.908 // 约52度
     },
     {
-        name: 'GPS卫星',
+        name: 'GPS Satellite',
         radius: 5,
         mass: 8.4e2,
         color: '#FF0000',
@@ -166,7 +166,7 @@ export const SATELLITES: SatelliteParams[] = [
         inclination: 0.958 // 约55度
     },
     {
-        name: '同步卫星',
+        name: 'Geostationary Satellite',
         radius: 8,
         mass: 2.0e3,
         color: '#00FF00',
@@ -175,7 +175,7 @@ export const SATELLITES: SatelliteParams[] = [
         inclination: 0 // 赤道轨道
     },
     {
-        name: '极地卫星',
+        name: 'Polar Satellite',
         radius: 6,
         mass: 1.5e3,
         color: '#0000FF',

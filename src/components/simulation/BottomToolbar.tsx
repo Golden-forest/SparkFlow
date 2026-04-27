@@ -72,7 +72,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                 {/* 能级选择 */}
                 <div className="flex flex-col gap-1">
                     <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                        {sceneMode === 'stimulated-absorption' ? '初始能级' : '激发态能级'}
+                        {sceneMode === 'stimulated-absorption' ? 'Initial Level' : 'Excited Level'}
                     </span>
                     <div className="flex items-center gap-2">
                         <span className="text-white font-mono">n={currentLevel}</span>
@@ -179,7 +179,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                         // disabled={isRunning}
                         >
                             {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                            {isRunning ? '停止' : '开始'}
+                            {isRunning ? 'Stop' : 'Start'}
                         </button>
                     </>
                 )}
@@ -190,7 +190,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                 <button
                     onClick={onReset}
                     className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                    title="重置实验"
+                    title="Reset Experiment"
                 >
                     <RotateCcw size={20} />
                 </button>

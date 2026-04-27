@@ -39,12 +39,12 @@ export function PlaybackControls({ onStart, onPause, onReset }: PlaybackControls
                 {isPlaying ? (
                     <>
                         <Pause size={18} />
-                        <span>暂停</span>
+                        <span>Pause</span>
                     </>
                 ) : (
                     <>
                         <Play size={18} />
-                        <span>{state === SimulationState.Paused ? '继续' : '开始'}</span>
+                        <span>{state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
                     </>
                 )}
             </button>
@@ -53,7 +53,7 @@ export function PlaybackControls({ onStart, onPause, onReset }: PlaybackControls
                 className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-white font-medium hover:bg-slate-600 transition-colors"
             >
                 <RotateCcw size={18} />
-                <span>重置</span>
+                <span>Reset</span>
             </button>
         </div>
     );
