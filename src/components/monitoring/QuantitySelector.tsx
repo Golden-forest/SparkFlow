@@ -32,7 +32,7 @@ export function QuantitySelector({
   quantities,
   selectedIds,
   onChange,
-}: QuantitySelectorProps): JSX.Element {
+}: QuantitySelectorProps) {
   /**
    * Toggle selection of a single quantity
    */

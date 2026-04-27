@@ -54,7 +54,7 @@ export function VectorArrow({
   length,
   headLength,
   headWidth,
-}: VectorArrowProps): JSX.Element | null {
+}: VectorArrowProps) {
   const arrowRef = useRef<THREE.ArrowHelper>(null);
 
   // Calculate arrow length from vector magnitude if not provided

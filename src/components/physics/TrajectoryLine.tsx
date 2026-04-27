@@ -45,7 +45,7 @@ export function TrajectoryLine({
   lineWidth = 2,
   fadeEffect = true,
   opacity = 0.8,
-}: TrajectoryLineProps): JSX.Element | null {
+}: TrajectoryLineProps) {
   const lineRef = useRef<THREE.Line>(null);
   const geometryRef = useRef<THREE.BufferGeometry>(null);
 

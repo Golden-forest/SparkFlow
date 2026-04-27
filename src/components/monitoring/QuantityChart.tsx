@@ -40,7 +40,7 @@ export function QuantityChart({
   unit,
   maxPoints = 100,
   height = 150,
-}: QuantityChartProps): JSX.Element {
+}: QuantityChartProps) {
   /**
    * Limit displayed data to most recent points for performance
    * Memoized to prevent recreation on every render
@@ -80,7 +80,10 @@ export function QuantityChart({
             }}
             labelStyle={{ color: '#cbd5e1', fontSize: 12 }}
             itemStyle={{ color: '#fff', fontSize: 12 }}
-            formatter={function(value: number) { return [value.toFixed(2), unit]; }}
+            formatter={function(value: number | string | undefined) {
+              const numeric = typeof value === 'number' ? value : Number(value ?? 0);
+              return [numeric.toFixed(2), unit];
+            }}
             cursor={{ stroke: color, strokeWidth: 1 }}
           />
 

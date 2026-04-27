@@ -11,7 +11,7 @@ export interface PhysicsObjectProps {
   /** Object geometry type */
   type: 'sphere' | 'box' | 'plane';
   /** Size: radius for sphere, [width, height, depth] for box, [width, height] for plane */
-  size: number | [number, number, number];
+  size: number | [number, number, number] | [number, number];
   /** Mass in kg (default: 1) */
   mass?: number;
   /** Position in 3D space (default: origin) */
@@ -90,7 +90,7 @@ export function PhysicsObject({
   receiveShadow,
   roughness = 0.5,
   metalness = 0.1,
-}: PhysicsObjectProps): JSX.Element {
+}: PhysicsObjectProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const trajectoryHistoryRef = useRef<THREE.Vector3[]>([]);
   const lastUpdateRef = useRef<number>(0);
@@ -163,10 +163,8 @@ export function PhysicsObject({
         castShadow={castShadow}
         receiveShadow={shouldReceiveShadow}
         position={position}
-      >
-        {/* For planes, rotate to lie flat */}
-        {type === 'plane' && <rotation x={-Math.PI / 2} />}
-      </mesh>
+        rotation={type === 'plane' ? ([-Math.PI / 2, 0, 0] as [number, number, number]) : undefined}
+      />
 
       {/* Velocity vector arrow */}
       {showVelocity && velocity.length() > 0 && (

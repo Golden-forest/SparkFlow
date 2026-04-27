@@ -46,7 +46,7 @@ export function PhysicsMonitor({
   onSelectionChange,
   isExpanded,
   onToggleExpand,
-}: PhysicsMonitorProps): JSX.Element {
+}: PhysicsMonitorProps) {
   /**
    * Validate selectedQuantities against available quantities
    * Auto-cleanup invalid selections to prevent undefined access
