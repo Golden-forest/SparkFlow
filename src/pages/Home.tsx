@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
@@ -5,8 +6,33 @@ interface ExperimentCard {
     id: string;
     title: string;
     route?: string;
+    quickViews?: Array<{
+        label: string;
+        route: string;
+    }>;
     diagram: ReactNode;
     gradient: string;
+}
+
+type HomeTab = 'experiments' | 'courseware' | 'images';
+
+interface CoursewareCard {
+    id: string;
+    title: string;
+    description: string;
+    status: 'draft' | 'ready';
+    href?: string;
+}
+
+interface ImageResourceCard {
+    id: string;
+    title: string;
+    path: string;
+}
+
+interface ResourceManifest {
+    courseware: Array<{ id: string; title: string; path: string }>;
+    images: Array<{ id: string; title: string; path: string }>;
 }
 
 const HydrogenAtomDiagram = () => (
@@ -104,6 +130,98 @@ const RutherfordScatteringDiagram = () => (
                         repeatCount="indefinite"
                     />
                 </circle>
+            ))}
+        </svg>
+    </div>
+);
+
+const LightRefractionDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-80">
+            <defs>
+                <linearGradient id="refractionBeam" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FDE047" />
+                    <stop offset="100%" stopColor="#FACC15" />
+                </linearGradient>
+            </defs>
+            <rect x="36" y="62" width="168" height="50" rx="8" fill="#38BDF8" opacity="0.2" />
+            <line x1="120" y1="22" x2="120" y2="112" stroke="#E2E8F0" strokeWidth="1.4" strokeDasharray="4 4" opacity="0.7" />
+            <line x1="56" y1="30" x2="120" y2="66" stroke="url(#refractionBeam)" strokeWidth="3" />
+            <line x1="120" y1="66" x2="176" y2="36" stroke="#F8FAFC" strokeWidth="2.5" opacity="0.8" />
+            <line x1="120" y1="66" x2="164" y2="94" stroke="#38BDF8" strokeWidth="2.8" opacity="0.95" />
+            <circle cx="120" cy="66" r="3.2" fill="#F8FAFC" />
+        </svg>
+    </div>
+);
+
+const BoyleLawDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="220" height="132" viewBox="0 0 220 132" className="overflow-visible opacity-80">
+            <rect x="72" y="24" width="76" height="88" rx="16" fill="#7DD3FC" opacity="0.2" stroke="#CFFAFE" strokeWidth="2" />
+            <rect x="78" y="40" width="64" height="10" rx="3" fill="#94A3B8">
+                <animate attributeName="y" values="40;54;40" dur="2.2s" repeatCount="indefinite" />
+            </rect>
+            <rect x="89" y="24" width="42" height="9" rx="2" fill="#334155" />
+            {[0, 1, 2].map((index) => (
+                <rect
+                    key={index}
+                    x={94 + (index % 2) * 16}
+                    y={10 + Math.floor(index / 2) * 10}
+                    width="12"
+                    height="8"
+                    rx="1.5"
+                    fill="#475569"
+                />
+            ))}
+            {[0, 1, 2, 3, 4, 5].map((index) => (
+                <circle key={index} cx={84 + (index % 3) * 20} cy={72 + Math.floor(index / 3) * 18} r="4" fill="#22D3EE">
+                    <animate attributeName="cx" values={`${82 + (index % 3) * 20};${88 + (index % 3) * 20};${82 + (index % 3) * 20}`} dur={`${1.4 + index * 0.15}s`} repeatCount="indefinite" />
+                </circle>
+            ))}
+        </svg>
+    </div>
+);
+
+const DoubleSlitDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-80">
+            <circle cx="34" cy="66" r="7" fill="#A3E635" />
+            <line x1="44" y1="66" x2="102" y2="66" stroke="#A3E635" strokeWidth="2.2" />
+            <rect x="104" y="24" width="10" height="84" fill="#64748B" />
+            <rect x="104" y="50" width="10" height="10" fill="#0D1117" />
+            <rect x="104" y="72" width="10" height="10" fill="#0D1117" />
+            {[0, 1, 2, 3, 4].map((ring) => (
+                <path
+                    key={`u-${ring}`}
+                    d={`M 114 ${58 - ring * 2} Q ${132 + ring * 18} 58 ${150 + ring * 26} 58`}
+                    stroke="#A3E635"
+                    strokeWidth="1.2"
+                    fill="none"
+                    opacity={0.55 - ring * 0.08}
+                />
+            ))}
+            {[0, 1, 2, 3, 4].map((ring) => (
+                <path
+                    key={`l-${ring}`}
+                    d={`M 114 ${74 + ring * 2} Q ${132 + ring * 18} 74 ${150 + ring * 26} 74`}
+                    stroke="#A3E635"
+                    strokeWidth="1.2"
+                    fill="none"
+                    opacity={0.55 - ring * 0.08}
+                />
+            ))}
+            <rect x="190" y="24" width="14" height="84" rx="2" fill="#1E293B" />
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                <line
+                    key={i}
+                    x1={190}
+                    y1={28 + i * 12}
+                    x2={204}
+                    y2={28 + i * 12}
+                    stroke="#A3E635"
+                    strokeWidth={i === 3 ? 2.6 : 1.2}
+                    opacity={i === 3 ? 0.95 : 0.35}
+                />
             ))}
         </svg>
     </div>
@@ -272,8 +390,30 @@ const MomentumCartsDiagram = () => (
 
 const experiments: ExperimentCard[] = [
     {
+        id: 'light-refraction',
+        title: 'Light Refraction',
+        diagram: <LightRefractionDiagram />,
+        gradient: 'from-cyan-900/20 via-sky-900/10 to-blue-900/20',
+    },
+    {
+        id: 'boyle-law',
+        title: "Boyle's Law",
+        diagram: <BoyleLawDiagram />,
+        gradient: 'from-emerald-900/20 via-teal-900/10 to-cyan-900/20',
+    },
+    {
+        id: 'double-slit-interference',
+        title: 'Double-Slit Interference',
+        diagram: <DoubleSlitDiagram />,
+        gradient: 'from-lime-900/20 via-emerald-900/10 to-green-900/20',
+    },
+    {
         id: 'hydrogen-transitions',
         title: 'Hydrogen Atom',
+        quickViews: [
+            { label: '3D View', route: '/experiment/hydrogen-transitions' },
+            { label: 'Abstract View', route: '/experiment/hydrogen-transitions/abstract' },
+        ],
         diagram: <HydrogenAtomDiagram />,
         gradient: 'from-blue-900/20 via-purple-900/10 to-teal-900/20',
     },
@@ -281,6 +421,10 @@ const experiments: ExperimentCard[] = [
         id: 'rutherford-scattering',
         title: 'Rutherford',
         route: '/experiment/rutherford-scattering',
+        quickViews: [
+            { label: 'Macro View', route: '/experiment/rutherford-scattering' },
+            { label: 'Micro View', route: '/experiment/rutherford-scattering/micro' },
+        ],
         diagram: <RutherfordScatteringDiagram />,
         gradient: 'from-red-900/20 via-orange-900/10 to-yellow-900/20',
     },
@@ -336,6 +480,54 @@ const experiments: ExperimentCard[] = [
 
 export default function Home() {
     const navigate = useNavigate();
+    const [activeTab, setActiveTab] = useState<HomeTab>('experiments');
+    const [coursewareCards, setCoursewareCards] = useState<CoursewareCard[]>([]);
+    const [imageResources, setImageResources] = useState<ImageResourceCard[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadManifest = async () => {
+            try {
+                const response = await fetch(`/resource-manifest.json?t=${Date.now()}`, {
+                    cache: 'no-store',
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to load resource manifest.');
+                }
+
+                const manifest = (await response.json()) as ResourceManifest;
+                if (cancelled) return;
+
+                setCoursewareCards(
+                    (manifest.courseware ?? []).map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        description: `HTML Courseware: ${item.path}`,
+                        status: 'ready',
+                        href: item.path,
+                    })),
+                );
+                setImageResources(
+                    (manifest.images ?? []).map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        path: item.path,
+                    })),
+                );
+            } catch {
+                if (cancelled) return;
+                setCoursewareCards([]);
+                setImageResources([]);
+            }
+        };
+
+        void loadManifest();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     return (
         <div
@@ -352,43 +544,162 @@ export default function Home() {
             </header>
 
             <main className="flex-1 px-6 pb-12 sm:px-10 lg:px-20">
-                <div className="grid w-full grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-                    {experiments.map((experiment) => (
-                        <article
-                            key={experiment.id}
-                            onClick={() => navigate(experiment.route ?? `/experiment/${experiment.id}`)}
-                            className={`group relative min-h-[260px] cursor-pointer overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br ${experiment.gradient} p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
-                        >
-                            <div className="absolute inset-2 rounded-[16px] bg-gradient-to-br from-white/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <section className="mb-8 flex justify-center">
+                    <div className="inline-flex rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg">
+                        {[
+                            { key: 'experiments', label: 'Experiments' },
+                            { key: 'courseware', label: 'Courseware' },
+                            { key: 'images', label: 'Images' },
+                        ].map((tab) => {
+                            const isActive = activeTab === tab.key;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key as HomeTab)}
+                                    className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-cyan-600 to-sky-500 text-white shadow-lg shadow-cyan-900/30'
+                                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
 
-                            <div className="relative z-10 flex h-full flex-col">
-                                <h2 className="px-2 pt-1 text-[25px] font-[700] leading-[1.15] tracking-[-0.01em] text-[#F0F6FC] transition-colors duration-[400ms] group-hover:text-white">
-                                    {experiment.title}
+                {activeTab === 'experiments' ? (
+                    <div className="grid w-full grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+                        {experiments.map((experiment) => (
+                            <article
+                                key={experiment.id}
+                                onClick={() => navigate(experiment.route ?? `/experiment/${experiment.id}`)}
+                                className={`group relative min-h-[260px] cursor-pointer overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br ${experiment.gradient} p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
+                            >
+                                <div className="absolute inset-2 rounded-[16px] bg-gradient-to-br from-white/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+                                <div className="relative z-10 flex h-full flex-col">
+                                    <h2 className="px-2 pt-1 text-[25px] font-[700] leading-[1.15] tracking-[-0.01em] text-[#F0F6FC] transition-colors duration-[400ms] group-hover:text-white">
+                                        {experiment.title}
+                                    </h2>
+
+                                    <div className="flex flex-1 items-center justify-center py-8">
+                                        <div className="w-full transform transition-transform duration-[400ms] group-hover:scale-[1.04]">
+                                            {experiment.diagram}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 px-2 pb-1">
+                                        <div className="flex flex-wrap gap-2">
+                                            {(experiment.quickViews ?? []).map((view) => (
+                                                <button
+                                                    key={view.route}
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        navigate(view.route);
+                                                    }}
+                                                    className="rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
+                                                >
+                                                    {view.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex h-8 w-8 scale-75 items-center justify-center rounded-full bg-[#00FF41]/10 opacity-0 transition-all duration-[400ms] group-hover:scale-100 group-hover:opacity-100">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                                <path
+                                                    d="M6 3L11 8L6 13"
+                                                    stroke="#00FF41"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                ) : null}
+
+                {activeTab === 'courseware' ? (
+                    <div className="grid w-full grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+                        {coursewareCards.length === 0 ? (
+                            <article className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-7 md:col-span-2 xl:col-span-3">
+                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                                    No Courseware Found
                                 </h2>
-
-                                <div className="flex flex-1 items-center justify-center py-8">
-                                    <div className="w-full transform transition-transform duration-[400ms] group-hover:scale-[1.04]">
-                                        {experiment.diagram}
-                                    </div>
+                                <p className="text-sm leading-relaxed text-slate-300">
+                                    Add `.html` files to `public/courseware`, then refresh this page.
+                                </p>
+                            </article>
+                        ) : null}
+                        {coursewareCards.map((card) => (
+                            <article
+                                key={card.id}
+                                className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-7"
+                            >
+                                <div className="mb-5 inline-flex rounded-full border border-amber-400/40 bg-amber-900/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-200">
+                                    {card.status === 'ready' ? 'Ready' : 'Draft'}
                                 </div>
+                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                                    {card.title}
+                                </h2>
+                                <p className="text-sm leading-relaxed text-slate-300">{card.description}</p>
+                                {card.href ? (
+                                    <a
+                                        href={card.href}
+                                        className="mt-6 inline-flex items-center rounded-lg bg-gradient-to-r from-cyan-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition-all hover:from-cyan-500 hover:to-sky-400"
+                                    >
+                                        Open HTML
+                                    </a>
+                                ) : (
+                                    <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
+                                        Waiting for HTML content
+                                    </p>
+                                )}
+                            </article>
+                        ))}
+                    </div>
+                ) : null}
 
-                                <div className="flex justify-end px-2 pb-1">
-                                    <div className="flex h-8 w-8 scale-75 items-center justify-center rounded-full bg-[#00FF41]/10 opacity-0 transition-all duration-[400ms] group-hover:scale-100 group-hover:opacity-100">
-                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                            <path
-                                                d="M6 3L11 8L6 13"
-                                                stroke="#00FF41"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                            />
-                                        </svg>
-                                    </div>
+                {activeTab === 'images' ? (
+                    <div className="grid w-full grid-cols-1 gap-7 sm:grid-cols-2 xl:grid-cols-3">
+                        {imageResources.length === 0 ? (
+                            <article className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-7 sm:col-span-2 xl:col-span-3">
+                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                                    No Image Assets Found
+                                </h2>
+                                <p className="text-sm leading-relaxed text-slate-300">
+                                    Add image files to `public/images`, then refresh this page.
+                                </p>
+                            </article>
+                        ) : null}
+                        {imageResources.map((image) => (
+                            <a
+                                key={image.id}
+                                href={image.path}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="group overflow-hidden rounded-[20px] border border-[#30363D] bg-slate-900/70 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/45 hover:shadow-[0_18px_36px_rgba(34,211,238,0.16)]"
+                            >
+                                <div className="aspect-[16/10] overflow-hidden bg-slate-950">
+                                    <img
+                                        src={image.path}
+                                        alt={image.title}
+                                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        loading="lazy"
+                                    />
                                 </div>
-                            </div>
-                        </article>
-                    ))}
-                </div>
+                                <div className="space-y-1 px-5 py-4">
+                                    <h3 className="text-base font-semibold text-[#F0F6FC]">{image.title}</h3>
+                                    <p className="truncate text-xs text-slate-400">{image.path}</p>
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                ) : null}
             </main>
         </div>
     );
