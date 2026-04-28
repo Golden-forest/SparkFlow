@@ -437,12 +437,4 @@ export class InclinedPlaneFriction extends ExperimentBase {
     const angleDeg = this.getSafeNumber('angle', 25, 5, 50);
     return (angleDeg * Math.PI) / 180;
   }
-
-  private getSafeNumber(key: string, fallback: number, min: number, max: number): number {
-    const value = this.getParameter(key);
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      return fallback;
-    }
-    return Math.min(Math.max(value, min), max);
-  }
 }

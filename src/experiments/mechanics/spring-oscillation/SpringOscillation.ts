@@ -443,12 +443,4 @@ export class SpringOscillation extends ExperimentBase {
 
     return (-springConstant * displacement - damping * velocity) / mass;
   }
-
-  private getSafeNumber(key: string, fallback: number, min: number, max: number): number {
-    const value = this.getParameter(key);
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      return fallback;
-    }
-    return Math.min(Math.max(value, min), max);
-  }
 }

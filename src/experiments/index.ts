@@ -10,6 +10,9 @@ import { UniformCircularMotion } from './mechanics/uniform-circular-motion';
 import { InclinedPlaneFriction } from './mechanics/inclined-plane-friction';
 import { SpringOscillation } from './mechanics/spring-oscillation';
 import { MomentumCarts } from './mechanics/momentum-carts';
+import { LightRefraction } from './optics/light-refraction';
+import { DoubleSlitInterference } from './optics/double-slit-interference';
+import { BoyleLaw } from './thermodynamics/boyle-law';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -22,6 +25,9 @@ ExperimentRegistry.register('uniform-circular-motion', UniformCircularMotion);
 ExperimentRegistry.register('inclined-plane-friction', InclinedPlaneFriction);
 ExperimentRegistry.register('spring-oscillation', SpringOscillation);
 ExperimentRegistry.register('momentum-carts', MomentumCarts);
+ExperimentRegistry.register('light-refraction', LightRefraction);
+ExperimentRegistry.register('double-slit-interference', DoubleSlitInterference);
+ExperimentRegistry.register('boyle-law', BoyleLaw);
 
 export * from './base';
 export { RutherfordExperiment } from './atomic/rutherford-scattering';
@@ -34,3 +40,6 @@ export { UniformCircularMotion } from './mechanics/uniform-circular-motion';
 export { InclinedPlaneFriction } from './mechanics/inclined-plane-friction';
 export { SpringOscillation } from './mechanics/spring-oscillation';
 export { MomentumCarts } from './mechanics/momentum-carts';
+export { LightRefraction } from './optics/light-refraction';
+export { DoubleSlitInterference } from './optics/double-slit-interference';
+export { BoyleLaw } from './thermodynamics/boyle-law';

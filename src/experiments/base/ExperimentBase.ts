@@ -154,6 +154,17 @@ export abstract class ExperimentBase implements IExperiment {
     }
 
     /**
+     * 安全读取数值参数并约束在范围内
+     */
+    protected getSafeNumber(key: string, fallback: number, min: number, max: number): number {
+        const value = this.getParameter(key);
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+            return fallback;
+        }
+        return Math.min(Math.max(value, min), max);
+    }
+
+    /**
      * 获取显示数据 - 子类实现
      */
     abstract getDisplayData(): Record<string, DisplayValue>;
