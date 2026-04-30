@@ -366,21 +366,28 @@ export default function MacroExperimentView() {
     };
 
     return (
-        <div className="h-screen flex flex-col bg-slate-900">
-            <header className="flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur-sm px-6 py-4 z-10">
+        <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute -top-40 left-1/2 h-[420px] w-[640px] -translate-x-1/2 rounded-full bg-cyan-400/12 blur-3xl" />
+                <div className="absolute -bottom-48 right-8 h-[320px] w-[320px] rounded-full bg-emerald-300/8 blur-3xl" />
+            </div>
+
+            <header className="z-10 mx-4 mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/78 px-6 py-4 shadow-[0_18px_55px_rgba(2,12,27,0.45)] backdrop-blur-xl">
                 <div className="flex items-center gap-4">
-                    <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10">
+                    <Link to="/" className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/65 px-4 py-2 text-slate-200 transition-all duration-200 hover:border-cyan-200/40 hover:bg-slate-700/70">
                         <ArrowLeft size={18} />
                         <span className="font-medium">Back</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
-                    <h1 className="text-xl font-semibold text-white tracking-wide">Rutherford α-Particle Scattering - Device View</h1>
+                    <h1 className="bg-gradient-to-r from-slate-100 via-sky-100 to-emerald-200 bg-clip-text text-xl font-semibold tracking-wide text-transparent">
+                        Rutherford α-Particle Scattering - Device View
+                    </h1>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setIsRunning(!isRunning)}
-                        className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-lg ${isRunning ? 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-700 hover:to-orange-600 text-white shadow-orange-900/30' : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-emerald-900/30'
+                        className={`flex items-center gap-2.5 rounded-xl px-5 py-2.5 font-medium text-white shadow-lg transition-all duration-200 ${isRunning ? 'bg-gradient-to-r from-amber-600 to-orange-500 shadow-orange-900/30 hover:from-amber-500 hover:to-orange-400' : 'bg-gradient-to-r from-sky-600 to-cyan-500 shadow-cyan-900/30 hover:from-sky-500 hover:to-cyan-400'
                             }`}
                     >
                         {isRunning ? <Pause size={18} /> : <Play size={18} />}
@@ -388,7 +395,7 @@ export default function MacroExperimentView() {
                     </button>
                     <button
                         onClick={handleReset}
-                        className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-medium transition-all duration-200 shadow-lg shadow-slate-900/30 border border-white/10"
+                        className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-800/85 px-5 py-2.5 font-medium text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-200 hover:bg-slate-700/85"
                     >
                         <RotateCcw size={18} />
                         <span className="tracking-wide">Reset</span>
@@ -396,27 +403,37 @@ export default function MacroExperimentView() {
                 </div>
             </header>
 
-            <main className="flex-1 relative">
-                <Canvas shadows>
+            <main className="relative flex-1 px-4 pb-4 pt-3">
+                <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/45 shadow-[0_18px_60px_rgba(2,12,27,0.5)]">
+                    <Canvas
+                        shadows
+                        style={{
+                            background:
+                                'radial-gradient(circle at 16% 15%, rgba(56, 189, 248, 0.14), transparent 34%), linear-gradient(180deg, #030816 0%, #091328 46%, #111b33 100%)',
+                        }}
+                    >
                     {/* 俯视角度，稍微倾斜，可以看到整个探测屏 */}
                     <PerspectiveCamera makeDefault position={[2, 15, 8]} fov={50} />
                     <OrbitControls enableDamping dampingFactor={0.05} minDistance={8} maxDistance={25} target={[0, 0, 0]} />
 
-                    <ambientLight intensity={0.5} />
-                    <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-                    <pointLight position={[8, 2, 0]} intensity={0.8} color="#ff6b35" />
+                    <ambientLight intensity={0.35} />
+                    <hemisphereLight args={['#8be9ff', '#0b1021', 0.38]} />
+                    <directionalLight position={[10, 10, 5]} intensity={0.95} castShadow />
+                    <pointLight position={[8, 2, 0]} intensity={0.7} color="#fb923c" />
+                    <pointLight position={[-7, 5, -4]} intensity={0.35} color="#38bdf8" />
 
                     <ExperimentScene isRunning={isRunning} onStatsUpdate={(t, d, s, l) => setStats({ total: t, direct: d, small: s, large: l })} />
 
                     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
                         <planeGeometry args={[30, 30]} />
-                        <meshStandardMaterial color="#1e293b" />
+                        <meshStandardMaterial color="#0f172a" />
                     </mesh>
-                </Canvas>
+                    </Canvas>
+                </div>
 
                 {/* 右下角数据面板 */}
-                <div className="absolute bottom-4 right-4 w-64 rounded-lg bg-slate-800/90 backdrop-blur-sm border border-white/10 p-3">
-                    <h3 className="text-sm font-semibold text-white mb-2">Experiment Data</h3>
+                <div className="absolute bottom-8 right-8 w-72 rounded-2xl border border-white/10 bg-slate-900/82 p-4 shadow-xl shadow-slate-950/45 backdrop-blur-xl">
+                    <h3 className="mb-3 text-sm font-semibold text-white">Experiment Data</h3>
                     <div className="space-y-1 text-xs">
                         <div className="flex justify-between">
                             <span className="text-slate-400">Particles Emitted</span>
@@ -436,10 +453,10 @@ export default function MacroExperimentView() {
                         </div>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-white/10">
+                    <div className="mt-4 border-t border-white/10 pt-3">
                         <button
                             onClick={handleViewMicro}
-                            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 rounded-lg transition-colors"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-500 py-2 text-xs font-medium text-white transition-all duration-200 hover:from-sky-500 hover:to-cyan-400"
                         >
                             <ZoomIn size={16} />
                             View Microscopic
@@ -448,18 +465,18 @@ export default function MacroExperimentView() {
                 </div>
 
                 {/* 底部图例 */}
-                <div className="absolute bottom-4 left-4 rounded-lg bg-slate-800/80 backdrop-blur-sm border border-white/10 px-4 py-3">
+                <div className="absolute bottom-8 left-8 rounded-2xl border border-white/10 bg-slate-900/78 px-4 py-3 backdrop-blur-xl">
                     <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                            <div className="h-3 w-3 rounded-full bg-yellow-400" />
                             <span className="text-slate-300">Direct Passage</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-orange-400"></div>
+                            <div className="h-3 w-3 rounded-full bg-orange-400" />
                             <span className="text-slate-300">Small Angle</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div className="h-3 w-3 rounded-full bg-red-500" />
                             <span className="text-slate-300">Large Angle</span>
                         </div>
                     </div>

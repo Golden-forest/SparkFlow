@@ -228,26 +228,33 @@ export default function ExperimentView() {
     }
 
     return (
-        <div className="flex h-screen flex-col bg-slate-950">
-            <header className="z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/90 px-6 py-4 backdrop-blur-sm">
+        <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute -top-40 left-1/2 h-[430px] w-[640px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
+                <div className="absolute -bottom-44 right-4 h-[300px] w-[300px] rounded-full bg-emerald-300/8 blur-3xl" />
+            </div>
+
+            <header className="z-20 mx-4 mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/80 px-6 py-4 shadow-[0_18px_55px_rgba(2,12,27,0.45)] backdrop-blur-xl">
                 <div className="flex items-center gap-4">
                     <Link
                         to="/"
-                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-4 py-2 text-slate-200 transition-colors hover:bg-slate-800"
+                        className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-slate-200 transition-all duration-200 hover:border-cyan-200/40 hover:bg-slate-700/75"
                     >
                         <ArrowLeft size={18} />
                         <span className="font-medium">Back</span>
                     </Link>
-                    <h1 className="text-xl font-semibold tracking-wide text-white">{currentExperiment.metadata.name}</h1>
+                    <h1 className="bg-gradient-to-r from-slate-100 via-sky-100 to-emerald-200 bg-clip-text text-xl font-semibold tracking-wide text-transparent">
+                        {currentExperiment.metadata.name}
+                    </h1>
                 </div>
 
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handlePlayPause}
-                        className={`flex items-center gap-2.5 rounded-lg px-5 py-2.5 font-medium text-white shadow-lg transition-all ${
+                        className={`flex items-center gap-2.5 rounded-xl px-5 py-2.5 font-medium text-white shadow-lg transition-all duration-200 ${
                             isRunning
                                 ? 'bg-gradient-to-r from-amber-600 to-orange-500 shadow-orange-900/30 hover:from-amber-500 hover:to-orange-400'
-                                : 'bg-gradient-to-r from-cyan-600 to-sky-500 shadow-cyan-900/30 hover:from-cyan-500 hover:to-sky-400'
+                                : 'bg-gradient-to-r from-sky-600 to-cyan-500 shadow-cyan-900/30 hover:from-sky-500 hover:to-cyan-400'
                         }`}
                     >
                         {isRunning ? <Pause size={18} /> : <Play size={18} />}
@@ -255,7 +262,7 @@ export default function ExperimentView() {
                     </button>
                     <button
                         onClick={handleReset}
-                        className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-slate-800 px-5 py-2.5 font-medium text-slate-100 transition-colors hover:bg-slate-700"
+                        className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-800/85 px-5 py-2.5 font-medium text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-200 hover:bg-slate-700/85"
                     >
                         <RotateCcw size={18} />
                         <span>Reset</span>
@@ -263,16 +270,19 @@ export default function ExperimentView() {
                 </div>
             </header>
 
-            <main className="relative flex-1">
-                <SceneContainer
-                    cameraPosition={currentExperiment.config.camera.position}
-                    cameraTarget={currentExperiment.config.camera.target}
-                    cameraFov={currentExperiment.config.camera.fov ?? 50}
-                    showGrid={false}
-                    showAxes={false}
-                >
-                    <ExperimentScene experiment={currentExperiment} />
-                </SceneContainer>
+            <main className="relative flex-1 px-4 pb-4 pt-3">
+                <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/45 shadow-[0_18px_60px_rgba(2,12,27,0.5)]">
+                    <SceneContainer
+                        cameraPosition={currentExperiment.config.camera.position}
+                        cameraTarget={currentExperiment.config.camera.target}
+                        cameraFov={currentExperiment.config.camera.fov ?? 50}
+                        showGrid={false}
+                        showAxes={false}
+                        backgroundColor="#030816"
+                    >
+                        <ExperimentScene experiment={currentExperiment} />
+                    </SceneContainer>
+                </div>
 
                 <ExperimentWorkbench
                     title={currentExperiment.metadata.name}

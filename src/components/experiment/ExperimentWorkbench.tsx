@@ -47,7 +47,7 @@ function NumberControl({
     const { label, min = 0, max = 100, step = 0.1, unit } = definition;
     const digits = step < 1 ? Math.abs(Math.floor(Math.log10(step))) : 0;
     return (
-        <div className="space-y-2">
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/55 p-3.5">
             <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-slate-200">{label}</label>
                 <span className="text-sm font-mono text-cyan-300">
@@ -62,7 +62,7 @@ function NumberControl({
                 step={step}
                 value={value}
                 onChange={(event) => onChange(Number.parseFloat(event.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-700 accent-cyan-500"
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-700 accent-sky-500"
             />
             <div className="grid grid-cols-2 gap-2">
                 <span className="text-xs text-slate-500">
@@ -88,12 +88,12 @@ function BooleanControl({
     onChange: (value: boolean) => void;
 }) {
     return (
-        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-800/70 px-3 py-2">
+        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/55 px-3.5 py-3">
             <span className="text-sm text-slate-200">{label}</span>
             <button
                 onClick={() => onChange(!value)}
                 className={`relative h-6 w-12 rounded-full transition-colors ${
-                    value ? 'bg-cyan-600' : 'bg-slate-600'
+                    value ? 'bg-sky-600' : 'bg-slate-600'
                 }`}
                 aria-label={`Toggle ${label}`}
             >
@@ -117,12 +117,12 @@ function SelectControl({
     onChange: (value: string) => void;
 }) {
     return (
-        <div className="space-y-2">
+        <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-900/55 p-3.5">
             <label className="text-sm font-medium text-slate-200">{definition.label}</label>
             <select
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-cyan-400"
+                className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-sky-400"
             >
                 {(definition.options ?? []).map((option) => (
                     <option key={option.value} value={option.value}>
@@ -161,10 +161,10 @@ export function ExperimentWorkbench({
 
     if (!expanded) {
         return (
-            <div className="absolute right-0 top-24 z-40">
+            <div className="absolute right-1 top-5 z-40">
                 <button
                     onClick={() => setExpanded(true)}
-                    className="rounded-l-xl border border-white/10 bg-slate-900/85 px-2 py-5 text-slate-300 backdrop-blur-md transition-colors hover:bg-slate-800"
+                    className="rounded-l-xl border border-white/10 bg-slate-900/82 px-2 py-5 text-slate-300 backdrop-blur-xl transition-colors hover:bg-slate-800/85"
                     aria-label="Expand workbench"
                 >
                     <ChevronLeft size={18} />
@@ -174,9 +174,11 @@ export function ExperimentWorkbench({
     }
 
     return (
-        <aside className="absolute right-3 top-24 bottom-4 z-40 w-[min(360px,calc(100vw-1.5rem))] rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 p-4 shadow-2xl backdrop-blur-md sm:right-5 sm:bottom-6">
-            <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-300">{title}</h2>
+        <aside className="absolute bottom-5 right-5 top-5 z-40 w-[min(368px,calc(100vw-2.5rem))] rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 p-4 shadow-2xl shadow-slate-950/45 backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between">
+                <h2 className="bg-gradient-to-r from-slate-100 via-sky-100 to-emerald-200 bg-clip-text text-sm font-semibold tracking-[0.18em] text-transparent">
+                    {title}
+                </h2>
                 <button
                     onClick={() => setExpanded(false)}
                     className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -186,13 +188,13 @@ export function ExperimentWorkbench({
                 </button>
             </div>
 
-            <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-slate-800/70 p-1">
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-slate-800/70 p-1.5">
                 <button
                     onClick={() => setActiveTab('controls')}
                     className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         activeTab === 'controls'
-                            ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/40'
-                            : 'text-slate-300 hover:bg-slate-700'
+                            ? 'bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg shadow-cyan-900/35'
+                            : 'text-slate-300 hover:bg-slate-700/90'
                     }`}
                 >
                     <SlidersHorizontal size={16} />
@@ -202,8 +204,8 @@ export function ExperimentWorkbench({
                     onClick={() => setActiveTab('monitor')}
                     className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                         activeTab === 'monitor'
-                            ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/40'
-                            : 'text-slate-300 hover:bg-slate-700'
+                            ? 'bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg shadow-cyan-900/35'
+                            : 'text-slate-300 hover:bg-slate-700/90'
                     }`}
                 >
                     <Activity size={16} />
@@ -211,9 +213,9 @@ export function ExperimentWorkbench({
                 </button>
             </div>
 
-            <div className="h-[calc(100%-90px)] overflow-y-auto pr-1">
+            <div className="h-[calc(100%-102px)] overflow-y-auto pr-1">
                 {activeTab === 'controls' ? (
-                    <div className="space-y-4">
+                    <div className="space-y-4 pb-1">
                         {controlSchema.parameters.map((definition) => {
                             const currentValue = parameterValues[definition.key] ?? definition.defaultValue;
                             if (definition.type === 'number') {
@@ -247,7 +249,7 @@ export function ExperimentWorkbench({
                         })}
 
                         {(controlSchema.actions ?? []).length > 0 ? (
-                            <div className="space-y-2 pt-2">
+                            <div className="space-y-2 pt-1">
                                 {(controlSchema.actions ?? []).map((action) => (
                                     <button
                                         key={action.key}
@@ -255,7 +257,7 @@ export function ExperimentWorkbench({
                                         className={`w-full rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                                             action.variant === 'secondary'
                                                 ? 'border border-white/10 bg-slate-800 text-slate-100 hover:bg-slate-700'
-                                                : 'bg-gradient-to-r from-cyan-600 to-sky-500 text-white shadow-lg shadow-cyan-900/30 hover:from-cyan-500 hover:to-sky-400'
+                                                : 'bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg shadow-cyan-900/30 hover:from-sky-500 hover:to-cyan-400'
                                         }`}
                                     >
                                         {action.label}
@@ -265,8 +267,8 @@ export function ExperimentWorkbench({
                         ) : null}
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        <div className="rounded-xl border border-white/10 bg-slate-800/70 p-3">
+                    <div className="space-y-4 pb-1">
+                        <div className="rounded-xl border border-white/10 bg-slate-800/70 p-3.5">
                             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
                                 Monitored Quantities
                             </h3>
@@ -287,7 +289,7 @@ export function ExperimentWorkbench({
                                                         onSelectedMonitorIdsChange([...safeSelectedMonitorIds, item.key]);
                                                     }
                                                 }}
-                                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-cyan-500"
+                                                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-sky-500"
                                             />
                                             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
                                             <span className="text-sm text-slate-200">{item.label}</span>
@@ -302,7 +304,7 @@ export function ExperimentWorkbench({
                             if (!definition) return null;
                             const numericValue = readNumeric(displayData[id]);
                             return (
-                                <section key={id} className="rounded-xl border border-white/10 bg-slate-800/70 p-3">
+                                <section key={id} className="rounded-xl border border-white/10 bg-slate-800/70 p-3.5">
                                     <div className="mb-2 flex items-center justify-between">
                                         <span className="text-sm text-slate-200">{definition.label}</span>
                                         <span className="font-mono text-sm text-white">

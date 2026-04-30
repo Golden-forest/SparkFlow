@@ -538,13 +538,17 @@ export default function Home() {
             }}
         >
             <header className="px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">
-                <h1 className="bg-gradient-to-br from-[#F0F6FC] to-[#00FF41] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]">
+                <h1
+                    className="bg-gradient-to-r from-[#ECF3FF] via-[#BDD4FF] to-[#8FC3D7] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]"
+                    style={{ filter: 'drop-shadow(0 10px 24px rgba(33, 108, 184, 0.18))' }}
+                >
                     Spark Flow
                 </h1>
             </header>
 
-            <main className="flex-1 px-6 pb-12 sm:px-10 lg:px-20">
-                <section className="mb-8 flex justify-center">
+            <main className="flex-1 px-6 pb-14 sm:px-10 lg:px-20 lg:pb-16">
+                <div className="mx-auto w-full max-w-[1360px]">
+                <section className="flex justify-center" style={{ marginBottom: 80 }}>
                     <div className="inline-flex rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg">
                         {[
                             { key: 'experiments', label: 'Experiments' },
@@ -570,12 +574,12 @@ export default function Home() {
                 </section>
 
                 {activeTab === 'experiments' ? (
-                    <div className="grid w-full grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
                         {experiments.map((experiment) => (
                             <article
                                 key={experiment.id}
                                 onClick={() => navigate(experiment.route ?? `/experiment/${experiment.id}`)}
-                                className={`group relative min-h-[260px] cursor-pointer overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br ${experiment.gradient} p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
+                                className={`group relative min-h-[292px] cursor-pointer overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br ${experiment.gradient} p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
                             >
                                 <div className="absolute inset-2 rounded-[16px] bg-gradient-to-br from-white/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
@@ -584,13 +588,13 @@ export default function Home() {
                                         {experiment.title}
                                     </h2>
 
-                                    <div className="flex flex-1 items-center justify-center py-8">
+                                    <div className="flex flex-1 items-center justify-center py-7">
                                         <div className="w-full transform transition-transform duration-[400ms] group-hover:scale-[1.04]">
                                             {experiment.diagram}
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between gap-2 px-2 pb-1">
+                                    <div className="mt-auto flex items-center justify-between gap-3 px-2 pb-1 pt-2">
                                         <div className="flex flex-wrap gap-2">
                                             {(experiment.quickViews ?? []).map((view) => (
                                                 <button
@@ -624,9 +628,9 @@ export default function Home() {
                 ) : null}
 
                 {activeTab === 'courseware' ? (
-                    <div className="grid w-full grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
                         {coursewareCards.length === 0 ? (
-                            <article className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-7 md:col-span-2 xl:col-span-3">
+                            <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
                                 <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
                                     No Courseware Found
                                 </h2>
@@ -638,7 +642,7 @@ export default function Home() {
                         {coursewareCards.map((card) => (
                             <article
                                 key={card.id}
-                                className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-7"
+                                className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-8"
                             >
                                 <div className="mb-5 inline-flex rounded-full border border-amber-400/40 bg-amber-900/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-200">
                                     {card.status === 'ready' ? 'Ready' : 'Draft'}
@@ -665,9 +669,9 @@ export default function Home() {
                 ) : null}
 
                 {activeTab === 'images' ? (
-                    <div className="grid w-full grid-cols-1 gap-7 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid w-full grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
                         {imageResources.length === 0 ? (
-                            <article className="relative min-h-[220px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-7 sm:col-span-2 xl:col-span-3">
+                            <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 sm:col-span-2 xl:col-span-3">
                                 <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
                                     No Image Assets Found
                                 </h2>
@@ -700,6 +704,7 @@ export default function Home() {
                         ))}
                     </div>
                 ) : null}
+                </div>
             </main>
         </div>
     );

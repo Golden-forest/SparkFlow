@@ -75,14 +75,16 @@ function CameraController({
 function DefaultLighting() {
     return (
         <>
-            <ambientLight intensity={0.4} />
+            <ambientLight intensity={0.28} />
+            <hemisphereLight args={['#7dd3fc', '#0b1023', 0.4]} />
             <directionalLight
                 position={[10, 10, 5]}
-                intensity={1}
+                intensity={0.92}
                 castShadow
                 shadow-mapSize={[1024, 1024]}
             />
-            <pointLight position={[-10, -10, -5]} intensity={0.5} color="#8080ff" />
+            <pointLight position={[-10, -10, -5]} intensity={0.4} color="#93c5fd" />
+            <pointLight position={[8, 6, 6]} intensity={0.24} color="#5eead4" />
         </>
     );
 }
@@ -119,10 +121,10 @@ export function SceneContainer({
             gl={{
                 antialias: true,
                 toneMapping: THREE.ACESFilmicToneMapping,
-                toneMappingExposure: 1.0,
+                toneMappingExposure: 0.95,
             }}
             style={{
-                background: 'linear-gradient(to bottom, #0a0e27 0%, #0f172a 100%)'
+                background: `radial-gradient(circle at 15% 10%, rgba(56, 189, 248, 0.16), transparent 35%), linear-gradient(to bottom, ${backgroundColor} 0%, #0f172a 100%)`,
             }}
         >
             <CameraController
