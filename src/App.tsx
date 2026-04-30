@@ -11,7 +11,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/experiment/rutherford-scattering" element={<MacroExperimentView />} />
-        <Route path="/experiment/rutherford-scattering/micro" element={<ExperimentView />} />
+        <Route path="/experiment/:experimentId/micro" element={<ExperimentView />} />
         <Route path="/experiment/rutherford-scattering/device" element={<MacroExperimentView />} />
         <Route path="/experiment/hydrogen-transitions/abstract" element={<HydrogenAbstractView />} />
         <Route path="/experiment/solar-system/satellite" element={<ExperimentView />} />

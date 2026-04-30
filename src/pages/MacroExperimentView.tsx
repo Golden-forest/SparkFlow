@@ -356,7 +356,7 @@ export default function MacroExperimentView() {
     const [stats, setStats] = useState({ total: 0, direct: 0, small: 0, large: 0 });
 
     const handleViewMicro = () => {
-        navigate('/experiment/rutherford-scattering');
+        navigate('/experiment/rutherford-scattering/micro');
     };
 
     const handleReset = () => {
