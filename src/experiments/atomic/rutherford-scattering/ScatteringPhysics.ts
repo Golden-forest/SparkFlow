@@ -95,7 +95,7 @@ export class ScatteringPhysics {
 
         // 记录轨迹（每隔几帧记录一次以优化性能）
         if (particle.trajectory.length === 0 ||
-            particle.position.distanceTo(particle.trajectory[particle.trajectory.length - 1]) > 0.1) {
+            particle.position.distanceTo(particle.trajectory[particle.trajectory.length - 1]) > 0.02) {
             particle.trajectory.push(particle.position.clone());
         }
 
