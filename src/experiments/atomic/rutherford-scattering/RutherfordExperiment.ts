@@ -63,9 +63,6 @@ export class RutherfordExperiment extends ExperimentBase {
         // 创建原子模型（小原子核 + 大电子云）
         this.createAtomModel();
 
-        // 创建金箔背景
-        this.createGoldFoil();
-
         // 创建粒子源指示
         this.createParticleSource();
     }
@@ -121,22 +118,6 @@ export class RutherfordExperiment extends ExperimentBase {
         // 添加点光源
         const pointLight = new THREE.PointLight(0xffaa00, 1, 5);
         this.nucleus.add(pointLight);
-    }
-
-    private createGoldFoil(): void {
-        // 金箔平面（在原子周围）
-        const geometry = new THREE.PlaneGeometry(12, 12);
-        const material = new THREE.MeshStandardMaterial({
-            color: 0xdaa520,
-            transparent: true,
-            opacity: 0.05,
-            side: THREE.DoubleSide,
-            metalness: 0.9,
-            roughness: 0.1,
-        });
-        const foil = new THREE.Mesh(geometry, material);
-        foil.position.set(0, 0, 0);
-        this.addToScene(foil);
     }
 
     private createParticleSource(): void {

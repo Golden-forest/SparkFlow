@@ -48,7 +48,7 @@ function AlphaSource() {
         <group position={[8, 0, 0]}>
             <mesh>
                 <boxGeometry args={[2.5, 2, 2]} />
-                <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.4} />
+                <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.4} />
             </mesh>
             <mesh ref={meshRef}>
                 <sphereGeometry args={[0.4, 32, 32]} />
@@ -56,7 +56,7 @@ function AlphaSource() {
             </mesh>
             <mesh position={[-1.5, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
                 <cylinderGeometry args={[0.08, 0.08, 0.8, 16]} />
-                <meshStandardMaterial color="#333" metalness={0.8} />
+                <meshStandardMaterial color="#64748b" metalness={0.8} />
             </mesh>
         </group>
     );
@@ -426,7 +426,7 @@ export default function MacroExperimentView() {
 
                     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
                         <planeGeometry args={[30, 30]} />
-                        <meshStandardMaterial color="#0D1117" />
+                        <meshStandardMaterial color="#1a2332" />
                     </mesh>
                     </Canvas>
                 </div>
