@@ -278,7 +278,7 @@ export default function ExperimentView() {
                         cameraFov={currentExperiment.config.camera.fov ?? 50}
                         showGrid={false}
                         showAxes={false}
-                        backgroundColor="#030816"
+                        backgroundColor="#0D1117"
                     >
                         <ExperimentScene experiment={currentExperiment} />
                     </SceneContainer>
