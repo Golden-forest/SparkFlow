@@ -48,11 +48,11 @@ function AlphaSource() {
         <group position={[8, 0, 0]}>
             <mesh>
                 <boxGeometry args={[2.5, 2, 2]} />
-                <meshStandardMaterial color="#1e3a8a" metalness={0.6} roughness={0.4} />
+                <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.4} />
             </mesh>
             <mesh ref={meshRef}>
                 <sphereGeometry args={[0.4, 32, 32]} />
-                <meshStandardMaterial color="#ff4500" emissive="#ff2200" emissiveIntensity={0.5} />
+                <meshStandardMaterial color="#38BDF8" emissive="#0EA5E9" emissiveIntensity={0.5} />
             </mesh>
             <mesh position={[-1.5, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
                 <cylinderGeometry args={[0.08, 0.08, 0.8, 16]} />
@@ -103,11 +103,11 @@ function DetectorScreen({ hitMarks }: { hitMarks: HitMark[] }) {
         <group rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
             <mesh geometry={geometry} position={[0, 0, -DETECTOR_HEIGHT]}>
                 <meshStandardMaterial
-                    color="#3b82f6"
+                    color="#22D3EE"
                     metalness={0.3}
                     roughness={0.7}
                     transparent
-                    opacity={0.7}
+                    opacity={0.8}
                     side={THREE.DoubleSide}
                 />
             </mesh>
@@ -117,8 +117,8 @@ function DetectorScreen({ hitMarks }: { hitMarks: HitMark[] }) {
                     <sphereGeometry args={[0.1, 8, 8]} />
                     <meshBasicMaterial
                         color={
-                            mark.type === 'direct' ? '#ffdd00' :
-                                mark.type === 'small' ? '#ffaa00' : '#ff4400'
+                            mark.type === 'direct' ? '#34D399' :
+                                mark.type === 'small' ? '#F59E0B' : '#F97316'
                         }
                     />
                 </mesh>
@@ -409,24 +409,24 @@ export default function MacroExperimentView() {
                         shadows
                         style={{
                             background:
-                                'radial-gradient(circle at 16% 15%, rgba(56, 189, 248, 0.14), transparent 34%), linear-gradient(180deg, #030816 0%, #091328 46%, #111b33 100%)',
+                                'radial-gradient(circle at 16% 15%, rgba(56, 189, 248, 0.18), transparent 34%), radial-gradient(circle at 84% 80%, rgba(0, 255, 65, 0.08), transparent 40%), linear-gradient(180deg, #0D1117 0%, #111827 46%, #1a2332 100%)',
                         }}
                     >
                     {/* 俯视角度，稍微倾斜，可以看到整个探测屏 */}
                     <PerspectiveCamera makeDefault position={[2, 15, 8]} fov={50} />
                     <OrbitControls enableDamping dampingFactor={0.05} minDistance={8} maxDistance={25} target={[0, 0, 0]} />
 
-                    <ambientLight intensity={0.35} />
-                    <hemisphereLight args={['#8be9ff', '#0b1021', 0.38]} />
-                    <directionalLight position={[10, 10, 5]} intensity={0.95} castShadow />
-                    <pointLight position={[8, 2, 0]} intensity={0.7} color="#fb923c" />
-                    <pointLight position={[-7, 5, -4]} intensity={0.35} color="#38bdf8" />
+                    <ambientLight intensity={0.5} />
+                    <hemisphereLight args={['#8be9ff', '#0b1021', 0.55]} />
+                    <directionalLight position={[10, 10, 5]} intensity={1.2} castShadow />
+                    <pointLight position={[8, 2, 0]} intensity={0.5} color="#38BDF8" />
+                    <pointLight position={[-7, 5, -4]} intensity={0.4} color="#00FF41" />
 
                     <ExperimentScene isRunning={isRunning} onStatsUpdate={(t, d, s, l) => setStats({ total: t, direct: d, small: s, large: l })} />
 
                     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]} receiveShadow>
                         <planeGeometry args={[30, 30]} />
-                        <meshStandardMaterial color="#0f172a" />
+                        <meshStandardMaterial color="#0D1117" />
                     </mesh>
                     </Canvas>
                 </div>
@@ -440,15 +440,15 @@ export default function MacroExperimentView() {
                             <span className="text-white font-mono">{stats.total}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-yellow-400">Direct Passage</span>
+                            <span className="text-emerald-400">Direct Passage</span>
                             <span className="text-white font-mono">{stats.direct} ({stats.total > 0 ? ((stats.direct / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-orange-400">Small Angle Scatter</span>
+                            <span className="text-amber-400">Small Angle Scatter</span>
                             <span className="text-white font-mono">{stats.small} ({stats.total > 0 ? ((stats.small / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-red-400">Large Angle Scatter</span>
+                            <span className="text-orange-500">Large Angle Scatter</span>
                             <span className="text-white font-mono">{stats.large} ({stats.total > 0 ? ((stats.large / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                     </div>
@@ -468,15 +468,15 @@ export default function MacroExperimentView() {
                 <div className="absolute bottom-8 left-8 rounded-2xl border border-white/10 bg-slate-900/78 px-4 py-3 backdrop-blur-xl">
                     <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
-                            <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                            <div className="h-3 w-3 rounded-full bg-emerald-400" />
                             <span className="text-slate-300">Direct Passage</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="h-3 w-3 rounded-full bg-orange-400" />
+                            <div className="h-3 w-3 rounded-full bg-amber-400" />
                             <span className="text-slate-300">Small Angle</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="h-3 w-3 rounded-full bg-red-500" />
+                            <div className="h-3 w-3 rounded-full bg-orange-500" />
                             <span className="text-slate-300">Large Angle</span>
                         </div>
                     </div>
