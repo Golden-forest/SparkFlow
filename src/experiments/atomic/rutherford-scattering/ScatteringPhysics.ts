@@ -11,6 +11,7 @@ export interface AlphaParticle {
     trajectory: THREE.Vector3[];
     isActive: boolean;
     hasLargeAngle: boolean; // 是否大角度散射(>90°)
+    scatterAngle: number; // 偏转角(弧度), 0 = 未散射
 }
 
 /**
@@ -103,36 +104,30 @@ export class ScatteringPhysics {
             particle.position.z < -15 ||
             Math.abs(particle.position.x) > 10) {
             particle.isActive = false;
-            // 判定是否大角度散射
-            particle.hasLargeAngle = this.checkLargeAngleScattering(particle);
+            // 计算偏转角并判定散射类型
+            const angle = ScatteringPhysics.computeScatterAngle(particle);
+            particle.scatterAngle = angle;
+            particle.hasLargeAngle = angle > Math.PI / 2;
         }
     }
 
     /**
-   * 检测是否为大角度散射（偏转角>90°）
-   * 只有非常靠近原子核的粒子才会发生大角度散射
-   */
-    static checkLargeAngleScattering(particle: AlphaParticle): boolean {
-        if (particle.trajectory.length < 5) return false;
+     * 计算粒子偏转角（弧度）
+     * 初始方向为+z方向，通过比较最终方向与初始方向的夹角
+     */
+    static computeScatterAngle(particle: AlphaParticle): number {
+        if (particle.trajectory.length < 5) return 0;
 
-        // 检查是否曾经非常靠近原子核
-        const minDistance = Math.min(...particle.trajectory.map(p => p.length()));
-        if (minDistance > 0.5) return false; // 没有足够靠近原子核
-
-        // 初始方向（入射方向，应该是+z方向）
         const initialDir = new THREE.Vector3(0, 0, 1);
 
-        // 最终方向
         const len = particle.trajectory.length;
         const finalDir = particle.trajectory[len - 1]
             .clone()
             .sub(particle.trajectory[Math.max(0, len - 5)])
             .normalize();
 
-        // 计算夹角
-        const cosAngle = initialDir.dot(finalDir);
-        // cos < 0 意味着角度 > 90°
-        return cosAngle < 0;
+        const cosAngle = THREE.MathUtils.clamp(initialDir.dot(finalDir), -1, 1);
+        return Math.acos(cosAngle);
     }
 
     /**
@@ -155,6 +150,7 @@ export class ScatteringPhysics {
             trajectory: [],
             isActive: true,
             hasLargeAngle: false,
+            scatterAngle: 0,
         };
     }
 

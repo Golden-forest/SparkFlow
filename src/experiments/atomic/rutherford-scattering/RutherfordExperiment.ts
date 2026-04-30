@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import {
     ExperimentBase,
     type ExperimentMetadata,
@@ -47,7 +50,7 @@ export class RutherfordExperiment extends ExperimentBase {
     // 3D对象
     private nucleus: THREE.Mesh | null = null;
     private electronCloud: THREE.Mesh | null = null;
-    private trajectoryLines: Map<number, THREE.Line> = new Map();
+    private trajectoryLines: Map<number, Line2> = new Map();
     private particleMeshes: Map<number, THREE.Mesh> = new Map();
 
     // 统计数据
@@ -71,9 +74,9 @@ export class RutherfordExperiment extends ExperimentBase {
         // 电子云（大而透明的球体）
         const cloudGeometry = new THREE.SphereGeometry(4, 32, 32);
         const cloudMaterial = new THREE.MeshBasicMaterial({
-            color: 0x4488ff,
+            color: 0x22D3EE,
             transparent: true,
-            opacity: 0.08,
+            opacity: 0.12,
             depthWrite: false,
         });
         this.electronCloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
@@ -83,9 +86,9 @@ export class RutherfordExperiment extends ExperimentBase {
         // 电子云边界（淡蓝色圆环）
         const ringGeometry = new THREE.RingGeometry(3.9, 4.1, 64);
         const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0x6699ff,
+            color: 0x38BDF8,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.35,
             side: THREE.DoubleSide,
         });
         const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -138,10 +141,10 @@ export class RutherfordExperiment extends ExperimentBase {
 
     private createParticleSource(): void {
         // 粒子源指示器（在左侧）
-        const geometry = new THREE.ConeGeometry(0.3, 0.8, 8);
+        const geometry = new THREE.ConeGeometry(0.3, 0.8, 32);
         const material = new THREE.MeshStandardMaterial({
-            color: 0x00ff00,
-            emissive: 0x00aa00,
+            color: 0x22D3EE,
+            emissive: 0x0891B2,
             emissiveIntensity: 0.5,
         });
         const source = new THREE.Mesh(geometry, material);
@@ -176,7 +179,7 @@ export class RutherfordExperiment extends ExperimentBase {
     private createParticleMesh(particle: AlphaParticle): void {
         const geometry = new THREE.SphereGeometry(0.08, 12, 12);
         const material = new THREE.MeshBasicMaterial({
-            color: 0x00ff00,
+            color: 0x00FF41,
         });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.copy(particle.position);
@@ -209,9 +212,9 @@ export class RutherfordExperiment extends ExperimentBase {
                 // 根据距离原子核的远近改变颜色
                 const distToNucleus = particle.position.length();
                 if (distToNucleus < 1) {
-                    (mesh.material as THREE.MeshBasicMaterial).color.setHex(0xff6600);
+                    (mesh.material as THREE.MeshBasicMaterial).color.setHex(0xF59E0B);
                 } else if (distToNucleus < 2) {
-                    (mesh.material as THREE.MeshBasicMaterial).color.setHex(0xffff00);
+                    (mesh.material as THREE.MeshBasicMaterial).color.setHex(0x34D399);
                 }
             }
 
@@ -237,24 +240,42 @@ export class RutherfordExperiment extends ExperimentBase {
         const oldLine = this.trajectoryLines.get(particle.id);
         if (oldLine) {
             this.removeFromScene(oldLine);
+            oldLine.geometry.dispose();
+            (oldLine.material as LineMaterial).dispose();
         }
 
         const points = particle.trajectory;
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-        // 根据散射结果改变轨迹颜色
-        let color = 0x00ff00; // 默认绿色
-        if (!particle.isActive) {
-            color = particle.hasLargeAngle ? 0xff0000 : 0x00ff00; // 大角度散射显示红色
-        }
-
-        const material = new THREE.LineBasicMaterial({
-            color,
-            transparent: true,
-            opacity: particle.isActive ? 0.8 : 0.4,
+        // 扁平化坐标数组 [x1,y1,z1, x2,y2,z2, ...]
+        const positions: number[] = [];
+        points.forEach((p) => {
+            positions.push(p.x, p.y, p.z);
         });
 
-        const line = new THREE.Line(geometry, material);
+        const geometry = new LineGeometry();
+        geometry.setPositions(positions);
+
+        // 3-tier coloring based on scatter angle
+        let color = '#22D3EE'; // 默认: 青色 (直穿)
+        if (!particle.isActive) {
+            const angleDeg = (particle.scatterAngle * 180) / Math.PI;
+            if (angleDeg >= 30) {
+                color = '#F97316'; // 大角度: 橙色
+            } else if (angleDeg >= 10) {
+                color = '#34D399'; // 小角度: 翠绿
+            }
+        }
+
+        const material = new LineMaterial({
+            color: new THREE.Color(color).getHex(),
+            linewidth: 2.5,
+            transparent: true,
+            opacity: particle.isActive ? 0.8 : 0.4,
+            resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+        });
+
+        const line = new Line2(geometry, material);
+        line.computeLineDistances();
         this.addToScene(line);
         this.trajectoryLines.set(particle.id, line);
     }
@@ -273,6 +294,8 @@ export class RutherfordExperiment extends ExperimentBase {
                 const line = this.trajectoryLines.get(p.id);
                 if (line) {
                     this.removeFromScene(line);
+                    line.geometry.dispose();
+                    (line.material as LineMaterial).dispose();
                     this.trajectoryLines.delete(p.id);
                 }
             });
@@ -283,7 +306,11 @@ export class RutherfordExperiment extends ExperimentBase {
     private clearAllParticles(): void {
         this.particleMeshes.forEach((mesh) => this.removeFromScene(mesh));
         this.particleMeshes.clear();
-        this.trajectoryLines.forEach((line) => this.removeFromScene(line));
+        this.trajectoryLines.forEach((line) => {
+            this.removeFromScene(line);
+            line.geometry.dispose();
+            (line.material as LineMaterial).dispose();
+        });
         this.trajectoryLines.clear();
         this.particles = [];
     }
