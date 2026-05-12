@@ -26,6 +26,7 @@ export const ExperimentCategory = {
     AtomicPhysics: 'atomic',
     Thermodynamics: 'thermodynamics',
     Celestial: 'celestial',
+    Electrochemistry: 'electrochemistry',
 } as const;
 
 export type ExperimentCategory = typeof ExperimentCategory[keyof typeof ExperimentCategory];
