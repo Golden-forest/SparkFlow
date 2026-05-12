@@ -113,7 +113,8 @@ export default function ExperimentView() {
             return buildDefaultControlSchema([]);
         }
         return currentExperiment.getControlSchema?.() ?? buildDefaultControlSchema(currentExperiment.config.parameters);
-    }, [currentExperiment]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentExperiment, parameterValues]);
 
     const monitorSchema = useMemo(() => {
         if (!currentExperiment) {
