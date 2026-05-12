@@ -13,6 +13,7 @@ import { MomentumCarts } from './mechanics/momentum-carts';
 import { LightRefraction } from './optics/light-refraction';
 import { DoubleSlitInterference } from './optics/double-slit-interference';
 import { BoyleLaw } from './thermodynamics/boyle-law';
+import { GalvanicCell } from './electrochemistry';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -28,6 +29,7 @@ ExperimentRegistry.register('momentum-carts', MomentumCarts);
 ExperimentRegistry.register('light-refraction', LightRefraction);
 ExperimentRegistry.register('double-slit-interference', DoubleSlitInterference);
 ExperimentRegistry.register('boyle-law', BoyleLaw);
+ExperimentRegistry.register('galvanic-cell', GalvanicCell);
 
 export * from './base';
 export { RutherfordExperiment } from './atomic/rutherford-scattering';
@@ -43,3 +45,4 @@ export { MomentumCarts } from './mechanics/momentum-carts';
 export { LightRefraction } from './optics/light-refraction';
 export { DoubleSlitInterference } from './optics/double-slit-interference';
 export { BoyleLaw } from './thermodynamics/boyle-law';
+export { GalvanicCell } from './electrochemistry';

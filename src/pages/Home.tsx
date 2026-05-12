@@ -388,6 +388,53 @@ const MomentumCartsDiagram = () => (
     </div>
 );
 
+const ElectrochemicalCellDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-78">
+            {/* Beaker outline */}
+            <path d="M 60 40 L 60 110 Q 60 118 68 118 L 172 118 Q 180 118 180 110 L 180 40" fill="none" stroke="#475569" strokeWidth="2" />
+            <line x1="56" y1="40" x2="184" y2="40" stroke="#475569" strokeWidth="2" />
+            {/* Solution */}
+            <rect x="62" y="58" width="116" height="58" rx="2" fill="#38BDF8" opacity="0.15" />
+            {/* Zn electrode (left) */}
+            <rect x="78" y="24" width="8" height="74" rx="1" fill="#94A3B8" />
+            {/* Cu electrode (right) */}
+            <rect x="154" y="24" width="8" height="74" rx="1" fill="#F97316" />
+            {/* Wire */}
+            <path d="M 82 24 L 82 16 L 46 16 L 46 10" stroke="#FACC15" strokeWidth="2" fill="none" />
+            <path d="M 158 24 L 158 16 L 194 16 L 194 10" stroke="#FACC15" strokeWidth="2" fill="none" />
+            <line x1="46" y1="10" x2="194" y2="10" stroke="#FACC15" strokeWidth="2" />
+            {/* Voltmeter */}
+            <circle cx="120" cy="10" r="8" fill="#1E293B" stroke="#FACC15" strokeWidth="1.5" />
+            <text x="120" y="13" textAnchor="middle" fill="#F0F6FC" fontSize="10" fontWeight="bold">V</text>
+            {/* Electrons on wire */}
+            <circle cx="90" cy="10" r="2.5" fill="#00FF41">
+                <animate attributeName="cx" values="60;180;60" dur="2.5s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="140" cy="10" r="2.5" fill="#00FF41">
+                <animate attributeName="cx" values="180;60;180" dur="2.5s" repeatCount="indefinite" />
+            </circle>
+            {/* Cations in solution */}
+            <circle cx="95" cy="80" r="3" fill="#FFD166">
+                <animate attributeName="cx" values="90;146;90" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="130" cy="90" r="3" fill="#FFD166">
+                <animate attributeName="cx" values="140;96;140" dur="3.5s" repeatCount="indefinite" />
+            </circle>
+            {/* Anions in solution */}
+            <circle cx="140" cy="75" r="2.5" fill="#38BDF8">
+                <animate attributeName="cx" values="146;90;146" dur="2.8s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="100" cy="100" r="2.5" fill="#38BDF8">
+                <animate attributeName="cx" values="96;140;96" dur="3.2s" repeatCount="indefinite" />
+            </circle>
+            {/* Labels */}
+            <text x="72" y="22" textAnchor="middle" fill="#94A3B8" fontSize="9" fontWeight="bold">Zn</text>
+            <text x="168" y="22" textAnchor="middle" fill="#F97316" fontSize="9" fontWeight="bold">Cu</text>
+        </svg>
+    </div>
+);
+
 const experiments: ExperimentCard[] = [
     {
         id: 'light-refraction',
@@ -475,6 +522,12 @@ const experiments: ExperimentCard[] = [
         title: 'Momentum Carts',
         diagram: <MomentumCartsDiagram />,
         gradient: 'from-teal-900/20 via-blue-900/10 to-emerald-900/20',
+    },
+    {
+        id: 'galvanic-cell',
+        title: 'Electrochemical Cell',
+        diagram: <ElectrochemicalCellDiagram />,
+        gradient: 'from-amber-900/20 via-yellow-900/10 to-orange-900/20',
     },
 ];
 
