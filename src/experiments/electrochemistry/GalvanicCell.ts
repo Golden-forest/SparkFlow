@@ -80,9 +80,9 @@ export class GalvanicCell extends ExperimentBase {
                 key: 'electrodeSpacing',
                 label: 'Electrode Spacing',
                 type: 'number',
-                defaultValue: 5,
-                min: 2,
-                max: 10,
+                defaultValue: 8,
+                min: 4,
+                max: 14,
                 step: 0.5,
                 unit: 'cm',
             },
@@ -125,6 +125,11 @@ export class GalvanicCell extends ExperimentBase {
     private elapsedTime = 0;
     private particleSystem: ParticleFlowSystem | null = null;
 
+    /** Convert electrodeSpacing parameter (cm) to scene half-spacing */
+    private getHalfSpacing(spacing: number): number {
+        return (spacing / 10) * 1.2;
+    }
+
     // 3D object references
     private deviceMesh: THREE.Mesh | null = null;
     private znPolarityLabel: THREE.Sprite | null = null;
@@ -161,40 +166,96 @@ export class GalvanicCell extends ExperimentBase {
     private createBeaker(): void {
         if (!this.scene) return;
 
-        const points: THREE.Vector2[] = [];
+        const width = 4.0;
+        const depth = 1.6;
         const height = 3.0;
-        const bottomRadius = 1.4;
-        const topRadius = 1.6;
-        const segments = 20;
+        const wallThickness = 0.05;
 
-        for (let i = 0; i <= segments; i++) {
-            const t = i / segments;
-            const radius = bottomRadius + (topRadius - bottomRadius) * t;
-            const y = t * height;
-            points.push(new THREE.Vector2(radius, y));
-        }
-
-        const geometry = new THREE.LatheGeometry(points, 48);
-        const material = new THREE.MeshPhysicalMaterial({
+        const glassMat = new THREE.MeshPhysicalMaterial({
             color: COLORS.beakerGlass,
             transparent: true,
-            opacity: 0.2,
+            opacity: 0.18,
             roughness: 0.1,
             metalness: 0.0,
             side: THREE.DoubleSide,
         });
 
-        const beaker = new THREE.Mesh(geometry, material);
-        beaker.position.set(0, 0, 0);
-        this.addToScene(beaker);
+        // Front wall
+        const frontGeom = new THREE.PlaneGeometry(width, height);
+        const front = new THREE.Mesh(frontGeom, glassMat);
+        front.position.set(0, height / 2, depth / 2);
+        this.addToScene(front);
+
+        // Back wall
+        const backGeom = new THREE.PlaneGeometry(width, height);
+        const back = new THREE.Mesh(backGeom, glassMat);
+        back.position.set(0, height / 2, -depth / 2);
+        back.rotation.y = Math.PI;
+        this.addToScene(back);
+
+        // Left wall
+        const leftGeom = new THREE.PlaneGeometry(depth, height);
+        const left = new THREE.Mesh(leftGeom, glassMat);
+        left.position.set(-width / 2, height / 2, 0);
+        left.rotation.y = Math.PI / 2;
+        this.addToScene(left);
+
+        // Right wall
+        const rightGeom = new THREE.PlaneGeometry(depth, height);
+        const right = new THREE.Mesh(rightGeom, glassMat);
+        right.position.set(width / 2, height / 2, 0);
+        right.rotation.y = -Math.PI / 2;
+        this.addToScene(right);
+
+        // Bottom
+        const bottomGeom = new THREE.PlaneGeometry(width, depth);
+        const bottom = new THREE.Mesh(bottomGeom, glassMat);
+        bottom.position.set(0, 0, 0);
+        bottom.rotation.x = -Math.PI / 2;
+        this.addToScene(bottom);
+
+        // Rim - top edge highlight
+        const rimShape = new THREE.Shape();
+        const hw = width / 2 + wallThickness;
+        const hd = depth / 2 + wallThickness;
+        rimShape.moveTo(-hw, -hd);
+        rimShape.lineTo(hw, -hd);
+        rimShape.lineTo(hw, hd);
+        rimShape.lineTo(-hw, hd);
+        rimShape.lineTo(-hw, -hd);
+
+        const rimHole = new THREE.Path();
+        rimHole.moveTo(-width / 2, -depth / 2);
+        rimHole.lineTo(width / 2, -depth / 2);
+        rimHole.lineTo(width / 2, depth / 2);
+        rimHole.lineTo(-width / 2, depth / 2);
+        rimHole.lineTo(-width / 2, -depth / 2);
+        rimShape.holes.push(rimHole);
+
+        const rimGeom = new THREE.ShapeGeometry(rimShape);
+        const rimMat = new THREE.MeshStandardMaterial({
+            color: 0xcbd5e1,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide,
+        });
+        const rim = new THREE.Mesh(rimGeom, rimMat);
+        rim.rotation.x = -Math.PI / 2;
+        rim.position.set(0, height, 0);
+        this.addToScene(rim);
     }
 
     private createSolution(): void {
         if (!this.scene) return;
 
+        const spacing = this.getParameter('electrodeSpacing') as number;
+        const halfSpacing = this.getHalfSpacing(spacing);
+
         const fillHeight = 2.2;
-        const avgRadius = 1.5;
-        const geometry = new THREE.CylinderGeometry(avgRadius, avgRadius - 0.1, fillHeight, 48);
+        const innerWidth = Math.max(halfSpacing * 2 + 0.6, 3.8);
+        const innerDepth = 1.5;
+
+        const geometry = new THREE.BoxGeometry(innerWidth, fillHeight, innerDepth);
         const material = new THREE.MeshStandardMaterial({
             color: COLORS.solution,
             transparent: true,
@@ -214,7 +275,7 @@ export class GalvanicCell extends ExperimentBase {
         const electrodeWidth = 0.15;
         const electrodeHeight = 3.5;
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
 
         // Zn electrode (left)
         const znGeom = new THREE.BoxGeometry(electrodeWidth, electrodeHeight, 0.8);
@@ -243,7 +304,7 @@ export class GalvanicCell extends ExperimentBase {
         if (!this.scene) return;
 
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
 
         const wireHeight = 4.5;
         const points = [
@@ -276,7 +337,7 @@ export class GalvanicCell extends ExperimentBase {
         if (!this.scene) return;
 
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
         const deviceX = -halfSpacing - 1.5;
         const deviceY = 4.8 + 0.3;
 
@@ -363,7 +424,7 @@ export class GalvanicCell extends ExperimentBase {
         if (!this.scene) return;
 
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
 
         const znLabel = this.createTextSprite('Zn', '#94a3b8', 56);
         znLabel.position.set(-halfSpacing, 3.8, 0);
@@ -380,7 +441,7 @@ export class GalvanicCell extends ExperimentBase {
         if (!this.scene) return;
 
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
         const mode = this.getParameter('mode') as CellMode;
         const reactions = getReactions(mode);
 
@@ -407,7 +468,7 @@ export class GalvanicCell extends ExperimentBase {
 
     private getWireParticlePath(): THREE.Vector3[] {
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
 
         return [
             new THREE.Vector3(-halfSpacing, 2.5, 0),
@@ -420,7 +481,7 @@ export class GalvanicCell extends ExperimentBase {
 
     private getSolutionPaths(): { cation: THREE.Vector3[]; anion: THREE.Vector3[] } {
         const spacing = this.getParameter('electrodeSpacing') as number;
-        const halfSpacing = (spacing / 10) * 0.8;
+        const halfSpacing = this.getHalfSpacing(spacing);
 
         return {
             cation: [
@@ -494,7 +555,7 @@ export class GalvanicCell extends ExperimentBase {
         const mode = this.getParameter('mode') as CellMode;
         const concentration = this.getSafeNumber('electrolyteConcentration', 1.0, 0.1, 2.0);
         const temperature = this.getSafeNumber('temperature', 25, 0, 100);
-        const spacing = this.getSafeNumber('electrodeSpacing', 5, 2, 10);
+        const spacing = this.getSafeNumber('electrodeSpacing', 8, 4, 14);
         const externalR = this.getSafeNumber('externalResistance', 10, 1, 100);
         const appliedV = this.getSafeNumber('appliedVoltage', 3.0, 0, 12);
 
@@ -520,7 +581,7 @@ export class GalvanicCell extends ExperimentBase {
         const mode = this.getParameter('mode') as CellMode;
         const concentration = this.getSafeNumber('electrolyteConcentration', 1.0, 0.1, 2.0);
         const temperature = this.getSafeNumber('temperature', 25, 0, 100);
-        const spacing = this.getSafeNumber('electrodeSpacing', 5, 2, 10);
+        const spacing = this.getSafeNumber('electrodeSpacing', 8, 4, 14);
         const externalR = this.getSafeNumber('externalResistance', 10, 1, 100);
         const appliedV = this.getSafeNumber('appliedVoltage', 3.0, 0, 12);
 

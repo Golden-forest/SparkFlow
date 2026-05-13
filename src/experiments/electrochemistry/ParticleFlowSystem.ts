@@ -5,6 +5,7 @@ import * as THREE from 'three';
  *
  * Uses InstancedMesh for efficient rendering of electrons, cations, and anions.
  * Particles follow spline curves and loop continuously.
+ * Each particle has a glowing core + soft outer halo via additive blending.
  */
 
 /** Dopamine palette colors */
@@ -14,8 +15,9 @@ const COLORS = {
     anion: new THREE.Color('#38BDF8'),      // Sky Blue
 } as const;
 
-const PARTICLE_RADIUS = 0.04;
-const PARTICLE_SEGMENTS = 8;
+const CORE_RADIUS = 0.045;
+const HALO_RADIUS = 0.12;
+const SEGMENTS = 8;
 
 export type ParticleType = 'electron' | 'cation' | 'anion';
 
@@ -29,7 +31,10 @@ interface ParticlePath {
 
 export class ParticleFlowSystem {
     private paths: ParticlePath[] = [];
-    private meshes: Map<ParticleType, THREE.InstancedMesh> = new Map();
+    /** Core meshes - bright solid spheres */
+    private coreMeshes: Map<ParticleType, THREE.InstancedMesh> = new Map();
+    /** Halo meshes - soft glow around each particle */
+    private haloMeshes: Map<ParticleType, THREE.InstancedMesh> = new Map();
     private speed: number = 1.0;
     private direction: number = 1; // 1 = forward, -1 = reverse
     private scene: THREE.Scene | null = null;
@@ -67,10 +72,10 @@ export class ParticleFlowSystem {
         const anionOffsets = this.createDistributedOffsets(anionCount);
         this.paths.push({ curve: anionCurve, type: 'anion', count: anionCount, offsets: anionOffsets });
 
-        // Create InstancedMesh for each particle type
-        this.createInstancedMesh('electron', electronCount, COLORS.electron);
-        this.createInstancedMesh('cation', cationCount, COLORS.cation);
-        this.createInstancedMesh('anion', anionCount, COLORS.anion);
+        // Create glowing particle meshes for each type
+        this.createGlowMesh('electron', electronCount, COLORS.electron);
+        this.createGlowMesh('cation', cationCount, COLORS.cation);
+        this.createGlowMesh('anion', anionCount, COLORS.anion);
     }
 
     /**
@@ -85,29 +90,44 @@ export class ParticleFlowSystem {
     }
 
     /**
-     * Create an InstancedMesh for a particle type
+     * Create core + halo InstancedMesh pair for a particle type
      */
-    private createInstancedMesh(type: ParticleType, count: number, color: THREE.Color): void {
+    private createGlowMesh(type: ParticleType, count: number, color: THREE.Color): void {
         if (!this.scene) return;
 
-        const geometry = new THREE.SphereGeometry(PARTICLE_RADIUS, PARTICLE_SEGMENTS, PARTICLE_SEGMENTS);
-        const material = new THREE.MeshBasicMaterial({
+        // Core - bright solid sphere
+        const coreGeom = new THREE.SphereGeometry(CORE_RADIUS, SEGMENTS, SEGMENTS);
+        const coreMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.9,
+            opacity: 1.0,
         });
-
-        const mesh = new THREE.InstancedMesh(geometry, material, count);
-        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-
-        // Initialize all instances at origin
+        const coreMesh = new THREE.InstancedMesh(coreGeom, coreMat, count);
+        coreMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         for (let i = 0; i < count; i++) {
-            mesh.setMatrixAt(i, this._matrix.identity());
+            coreMesh.setMatrixAt(i, this._matrix.identity());
         }
-        mesh.instanceMatrix.needsUpdate = true;
+        coreMesh.instanceMatrix.needsUpdate = true;
+        this.scene.add(coreMesh);
+        this.coreMeshes.set(type, coreMesh);
 
-        this.scene.add(mesh);
-        this.meshes.set(type, mesh);
+        // Halo - soft additive-blended glow sphere
+        const haloGeom = new THREE.SphereGeometry(HALO_RADIUS, SEGMENTS, SEGMENTS);
+        const haloMat = new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        const haloMesh = new THREE.InstancedMesh(haloGeom, haloMat, count);
+        haloMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        for (let i = 0; i < count; i++) {
+            haloMesh.setMatrixAt(i, this._matrix.identity());
+        }
+        haloMesh.instanceMatrix.needsUpdate = true;
+        this.scene.add(haloMesh);
+        this.haloMeshes.set(type, haloMesh);
     }
 
     /**
@@ -116,11 +136,12 @@ export class ParticleFlowSystem {
      * @param currentMagnitude - Current magnitude (affects speed), 0 to ~1
      */
     update(deltaTime: number, currentMagnitude: number = 1.0): void {
-        const baseSpeed = 0.15; // Base speed: traverse 15% of path per second
+        const baseSpeed = 0.4; // Traverse 40% of path per second (was 15%)
 
         for (const path of this.paths) {
-            const mesh = this.meshes.get(path.type);
-            if (!mesh) continue;
+            const coreMesh = this.coreMeshes.get(path.type);
+            const haloMesh = this.haloMeshes.get(path.type);
+            if (!coreMesh || !haloMesh) continue;
 
             for (let i = 0; i < path.count; i++) {
                 // Advance offset along curve
@@ -135,9 +156,11 @@ export class ParticleFlowSystem {
                 this._position.copy(point);
 
                 this._matrix.compose(this._position, this._quaternion, this._scale);
-                mesh.setMatrixAt(i, this._matrix);
+                coreMesh.setMatrixAt(i, this._matrix);
+                haloMesh.setMatrixAt(i, this._matrix);
             }
-            mesh.instanceMatrix.needsUpdate = true;
+            coreMesh.instanceMatrix.needsUpdate = true;
+            haloMesh.instanceMatrix.needsUpdate = true;
         }
     }
 
@@ -159,7 +182,10 @@ export class ParticleFlowSystem {
      * Toggle visibility of all particles
      */
     setVisible(visible: boolean): void {
-        for (const mesh of this.meshes.values()) {
+        for (const mesh of this.coreMeshes.values()) {
+            mesh.visible = visible;
+        }
+        for (const mesh of this.haloMeshes.values()) {
             mesh.visible = visible;
         }
     }
@@ -168,14 +194,22 @@ export class ParticleFlowSystem {
      * Dispose all resources
      */
     dispose(): void {
-        for (const mesh of this.meshes.values()) {
+        for (const mesh of this.coreMeshes.values()) {
             this.scene?.remove(mesh);
             mesh.geometry.dispose();
             if (mesh.material instanceof THREE.Material) {
                 mesh.material.dispose();
             }
         }
-        this.meshes.clear();
+        for (const mesh of this.haloMeshes.values()) {
+            this.scene?.remove(mesh);
+            mesh.geometry.dispose();
+            if (mesh.material instanceof THREE.Material) {
+                mesh.material.dispose();
+            }
+        }
+        this.coreMeshes.clear();
+        this.haloMeshes.clear();
         this.paths = [];
         this.scene = null;
     }
