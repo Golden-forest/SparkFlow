@@ -32,10 +32,10 @@ const metadata = {
 const config: ExperimentConfig2D = {
     parameters: [
         { key: 'launchSpeed', label: 'Launch Speed', type: 'number' as const, defaultValue: 20, min: 5, max: 60, step: 0.5, unit: 'm/s' },
-        { key: 'launchAngle', label: 'Launch Angle', type: 'number' as const, defaultValue: 45, min: 5, max: 85, step: 1, unit: '°' },
-        { key: 'launchHeight', label: 'Launch Height', type: 'number' as const, defaultValue: 1.2, min: 0.2, max: 12, step: 0.1, unit: 'm' },
+        { key: 'launchAngle', label: 'Launch Angle', type: 'number' as const, defaultValue: 45, min: 5, max: 85, step: 1, unit: '\u00b0' },
+        { key: 'launchHeight', label: 'Launch Height', type: 'number' as const, defaultValue: 0, min: 0, max: 12, step: 0.1, unit: 'm' },
         { key: 'mass', label: 'Projectile Mass', type: 'number' as const, defaultValue: 0.2, min: 0.05, max: 2, step: 0.05, unit: 'kg' },
-        { key: 'gravity', label: 'Gravity', type: 'number' as const, defaultValue: EARTH_GRAVITY, min: 1.6, max: 15, step: 0.1, unit: 'm/s²' },
+        { key: 'gravity', label: 'Gravity', type: 'number' as const, defaultValue: EARTH_GRAVITY, min: 1.6, max: 15, step: 0.1, unit: 'm/s\u00b2' },
         { key: 'showTrajectory', label: 'Show Trajectory', type: 'boolean' as const, defaultValue: true },
     ],
 };
@@ -57,6 +57,14 @@ export class ProjectileMotion extends ExperimentBase2D {
     private angleArcEl: SVGPathElement | null = null;
     private angleLabelEl: SVGTextElement | null = null;
     private velocityArrowEl: SVGLineElement | null = null;
+    private rangeLineEl: SVGLineElement | null = null;
+    private maxHeightLineEl: SVGLineElement | null = null;
+    private rangeLabelEl: SVGTextElement | null = null;
+    private maxHeightLabelEl: SVGTextElement | null = null;
+    private groundLineEl: SVGLineElement | null = null;
+    private groundFillEl: SVGRectElement | null = null;
+    private launcherBaseEl: SVGCircleElement | null = null;
+
     private viewRange = 50;
     private viewHeight = 30;
 
@@ -83,6 +91,13 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.angleArcEl = null;
         this.angleLabelEl = null;
         this.velocityArrowEl = null;
+        this.rangeLineEl = null;
+        this.maxHeightLineEl = null;
+        this.rangeLabelEl = null;
+        this.maxHeightLabelEl = null;
+        this.groundLineEl = null;
+        this.groundFillEl = null;
+        this.launcherBaseEl = null;
         super.dispose();
     }
 
@@ -151,7 +166,6 @@ export class ProjectileMotion extends ExperimentBase2D {
     onResize(_width: number, _height: number): void {
         this.recalculateView();
         this.updateViewBox();
-        this.rebuildGrid();
         this.updateSVG();
     }
 
@@ -170,11 +184,11 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.svg.style.background = 'var(--exp-2d-bg)';
         this.updateViewBox();
 
-        // Defs: glow filter for projectile
+        // Defs: glow filter
         const defs = document.createElementNS(NS, 'defs');
 
         const glowFilter = document.createElementNS(NS, 'filter');
-        glowFilter.setAttribute('id', 'projectile-glow');
+        glowFilter.setAttribute('id', 'proj-glow');
         glowFilter.setAttribute('x', '-50%');
         glowFilter.setAttribute('y', '-50%');
         glowFilter.setAttribute('width', '200%');
@@ -187,26 +201,13 @@ export class ProjectileMotion extends ExperimentBase2D {
 
         this.svg.appendChild(defs);
 
-        // Background
-        const bg = this.svgEl('rect');
-        bg.setAttribute('x', '0'); bg.setAttribute('y', '0');
-        bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%');
-        bg.setAttribute('fill', 'var(--exp-2d-bg)');
-        this.svg.appendChild(bg);
+        // Ground fill (solid area below ground line)
+        this.groundFillEl = this.svgEl('rect') as unknown as SVGRectElement;
+        this.groundFillEl.setAttribute('fill', '#1a2332');
+        this.groundFillEl.setAttribute('opacity', '0.6');
+        this.svg.appendChild(this.groundFillEl);
 
-        // Grid group (rebuilt on resize)
-        this.svg.appendChild(this.createGrid());
-
-        // Ground line
-        const ground = this.svgEl('line');
-        ground.setAttribute('x1', '-10'); ground.setAttribute('x2', String(this.viewRange + 10));
-        ground.setAttribute('y1', '0'); ground.setAttribute('y2', '0');
-        ground.setAttribute('stroke', 'var(--exp-2d-primary)');
-        ground.setAttribute('stroke-width', '2');
-        ground.setAttribute('opacity', '0.5');
-        this.svg.appendChild(ground);
-
-        // Trajectory
+        // Trajectory (behind other elements)
         this.trajectoryEl = this.svgEl('polyline') as unknown as SVGPolylineElement;
         this.trajectoryEl.setAttribute('fill', 'none');
         this.trajectoryEl.setAttribute('stroke', 'var(--exp-2d-accent)');
@@ -216,13 +217,44 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.trajectoryEl.setAttribute('stroke-linejoin', 'round');
         this.svg.appendChild(this.trajectoryEl);
 
-        // Landing marker
-        this.landingMarkerEl = this.svgEl('circle') as unknown as SVGCircleElement;
-        this.landingMarkerEl.setAttribute('r', '0.3');
-        this.landingMarkerEl.setAttribute('fill', '#f87171');
-        this.landingMarkerEl.setAttribute('opacity', '0.7');
-        this.landingMarkerEl.setAttribute('display', 'none');
-        this.svg.appendChild(this.landingMarkerEl);
+        // Range dashed line (shown on landing)
+        this.rangeLineEl = this.svgEl('line') as unknown as SVGLineElement;
+        this.rangeLineEl.setAttribute('stroke', 'var(--exp-2d-positive)');
+        this.rangeLineEl.setAttribute('stroke-width', '1.5');
+        this.rangeLineEl.setAttribute('stroke-dasharray', '4 3');
+        this.rangeLineEl.setAttribute('opacity', '0');
+        this.svg.appendChild(this.rangeLineEl);
+
+        // Max height dashed line (shown on landing)
+        this.maxHeightLineEl = this.svgEl('line') as unknown as SVGLineElement;
+        this.maxHeightLineEl.setAttribute('stroke', 'var(--exp-2d-negative)');
+        this.maxHeightLineEl.setAttribute('stroke-width', '1.5');
+        this.maxHeightLineEl.setAttribute('stroke-dasharray', '4 3');
+        this.maxHeightLineEl.setAttribute('opacity', '0');
+        this.svg.appendChild(this.maxHeightLineEl);
+
+        // Range label
+        this.rangeLabelEl = this.svgEl('text') as unknown as SVGTextElement;
+        this.rangeLabelEl.setAttribute('fill', 'var(--exp-2d-positive)');
+        this.rangeLabelEl.setAttribute('font-size', '2.5');
+        this.rangeLabelEl.setAttribute('text-anchor', 'middle');
+        this.rangeLabelEl.setAttribute('opacity', '0');
+        this.svg.appendChild(this.rangeLabelEl);
+
+        // Max height label
+        this.maxHeightLabelEl = this.svgEl('text') as unknown as SVGTextElement;
+        this.maxHeightLabelEl.setAttribute('fill', 'var(--exp-2d-negative)');
+        this.maxHeightLabelEl.setAttribute('font-size', '2.5');
+        this.maxHeightLabelEl.setAttribute('text-anchor', 'start');
+        this.maxHeightLabelEl.setAttribute('opacity', '0');
+        this.svg.appendChild(this.maxHeightLabelEl);
+
+        // Ground line
+        this.groundLineEl = this.svgEl('line') as unknown as SVGLineElement;
+        this.groundLineEl.setAttribute('stroke', 'var(--exp-2d-primary)');
+        this.groundLineEl.setAttribute('stroke-width', '2');
+        this.groundLineEl.setAttribute('opacity', '0.5');
+        this.svg.appendChild(this.groundLineEl);
 
         // Launcher tube
         this.launcherTubeEl = this.svgEl('line') as unknown as SVGLineElement;
@@ -231,13 +263,12 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.launcherTubeEl.setAttribute('stroke-linecap', 'round');
         this.svg.appendChild(this.launcherTubeEl);
 
-        // Launcher base
-        const base = this.svgEl('circle');
-        base.setAttribute('cx', '0'); base.setAttribute('cy', '0');
-        base.setAttribute('r', '0.3');
-        base.setAttribute('fill', 'var(--exp-2d-primary)');
-        base.setAttribute('opacity', '0.6');
-        this.svg.appendChild(base);
+        // Launcher base dot
+        this.launcherBaseEl = this.svgEl('circle') as unknown as SVGCircleElement;
+        this.launcherBaseEl.setAttribute('r', '0.3');
+        this.launcherBaseEl.setAttribute('fill', 'var(--exp-2d-primary)');
+        this.launcherBaseEl.setAttribute('opacity', '0.6');
+        this.svg.appendChild(this.launcherBaseEl);
 
         // Angle arc
         this.angleArcEl = this.svgEl('path') as unknown as SVGPathElement;
@@ -259,14 +290,20 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.velocityArrowEl.setAttribute('stroke', 'var(--exp-2d-negative)');
         this.velocityArrowEl.setAttribute('stroke-width', '1.5');
         this.velocityArrowEl.setAttribute('opacity', '0.6');
-        this.velocityArrowEl.setAttribute('marker-end', '');
         this.svg.appendChild(this.velocityArrowEl);
 
-        // Projectile (on top)
+        // Landing marker
+        this.landingMarkerEl = this.svgEl('circle') as unknown as SVGCircleElement;
+        this.landingMarkerEl.setAttribute('r', '0.3');
+        this.landingMarkerEl.setAttribute('fill', '#f87171');
+        this.landingMarkerEl.setAttribute('opacity', '0');
+        this.svg.appendChild(this.landingMarkerEl);
+
+        // Projectile (on top of everything)
         this.projectileEl = this.svgEl('circle') as unknown as SVGCircleElement;
         this.projectileEl.setAttribute('r', '0.25');
         this.projectileEl.setAttribute('fill', 'var(--exp-2d-particle)');
-        this.projectileEl.setAttribute('filter', 'url(#projectile-glow)');
+        this.projectileEl.setAttribute('filter', 'url(#proj-glow)');
         this.svg.appendChild(this.projectileEl);
 
         this.container.appendChild(this.svg);
@@ -279,11 +316,21 @@ export class ProjectileMotion extends ExperimentBase2D {
         return document.createElementNS(NS, tag);
     }
 
+    /**
+     * Convert physics y-coordinate to SVG y-coordinate.
+     * Physics: y=0 is ground (bottom), y increases upward.
+     * SVG: y=0 is top, y increases downward.
+     * So svgY = viewHeight - physicsY.
+     */
+    private toSvgY(physicsY: number): number {
+        return this.viewHeight - physicsY;
+    }
+
     private getLaunchParams(): ProjectileLaunchParameters {
         return {
             launchSpeed: this.getSafeNumber('launchSpeed', 20, 5, 60),
             launchAngleDeg: this.getSafeNumber('launchAngle', 45, 5, 85),
-            launchHeight: this.getSafeNumber('launchHeight', 1.2, 0.2, 12),
+            launchHeight: this.getSafeNumber('launchHeight', 0, 0, 12),
             mass: this.getSafeNumber('mass', 0.2, 0.05, 2),
             gravity: this.getSafeNumber('gravity', EARTH_GRAVITY, 1.6, 15),
         };
@@ -295,7 +342,6 @@ export class ProjectileMotion extends ExperimentBase2D {
         this.trajectory = [{ x: 0, y: params.launchHeight }];
         this.recalculateView();
         this.updateViewBox();
-        this.rebuildGrid();
         this.updateSVG();
     }
 
@@ -309,111 +355,56 @@ export class ProjectileMotion extends ExperimentBase2D {
 
     private updateViewBox(): void {
         if (!this.svg) return;
-        const pad = Math.max(5, this.viewRange * 0.08);
-        this.svg.setAttribute('viewBox', `${-pad} ${-pad * 0.5} ${this.viewRange + pad * 2} ${this.viewHeight + pad}`);
+        const leftPad = Math.max(5, this.viewRange * 0.05);
+        const topPad = Math.max(3, this.viewHeight * 0.08);
+        const rightPad = Math.max(5, this.viewRange * 0.08);
+        const bottomPad = Math.max(5, this.viewHeight * 0.1);
+        this.svg.setAttribute('viewBox',
+            `${-leftPad} ${-topPad} ${this.viewRange + leftPad + rightPad} ${this.viewHeight + topPad + bottomPad}`
+        );
         this.svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     }
 
-    private createGrid(): SVGGElement {
-        const g = this.svgEl('g') as unknown as SVGGElement;
-        g.setAttribute('id', 'grid-group');
-        this.populateGrid(g);
-        return g;
-    }
-
-    private populateGrid(g: SVGGElement): void {
-        // Clear existing
-        while (g.firstChild) g.removeChild(g.firstChild);
-
-        const xStep = this.niceStep(this.viewRange, 8);
-        const yStep = this.niceStep(this.viewHeight, 6);
-
-        // Vertical grid lines
-        for (let x = 0; x <= this.viewRange; x += xStep) {
-            const line = this.svgEl('line');
-            line.setAttribute('x1', String(x)); line.setAttribute('x2', String(x));
-            line.setAttribute('y1', '0'); line.setAttribute('y2', String(this.viewHeight * 0.95));
-            line.setAttribute('stroke', 'var(--exp-2d-stroke-color)');
-            line.setAttribute('stroke-width', '0.5');
-            line.setAttribute('stroke-dasharray', '2 4');
-            g.appendChild(line);
-
-            // Label
-            if (x > 0) {
-                const label = this.svgEl('text') as unknown as SVGTextElement;
-                label.setAttribute('x', String(x));
-                label.setAttribute('y', '-0.5');
-                label.setAttribute('fill', 'var(--exp-2d-text-dim)');
-                label.setAttribute('font-size', '2');
-                label.setAttribute('text-anchor', 'middle');
-                label.textContent = String(x);
-                g.appendChild(label);
-            }
-        }
-
-        // Horizontal grid lines + labels
-        for (let y = yStep; y <= this.viewHeight; y += yStep) {
-            const line = this.svgEl('line');
-            line.setAttribute('x1', '-5'); line.setAttribute('x2', String(this.viewRange + 5));
-            line.setAttribute('y1', String(y)); line.setAttribute('y2', String(y));
-            line.setAttribute('stroke', 'var(--exp-2d-stroke-color)');
-            line.setAttribute('stroke-width', '0.5');
-            line.setAttribute('stroke-dasharray', '2 4');
-            g.appendChild(line);
-
-            const label = this.svgEl('text') as unknown as SVGTextElement;
-            label.setAttribute('x', '-1');
-            label.setAttribute('y', String(y + 0.5));
-            label.setAttribute('fill', 'var(--exp-2d-text-dim)');
-            label.setAttribute('font-size', '2');
-            label.setAttribute('text-anchor', 'end');
-            label.textContent = y.toFixed(0);
-            g.appendChild(label);
-        }
-    }
-
-    private rebuildGrid(): void {
-        if (!this.svg) return;
-        const existing = this.svg.querySelector('#grid-group');
-        if (existing) {
-            const newGrid = this.createGrid();
-            this.svg.replaceChild(newGrid, existing);
-        }
-    }
-
-    private niceStep(range: number, targetTicks: number): number {
-        const rough = range / targetTicks;
-        const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
-        const normalized = rough / magnitude;
-        let nice: number;
-        if (normalized <= 1.5) nice = 1;
-        else if (normalized <= 3) nice = 2;
-        else if (normalized <= 7) nice = 5;
-        else nice = 10;
-        return Math.max(nice * magnitude, 0.1);
-    }
-
     private updateSVG(): void {
-        if (!this.state) return;
+        if (!this.state || !this.svg) return;
         const pos = this.state.position;
         const vel = this.state.velocity;
         const angle = this.getSafeNumber('launchAngle', 45, 5, 85);
         const mass = this.getSafeNumber('mass', 0.2, 0.05, 2);
-        const launchHeight = this.getSafeNumber('launchHeight', 1.2, 0.2, 12);
+        const launchHeight = this.getSafeNumber('launchHeight', 0, 0, 12);
+        const groundSvgY = this.toSvgY(0);
 
-        // Projectile
+        // --- Ground fill (rectangle below ground line) ---
+        if (this.groundFillEl) {
+            this.groundFillEl.setAttribute('x', String(-20));
+            this.groundFillEl.setAttribute('y', String(groundSvgY));
+            this.groundFillEl.setAttribute('width', String(this.viewRange + 40));
+            this.groundFillEl.setAttribute('height', String(10));
+        }
+
+        // --- Ground line ---
+        if (this.groundLineEl) {
+            this.groundLineEl.setAttribute('x1', String(-10));
+            this.groundLineEl.setAttribute('y1', String(groundSvgY));
+            this.groundLineEl.setAttribute('x2', String(this.viewRange + 10));
+            this.groundLineEl.setAttribute('y2', String(groundSvgY));
+        }
+
+        // --- Projectile ---
         if (this.projectileEl) {
             const r = 0.15 + mass * 0.08;
             this.projectileEl.setAttribute('cx', String(pos.x));
-            this.projectileEl.setAttribute('cy', String(pos.y));
+            this.projectileEl.setAttribute('cy', String(this.toSvgY(pos.y)));
             this.projectileEl.setAttribute('r', String(r));
         }
 
-        // Trajectory
+        // --- Trajectory (flip y for each point) ---
         if (this.trajectoryEl) {
             const show = this.getParameter('showTrajectory');
             if (show && this.trajectory.length > 0) {
-                const points = this.trajectory.map((p) => `${p.x},${p.y}`).join(' ');
+                const points = this.trajectory
+                    .map((p) => `${p.x},${this.toSvgY(p.y)}`)
+                    .join(' ');
                 this.trajectoryEl.setAttribute('points', points);
                 this.trajectoryEl.setAttribute('display', '');
             } else {
@@ -421,60 +412,122 @@ export class ProjectileMotion extends ExperimentBase2D {
             }
         }
 
-        // Landing marker
+        // --- Landing marker (on ground at landing x) ---
         if (this.landingMarkerEl) {
             if (this.state.hasLanded) {
                 this.landingMarkerEl.setAttribute('cx', String(pos.x));
-                this.landingMarkerEl.setAttribute('cy', String(pos.y));
-                this.landingMarkerEl.setAttribute('display', '');
+                this.landingMarkerEl.setAttribute('cy', String(groundSvgY));
+                this.landingMarkerEl.setAttribute('opacity', '0.7');
             } else {
-                this.landingMarkerEl.setAttribute('display', 'none');
+                this.landingMarkerEl.setAttribute('opacity', '0');
             }
         }
 
-        // Launcher tube
+        // --- Launcher tube (from origin at launch height, pointing UP at angle) ---
         if (this.launcherTubeEl) {
             const tubeLen = Math.max(1.5, this.viewRange * 0.04);
             const angleRad = angle * Math.PI / 180;
+            const launchSvgY = this.toSvgY(launchHeight);
+            // In SVG, "up" means decreasing y
+            const endX = tubeLen * Math.cos(angleRad);
+            const endSvgY = launchSvgY - tubeLen * Math.sin(angleRad);
             this.launcherTubeEl.setAttribute('x1', '0');
-            this.launcherTubeEl.setAttribute('y1', String(launchHeight));
-            this.launcherTubeEl.setAttribute('x2', String(tubeLen * Math.cos(angleRad)));
-            this.launcherTubeEl.setAttribute('y2', String(launchHeight + tubeLen * Math.sin(angleRad)));
+            this.launcherTubeEl.setAttribute('y1', String(launchSvgY));
+            this.launcherTubeEl.setAttribute('x2', String(endX));
+            this.launcherTubeEl.setAttribute('y2', String(endSvgY));
         }
 
-        // Angle arc
+        // --- Launcher base dot ---
+        if (this.launcherBaseEl) {
+            this.launcherBaseEl.setAttribute('cx', '0');
+            this.launcherBaseEl.setAttribute('cy', String(this.toSvgY(launchHeight)));
+        }
+
+        // --- Angle arc (from horizontal-right, sweeping counter-clockwise = upward in SVG) ---
         if (this.angleArcEl && this.angleLabelEl) {
             const arcR = Math.max(2, this.viewRange * 0.06);
             const angleRad = angle * Math.PI / 180;
-            const largeArc = angle > 180 ? 1 : 0;
-            const ex = arcR * Math.cos(angleRad);
-            const ey = launchHeight + arcR * Math.sin(angleRad);
-            this.angleArcEl.setAttribute('d', `M ${arcR},0 A ${arcR},${arcR} 0 ${largeArc},1 ${ex},${ey}`);
+            const launchSvgY = this.toSvgY(launchHeight);
+            // Start: (arcR, launchSvgY) — horizontal right
+            // End: (arcR*cos(angle), launchSvgY - arcR*sin(angle)) — at launch angle upward
+            const endX = arcR * Math.cos(angleRad);
+            const endSvgY = launchSvgY - arcR * Math.sin(angleRad);
+            // sweep-flag=0 means counter-clockwise in SVG, which goes upward
+            this.angleArcEl.setAttribute('d',
+                `M ${arcR},${launchSvgY} A ${arcR},${arcR} 0 0,0 ${endX},${endSvgY}`
+            );
 
+            // Label at midpoint of the arc
             const midAngle = angleRad / 2;
             const labelR = arcR + 1.5;
-            this.angleLabelEl.setAttribute('x', String(labelR * Math.cos(midAngle)));
-            this.angleLabelEl.setAttribute('y', String(launchHeight + labelR * Math.sin(midAngle) + 1));
-            this.angleLabelEl.textContent = `${angle}°`;
+            const labelSvgX = labelR * Math.cos(midAngle);
+            const labelSvgY = launchSvgY - labelR * Math.sin(midAngle) + 1;
+            this.angleLabelEl.setAttribute('x', String(labelSvgX));
+            this.angleLabelEl.setAttribute('y', String(labelSvgY));
+            this.angleLabelEl.textContent = `${angle}\u00b0`;
         }
 
-        // Velocity arrow
+        // --- Velocity arrow (from projectile, direction flipped y) ---
         if (this.velocityArrowEl && !this.state.hasLanded) {
             const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2);
             if (speed > 0.1) {
                 const arrowLen = Math.min(this.viewRange * 0.08, speed * 0.15);
                 const nx = vel.x / speed;
-                const ny = vel.y / speed;
-                this.velocityArrowEl.setAttribute('x1', String(pos.x));
-                this.velocityArrowEl.setAttribute('y1', String(pos.y));
-                this.velocityArrowEl.setAttribute('x2', String(pos.x + nx * arrowLen));
-                this.velocityArrowEl.setAttribute('y2', String(pos.y + ny * arrowLen));
+                const ny = vel.y / speed; // positive = upward in physics
+                const startSvgX = pos.x;
+                const startSvgY = this.toSvgY(pos.y);
+                // Arrow end: x follows velocity normally, y is inverted for SVG
+                this.velocityArrowEl.setAttribute('x1', String(startSvgX));
+                this.velocityArrowEl.setAttribute('y1', String(startSvgY));
+                this.velocityArrowEl.setAttribute('x2', String(startSvgX + nx * arrowLen));
+                this.velocityArrowEl.setAttribute('y2', String(startSvgY - ny * arrowLen));
                 this.velocityArrowEl.setAttribute('display', '');
             } else {
                 this.velocityArrowEl.setAttribute('display', 'none');
             }
         } else if (this.velocityArrowEl) {
             this.velocityArrowEl.setAttribute('display', 'none');
+        }
+
+        // --- Range line + label (shown when landed) ---
+        if (this.rangeLineEl && this.rangeLabelEl) {
+            if (this.state.hasLanded) {
+                const rangeY = groundSvgY + 2.5; // below ground
+                this.rangeLineEl.setAttribute('x1', '0');
+                this.rangeLineEl.setAttribute('y1', String(rangeY));
+                this.rangeLineEl.setAttribute('x2', String(pos.x));
+                this.rangeLineEl.setAttribute('y2', String(rangeY));
+                this.rangeLineEl.setAttribute('opacity', '0.6');
+
+                this.rangeLabelEl.setAttribute('x', String(pos.x / 2));
+                this.rangeLabelEl.setAttribute('y', String(rangeY + 3));
+                this.rangeLabelEl.textContent = `R = ${pos.x.toFixed(1)} m`;
+                this.rangeLabelEl.setAttribute('opacity', '0.9');
+            } else {
+                this.rangeLineEl.setAttribute('opacity', '0');
+                this.rangeLabelEl.setAttribute('opacity', '0');
+            }
+        }
+
+        // --- Max height line + label (shown when landed) ---
+        if (this.maxHeightLineEl && this.maxHeightLabelEl) {
+            if (this.state.hasLanded) {
+                const mh = this.state.maxHeight;
+                const mhSvgY = this.toSvgY(mh);
+                this.maxHeightLineEl.setAttribute('x1', String(pos.x));
+                this.maxHeightLineEl.setAttribute('y1', String(groundSvgY));
+                this.maxHeightLineEl.setAttribute('x2', String(pos.x));
+                this.maxHeightLineEl.setAttribute('y2', String(mhSvgY));
+                this.maxHeightLineEl.setAttribute('opacity', '0.6');
+
+                this.maxHeightLabelEl.setAttribute('x', String(pos.x + 1.5));
+                this.maxHeightLabelEl.setAttribute('y', String((groundSvgY + mhSvgY) / 2 + 1));
+                this.maxHeightLabelEl.textContent = `H = ${mh.toFixed(1)} m`;
+                this.maxHeightLabelEl.setAttribute('opacity', '0.9');
+            } else {
+                this.maxHeightLineEl.setAttribute('opacity', '0');
+                this.maxHeightLabelEl.setAttribute('opacity', '0');
+            }
         }
     }
 }
