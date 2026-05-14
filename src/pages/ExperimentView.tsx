@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
 import { ExperimentWorkbench } from '@/components/experiment';
 import { ExperimentScene, SceneContainer } from '@/components/simulation';
+import { ExperimentCanvas2D } from '@/components/simulation/ExperimentCanvas2D';
+import type { IExperiment, IExperiment2D } from '@/experiments/base';
 import type {
     ControlSchema,
     DisplayValue,
@@ -228,6 +230,8 @@ export default function ExperimentView() {
         );
     }
 
+    const renderMode = currentExperiment.metadata.renderMode ?? '3d';
+
     return (
         <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950">
             <div className="pointer-events-none absolute inset-0">
@@ -273,16 +277,20 @@ export default function ExperimentView() {
 
             <main className="relative flex-1 px-4 pb-4 pt-3">
                 <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/45 shadow-[0_18px_60px_rgba(2,12,27,0.5)]">
-                    <SceneContainer
-                        cameraPosition={currentExperiment.config.camera.position}
-                        cameraTarget={currentExperiment.config.camera.target}
-                        cameraFov={currentExperiment.config.camera.fov ?? 50}
-                        showGrid={false}
-                        showAxes={false}
-                        backgroundColor="#0D1117"
-                    >
-                        <ExperimentScene experiment={currentExperiment} />
-                    </SceneContainer>
+                    {renderMode === '2d' ? (
+                        <ExperimentCanvas2D experiment={currentExperiment as IExperiment2D} />
+                    ) : (
+                        <SceneContainer
+                            cameraPosition={(currentExperiment as IExperiment).config.camera.position}
+                            cameraTarget={(currentExperiment as IExperiment).config.camera.target}
+                            cameraFov={(currentExperiment as IExperiment).config.camera.fov ?? 50}
+                            showGrid={false}
+                            showAxes={false}
+                            backgroundColor="#0D1117"
+                        >
+                            <ExperimentScene experiment={currentExperiment as IExperiment} />
+                        </SceneContainer>
+                    )}
                 </div>
 
                 <ExperimentWorkbench

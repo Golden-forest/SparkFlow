@@ -14,6 +14,7 @@ import { LightRefraction } from './optics/light-refraction';
 import { DoubleSlitInterference } from './optics/double-slit-interference';
 import { BoyleLaw } from './thermodynamics/boyle-law';
 import { GalvanicCell } from './electrochemistry';
+import { CircleDemo2D } from './test-circle-2d';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -30,6 +31,7 @@ ExperimentRegistry.register('light-refraction', LightRefraction);
 ExperimentRegistry.register('double-slit-interference', DoubleSlitInterference);
 ExperimentRegistry.register('boyle-law', BoyleLaw);
 ExperimentRegistry.register('galvanic-cell', GalvanicCell);
+ExperimentRegistry.register2D('circle-demo-2d', CircleDemo2D);
 
 export * from './base';
 export { RutherfordExperiment } from './atomic/rutherford-scattering';
@@ -46,3 +48,4 @@ export { LightRefraction } from './optics/light-refraction';
 export { DoubleSlitInterference } from './optics/double-slit-interference';
 export { BoyleLaw } from './thermodynamics/boyle-law';
 export { GalvanicCell } from './electrochemistry';
+export { CircleDemo2D } from './test-circle-2d';
