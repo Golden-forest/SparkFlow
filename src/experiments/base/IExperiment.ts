@@ -13,6 +13,8 @@ export interface ExperimentMetadata {
     duration: number; // 预计时长(分钟)
     keywords: string[];
     thumbnail: string;
+    /** Render mode: '3d' (default, Three.js) or '2d' (SVG + Canvas) */
+    renderMode?: '3d' | '2d';
 }
 
 /**

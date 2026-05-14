@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { IExperiment } from '@/experiments/base';
+import type { ExperimentInstance } from '@/experiments/base';
 import { SimulationState } from '@/utils/constants';
 
 /**
@@ -12,13 +12,13 @@ export interface MonitoringHistory {
 interface SimulationStore {
     // 状态
     state: SimulationState;
-    currentExperiment: IExperiment | null;
+    currentExperiment: ExperimentInstance | null;
     elapsedTime: number;
     deltaTime: number;
     monitoringHistory: MonitoringHistory;
 
     // 动作
-    setExperiment: (experiment: IExperiment | null) => void;
+    setExperiment: (experiment: ExperimentInstance | null) => void;
     setState: (state: SimulationState) => void;
     start: () => void;
     pause: () => void;

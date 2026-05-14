@@ -14,6 +14,7 @@ import { LightRefraction } from './optics/light-refraction';
 import { DoubleSlitInterference } from './optics/double-slit-interference';
 import { BoyleLaw } from './thermodynamics/boyle-law';
 import { GalvanicCell } from './electrochemistry';
+import { CircleDemo2D } from './test-circle-2d';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -21,7 +22,7 @@ ExperimentRegistry.register('hydrogen-transitions', HydrogenTransition);
 ExperimentRegistry.register('solar-system', SolarSystem);
 ExperimentRegistry.register('pendulum', Pendulum);
 ExperimentRegistry.register('motion-collision', MotionCollisionLab);
-ExperimentRegistry.register('projectile-motion', ProjectileMotion);
+// projectile-motion registered via @registerExperiment2D decorator in class
 ExperimentRegistry.register('uniform-circular-motion', UniformCircularMotion);
 ExperimentRegistry.register('inclined-plane-friction', InclinedPlaneFriction);
 ExperimentRegistry.register('spring-oscillation', SpringOscillation);
@@ -46,3 +47,4 @@ export { LightRefraction } from './optics/light-refraction';
 export { DoubleSlitInterference } from './optics/double-slit-interference';
 export { BoyleLaw } from './thermodynamics/boyle-law';
 export { GalvanicCell } from './electrochemistry';
+export { CircleDemo2D } from './test-circle-2d';
