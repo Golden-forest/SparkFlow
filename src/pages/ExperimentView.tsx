@@ -4,7 +4,8 @@ import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
 import { ExperimentWorkbench } from '@/components/experiment';
 import { ExperimentScene, SceneContainer } from '@/components/simulation';
 import { ExperimentCanvas2D } from '@/components/simulation/ExperimentCanvas2D';
-import type { IExperiment, IExperiment2D } from '@/experiments/base';
+import { isExperiment2D } from '@/experiments/base';
+import type { IExperiment } from '@/experiments/base';
 import type {
     ControlSchema,
     DisplayValue,
@@ -230,7 +231,7 @@ export default function ExperimentView() {
         );
     }
 
-    const renderMode = currentExperiment.metadata.renderMode ?? '3d';
+    const is2D = isExperiment2D(currentExperiment);
 
     return (
         <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950">
@@ -277,8 +278,8 @@ export default function ExperimentView() {
 
             <main className="relative flex-1 px-4 pb-4 pt-3">
                 <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/45 shadow-[0_18px_60px_rgba(2,12,27,0.5)]">
-                    {renderMode === '2d' ? (
-                        <ExperimentCanvas2D experiment={currentExperiment as IExperiment2D} />
+                    {is2D ? (
+                        <ExperimentCanvas2D experiment={currentExperiment} />
                     ) : (
                         <SceneContainer
                             cameraPosition={(currentExperiment as IExperiment).config.camera.position}

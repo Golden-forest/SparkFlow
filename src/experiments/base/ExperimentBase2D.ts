@@ -69,6 +69,7 @@ export abstract class ExperimentBase2D implements IExperiment2D {
 
     dispose(): void {
         this.isRunning = false;
+        this.container?.replaceChildren();
         this.container = null;
         this.parameters.clear();
     }

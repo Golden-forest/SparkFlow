@@ -102,6 +102,11 @@ export class CircleDemo2D extends ExperimentBase2D {
         };
     }
 
+    override reset(): void {
+        super.reset();
+        this.phase = 0;
+    }
+
     onResize(_width: number, _height: number): void {
         // Could update viewBox to match container aspect ratio
     }

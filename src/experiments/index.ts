@@ -31,7 +31,6 @@ ExperimentRegistry.register('light-refraction', LightRefraction);
 ExperimentRegistry.register('double-slit-interference', DoubleSlitInterference);
 ExperimentRegistry.register('boyle-law', BoyleLaw);
 ExperimentRegistry.register('galvanic-cell', GalvanicCell);
-ExperimentRegistry.register2D('circle-demo-2d', CircleDemo2D);
 
 export * from './base';
 export { RutherfordExperiment } from './atomic/rutherford-scattering';
