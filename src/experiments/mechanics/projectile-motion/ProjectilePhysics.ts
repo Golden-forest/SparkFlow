@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 export interface ProjectileLaunchParameters {
   launchSpeed: number;
   launchAngleDeg: number;
@@ -9,8 +7,8 @@ export interface ProjectileLaunchParameters {
 }
 
 export interface ProjectileState {
-  position: THREE.Vector3;
-  velocity: THREE.Vector3;
+  position: { x: number; y: number };
+  velocity: { x: number; y: number };
   time: number;
   maxHeight: number;
   horizontalDistance: number;
@@ -30,18 +28,19 @@ export interface ProjectileEnergies {
   mechanicalEnergy: number;
 }
 
+function degToRad(deg: number): number {
+  return deg * Math.PI / 180;
+}
+
 export function createInitialProjectileState(params: ProjectileLaunchParameters): ProjectileState {
-  const angleRad = THREE.MathUtils.degToRad(params.launchAngleDeg);
-  const velocity = new THREE.Vector3(
-    params.launchSpeed * Math.cos(angleRad),
-    params.launchSpeed * Math.sin(angleRad),
-    0
-  );
-  const position = new THREE.Vector3(0, params.launchHeight, 0);
+  const angleRad = degToRad(params.launchAngleDeg);
 
   return {
-    position,
-    velocity,
+    position: { x: 0, y: params.launchHeight },
+    velocity: {
+      x: params.launchSpeed * Math.cos(angleRad),
+      y: params.launchSpeed * Math.sin(angleRad),
+    },
     time: 0,
     maxHeight: params.launchHeight,
     horizontalDistance: 0,
@@ -73,8 +72,8 @@ export function stepProjectile(
     const impactVy = vy - gravity * impactTime;
 
     return {
-      position: new THREE.Vector3(impactX, groundHeight, 0),
-      velocity: new THREE.Vector3(vx, impactVy, 0),
+      position: { x: impactX, y: groundHeight },
+      velocity: { x: vx, y: impactVy },
       time: state.time + impactTime,
       maxHeight: Math.max(state.maxHeight, y0),
       horizontalDistance: Math.max(0, impactX),
@@ -82,12 +81,9 @@ export function stepProjectile(
     };
   }
 
-  const nextPosition = new THREE.Vector3(xNext, yNext, 0);
-  const nextVelocity = new THREE.Vector3(vx, vy - gravity * deltaTime, 0);
-
   return {
-    position: nextPosition,
-    velocity: nextVelocity,
+    position: { x: xNext, y: yNext },
+    velocity: { x: vx, y: vy - gravity * deltaTime },
     time: state.time + deltaTime,
     maxHeight: Math.max(state.maxHeight, yNext),
     horizontalDistance: Math.max(0, xNext),
@@ -96,7 +92,7 @@ export function stepProjectile(
 }
 
 export function estimateProjectileKinematics(params: ProjectileLaunchParameters): ProjectileKinematics {
-  const angleRad = THREE.MathUtils.degToRad(params.launchAngleDeg);
+  const angleRad = degToRad(params.launchAngleDeg);
   const vx = params.launchSpeed * Math.cos(angleRad);
   const vy = params.launchSpeed * Math.sin(angleRad);
   const discriminant = vy * vy + 2 * params.gravity * Math.max(0, params.launchHeight);
@@ -104,11 +100,7 @@ export function estimateProjectileKinematics(params: ProjectileLaunchParameters)
   const range = vx * flightTime;
   const maxHeight = params.launchHeight + (vy * vy) / (2 * params.gravity);
 
-  return {
-    flightTime,
-    maxHeight,
-    range,
-  };
+  return { flightTime, maxHeight, range };
 }
 
 export function calculateProjectileEnergies(
@@ -117,7 +109,7 @@ export function calculateProjectileEnergies(
   gravity: number,
   referenceHeight = 0
 ): ProjectileEnergies {
-  const speed = state.velocity.length();
+  const speed = Math.sqrt(state.velocity.x ** 2 + state.velocity.y ** 2);
   const kineticEnergy = 0.5 * mass * speed * speed;
   const potentialEnergy = mass * gravity * Math.max(0, state.position.y - referenceHeight);
 
@@ -135,18 +127,12 @@ function solveImpactTime(y0: number, vy: number, gravity: number, maxTime: numbe
   const c = y0 - groundHeight;
   const discriminant = b * b - 4 * a * c;
 
-  if (discriminant < 0) {
-    return maxTime;
-  }
+  if (discriminant < 0) return maxTime;
 
   const sqrtD = Math.sqrt(discriminant);
   const root1 = (-b + sqrtD) / (2 * a);
   const root2 = (-b - sqrtD) / (2 * a);
   const validRoots = [root1, root2].filter((t) => Number.isFinite(t) && t >= 0 && t <= maxTime);
 
-  if (validRoots.length === 0) {
-    return maxTime;
-  }
-
-  return Math.min(...validRoots);
+  return validRoots.length > 0 ? Math.min(...validRoots) : maxTime;
 }

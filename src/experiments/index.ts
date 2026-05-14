@@ -22,7 +22,7 @@ ExperimentRegistry.register('hydrogen-transitions', HydrogenTransition);
 ExperimentRegistry.register('solar-system', SolarSystem);
 ExperimentRegistry.register('pendulum', Pendulum);
 ExperimentRegistry.register('motion-collision', MotionCollisionLab);
-ExperimentRegistry.register('projectile-motion', ProjectileMotion);
+// projectile-motion registered via @registerExperiment2D decorator in class
 ExperimentRegistry.register('uniform-circular-motion', UniformCircularMotion);
 ExperimentRegistry.register('inclined-plane-friction', InclinedPlaneFriction);
 ExperimentRegistry.register('spring-oscillation', SpringOscillation);
