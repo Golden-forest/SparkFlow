@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
 import { ExperimentWorkbench } from '@/components/experiment';
 import { ExperimentScene, SceneContainer } from '@/components/simulation';
@@ -61,6 +61,7 @@ function buildDefaultControlSchema(parameters: ParameterDefinition[]): ControlSc
 
 export default function ExperimentView() {
     const { experimentId } = useParams<{ experimentId: string }>();
+    const location = useLocation();
 
     const state = useSimulationStore((store) => store.state);
     const start = useSimulationStore((store) => store.start);
@@ -93,6 +94,14 @@ export default function ExperimentView() {
             }
 
             const experiment = ExperimentRegistry.create(experimentId);
+            const routeRequestsMicroView = location.pathname.endsWith('/micro');
+            if (routeRequestsMicroView) {
+                const viewModeParameter = experiment.config.parameters.find((parameter) => parameter.key === 'viewMode');
+                if (viewModeParameter?.type === 'select' && viewModeParameter.options?.some((option) => option.value === 'micro')) {
+                    viewModeParameter.defaultValue = 'micro';
+                    experiment.setParameter('viewMode', 'micro');
+                }
+            }
             setExperiment(experiment);
 
             const values: Record<string, number | string | boolean> = {};
@@ -109,7 +118,7 @@ export default function ExperimentView() {
         return () => {
             setExperiment(null);
         };
-    }, [experimentId, setExperiment]);
+    }, [experimentId, location.pathname, setExperiment]);
 
     const controlSchema = useMemo(() => {
         if (!currentExperiment) {

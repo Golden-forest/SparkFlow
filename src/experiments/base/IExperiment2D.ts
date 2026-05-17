@@ -7,6 +7,14 @@ import type {
     IExperiment,
 } from './IExperiment';
 
+export type {
+    ExperimentMetadata,
+    ParameterDefinition,
+    DisplayValue,
+    ControlSchema,
+    MonitorSchema,
+} from './IExperiment';
+
 /**
  * 2D experiment configuration — no camera, no 3D gravity vector.
  */

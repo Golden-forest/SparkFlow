@@ -5,7 +5,7 @@ import { HydrogenTransition } from './atomic/hydrogen-transitions';
 import { SolarSystem } from './celestial/solar-system';
 import { Pendulum } from './mechanics/pendulum';
 import { MotionCollisionLab } from './mechanics/motion-collision';
-import { ProjectileMotion } from './mechanics/projectile-motion';
+import './mechanics/projectile-motion';
 import { UniformCircularMotion } from './mechanics/uniform-circular-motion';
 import { InclinedPlaneFriction } from './mechanics/inclined-plane-friction';
 import { SpringOscillation } from './mechanics/spring-oscillation';
@@ -14,7 +14,7 @@ import { LightRefraction } from './optics/light-refraction';
 import { DoubleSlitInterference } from './optics/double-slit-interference';
 import { BoyleLaw } from './thermodynamics/boyle-law';
 import { GalvanicCell } from './electrochemistry';
-import { CircleDemo2D } from './test-circle-2d';
+import { SynchrotronExperiment } from './electromagnetism';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -31,6 +31,7 @@ ExperimentRegistry.register('light-refraction', LightRefraction);
 ExperimentRegistry.register('double-slit-interference', DoubleSlitInterference);
 ExperimentRegistry.register('boyle-law', BoyleLaw);
 ExperimentRegistry.register('galvanic-cell', GalvanicCell);
+ExperimentRegistry.register('synchrotron-em-fields', SynchrotronExperiment);
 
 export * from './base';
 export { RutherfordExperiment } from './atomic/rutherford-scattering';
@@ -47,4 +48,5 @@ export { LightRefraction } from './optics/light-refraction';
 export { DoubleSlitInterference } from './optics/double-slit-interference';
 export { BoyleLaw } from './thermodynamics/boyle-law';
 export { GalvanicCell } from './electrochemistry';
+export { SynchrotronExperiment } from './electromagnetism';
 export { CircleDemo2D } from './test-circle-2d';
