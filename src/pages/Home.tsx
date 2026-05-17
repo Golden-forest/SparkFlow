@@ -435,7 +435,93 @@ const ElectrochemicalCellDiagram = () => (
     </div>
 );
 
+const SynchrotronDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-85">
+            <defs>
+                <radialGradient id="synchrotronCollisionGlow">
+                    <stop offset="0%" stopColor="#F8FAFC" />
+                    <stop offset="55%" stopColor="#38BDF8" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="#38BDF8" stopOpacity="0" />
+                </radialGradient>
+                <linearGradient id="synchrotronBlueBeam" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#67E8F9" />
+                </linearGradient>
+                <linearGradient id="synchrotronOrangeBeam" x1="100%" y1="0%" x2="0%" y2="0%">
+                    <stop offset="0%" stopColor="#FB923C" />
+                    <stop offset="100%" stopColor="#F97316" stopOpacity="0.2" />
+                </linearGradient>
+            </defs>
+            <ellipse cx="120" cy="66" rx="74" ry="43" fill="none" stroke="#334155" strokeWidth="10" opacity="0.52" />
+            <ellipse cx="120" cy="66" rx="74" ry="43" fill="none" stroke="#7DD3FC" strokeWidth="2.4" opacity="0.72" />
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => {
+                const angle = (index / 8) * Math.PI * 2;
+                const x = 120 + Math.cos(angle) * 74;
+                const y = 66 + Math.sin(angle) * 43;
+                return (
+                    <rect
+                        key={index}
+                        x={x - 7}
+                        y={y - 5}
+                        width="14"
+                        height="10"
+                        rx="2"
+                        fill={index % 4 === 0 ? '#F97316' : '#2563EB'}
+                        opacity="0.9"
+                        transform={`rotate(${(angle * 180) / Math.PI} ${x} ${y})`}
+                    />
+                );
+            })}
+            <ellipse
+                cx="120"
+                cy="66"
+                rx="63"
+                ry="34"
+                fill="none"
+                stroke="url(#synchrotronBlueBeam)"
+                strokeWidth="2.6"
+                strokeDasharray="10 10"
+            >
+                <animate attributeName="stroke-dashoffset" values="0;-40" dur="1.4s" repeatCount="indefinite" />
+            </ellipse>
+            <ellipse
+                cx="120"
+                cy="66"
+                rx="56"
+                ry="30"
+                fill="none"
+                stroke="url(#synchrotronOrangeBeam)"
+                strokeWidth="2.6"
+                strokeDasharray="10 10"
+            >
+                <animate attributeName="stroke-dashoffset" values="0;40" dur="1.4s" repeatCount="indefinite" />
+            </ellipse>
+            <circle cx="194" cy="66" r="16" fill="url(#synchrotronCollisionGlow)">
+                <animate attributeName="r" values="10;18;10" dur="1.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.45;1;0.45" dur="1.5s" repeatCount="indefinite" />
+            </circle>
+            <circle cx="194" cy="66" r="5" fill="#F8FAFC" />
+            <path d="M 48 104 C 76 88 94 88 120 104" stroke="#38BDF8" strokeWidth="1.8" fill="none" opacity="0.68" />
+            <path d="M 52 106 L 64 101 L 60 112 Z" fill="#38BDF8" opacity="0.72" />
+            <path d="M 36 29 L 64 29" stroke="#F97316" strokeWidth="2.5" />
+            <path d="M 61 24 L 70 29 L 61 34 Z" fill="#F97316" />
+        </svg>
+    </div>
+);
+
 const experiments: ExperimentCard[] = [
+    {
+        id: 'synchrotron-em-fields',
+        title: 'Synchrotron Fields',
+        route: '/experiment/synchrotron-em-fields',
+        quickViews: [
+            { label: 'Macro View', route: '/experiment/synchrotron-em-fields' },
+            { label: 'Micro View', route: '/experiment/synchrotron-em-fields/micro' },
+        ],
+        diagram: <SynchrotronDiagram />,
+        gradient: 'from-cyan-900/20 via-slate-900/10 to-orange-900/20',
+    },
     {
         id: 'light-refraction',
         title: 'Light Refraction',
