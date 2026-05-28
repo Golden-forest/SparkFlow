@@ -87,6 +87,29 @@ function createItems(publicRoot: string, baseDirectory: string, extensions: Set<
   });
 }
 
+function createCoursewareItems(publicRoot: string, coursewareRoot: string): ManifestItem[] {
+  if (!fs.existsSync(coursewareRoot)) return [];
+
+  const entries = fs.readdirSync(coursewareRoot, { withFileTypes: true });
+  const items: ManifestItem[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const indexPath = path.join(coursewareRoot, entry.name, 'index.html');
+    if (!fs.existsSync(indexPath)) continue;
+
+    const publicDirPath = `/${path.relative(publicRoot, coursewareRoot).split(path.sep).join('/')}/${entry.name}`;
+    const relative = `${path.relative(publicRoot, coursewareRoot).split(path.sep).join('/')}/${entry.name}/index.html`;
+    items.push({
+      id: toIdFromRelativePath(relative, 'courseware'),
+      title: toTitleFromFilename(entry.name),
+      path: `${publicDirPath}/`,
+    });
+  }
+
+  return items.sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export function generateResourceManifest(projectRoot: string): ResourceManifest {
   const publicRoot = path.resolve(projectRoot, 'public');
   const coursewareRoot = path.resolve(publicRoot, 'courseware');
@@ -98,7 +121,7 @@ export function generateResourceManifest(projectRoot: string): ResourceManifest 
 
   const manifest: ResourceManifest = {
     generatedAt: new Date().toISOString(),
-    courseware: createItems(publicRoot, coursewareRoot, COURSEWARE_EXTENSIONS, 'courseware'),
+    courseware: createCoursewareItems(publicRoot, coursewareRoot),
     images: createItems(publicRoot, imagesRoot, IMAGE_EXTENSIONS, 'images'),
   };
 
