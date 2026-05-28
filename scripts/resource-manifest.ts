@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -36,14 +37,16 @@ function toTitleFromFilename(filename: string): string {
     .join(' ');
 }
 
-function toIdFromRelativePath(relativePath: string): string {
-  return relativePath
+function toIdFromRelativePath(relativePath: string, prefix = 'resource'): string {
+  const base = relativePath
     .replace(/\.[^/.]+$/, '')
     .replace(/[\\/]+/g, '-')
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .toLowerCase();
+  const hash = crypto.createHash('md5').update(relativePath).digest('hex').slice(0, 6);
+  return `${prefix}-${base}-${hash}`;
 }
 
 function walkFiles(directory: string): string[] {
@@ -68,7 +71,7 @@ function toPublicWebPath(publicRoot: string, filePath: string): string {
   return `/${relative}`;
 }
 
-function createItems(publicRoot: string, baseDirectory: string, extensions: Set<string>): ManifestItem[] {
+function createItems(publicRoot: string, baseDirectory: string, extensions: Set<string>, prefix: string): ManifestItem[] {
   const files = walkFiles(baseDirectory)
     .filter((filePath) => extensions.has(path.extname(filePath).toLowerCase()))
     .sort((a, b) => a.localeCompare(b));
@@ -77,7 +80,7 @@ function createItems(publicRoot: string, baseDirectory: string, extensions: Set<
     const publicPath = toPublicWebPath(publicRoot, filePath);
     const relative = path.relative(publicRoot, filePath).split(path.sep).join('/');
     return {
-      id: toIdFromRelativePath(relative),
+      id: toIdFromRelativePath(relative, prefix),
       title: toTitleFromFilename(path.basename(filePath)),
       path: publicPath,
     };
@@ -95,8 +98,8 @@ export function generateResourceManifest(projectRoot: string): ResourceManifest 
 
   const manifest: ResourceManifest = {
     generatedAt: new Date().toISOString(),
-    courseware: createItems(publicRoot, coursewareRoot, COURSEWARE_EXTENSIONS),
-    images: createItems(publicRoot, imagesRoot, IMAGE_EXTENSIONS),
+    courseware: createItems(publicRoot, coursewareRoot, COURSEWARE_EXTENSIONS, 'courseware'),
+    images: createItems(publicRoot, imagesRoot, IMAGE_EXTENSIONS, 'images'),
   };
 
   const outputPath = path.resolve(publicRoot, 'resource-manifest.json');
