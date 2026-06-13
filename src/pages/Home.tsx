@@ -678,8 +678,8 @@ export default function Home() {
         >
             <header className="px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">
                 <h1
-                    className="bg-gradient-to-r from-[#ECF3FF] via-[#BDD4FF] to-[#8FC3D7] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]"
-                    style={{ filter: 'drop-shadow(0 10px 24px rgba(33, 108, 184, 0.18))' }}
+                    className="bg-gradient-to-r from-[#22D3EE] via-[#34D399] to-[#A78BFA] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]"
+                    style={{ filter: 'drop-shadow(0 10px 24px rgba(52, 211, 153, 0.3))' }}
                 >
                     Spark Flow
                 </h1>

@@ -176,7 +176,7 @@ export function ExperimentWorkbench({
     return (
         <aside className="absolute bottom-5 right-5 top-5 z-40 w-[min(368px,calc(100vw-2.5rem))] rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 p-4 shadow-2xl shadow-slate-950/45 backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
-                <h2 className="bg-gradient-to-r from-slate-100 via-sky-100 to-emerald-200 bg-clip-text text-sm font-semibold tracking-[0.18em] text-transparent">
+                <h2 className="bg-gradient-to-r from-[#22D3EE] via-[#34D399] to-[#A78BFA] bg-clip-text text-sm font-semibold tracking-[0.18em] text-transparent">
                     {title}
                 </h2>
                 <button

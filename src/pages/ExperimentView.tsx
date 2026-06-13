@@ -258,7 +258,7 @@ export default function ExperimentView() {
                         <ArrowLeft size={18} />
                         <span className="font-medium">Back</span>
                     </Link>
-                    <h1 className="bg-gradient-to-r from-slate-100 via-sky-100 to-emerald-200 bg-clip-text text-xl font-semibold tracking-wide text-transparent">
+                    <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#34D399] to-[#A78BFA] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
                         {currentExperiment.metadata.name}
                     </h1>
                 </div>
