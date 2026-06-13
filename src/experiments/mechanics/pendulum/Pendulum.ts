@@ -108,6 +108,9 @@ export class Pendulum extends ExperimentBase {
     // 设置灯光
     this.setupLights();
 
+    // 添加星空背景
+    this.addToScene(this.createStarfield());
+
     // 创建地面
     this.createGround();
 
@@ -160,6 +163,10 @@ export class Pendulum extends ExperimentBase {
     ground.position.y = -0.01;
     ground.receiveShadow = true;
     this.addToScene(ground);
+
+    // 添加统一的深青蓝网格
+    const grid = this.createDefaultGrid(20, 20);
+    this.addToScene(grid);
   }
 
   /**

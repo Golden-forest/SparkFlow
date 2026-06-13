@@ -138,6 +138,9 @@ export class GalvanicCell extends ExperimentBase {
     protected async setupScene(): Promise<void> {
         if (!this.scene) return;
 
+        // 添加星空背景
+        this.addToScene(this.createStarfield());
+
         this.setupLights();
         this.createBeaker();
         this.createSolution();

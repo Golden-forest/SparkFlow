@@ -187,7 +187,7 @@ export class BoyleLaw extends ExperimentBase {
     ground.rotation.x = -Math.PI / 2;
     this.addToScene(ground);
 
-    const grid = new THREE.GridHelper(18, 18, 0x334155, 0x1e293b);
+    const grid = new THREE.GridHelper(18, 18, 0x164e63, 0x1e293b);
     grid.position.y = 0.002;
     this.addToScene(grid);
   }

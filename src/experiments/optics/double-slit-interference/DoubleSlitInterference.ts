@@ -238,7 +238,7 @@ export class DoubleSlitInterference extends ExperimentBase {
     ground.position.y = -2.7;
     this.addToScene(ground);
 
-    const grid = new THREE.GridHelper(20, 20, 0x334155, 0x1e293b);
+    const grid = new THREE.GridHelper(20, 20, 0x164e63, 0x1e293b);
     grid.position.y = -2.69;
     this.addToScene(grid);
   }

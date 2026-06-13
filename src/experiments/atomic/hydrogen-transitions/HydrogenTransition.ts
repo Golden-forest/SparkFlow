@@ -97,6 +97,9 @@ export class HydrogenTransition extends ExperimentBase {
     protected async setupScene(): Promise<void> {
         if (!this.scene) return;
 
+        // 添加星空背景
+        this.addToScene(this.createStarfield());
+
         // 1. 创建原子核 (金黄色辉光)
         this.createNucleus();
 
@@ -112,8 +115,6 @@ export class HydrogenTransition extends ExperimentBase {
         const pointLight = new THREE.PointLight(0xffffff, 1.5, 50);
         pointLight.position.set(5, 5, 10);
         this.addToScene(pointLight);
-
-        // 背景色建议在 CSS 中设置，或者在这里添加一个比如大的背景球，但通常 CSS 足够。
     }
 
     private createNucleus(): void {

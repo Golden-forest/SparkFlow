@@ -131,6 +131,9 @@ export class MomentumCarts extends ExperimentBase {
   protected async setupScene(): Promise<void> {
     if (!this.scene) return;
 
+    // 添加星空背景
+    this.addToScene(this.createStarfield());
+
     this.setupLights();
     this.createTrack();
     this.createCarts();
@@ -351,6 +354,10 @@ export class MomentumCarts extends ExperimentBase {
     rightWall.position.set(this.trackHalfLength + wallThickness / 2, 0.58, 0);
     rightWall.castShadow = true;
     this.addToScene(rightWall);
+
+    // 添加统一的深青蓝网格
+    const grid = this.createDefaultGrid(20, 20);
+    this.addToScene(grid);
   }
 
   private createCarts(): void {

@@ -107,6 +107,8 @@ export class InclinedPlaneFriction extends ExperimentBase {
 
   protected async setupScene(): Promise<void> {
     this.createLights();
+    // 添加星空背景
+    this.addToScene(this.createStarfield());
     this.createGround();
     this.createRamp();
     this.createBlock();
@@ -241,6 +243,11 @@ export class InclinedPlaneFriction extends ExperimentBase {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.addToScene(ground);
+
+    // 添加统一的深青蓝网格
+    const grid = this.createDefaultGrid(20, 20);
+    grid.position.y = 0.001;
+    this.addToScene(grid);
   }
 
   private createRamp(): void {

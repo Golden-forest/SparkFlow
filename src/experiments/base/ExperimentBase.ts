@@ -225,4 +225,46 @@ export abstract class ExperimentBase implements IExperiment {
             }
         }
     }
+
+    /**
+     * 创建统一的星空粒子背景
+     * 浅青色粒子点，模拟深空实验室氛围
+     */
+    protected createStarfield(particleCount = 520): THREE.Points {
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let index = 0; index < particleCount; index += 1) {
+            const radius = 8 + Math.random() * 18;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+            positions[index * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+            positions[index * 3 + 1] = Math.cos(phi) * radius * 0.7 + 2;
+            positions[index * 3 + 2] = Math.sin(phi) * Math.sin(theta) * radius;
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const stars = new THREE.Points(
+            geometry,
+            new THREE.PointsMaterial({
+                color: 0x7dd3fc,
+                size: 0.025,
+                transparent: true,
+                opacity: 0.52,
+                depthWrite: false,
+            }),
+        );
+        stars.name = 'Dark laboratory star field';
+        return stars;
+    }
+
+    /**
+     * 创建统一的深青蓝色调地面网格
+     * @param size 网格大小
+     * @param divisions 网格分段数
+     */
+    protected createDefaultGrid(size = 12, divisions = 28): THREE.GridHelper {
+        const grid = new THREE.GridHelper(size, divisions, 0x164e63, 0x1e293b);
+        return grid;
+    }
 }

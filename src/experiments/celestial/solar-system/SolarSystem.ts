@@ -75,7 +75,6 @@ export class SolarSystem extends ExperimentBase {
     private sunGlows: THREE.Mesh[] = []; // 太阳光晕网格引用
     private planets: Planet[] = [];
     private satellites: Satellite[] = [];
-    private stars: THREE.Points | null = null;
     private selectedPlanet: Planet | null = null;
     private currentViewMode: 'solar' | 'satellite' = 'solar';
     private earthPosition: THREE.Vector3 = new THREE.Vector3();
@@ -102,33 +101,6 @@ export class SolarSystem extends ExperimentBase {
 
         // 6. 默认选中地球
         this.selectPlanet('Earth');
-    }
-
-    /**
-     * 创建星空背景
-     */
-    private createStarfield(): void {
-        if (!this.scene) return;
-
-        const starsGeometry = new THREE.BufferGeometry();
-        const starsMaterial = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 0.5,
-            transparent: true,
-            opacity: 0.8
-        });
-
-        const starsVertices = [];
-        for (let i = 0; i < 10000; i++) {
-            const x = (Math.random() - 0.5) * 2000;
-            const y = (Math.random() - 0.5) * 2000;
-            const z = (Math.random() - 0.5) * 2000;
-            starsVertices.push(x, y, z);
-        }
-
-        starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
-        this.stars = new THREE.Points(starsGeometry, starsMaterial);
-        this.addToScene(this.stars);
     }
 
     /**

@@ -60,6 +60,9 @@ export class RutherfordExperiment extends ExperimentBase {
     protected async setupScene(): Promise<void> {
         if (!this.scene) return;
 
+        // 添加星空背景
+        this.addToScene(this.createStarfield());
+
         // 创建原子模型（小原子核 + 大电子云）
         this.createAtomModel();
 
