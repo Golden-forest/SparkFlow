@@ -14,7 +14,6 @@ export interface ResourceManifest {
   images: ManifestItem[];
 }
 
-const COURSEWARE_EXTENSIONS = new Set(['.html', '.htm']);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif']);
 
 function ensureDirectory(directory: string): void {
