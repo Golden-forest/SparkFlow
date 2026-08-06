@@ -379,7 +379,7 @@ export default function MacroExperimentView() {
                         <span className="font-medium">Back</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
-                    <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#34D399] to-[#A78BFA] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
+                    <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
                         Rutherford α-Particle Scattering - Device View
                     </h1>
                 </div>
