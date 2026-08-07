@@ -253,6 +253,11 @@ export class CapacitorExperiment extends ExperimentBase2D {
                 value: this.getSafeNumber('sourceVoltage', 6, 1, 12).toFixed(1),
                 unit: 'V',
             },
+            loadResistance: {
+                label: 'Load Resistance',
+                value: '5.0',
+                unit: 'k\u03A9',
+            },
         };
     }
 
@@ -289,6 +294,7 @@ export class CapacitorExperiment extends ExperimentBase2D {
             resistance: this.getSafeNumber('resistance', 10, 1, 50),
             capacitance: this.getSafeNumber('capacitance', 1000, 100, 5000),
             sourceVoltage: this.getSafeNumber('sourceVoltage', 6, 1, 12),
+            loadResistance: 5, // 灯泡固定阻值 5kΩ，不作为可调参数暴露
         };
     }
 
