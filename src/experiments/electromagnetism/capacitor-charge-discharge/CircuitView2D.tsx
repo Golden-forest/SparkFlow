@@ -61,13 +61,15 @@ const LOOP = {
     bottom: 340,     // 下支路 y
 };
 
-// 电池：上支路水平放置（正极长线、负极短线）
+// 电池：上支路水平放置，极线**竖直**（垂直于水平导线，标准电路符号）
+//   水平导线 ──┤├── 水平导线
+//   左侧短竖线 = 负极；右侧长竖线 = 正极
 const BATTERY = {
-    cx: 320,                  // 电池中心 x
-    y: LOOP.top,              // = 100
-    plusLen: 36,              // 正极长线半长（水平）
-    minusLen: 18,             // 负极短线半长（水平）
-    gap: 14,                  // 正负极垂直间距
+    cx: 320,                  // 电池中心 x（两根极线之间的中点）
+    y: LOOP.top,              // = 100（极线垂直中点）
+    minusHalfHeight: 9,       // 负极竖直线半高（短线）
+    plusHalfHeight: 18,       // 正极竖直线半高（长线）
+    gap: 10,                  // 两根极线水平间距（中心到中心）
 };
 
 // 单刀双掷开关：左导线中段（公共端在中支路 y）
@@ -173,8 +175,8 @@ function formatCharge(uc: number): string {
  * 粒子流向（与电流同向）：从电池+ 出发，沿回路顺时针走
  */
 const CHARGING_LOOP_D = [
-    // 从电池正极出发（右上节点方向）
-    `M ${BATTERY.cx + BATTERY.plusLen} ${BATTERY.y}`,
+    // 从电池正极出发（正极 x = cx + gap/2，竖直极线在 y 处的中点）
+    `M ${BATTERY.cx + BATTERY.gap / 2} ${BATTERY.y}`,
     // 沿上支路向右到右上节点
     `L ${LOOP.right} ${LOOP.top}`,
     // 右导线下行到中支路
@@ -188,9 +190,9 @@ const CHARGING_LOOP_D = [
     // 开关拨杆向上（公共端 → 上接点）
     `L ${SWITCH.x} ${SWITCH.contactChargeY}`,
     // 上支路向左：上接点 → 电池负极
-    `L ${BATTERY.cx - BATTERY.minusLen} ${BATTERY.y}`,
+    `L ${BATTERY.cx - BATTERY.gap / 2} ${BATTERY.y}`,
     // 电池内部：负极 → 正极（粒子穿过电池）
-    `L ${BATTERY.cx + BATTERY.plusLen} ${BATTERY.y}`,
+    `L ${BATTERY.cx + BATTERY.gap / 2} ${BATTERY.y}`,
     'Z',
 ].join(' ');
 
@@ -359,17 +361,29 @@ interface BulbLampProps {
  * - 亮：暖金色发光 + 高斯模糊光晕
  */
 function BulbLamp({ cx, cy, radius, brightness, active }: BulbLampProps) {
+    // 灯泡外壳颜色：不亮时灰，亮时金黄（gamma 已在主组件应用，这里线性插值即可）
     const bulbColor = active
         ? interpolateColor('#475569', '#FBBF24', brightness)
         : '#475569';
-    const glowOpacity = active ? brightness * 0.6 : 0;
+    // 灯丝颜色：随亮度从暗灰→暗红→金黄→亮白（模拟灯丝温度）
+    const filamentColor = active
+        ? brightness < 0.3
+            ? interpolateColor('#64748B', '#B45309', brightness / 0.3)
+            : interpolateColor('#B45309', '#FEF3C7', (brightness - 0.3) / 0.7)
+        : COLORS.wireBroken;
+    // 光晕透明度
+    const glowOpacity = active ? brightness * 0.7 : 0;
     return (
         <g style={{ pointerEvents: 'none' }}>
-            {/* 光晕（仅亮时可见） */}
-            {active && brightness > 0.05 && (
+            {/* 光晕（三层，从外到内） */}
+            {active && brightness > 0.03 && (
                 <>
-                    <circle cx={cx} cy={cy} r={radius * 2.2} fill="#FBBF24" opacity={glowOpacity * 0.3} filter="url(#bulbGlow)" />
-                    <circle cx={cx} cy={cy} r={radius * 1.5} fill="#FBBF24" opacity={glowOpacity * 0.5} filter="url(#bulbGlow)" />
+                    {/* 最外层（大而淡） */}
+                    <circle cx={cx} cy={cy} r={radius * 2.6} fill="#FBBF24" opacity={glowOpacity * 0.25} filter="url(#bulbGlow)" />
+                    {/* 中层 */}
+                    <circle cx={cx} cy={cy} r={radius * 1.8} fill="#FBBF24" opacity={glowOpacity * 0.4} filter="url(#bulbGlow)" />
+                    {/* 内层（小而亮） */}
+                    <circle cx={cx} cy={cy} r={radius * 1.2} fill="#FEF3C7" opacity={glowOpacity * 0.5} filter="url(#bulbGlow)" />
                 </>
             )}
             {/* 灯泡玻璃外壳 */}
@@ -378,7 +392,7 @@ function BulbLamp({ cx, cy, radius, brightness, active }: BulbLampProps) {
                 cy={cy}
                 r={radius}
                 fill={bulbColor}
-                fillOpacity={active ? 0.3 + brightness * 0.5 : 0.15}
+                fillOpacity={active ? 0.2 + brightness * 0.6 : 0.15}
                 stroke={active ? '#FBBF24' : COLORS.wire}
                 strokeWidth={2}
             />
@@ -386,15 +400,15 @@ function BulbLamp({ cx, cy, radius, brightness, active }: BulbLampProps) {
             <line
                 x1={cx - radius * 0.5} y1={cy - radius * 0.5}
                 x2={cx + radius * 0.5} y2={cy + radius * 0.5}
-                stroke={active ? '#FEF3C7' : COLORS.wireBroken}
-                strokeWidth={1.5}
+                stroke={filamentColor}
+                strokeWidth={active ? 1.5 + brightness * 1.5 : 1.5}
                 strokeLinecap="round"
             />
             <line
                 x1={cx - radius * 0.5} y1={cy + radius * 0.5}
                 x2={cx + radius * 0.5} y2={cy - radius * 0.5}
-                stroke={active ? '#FEF3C7' : COLORS.wireBroken}
-                strokeWidth={1.5}
+                stroke={filamentColor}
+                strokeWidth={active ? 1.5 + brightness * 1.5 : 1.5}
                 strokeLinecap="round"
             />
             {/* 灯座（底部小矩形） */}
@@ -562,8 +576,11 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
             ? (R_ohm > 0 ? U0 / R_ohm : 0)
             : (R_ohm + R_load_ohm > 0 ? U0 / (R_ohm + R_load_ohm) : 0);
         const speedFactor = Imax > 0 ? Math.abs(state.current) / Imax : 0;
-        // direction: charging → +1（顺时针）；discharging → -1（逆时针）
-        const direction = isActiveCharge ? 1 : -1;
+        // direction: 两条 path 都已按"正电荷流向"（即电流方向）定义：
+        //   CHARGING_LOOP_D: 电池+ → ... → C → 电池−
+        //   DISCHARGING_LOOP_D: C+（右板）→ R → 灯泡 → 开关 → C−（左板）
+        // 所以两者 direction 都为 +1（让粒子沿 path 正向走）。
+        const direction = 1;
 
         const speed = BASE_PARTICLE_SPEED_PX_PER_S * speedFactor * direction;
 
@@ -652,12 +669,16 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const Qabs = Math.abs(state.charge);
     const chargeDots = Qmax > 0 ? Math.floor((Qabs / Qmax) * (CHARGE_GRID.cols * CHARGE_GRID.rows)) : 0;
 
-    // 灯泡亮度（放电时随电流变化）
+    // 灯泡亮度（放电时随电流变化）。
+    // 用 gamma=0.6 映射，让低电流时也有明显视觉变化（人眼对小亮度差异更敏感）。
+    //   raw = |i|/Imax ∈ [0,1]，bulbBrightness = raw^0.6
+    // 这样：raw=0.1 → 0.25，raw=0.37(1τ) → 0.55，raw=0.5 → 0.66，raw=1 → 1
     const R_load_ohm = params.loadResistance * 1000;
     const i_max_discharge = R_ohm + R_load_ohm > 0 ? params.sourceVoltage / (R_ohm + R_load_ohm) : 0;
-    const bulbBrightness = i_max_discharge > 0
+    const bulbRawBrightness = i_max_discharge > 0
         ? Math.min(Math.abs(state.current) / i_max_discharge, 1)
         : 0;
+    const bulbBrightness = Math.pow(bulbRawBrightness, 0.6);
 
     // 滑片 x 位置（由 params.resistance 完全决定，无内部 state）
     const knobRatio = (params.resistance - 1) / (50 - 1);
@@ -834,7 +855,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
 
                 {/* ===== 导线（H 型拓扑） ===== */}
                 {/* 拓扑说明：
-                     上支路（y=100）：上接点(120) → 电池负极(304) | 电池正极(356) → 右上节点(680)
+                     上支路（y=100）：上接点(120) → 电池负极(315) | 电池正极(325) → 右上节点(680)
                      中支路（y=220）：公共端(120) → C左板(273) | C右板(287) → R左端(380) | R右端(600) → 右中节点(680)
                      下支路（y=340）：下接点(120) → 灯泡左端(338) | 灯泡右端(382) → 右下节点(680)
                      右导线（x=680）：连续，连接 右上/右中/右下 三个节点（无元件） */}
@@ -843,7 +864,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     {/* W1-top: 上接点 → 电池负极（充电时高亮） */}
                     <line
                         x1={SWITCH.x} y1={SWITCH.contactChargeY}
-                        x2={BATTERY.cx - BATTERY.minusLen} y2={BATTERY.y}
+                        x2={BATTERY.cx - BATTERY.gap / 2} y2={BATTERY.y}
                         stroke={state.mode === 'charging' ? COLORS.wireHighlight : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
@@ -851,7 +872,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     />
                     {/* W1-bot: 电池正极 → 右上节点（充电时高亮） */}
                     <line
-                        x1={BATTERY.cx + BATTERY.plusLen} y1={BATTERY.y}
+                        x1={BATTERY.cx + BATTERY.gap / 2} y1={BATTERY.y}
                         x2={LOOP.right} y2={LOOP.top}
                         stroke={state.mode === 'charging' ? COLORS.wireHighlight : COLORS.wire}
                         strokeWidth={3}
@@ -956,25 +977,26 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     />
                 )}
 
-                {/* ===== 电池（上支路水平放置，正极长线在右、负极短线在左） ===== */}
+                {/* ===== 电池（上支路水平放置，极线竖直，负极在左、正极在右） ===== */}
+                {/* 标准电池符号 ──┤├── ：左短竖线(−)、右长竖线(+) */}
                 <g>
-                    {/* 红色长线 = 正极（右侧，朝右上节点方向） */}
+                    {/* 蓝色短竖线 = 负极（左侧，朝上接点方向） */}
                     <line
-                        x1={BATTERY.cx}
-                        y1={BATTERY.y - BATTERY.gap / 2}
-                        x2={BATTERY.cx + BATTERY.plusLen}
-                        y2={BATTERY.y - BATTERY.gap / 2}
-                        stroke={COLORS.positive}
+                        x1={BATTERY.cx - BATTERY.gap / 2}
+                        y1={BATTERY.y - BATTERY.minusHalfHeight}
+                        x2={BATTERY.cx - BATTERY.gap / 2}
+                        y2={BATTERY.y + BATTERY.minusHalfHeight}
+                        stroke={COLORS.negative}
                         strokeWidth={4}
                         strokeLinecap="round"
                     />
-                    {/* 蓝色短线 = 负极（左侧，朝上接点方向） */}
+                    {/* 红色长竖线 = 正极（右侧，朝右上节点方向） */}
                     <line
-                        x1={BATTERY.cx - BATTERY.minusLen}
-                        y1={BATTERY.y + BATTERY.gap / 2}
-                        x2={BATTERY.cx + BATTERY.minusLen}
-                        y2={BATTERY.y + BATTERY.gap / 2}
-                        stroke={COLORS.negative}
+                        x1={BATTERY.cx + BATTERY.gap / 2}
+                        y1={BATTERY.y - BATTERY.plusHalfHeight}
+                        x2={BATTERY.cx + BATTERY.gap / 2}
+                        y2={BATTERY.y + BATTERY.plusHalfHeight}
+                        stroke={COLORS.positive}
                         strokeWidth={4}
                         strokeLinecap="round"
                     />
@@ -982,8 +1004,8 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     {showLabels && (
                         <>
                             <text
-                                x={BATTERY.cx + BATTERY.plusLen + 10}
-                                y={BATTERY.y - BATTERY.gap / 2 + 5}
+                                x={BATTERY.cx + BATTERY.gap / 2 + 14}
+                                y={BATTERY.y + 5}
                                 fontFamily="ui-monospace, monospace"
                                 fontSize={14}
                                 fontWeight={700}
@@ -992,8 +1014,8 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                                 +
                             </text>
                             <text
-                                x={BATTERY.cx - BATTERY.minusLen - 14}
-                                y={BATTERY.y + BATTERY.gap / 2 + 5}
+                                x={BATTERY.cx - BATTERY.gap / 2 - 18}
+                                y={BATTERY.y + 5}
                                 fontFamily="ui-monospace, monospace"
                                 fontSize={14}
                                 fontWeight={700}
@@ -1007,7 +1029,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     {showLabels && (
                         <ValueTag
                             x={BATTERY.cx}
-                            y={BATTERY.y - 32}
+                            y={BATTERY.y - BATTERY.plusHalfHeight - 16}
                             text={`U₀ = ${params.sourceVoltage.toFixed(1)} V`}
                             fill={COLORS.accent}
                         />
