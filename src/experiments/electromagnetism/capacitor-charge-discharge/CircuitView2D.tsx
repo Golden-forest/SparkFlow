@@ -551,14 +551,21 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
         const params = experiment.getParams();
 
         // 根据 mode 选择 path
-        // 阈值 1e-9 A（1nA）：RK4 数值积分会让电流渐近趋于 0 但不精确为 0，
-        // 用阈值避免极小浮点尾数让粒子几乎不动仍可见。
-        const CURRENT_THRESHOLD = 1e-9;
-        const isActiveCharge = state.mode === 'charging' && state.current > CURRENT_THRESHOLD;
-        const isActiveDischarge = state.mode === 'discharging' && state.current < -CURRENT_THRESHOLD;
+        // 阈值 = 3% × Imax：RK4 数值积分让电流渐近趋于 0 但不精确为 0，
+        // 且在定性教学场景下，电流低于 Imax 的 3% 时人眼已无法感知粒子移动，
+        // 此时直接隐藏粒子比保留缓慢蠕动更清晰。
+        const R_ohm = params.resistance * 1000;
+        const R_load_ohm = params.loadResistance * 1000;
+        const U0 = params.sourceVoltage;
+        const Imax = state.mode === 'charging'
+            ? (R_ohm > 0 ? U0 / R_ohm : 0)
+            : (R_ohm + R_load_ohm > 0 ? U0 / (R_ohm + R_load_ohm) : 0);
+        const CURRENT_HIDE_THRESHOLD = Imax * 0.03;
+        const isActiveCharge = state.mode === 'charging' && state.current > CURRENT_HIDE_THRESHOLD;
+        const isActiveDischarge = state.mode === 'discharging' && state.current < -CURRENT_HIDE_THRESHOLD;
 
         if (!isActiveCharge && !isActiveDischarge) {
-            // 断开或电流为 0：隐藏所有粒子（而非冻结在最后一帧的位置）
+            // 断开或电流低于阈值：隐藏所有粒子（而非冻结在最后一帧的位置）
             const hiddenRefs = particleGroupRefs.current;
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const el = hiddenRefs[i];
@@ -585,15 +592,15 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
         const totalLen = pathLenRef.current;
         if (totalLen <= 0) return;
 
-        // 计算 |i| 与 Imax 的比例
-        const R_ohm = params.resistance * 1000;
-        const R_load_ohm = params.loadResistance * 1000;
-        const U0 = params.sourceVoltage;
-        // 充电 Imax = U0/R；放电 Imax = U0/(R+R_L)
-        const Imax = isActiveCharge
-            ? (R_ohm > 0 ? U0 / R_ohm : 0)
-            : (R_ohm + R_load_ohm > 0 ? U0 / (R_ohm + R_load_ohm) : 0);
-        const speedFactor = Imax > 0 ? Math.abs(state.current) / Imax : 0;
+        // 非线性速度映射：speedFactor = (|i|/Imax)^0.5
+        // 目的：让电流衰减过程中粒子速度不至于太快归零。
+        // 物理上电流随 e^(-t/τ) 衰减，线性映射下粒子速度跟着衰减，
+        // 1τ 后速度只剩 37%，2τ 后 13.5%，肉眼几乎来不及感受"慢下来"。
+        // 开方映射让小电流段速度更可观：
+        //   线性 raw=0.37 → 开方 0.61；线性 raw=0.135 → 开方 0.37
+        // 同时保留电流大→粒子快、电流小→粒子慢的定性趋势。
+        const ratio = Imax > 0 ? Math.abs(state.current) / Imax : 0;
+        const speedFactor = Math.sqrt(ratio);
         // direction: 两条 path 都已按"正电荷流向"（即电流方向）定义：
         //   CHARGING_LOOP_D: 电池+ → ... → C → 电池−
         //   DISCHARGING_LOOP_D: C+（右板）→ R → 灯泡 → 开关 → C−（左板）
@@ -934,16 +941,15 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     />
 
                     {/* === 右导线（连续，无元件）=== */}
-                    {/* W3-top: 右上节点 → 右中节点（充电时上段高亮，放电时下段高亮，整体连续） */}
+                    {/* W3-top: 右上节点 → 右中节点（仅充电时高亮；放电时此段无电流，
+                         因为放电回路走右中→右下，电池支路被开关断开） */}
                     <line
                         x1={LOOP.right} y1={LOOP.top}
                         x2={LOOP.right} y2={LOOP.mid}
-                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
-                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
-                            : COLORS.wire}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
-                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                        opacity={state.mode === 'charging' ? 0.95 : 0.4}
                     />
                     {/* W3-bot: 右中节点 → 右下节点（放电时高亮，因为电流要经此到灯泡） */}
                     <line

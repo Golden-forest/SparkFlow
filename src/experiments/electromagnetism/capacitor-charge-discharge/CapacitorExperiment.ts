@@ -58,7 +58,7 @@ const config: ExperimentConfig2D = {
             key: 'resistance',
             label: 'Resistance',
             type: 'number',
-            defaultValue: 2,
+            defaultValue: 5,
             min: 1,
             max: 50,
             step: 1,
@@ -243,7 +243,7 @@ export class CapacitorExperiment extends ExperimentBase2D {
             },
             resistance: {
                 label: 'Resistance',
-                value: this.getSafeNumber('resistance', 2, 1, 50).toString(),
+                value: this.getSafeNumber('resistance', 5, 1, 50).toString(),
                 unit: 'k\u03A9',
             },
             capacitance: {
@@ -306,7 +306,7 @@ export class CapacitorExperiment extends ExperimentBase2D {
      */
     getParams(): CircuitParams {
         return {
-            resistance: this.getSafeNumber('resistance', 2, 1, 50),
+            resistance: this.getSafeNumber('resistance', 5, 1, 50),
             capacitance: this.getSafeNumber('capacitance', 200, 100, 5000),
             sourceVoltage: this.getSafeNumber('sourceVoltage', 6, 1, 12),
             loadResistance: 5, // 灯泡固定阻值 5kΩ，不作为可调参数暴露
