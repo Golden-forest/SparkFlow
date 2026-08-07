@@ -243,7 +243,7 @@ export default function ExperimentView() {
     const is2D = isExperiment2D(currentExperiment);
 
     return (
-        <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950">
+        <div className="relative flex h-dvh flex-col overflow-hidden bg-slate-950">
             <div className="pointer-events-none absolute inset-0">
                 <div className="absolute -top-40 left-1/2 h-[430px] w-[640px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-3xl" />
                 <div className="absolute -bottom-44 right-4 h-[300px] w-[300px] rounded-full bg-emerald-300/8 blur-3xl" />
@@ -285,7 +285,7 @@ export default function ExperimentView() {
                 </div>
             </header>
 
-            <main className="relative flex-1 px-4 pb-4 pt-3">
+            <main className="relative flex-1 min-h-0 px-4 pb-4 pt-3 lg:pr-[384px]">
                 <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-slate-900/45 shadow-[0_18px_60px_rgba(2,12,27,0.5)]">
                     {is2D ? (
                         <ExperimentCanvas2D experiment={currentExperiment} />
