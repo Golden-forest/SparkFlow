@@ -551,10 +551,28 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
         const params = experiment.getParams();
 
         // 根据 mode 选择 path
-        const isActiveCharge = state.mode === 'charging' && state.current > 0;
-        const isActiveDischarge = state.mode === 'discharging' && state.current < 0;
+        // 阈值 1e-9 A（1nA）：RK4 数值积分会让电流渐近趋于 0 但不精确为 0，
+        // 用阈值避免极小浮点尾数让粒子几乎不动仍可见。
+        const CURRENT_THRESHOLD = 1e-9;
+        const isActiveCharge = state.mode === 'charging' && state.current > CURRENT_THRESHOLD;
+        const isActiveDischarge = state.mode === 'discharging' && state.current < -CURRENT_THRESHOLD;
 
-        if (!isActiveCharge && !isActiveDischarge) return; // 断开或电流为 0，粒子冻结
+        if (!isActiveCharge && !isActiveDischarge) {
+            // 断开或电流为 0：隐藏所有粒子（而非冻结在最后一帧的位置）
+            const hiddenRefs = particleGroupRefs.current;
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const el = hiddenRefs[i];
+                if (el) el.setAttribute('display', 'none');
+            }
+            return;
+        }
+
+        // 进入活跃分支：恢复粒子显示（从隐藏态切回时需要）
+        const visibleRefs = particleGroupRefs.current;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            const el = visibleRefs[i];
+            if (el) el.removeAttribute('display');
+        }
 
         const pathRef = isActiveCharge ? chargingPathRef : dischargingPathRef;
         const pathLenRef = isActiveCharge ? chargingPathLen : dischargingPathLen;
