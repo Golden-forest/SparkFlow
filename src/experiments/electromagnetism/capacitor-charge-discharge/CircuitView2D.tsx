@@ -35,7 +35,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement, PointerEvent as ReactPointerEvent } from 'react';
 import type { CapacitorExperiment } from './CapacitorExperiment';
 import type { CircuitState, CircuitParams, SwitchMode } from './RCCircuitPhysics';
-import { analyzeTimeConstant } from './RCCircuitPhysics';
+import { analyzeTimeConstant, analyzeDischargeTimeConstant } from './RCCircuitPhysics';
 // Phase 4: 3D 子视图（showField3D=true 时挂在 SVG 下方）
 import { Capacitor3DCanvas } from './Capacitor3DCanvas';
 
@@ -43,46 +43,57 @@ import { Capacitor3DCanvas } from './Capacitor3DCanvas';
 const VIEW_W = 800;
 const VIEW_H = 500;
 
-// 矩形回路外圈坐标
+// H 型双支路布局坐标
 const LOOP = {
     left: 120,
     right: 680,
-    top: 120,
-    bottom: 380,
+    top: 100,        // 上支路（充电回路）y
+    bottom: 320,     // 下支路（放电回路）y
 };
 
-// 电池位置（左导线中段）
+// 电池：上支路水平放置
 const BATTERY = {
-    x: LOOP.left,
-    yTop: 220,        // 上接导线点
-    yBot: 280,        // 下接导线点
-    plusLen: 32,      // 红色长线半长（水平）
-    minusLen: 20,     // 蓝色短线半长（水平）
+    x: 280,
+    yTop: LOOP.top,          // = 100
+    yBot: LOOP.top + 60,     // = 160
+    plusLen: 32,             // 红色长线半长（水平）
+    minusLen: 20,            // 蓝色短线半长（水平）
 };
 
-// 开关位置（左导线上段，电池之上）
+// 单刀双掷开关：左侧中央
 const SWITCH = {
-    x: LOOP.left,
-    yPivot: 165,      // 开关铰链位置
-    length: 38,       // 拨杆长度
+    x: LOOP.left,            // = 120
+    yPivot: 200,             // 铰链 y（公共端）
+    length: 40,
+    contactChargeY: 100,     // 掷1 接点 y（向上，接充电回路）
+    contactDischargeY: 300,  // 掷2 接点 y（向下，接放电回路）
 };
 
-// 滑动变阻器（上导线中段）
+// 滑动变阻器：上支路水平放置
 const RHEOSTAT = {
-    xStart: 330,
-    xEnd: 530,
-    y: LOOP.top,
-    totalLength: 530 - 330, // 200
+    xStart: 380,
+    xEnd: 580,
+    y: LOOP.top,             // = 100
+    totalLength: 580 - 380,  // 200
     bodyHeight: 16,
     knobRadius: 10,
 };
 
-// 电容（右导线中段）
+// 电容：右侧垂直放置
 const CAPACITOR = {
-    x: LOOP.right,
-    yTop: 240,        // 上板 y
-    yBot: 290,        // 下板 y
+    x: LOOP.right,           // = 680
+    yTop: 180,               // 上板 y
+    yBot: 260,               // 下板 y
     plateHalfWidth: 32,
+};
+
+// 小灯泡：下支路中央
+const BULB = {
+    cx: 350,
+    cy: LOOP.bottom,         // = 320
+    radius: 22,
+    baseWidth: 30,
+    baseHeight: 10,
 };
 
 // 极板电荷点阵（5×4 = 最多 20）
@@ -102,13 +113,16 @@ const BASE_PARTICLE_SPEED_PX_PER_S = 320; // 在 |i| = Imax 时的速度
 const COLORS = {
     bg: '#0D1117',
     wire: '#475569',
-    wireHighlight: '#22D3EE',
+    wireHighlight: '#22D3EE',           // 充电高亮（青色）
+    wireHighlightDischarge: '#F97316',  // 放电高亮（橙色）
     wireBroken: '#64748B',
     positive: '#F87171',
     negative: '#60A5FA',
     accent: '#22D3EE',
     particle: '#F97316',
     particleGlow: '#F97316',
+    particleCharge: '#22D3EE',          // 充电粒子色（青）
+    particleDischarge: '#F97316',       // 放电粒子色（橙）
     rheostatBody: '#334155',
     rheostatHighlight: '#22D3EE',
     rheostatKnob: '#F0F6FC',
@@ -116,6 +130,9 @@ const COLORS = {
     textDim: '#94A3B8',
     textLabel: '#CBD5E1',
     cardBg: '#0D1117',
+    bulbOff: '#475569',                 // 灯泡不亮
+    bulbOn: '#FBBF24',                  // 灯泡亮（暖金色）
+    bulbGlow: 'rgba(251, 191, 36, 0.4)', // 灯泡光晕
 };
 
 // --- Helpers ---
@@ -136,20 +153,48 @@ function formatCharge(uc: number): string {
 }
 
 /**
- * 电路回路 path（顺时针：左下 → 左上 → 右上 → 右下 → 左下 闭合）。
- * 粒子沿此 path 流动。整条路径围绕回路外圈，绕过电容极板空隙
- * （path 是回路外圈，极板在 path 内侧；视觉上粒子沿导线流动）。
- *
- * 注意：路径方向 = 充电时的常规电流方向（顺时针）。
- * direction multiplier = sign(current)：充电 current>0 → +1（顺时针）；
- * 放电 current<0 → -1（逆时针）。
+ * 充电路径 path（粒子沿此流动，充电时顺时针）：
+ * 掷1接点(120,100) → 电池正极(280,100) → 电池负极(280,160) → R左端(380,100)
+ * → R右端(580,100) → 电容上板(680,180) → 电容下板(680,260)
+ * → 开关铰链(120,200) → 掷1接点(120,100)
  */
-const CIRCUIT_LOOP_D =
-    `M ${LOOP.left} ${LOOP.bottom} ` +
-    `L ${LOOP.left} ${LOOP.top} ` +
-    `L ${LOOP.right} ${LOOP.top} ` +
-    `L ${LOOP.right} ${LOOP.bottom} ` +
-    `Z`;
+const CHARGING_LOOP_D = [
+    `M ${SWITCH.x} ${SWITCH.contactChargeY}`,
+    `L ${BATTERY.x} ${BATTERY.yTop}`,
+    `L ${BATTERY.x} ${BATTERY.yBot}`,
+    `L ${RHEOSTAT.xStart} ${RHEOSTAT.y}`,
+    `L ${RHEOSTAT.xEnd} ${RHEOSTAT.y}`,
+    `L ${LOOP.right} ${LOOP.top}`,
+    `L ${CAPACITOR.x} ${CAPACITOR.yTop}`,
+    `L ${CAPACITOR.x} ${CAPACITOR.yBot}`,
+    `L ${LOOP.right} ${LOOP.bottom}`,
+    `L ${SWITCH.x} ${SWITCH.contactDischargeY}`,
+    `L ${SWITCH.x} ${SWITCH.yPivot}`,
+    `L ${SWITCH.x} ${SWITCH.contactChargeY}`,
+    'Z',
+].join(' ');
+
+/**
+ * 放电路径 path（粒子沿此流动，放电时逆时针）：
+ * 电容上板(680,180) → R右端(580,100) → R左端(380,100) → 节点A
+ * → 灯泡右端(372,320) → 灯泡左端(328,320) → 掷2接点(120,300)
+ * → 开关铰链(120,200) → 电容下板(680,260) → 电容上板(680,180)
+ */
+const DISCHARGING_LOOP_D = [
+    `M ${CAPACITOR.x} ${CAPACITOR.yTop}`,
+    `L ${LOOP.right} ${LOOP.top}`,
+    `L ${RHEOSTAT.xEnd} ${RHEOSTAT.y}`,
+    `L ${RHEOSTAT.xStart} ${RHEOSTAT.y}`,
+    `L ${BATTERY.x} ${BATTERY.yTop}`,
+    `L ${BULB.cx + BULB.radius} ${BULB.cy}`,
+    `L ${BULB.cx - BULB.radius} ${BULB.cy}`,
+    `L ${SWITCH.x} ${LOOP.bottom}`,
+    `L ${SWITCH.x} ${SWITCH.contactDischargeY}`,
+    `L ${SWITCH.x} ${SWITCH.yPivot}`,
+    `L ${CAPACITOR.x} ${CAPACITOR.yBot}`,
+    `L ${CAPACITOR.x} ${CAPACITOR.yTop}`,
+    'Z',
+].join(' ');
 
 // --- Sub-components ---
 
@@ -206,24 +251,28 @@ function ValueTag({ x, y, text, fill = COLORS.text, align = 'middle' }: ValueTag
 
 interface FormulaCardProps {
     mode: SwitchMode;
-    tau: number;
+    tauCharge: number;
+    tauDischarge: number;
     visible: boolean;
 }
 
-function FormulaCard({ mode, tau, visible }: FormulaCardProps) {
+function FormulaCard({ mode, tauCharge, tauDischarge, visible }: FormulaCardProps) {
     if (!visible) return null;
-    const tauText = `τ = RC = ${tau.toFixed(2)} s`;
     let eqnText: string;
+    let tauText: string;
     if (mode === 'charging') {
         eqnText = 'U_C(t) = U₀(1 − e^(−t/RC))';
+        tauText = `τ_充 = RC = ${tauCharge.toFixed(2)} s`;
     } else if (mode === 'discharging') {
-        eqnText = 'U_C(t) = U_C(0)·e^(−t/RC)';
+        eqnText = 'U_C(t) = U_C(0)·e^(−t/(R+R_L)C)';
+        tauText = `τ_放 = (R+R_L)C = ${tauDischarge.toFixed(2)} s`;
     } else {
         eqnText = 'U_C(t) = const (open circuit)';
+        tauText = `τ_充 = ${tauCharge.toFixed(2)} s, τ_放 = ${tauDischarge.toFixed(2)} s`;
     }
-    const cardX = 250;
+    const cardX = 200;
     const cardY = 26;
-    const cardW = 380;
+    const cardW = 480;
     const cardH = 56;
     return (
         <g>
@@ -262,6 +311,87 @@ function FormulaCard({ mode, tau, visible }: FormulaCardProps) {
             </text>
         </g>
     );
+}
+
+// --- 小灯泡组件 ---
+
+interface BulbLampProps {
+    cx: number;
+    cy: number;
+    radius: number;
+    brightness: number;  // 0..1
+    active: boolean;      // 是否在放电模式
+}
+
+/**
+ * 小灯泡：亮度随放电电流变化。
+ * - 不亮：深灰灯泡外形 + 暗灯丝
+ * - 亮：暖金色发光 + 高斯模糊光晕
+ */
+function BulbLamp({ cx, cy, radius, brightness, active }: BulbLampProps) {
+    const bulbColor = active
+        ? interpolateColor('#475569', '#FBBF24', brightness)
+        : '#475569';
+    const glowOpacity = active ? brightness * 0.6 : 0;
+    return (
+        <g style={{ pointerEvents: 'none' }}>
+            {/* 光晕（仅亮时可见） */}
+            {active && brightness > 0.05 && (
+                <>
+                    <circle cx={cx} cy={cy} r={radius * 2.2} fill="#FBBF24" opacity={glowOpacity * 0.3} filter="url(#bulbGlow)" />
+                    <circle cx={cx} cy={cy} r={radius * 1.5} fill="#FBBF24" opacity={glowOpacity * 0.5} filter="url(#bulbGlow)" />
+                </>
+            )}
+            {/* 灯泡玻璃外壳 */}
+            <circle
+                cx={cx}
+                cy={cy}
+                r={radius}
+                fill={bulbColor}
+                fillOpacity={active ? 0.3 + brightness * 0.5 : 0.15}
+                stroke={active ? '#FBBF24' : COLORS.wire}
+                strokeWidth={2}
+            />
+            {/* 灯丝（X 形） */}
+            <line
+                x1={cx - radius * 0.5} y1={cy - radius * 0.5}
+                x2={cx + radius * 0.5} y2={cy + radius * 0.5}
+                stroke={active ? '#FEF3C7' : COLORS.wireBroken}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+            />
+            <line
+                x1={cx - radius * 0.5} y1={cy + radius * 0.5}
+                x2={cx + radius * 0.5} y2={cy - radius * 0.5}
+                stroke={active ? '#FEF3C7' : COLORS.wireBroken}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+            />
+            {/* 灯座（底部小矩形） */}
+            <rect
+                x={cx - 12}
+                y={cy + radius - 2}
+                width={24}
+                height={8}
+                rx={2}
+                fill={COLORS.wire}
+            />
+        </g>
+    );
+}
+
+/** 线性插值两个 hex 颜色 */
+function interpolateColor(c1: string, c2: string, t: number): string {
+    const parse = (hex: string) => {
+        const h = hex.replace('#', '');
+        return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    };
+    const [r1, g1, b1] = parse(c1);
+    const [r2, g2, b2] = parse(c2);
+    const r = Math.round(r1 + (r2 - r1) * t);
+    const g = Math.round(g1 + (g2 - g1) * t);
+    const b = Math.round(b1 + (b2 - b1) * t);
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 // --- Particle group (memoized to avoid reconciliation on parent re-render) ---
@@ -334,12 +464,14 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const lastTimeRef = useRef<number>(performance.now());
     // 粒子 SVG <g> refs（由 ParticleGroup 子组件挂载后通过回调写入）
     const particleGroupRefs = useRef<(SVGGElement | null)[]>([]);
-    // 闭合 path ref（用于 getPointAtLength / getTotalLength）
-    const pathRef = useRef<SVGPathElement | null>(null);
+    // 双 path ref（充电路径 + 放电路径，用于 getPointAtLength / getTotalLength）
+    const chargingPathRef = useRef<SVGPathElement | null>(null);
+    const dischargingPathRef = useRef<SVGPathElement | null>(null);
+    // 当前激活的 path 长度缓存
+    const chargingPathLen = useRef<number>(0);
+    const dischargingPathLen = useRef<number>(0);
     // 主 <svg> 元素 ref（用于拖拽时把屏幕坐标转换为 SVG 坐标）
     const svgRef = useRef<SVGSVGElement | null>(null);
-    // 缓存 path 总长度（避免每帧重算）
-    const pathLengthRef = useRef<number>(0);
     // 拖拽状态
     const dragStateRef = useRef<{ active: boolean }>({ active: false });
 
@@ -371,29 +503,37 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
 
     // --- 粒子位置更新（DOM mutation） ---
     function updateParticles(dt: number) {
-        const path = pathRef.current;
-        if (!path) return;
-        if (pathLengthRef.current === 0) {
-            pathLengthRef.current = path.getTotalLength();
-        }
-        const totalLen = pathLengthRef.current;
-        if (totalLen <= 0) return;
-
         const state = experiment.getPhysicsState();
         const params = experiment.getParams();
 
+        // 根据 mode 选择 path
+        const isActiveCharge = state.mode === 'charging' && state.current > 0;
+        const isActiveDischarge = state.mode === 'discharging' && state.current < 0;
+
+        if (!isActiveCharge && !isActiveDischarge) return; // 断开或电流为 0，粒子冻结
+
+        const pathRef = isActiveCharge ? chargingPathRef : dischargingPathRef;
+        const pathLenRef = isActiveCharge ? chargingPathLen : dischargingPathLen;
+
+        const path = pathRef.current;
+        if (!path) return;
+        if (pathLenRef.current === 0) {
+            pathLenRef.current = path.getTotalLength();
+        }
+        const totalLen = pathLenRef.current;
+        if (totalLen <= 0) return;
+
         // 计算 |i| 与 Imax 的比例
         const R_ohm = params.resistance * 1000;
+        const R_load_ohm = params.loadResistance * 1000;
         const U0 = params.sourceVoltage;
-        const Imax = R_ohm > 0 ? U0 / R_ohm : 0;
+        // 充电 Imax = U0/R；放电 Imax = U0/(R+R_L)
+        const Imax = isActiveCharge
+            ? (R_ohm > 0 ? U0 / R_ohm : 0)
+            : (R_ohm + R_load_ohm > 0 ? U0 / (R_ohm + R_load_ohm) : 0);
         const speedFactor = Imax > 0 ? Math.abs(state.current) / Imax : 0;
-        // direction: charging current>0 → +1（顺时针）；discharging current<0 → -1（逆时针）；其他 0
-        const direction =
-            state.mode === 'charging' && state.current > 0
-                ? 1
-                : state.mode === 'discharging' && state.current < 0
-                  ? -1
-                  : 0;
+        // direction: charging → +1（顺时针）；discharging → -1（逆时针）
+        const direction = isActiveCharge ? 1 : -1;
 
         const speed = BASE_PARTICLE_SPEED_PX_PER_S * speedFactor * direction;
 
@@ -473,7 +613,8 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const showLabels = experiment.getParameter('showLabels') as boolean;
     const showField3D = experiment.getParameter('showField3D') as boolean;
 
-    const tau = analyzeTimeConstant(params);
+    const tauCharge = analyzeTimeConstant(params);
+    const tauDischarge = analyzeDischargeTimeConstant(params);
     const R_ohm = params.resistance * 1000;
     const C_farad = params.capacitance * 1e-6;
     const Imax = R_ohm > 0 ? params.sourceVoltage / R_ohm : 0;
@@ -481,13 +622,16 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const Qabs = Math.abs(state.charge);
     const chargeDots = Qmax > 0 ? Math.floor((Qabs / Qmax) * (CHARGE_GRID.cols * CHARGE_GRID.rows)) : 0;
 
+    // 灯泡亮度（放电时随电流变化）
+    const R_load_ohm = params.loadResistance * 1000;
+    const i_max_discharge = R_ohm + R_load_ohm > 0 ? params.sourceVoltage / (R_ohm + R_load_ohm) : 0;
+    const bulbBrightness = i_max_discharge > 0
+        ? Math.min(Math.abs(state.current) / i_max_discharge, 1)
+        : 0;
+
     // 滑片 x 位置（由 params.resistance 完全决定，无内部 state）
     const knobRatio = (params.resistance - 1) / (50 - 1);
     const knobX = RHEOSTAT.xStart + knobRatio * RHEOSTAT.totalLength;
-
-    // 开关状态视觉
-    const switchActive = state.mode !== 'disconnected';
-    const switchColor = switchActive ? COLORS.wireHighlight : COLORS.wireBroken;
 
     return (
         <div
@@ -546,69 +690,87 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                 height="100%"
                 style={{ display: 'block' }}
             >
-                {/* 隐藏的回路 path（仅用于 getPointAtLength） */}
+                <defs>
+                    <filter id="bulbGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="4" />
+                    </filter>
+                </defs>
+
+                {/* 隐藏的充电路径 path（仅用于 getPointAtLength） */}
                 <path
-                    ref={pathRef}
-                    d={CIRCUIT_LOOP_D}
+                    ref={chargingPathRef}
+                    d={CHARGING_LOOP_D}
+                    fill="none"
+                    stroke="none"
+                    style={{ visibility: 'hidden', pointerEvents: 'none' }}
+                />
+                {/* 隐藏的放电路径 path */}
+                <path
+                    ref={dischargingPathRef}
+                    d={DISCHARGING_LOOP_D}
                     fill="none"
                     stroke="none"
                     style={{ visibility: 'hidden', pointerEvents: 'none' }}
                 />
 
                 {/* ===== 公式卡片（顶部） ===== */}
-                <FormulaCard mode={state.mode} tau={tau} visible={showLabels} />
+                <FormulaCard mode={state.mode} tauCharge={tauCharge} tauDischarge={tauDischarge} visible={showLabels} />
 
-                {/* ===== 开关（左导线上段） ===== */}
+                {/* ===== 单刀双掷开关（左侧中央） ===== */}
                 <g>
-                    {/* 开关铰链基座 */}
-                    <circle cx={SWITCH.x} cy={SWITCH.yPivot} r={4} fill={switchColor} />
-                    {/* 左侧开关固定接点（朝向电池方向，y 较大） */}
+                    {/* 掷1 接点（上方，充电） */}
                     <circle
                         cx={SWITCH.x}
-                        cy={SWITCH.yPivot + SWITCH.length}
+                        cy={SWITCH.contactChargeY}
                         r={3.5}
-                        fill={switchColor}
-                        opacity={state.mode === 'charging' || state.mode === 'disconnected' ? 1 : 0.4}
+                        fill={state.mode === 'charging' ? COLORS.wireHighlight : COLORS.wireBroken}
+                        opacity={state.mode === 'charging' ? 1 : 0.4}
                     />
-                    {/* 右侧开关固定接点（朝向上方导线方向，y 较小） */}
+                    {/* 掷2 接点（下方，放电） */}
                     <circle
-                        cx={SWITCH.x + SWITCH.length}
-                        cy={SWITCH.yPivot}
+                        cx={SWITCH.x}
+                        cy={SWITCH.contactDischargeY}
                         r={3.5}
-                        fill={switchColor}
+                        fill={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wireBroken}
                         opacity={state.mode === 'discharging' ? 1 : 0.4}
+                    />
+                    {/* 铰链基座（公共端） */}
+                    <circle
+                        cx={SWITCH.x}
+                        cy={SWITCH.yPivot}
+                        r={4}
+                        fill={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wireBroken}
                     />
                     {/* 拨杆：根据 mode 决定指向 */}
                     {state.mode === 'disconnected' ? (
-                        // 断开：斜向上指（悬空）
                         <line
                             x1={SWITCH.x}
                             y1={SWITCH.yPivot}
-                            x2={SWITCH.x + SWITCH.length * 0.85}
-                            y2={SWITCH.yPivot - SWITCH.length * 0.5}
+                            x2={SWITCH.x + 30}
+                            y2={SWITCH.yPivot}
                             stroke={COLORS.wireBroken}
                             strokeWidth={3}
                             strokeLinecap="round"
                         />
                     ) : state.mode === 'charging' ? (
-                        // 充电：拨杆向下接通（铰链 → 下接点，闭合充电回路）
                         <line
                             x1={SWITCH.x}
                             y1={SWITCH.yPivot}
                             x2={SWITCH.x}
-                            y2={SWITCH.yPivot + SWITCH.length}
+                            y2={SWITCH.contactChargeY}
                             stroke={COLORS.wireHighlight}
                             strokeWidth={3}
                             strokeLinecap="round"
                         />
                     ) : (
-                        // 放电：拨杆向右接通（铰链 → 右接点，闭合电容短路回路）
                         <line
                             x1={SWITCH.x}
                             y1={SWITCH.yPivot}
-                            x2={SWITCH.x + SWITCH.length}
-                            y2={SWITCH.yPivot}
-                            stroke={COLORS.wireHighlight}
+                            x2={SWITCH.x}
+                            y2={SWITCH.contactDischargeY}
+                            stroke={COLORS.wireHighlightDischarge}
                             strokeWidth={3}
                             strokeLinecap="round"
                         />
@@ -616,104 +778,234 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     {/* 开关模式标签 */}
                     {showLabels && (
                         <text
-                            x={SWITCH.x - 18}
-                            y={SWITCH.yPivot - 10}
+                            x={SWITCH.x - 14}
+                            y={SWITCH.yPivot + 4}
                             textAnchor="end"
                             fontFamily="Nunito, sans-serif"
                             fontSize={12}
                             fontWeight={700}
-                            fill={switchActive ? COLORS.accent : COLORS.textDim}
+                            fill={state.mode === 'charging' ? COLORS.wireHighlight
+                                : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                                : COLORS.textDim}
                             style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}
                         >
                             {state.mode}
                         </text>
                     )}
+                    {/* 接点标签 */}
+                    {showLabels && (
+                        <>
+                            <text
+                                x={SWITCH.x + 12}
+                                y={SWITCH.contactChargeY + 4}
+                                fontFamily="Nunito, sans-serif"
+                                fontSize={10}
+                                fill={COLORS.textDim}
+                            >
+                                充电
+                            </text>
+                            <text
+                                x={SWITCH.x + 12}
+                                y={SWITCH.contactDischargeY + 4}
+                                fontFamily="Nunito, sans-serif"
+                                fontSize={10}
+                                fill={COLORS.textDim}
+                            >
+                                放电
+                            </text>
+                        </>
+                    )}
                 </g>
 
-                {/* ===== 导线（矩形回路，分段绘制以避开电池/电容/开关空隙） ===== */}
+                {/* ===== 导线（H 型 6 段，根据 mode 高亮充放电回路） ===== */}
                 <g>
-                    {/* 左导线：上段（top → 开关铰链上方） */}
+                    {/* W1: 掷1接点 → 电池正极（充电时高亮青色） */}
                     <line
-                        x1={LOOP.left}
-                        y1={LOOP.top}
-                        x2={LOOP.left}
-                        y2={SWITCH.yPivot - 6}
-                        stroke={COLORS.wire}
-                        strokeWidth={3}
-                        strokeLinecap="round"
-                    />
-                    {/* 左导线：铰链 → 电池上接点（充电时通断） */}
-                    <line
-                        x1={LOOP.left}
-                        y1={SWITCH.yPivot + SWITCH.length}
-                        x2={LOOP.left}
-                        y2={BATTERY.yTop}
+                        x1={SWITCH.x} y1={SWITCH.contactChargeY}
+                        x2={BATTERY.x - BATTERY.plusLen} y2={BATTERY.yTop}
                         stroke={state.mode === 'charging' ? COLORS.wireHighlight : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
-                        opacity={state.mode === 'charging' ? 0.95 : 0.6}
+                        opacity={state.mode === 'charging' ? 0.95 : 0.5}
                     />
-                    {/* 左导线：电池下接点 → 底部 */}
+                    {/* W2: 电池负极 → R 左端（充电和放电都走此段，放电也经过 R） */}
                     <line
-                        x1={LOOP.left}
-                        y1={BATTERY.yBot}
-                        x2={LOOP.left}
-                        y2={LOOP.bottom}
-                        stroke={COLORS.wire}
+                        x1={BATTERY.x + BATTERY.plusLen} y1={BATTERY.yTop}
+                        x2={RHEOSTAT.xStart} y2={RHEOSTAT.y}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
                     />
-                    {/* 上导线：左 → 滑动变阻器左端 */}
+                    {/* W2b: 电池正极水平线 */}
                     <line
-                        x1={LOOP.left}
-                        y1={LOOP.top}
-                        x2={RHEOSTAT.xStart}
-                        y2={LOOP.top}
-                        stroke={COLORS.wire}
+                        x1={BATTERY.x - BATTERY.plusLen} y1={BATTERY.yTop}
+                        x2={BATTERY.x + BATTERY.plusLen} y2={BATTERY.yTop}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
                     />
-                    {/* 上导线：滑动变阻器右端 → 右上角 */}
+                    {/* W2c: 电池正极 → 电池负极（垂直连接，绕过电池符号右侧） */}
                     <line
-                        x1={RHEOSTAT.xEnd}
-                        y1={LOOP.top}
-                        x2={LOOP.right}
-                        y2={LOOP.top}
-                        stroke={COLORS.wire}
+                        x1={BATTERY.x + BATTERY.plusLen} y1={BATTERY.yTop}
+                        x2={BATTERY.x + BATTERY.plusLen} y2={BATTERY.yBot}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
                     />
-                    {/* 右导线：上 → 电容上板 */}
+                    {/* W2d: 电池负极水平线 */}
                     <line
-                        x1={LOOP.right}
-                        y1={LOOP.top}
-                        x2={LOOP.right}
-                        y2={CAPACITOR.yTop}
-                        stroke={COLORS.wire}
+                        x1={BATTERY.x - BATTERY.minusLen} y1={BATTERY.yBot}
+                        x2={BATTERY.x + BATTERY.minusLen} y2={BATTERY.yBot}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
                     />
-                    {/* 右导线：电容下板 → 底部 */}
+                    {/* W2e: 电池负极 → R 左端（水平向上折线） */}
                     <line
-                        x1={LOOP.right}
-                        y1={CAPACITOR.yBot}
-                        x2={LOOP.right}
-                        y2={LOOP.bottom}
-                        stroke={COLORS.wire}
+                        x1={BATTERY.x + BATTERY.minusLen} y1={BATTERY.yBot}
+                        x2={RHEOSTAT.xStart} y2={BATTERY.yBot}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
                     />
-                    {/* 底导线：右 → 左 */}
                     <line
-                        x1={LOOP.right}
-                        y1={LOOP.bottom}
-                        x2={LOOP.left}
-                        y2={LOOP.bottom}
-                        stroke={COLORS.wire}
+                        x1={RHEOSTAT.xStart} y1={BATTERY.yBot}
+                        x2={RHEOSTAT.xStart} y2={RHEOSTAT.y}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
                         strokeWidth={3}
                         strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    {/* W3: R 右端 → 电容上板（公共段，充电放电都走） */}
+                    <line
+                        x1={RHEOSTAT.xEnd} y1={RHEOSTAT.y}
+                        x2={CAPACITOR.x} y2={RHEOSTAT.y}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    <line
+                        x1={CAPACITOR.x} y1={LOOP.top}
+                        x2={CAPACITOR.x} y2={CAPACITOR.yTop}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    {/* W4: 电容下板 → 开关铰链（公共段，经右侧垂直 + 底部水平） */}
+                    <line
+                        x1={CAPACITOR.x} y1={CAPACITOR.yBot}
+                        x2={CAPACITOR.x} y2={LOOP.bottom}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    <line
+                        x1={CAPACITOR.x} y1={LOOP.bottom}
+                        x2={SWITCH.x} y2={LOOP.bottom}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    <line
+                        x1={SWITCH.x} y1={LOOP.bottom}
+                        x2={SWITCH.x} y2={SWITCH.yPivot}
+                        stroke={state.mode === 'charging' ? COLORS.wireHighlight
+                            : state.mode === 'discharging' ? COLORS.wireHighlightDischarge
+                            : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode !== 'disconnected' ? 0.95 : 0.5}
+                    />
+                    {/* W5: 掷2接点 → 灯泡（仅放电时高亮） */}
+                    <line
+                        x1={SWITCH.x} y1={SWITCH.contactDischargeY}
+                        x2={SWITCH.x} y2={LOOP.bottom}
+                        stroke={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode === 'discharging' ? 0.95 : 0.3}
+                    />
+                    <line
+                        x1={SWITCH.x} y1={LOOP.bottom}
+                        x2={BULB.cx - BULB.radius} y2={BULB.cy}
+                        stroke={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode === 'discharging' ? 0.95 : 0.3}
+                    />
+                    {/* W6: 灯泡右端 → 节点A（电池正极方向，仅放电时高亮） */}
+                    <line
+                        x1={BULB.cx + BULB.radius} y1={BULB.cy}
+                        x2={BATTERY.x + BATTERY.plusLen + 10} y2={BULB.cy}
+                        stroke={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode === 'discharging' ? 0.95 : 0.3}
+                    />
+                    <line
+                        x1={BATTERY.x + BATTERY.plusLen + 10} y1={BULB.cy}
+                        x2={BATTERY.x + BATTERY.plusLen + 10} y2={BATTERY.yTop}
+                        stroke={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode === 'discharging' ? 0.95 : 0.3}
+                    />
+                    <line
+                        x1={BATTERY.x + BATTERY.plusLen + 10} y1={BATTERY.yTop}
+                        x2={BATTERY.x + BATTERY.plusLen} y2={BATTERY.yTop}
+                        stroke={state.mode === 'discharging' ? COLORS.wireHighlightDischarge : COLORS.wire}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        opacity={state.mode === 'discharging' ? 0.95 : 0.3}
                     />
                 </g>
+
+                {/* ===== 小灯泡（下支路） ===== */}
+                <BulbLamp
+                    cx={BULB.cx}
+                    cy={BULB.cy}
+                    radius={BULB.radius}
+                    brightness={bulbBrightness}
+                    active={state.mode === 'discharging'}
+                />
+                {/* 灯泡标签 */}
+                {showLabels && (
+                    <ValueTag
+                        x={BULB.cx}
+                        y={BULB.cy + BULB.radius + 24}
+                        text={`R_L = ${params.loadResistance} kΩ`}
+                        fill={state.mode === 'discharging' ? COLORS.bulbOn : COLORS.textDim}
+                    />
+                )}
 
                 {/* ===== 电池（左导线中段） ===== */}
                 <g>
@@ -934,13 +1226,14 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     )}
                 </g>
 
-                {/* ===== 电流数值标签（底导线上方） ===== */}
+                {/* ===== 电流数值标签（电容右侧空白处，避免与灯泡/支路重叠） ===== */}
                 {showLabels && (
                     <ValueTag
-                        x={(LOOP.left + LOOP.right) / 2}
-                        y={LOOP.bottom - 22}
+                        x={CAPACITOR.x + CAPACITOR.plateHalfWidth + 60}
+                        y={(CAPACITOR.yTop + CAPACITOR.yBot) / 2 + 28}
                         text={`i = ${formatCurrent(state.current * 1000)} mA`}
                         fill={COLORS.particle}
+                        align="end"
                     />
                 )}
 
