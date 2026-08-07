@@ -15,6 +15,7 @@ import { DoubleSlitInterference } from './optics/double-slit-interference';
 import { BoyleLaw } from './thermodynamics/boyle-law';
 import { GalvanicCell } from './electrochemistry';
 import { SynchrotronExperiment } from './electromagnetism';
+import './electromagnetism/capacitor-charge-discharge';
 
 // 注册实验
 ExperimentRegistry.register('rutherford-scattering', RutherfordExperiment);
@@ -49,4 +50,5 @@ export { DoubleSlitInterference } from './optics/double-slit-interference';
 export { BoyleLaw } from './thermodynamics/boyle-law';
 export { GalvanicCell } from './electrochemistry';
 export { SynchrotronExperiment } from './electromagnetism';
+export { CapacitorExperiment } from './electromagnetism/capacitor-charge-discharge';
 export { CircleDemo2D } from './test-circle-2d';

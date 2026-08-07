@@ -435,6 +435,103 @@ const ElectrochemicalCellDiagram = () => (
     </div>
 );
 
+const CapacitorCircuitDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-80">
+            <defs>
+                <radialGradient id="capacitorGlow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#FBBF24" stopOpacity="0.45" />
+                    <stop offset="60%" stopColor="#F97316" stopOpacity="0.12" />
+                    <stop offset="100%" stopColor="#FBBF24" stopOpacity="0" />
+                </radialGradient>
+            </defs>
+            {/* Warm glow halo behind the capacitor plates */}
+            <ellipse cx="120" cy="66" rx="70" ry="46" fill="url(#capacitorGlow)" />
+            {/* Main loop wire: battery (left) -> top rail -> capacitor gap -> top rail -> resistor -> bottom rail */}
+            <path
+                d="M 30 100 L 30 30 L 96 30 M 144 30 L 210 30 L 210 100 L 30 100"
+                fill="none"
+                stroke="#475569"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+            />
+            {/* Battery (left side) — long red +, short blue - */}
+            <line x1="20" y1="60" x2="40" y2="60" stroke="#F87171" strokeWidth="3" />
+            <line x1="26" y1="70" x2="34" y2="70" stroke="#60A5FA" strokeWidth="2" />
+            <line x1="30" y1="30" x2="30" y2="60" stroke="#475569" strokeWidth="2.5" />
+            <line x1="30" y1="70" x2="30" y2="100" stroke="#475569" strokeWidth="2.5" />
+            {/* Capacitor plates (center) */}
+            <line x1="96" y1="44" x2="96" y2="88" stroke="#F87171" strokeWidth="3" />
+            <line x1="144" y1="44" x2="144" y2="88" stroke="#60A5FA" strokeWidth="3" />
+            {/* Top-rail connector dots at the capacitor gap (visual aid) */}
+            <circle cx="96" cy="30" r="2" fill="#475569" />
+            <circle cx="144" cy="30" r="2" fill="#475569" />
+            {/* Electric field lines between plates (dashed cyan, pulsing) */}
+            {[50, 66, 82].map((y) => (
+                <line
+                    key={y}
+                    x1="98"
+                    y1={y}
+                    x2="142"
+                    y2={y}
+                    stroke="#22D3EE"
+                    strokeWidth="1.2"
+                    strokeDasharray="3 2.5"
+                    opacity="0.7"
+                >
+                    <animate
+                        attributeName="opacity"
+                        values="0.2;0.9;0.2"
+                        dur="1.8s"
+                        repeatCount="indefinite"
+                    />
+                </line>
+            ))}
+            {/* Sliding rheostat body + sliding contact (yellow knob) */}
+            <rect
+                x="170"
+                y="22"
+                width="56"
+                height="16"
+                rx="2"
+                fill="#334155"
+                stroke="#475569"
+                strokeWidth="1"
+            />
+            <circle cx="188" cy="30" r="4.5" fill="#FACC15" stroke="#FBBF24" strokeWidth="1">
+                <animate
+                    attributeName="cx"
+                    values="176;220;176"
+                    dur="2.2s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+            {/* Current particles flowing around the loop */}
+            <circle cx="60" cy="100" r="3" fill="#F97316">
+                <animate
+                    attributeName="cx"
+                    values="30;210;30"
+                    dur="2s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+            <circle cx="160" cy="100" r="3" fill="#F97316">
+                <animate
+                    attributeName="cx"
+                    values="210;30;210"
+                    dur="2.4s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+            {/* Labels */}
+            <text x="120" y="22" textAnchor="middle" fill="#22D3EE" fontSize="9" fontWeight="bold">C</text>
+            <text x="198" y="50" textAnchor="middle" fill="#FACC15" fontSize="9" fontWeight="bold">R</text>
+            <text x="14" y="66" textAnchor="middle" fill="#F87171" fontSize="9" fontWeight="bold">+</text>
+            <text x="14" y="76" textAnchor="middle" fill="#60A5FA" fontSize="9" fontWeight="bold">-</text>
+        </svg>
+    </div>
+);
+
 const SynchrotronDiagram = () => (
     <div className="relative flex h-36 w-full items-center justify-center">
         <svg width="240" height="132" viewBox="0 0 240 132" className="overflow-visible opacity-85">
@@ -615,6 +712,12 @@ const experiments: ExperimentCard[] = [
         diagram: <ElectrochemicalCellDiagram />,
         gradient: 'from-amber-900/20 via-yellow-900/10 to-orange-900/20',
     },
+    {
+        id: 'capacitor-charge-discharge',
+        title: 'Capacitor Circuit',
+        diagram: <CapacitorCircuitDiagram />,
+        gradient: 'from-amber-900/20 via-yellow-900/10 to-orange-900/20',
+    },
 ];
 
 export default function Home() {
@@ -673,7 +776,7 @@ export default function Home() {
             className="flex min-h-screen flex-col bg-[#0D1117]"
             style={{
                 fontFamily:
-                    'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    '"Nunito", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             }}
         >
             <header className="px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">

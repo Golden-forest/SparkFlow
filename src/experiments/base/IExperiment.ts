@@ -68,6 +68,8 @@ export interface MonitorSchema {
     quantities: MonitorQuantityDefinition[];
     defaultSelected?: string[];
     sampleIntervalMs?: number;
+    /** Max history points per quantity (default 100). */
+    maxHistoryLength?: number;
 }
 
 /**

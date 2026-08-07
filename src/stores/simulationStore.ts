@@ -94,8 +94,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     },
 
     updateMonitoringHistory: (quantityId: string, value: number) => set(state => {
+        const max = get().currentExperiment?.getMonitorSchema?.()?.maxHistoryLength ?? 100;
         const currentHistory = state.monitoringHistory[quantityId] || [];
-        const newHistory = [...currentHistory, value].slice(-100); // 保留最新100个数据点
+        const newHistory = [...currentHistory, value].slice(-max); // 按 schema 限制历史长度
 
         return {
             monitoringHistory: {
