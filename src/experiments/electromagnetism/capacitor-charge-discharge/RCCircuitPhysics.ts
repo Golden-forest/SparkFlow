@@ -10,6 +10,7 @@
  * - CircuitParams.resistance    : kΩ  （显示单位）
  * - CircuitParams.capacitance   : μF  （显示单位）
  * - CircuitParams.sourceVoltage : V
+ * - CircuitParams.loadResistance : kΩ  （灯泡内阻，固定值）
  * - CircuitState.voltage        : V    (U_C)
  * - CircuitState.current        : A    (i，内部 SI)
  * - CircuitState.charge         : C    (Q)
@@ -49,6 +50,8 @@ export interface CircuitParams {
     capacitance: number;
     /** 电源电动势 U₀，单位 V */
     sourceVoltage: number;
+    /** 灯泡负载电阻 R_L，单位 kΩ（固定 5kΩ，不可调） */
+    loadResistance: number;
 }
 
 /**
@@ -79,6 +82,20 @@ export function analyzeTimeConstant(params: CircuitParams): number {
 }
 
 /**
+ * 计算放电时间常数 τ_放 = (R + R_L) × C（单位：秒）。
+ *
+ * 放电回路中 R 与 R_L 串联，故总电阻 = R + R_L。
+ *
+ * τ_放 = (resistance + loadResistance) × 1000 Ω × capacitance × 1e-6 F
+ *      = (resistance + loadResistance) × capacitance × 1e-3 s
+ *
+ * 例：R=10kΩ, R_L=5kΩ, C=1000μF → 15 × 1000 × 1e-3 = 15 s
+ */
+export function analyzeDischargeTimeConstant(params: CircuitParams): number {
+    return (params.resistance + params.loadResistance) * params.capacitance * 1e-3;
+}
+
+/**
  * 校验参数是否合法（有限正数）。
  */
 function isValidParam(value: number): boolean {
@@ -89,13 +106,13 @@ function isValidParam(value: number): boolean {
  * 单步推进：用 RK4 积分 U_C 的一阶线性 ODE，再由 U_C 推出 i 和 Q。
  *
  * ODE:
- *   charging     : dU/dt = (U₀ - U) / τ
- *   discharging  : dU/dt = -U / τ
+ *   charging     : dU/dt = (U₀ - U) / τ_充        （τ_充 = R × C）
+ *   discharging  : dU/dt = -U / τ_放               （τ_放 = (R + R_L) × C）
  *   disconnected : dU/dt = 0
  *
  * 电流（按高中物理符号约定，以充电电流方向为正）：
- *   charging     : i = (U₀ - U_next) / R_Ω     (≥ 0)
- *   discharging  : i = -U_next / R_Ω            (≤ 0)
+ *   charging     : i = (U₀ - U_next) / R_Ω              (≥ 0)
+ *   discharging  : i = -U_next / (R_Ω + R_L_Ω)          (≤ 0)
  *   disconnected : i = 0
  *
  * 电荷：Q_next = C_F × U_next
@@ -113,18 +130,21 @@ export function step(state: CircuitState, params: CircuitParams, dt: number): Ci
     if (
         !isValidParam(params.resistance) ||
         !isValidParam(params.capacitance) ||
-        !isValidParam(params.sourceVoltage)
+        !isValidParam(params.sourceVoltage) ||
+        !isValidParam(params.loadResistance)
     ) {
         return { ...state, current: 0 };
     }
 
-    const R_ohm = params.resistance * 1000;       // kΩ → Ω
-    const C_farad = params.capacitance * 1e-6;    // μF → F
-    const tau = R_ohm * C_farad;                  // 秒
+    const R_ohm = params.resistance * 1000;           // kΩ → Ω
+    const R_load_ohm = params.loadResistance * 1000;  // kΩ → Ω
+    const C_farad = params.capacitance * 1e-6;        // μF → F
+    const tau_charge = R_ohm * C_farad;               // 充电 τ
+    const tau_discharge = (R_ohm + R_load_ohm) * C_farad; // 放电 τ
     const U0 = params.sourceVoltage;
 
     // τ 为 0 在这里理论上不可能（已由 isValidParam 过滤），但稳健起见再做一次
-    if (!(tau > 0)) {
+    if (!(tau_charge > 0) || !(tau_discharge > 0)) {
         return { ...state, current: 0 };
     }
 
@@ -134,9 +154,9 @@ export function step(state: CircuitState, params: CircuitParams, dt: number): Ci
     const deriv = (u: number): number => {
         switch (state.mode) {
             case 'charging':
-                return (U0 - u) / tau;
+                return (U0 - u) / tau_charge;
             case 'discharging':
-                return -u / tau;
+                return -u / tau_discharge;
             case 'disconnected':
             default:
                 return 0;
@@ -163,7 +183,7 @@ export function step(state: CircuitState, params: CircuitParams, dt: number): Ci
             current_next = (U0 - U_next) / R_ohm;
             break;
         case 'discharging':
-            current_next = -U_next / R_ohm;
+            current_next = -U_next / (R_ohm + R_load_ohm);
             break;
         case 'disconnected':
         default:

@@ -4,3 +4,4 @@ export type {
     CircuitParams,
     SwitchMode,
 } from './RCCircuitPhysics';
+export { analyzeTimeConstant, analyzeDischargeTimeConstant } from './RCCircuitPhysics';
