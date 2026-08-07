@@ -3,6 +3,7 @@ import type {
     ExperimentConfig2D,
     DisplayValue,
     MonitorSchema,
+    ControlSchema,
 } from '@/experiments/base';
 import { ExperimentBase2D, registerExperiment2D } from '@/experiments/base';
 import { ExperimentCategory } from '@/utils/constants';
@@ -83,6 +84,8 @@ const config: ExperimentConfig2D = {
             step: 0.5,
             unit: 'V',
         },
+        // switchMode 不在控制面板显示（由电路图上的 SPDT 开关点击控制），
+        // 但必须留在 config.parameters 里，否则 setParameter 的白名单会拒绝。
         {
             key: 'switchMode',
             label: 'Switch',
@@ -104,7 +107,7 @@ const config: ExperimentConfig2D = {
             key: 'showLabels',
             label: 'Show Labels',
             type: 'boolean',
-            defaultValue: true,
+            defaultValue: false,
         },
     ],
 };
@@ -258,6 +261,18 @@ export class CapacitorExperiment extends ExperimentBase2D {
                 value: '5.0',
                 unit: 'k\u03A9',
             },
+        };
+    }
+
+    /**
+     * 控制面板 schema：从 config.parameters 里隐藏 switchMode。
+     * switchMode 由电路图上的 SPDT 开关点击控制（不在 UI 面板显示），
+     * 但保留在 config.parameters 里以便 setParameter 接受它。
+     */
+    override getControlSchema(): ControlSchema {
+        return {
+            title: 'Controls',
+            parameters: this.config.parameters.filter((p) => p.key !== 'switchMode'),
         };
     }
 
