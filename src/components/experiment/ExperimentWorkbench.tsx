@@ -319,6 +319,8 @@ export function ExperimentWorkbench({
                                         color={definition.color}
                                         unit={definition.unit ?? ''}
                                         height={120}
+                                        yMin={definition.yMin}
+                                        yMax={definition.yMax}
                                     />
                                 </section>
                             );

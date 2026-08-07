@@ -58,7 +58,7 @@ const config: ExperimentConfig2D = {
             key: 'resistance',
             label: 'Resistance',
             type: 'number',
-            defaultValue: 10,
+            defaultValue: 2,
             min: 1,
             max: 50,
             step: 1,
@@ -68,7 +68,7 @@ const config: ExperimentConfig2D = {
             key: 'capacitance',
             label: 'Capacitance',
             type: 'number',
-            defaultValue: 1000,
+            defaultValue: 200,
             min: 100,
             max: 5000,
             step: 100,
@@ -243,12 +243,12 @@ export class CapacitorExperiment extends ExperimentBase2D {
             },
             resistance: {
                 label: 'Resistance',
-                value: this.getSafeNumber('resistance', 10, 1, 50).toString(),
+                value: this.getSafeNumber('resistance', 2, 1, 50).toString(),
                 unit: 'k\u03A9',
             },
             capacitance: {
                 label: 'Capacitance',
-                value: this.getSafeNumber('capacitance', 1000, 100, 5000).toString(),
+                value: this.getSafeNumber('capacitance', 200, 100, 5000).toString(),
                 unit: '\u00B5F',
             },
             sourceVolt: {
@@ -280,9 +280,9 @@ export class CapacitorExperiment extends ExperimentBase2D {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'voltage', label: 'Voltage U_C', unit: 'V', color: '#22D3EE' },
-                { key: 'current', label: 'Current i', unit: 'mA', color: '#F97316' },
-                { key: 'charge', label: 'Charge Q', unit: '\u00B5C', color: '#34D399' },
+                { key: 'voltage', label: 'Voltage U_C', unit: 'V', color: '#22D3EE', yMin: 0, yMax: 6 },
+                { key: 'current', label: 'Current i', unit: 'mA', color: '#F97316', yMin: -1, yMax: 3.5 },
+                { key: 'charge', label: 'Charge Q', unit: '\u00B5C', color: '#34D399', yMin: 0, yMax: 1300 },
             ],
             defaultSelected: ['voltage', 'current', 'charge'],
             sampleIntervalMs: 50,
@@ -306,8 +306,8 @@ export class CapacitorExperiment extends ExperimentBase2D {
      */
     getParams(): CircuitParams {
         return {
-            resistance: this.getSafeNumber('resistance', 10, 1, 50),
-            capacitance: this.getSafeNumber('capacitance', 1000, 100, 5000),
+            resistance: this.getSafeNumber('resistance', 2, 1, 50),
+            capacitance: this.getSafeNumber('capacitance', 200, 100, 5000),
             sourceVoltage: this.getSafeNumber('sourceVoltage', 6, 1, 12),
             loadResistance: 5, // 灯泡固定阻值 5kΩ，不作为可调参数暴露
         };

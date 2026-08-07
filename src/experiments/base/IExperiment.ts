@@ -58,6 +58,10 @@ export interface MonitorQuantityDefinition {
     label: string;
     unit?: string;
     color: string;
+    /** 可选 Y 轴固定下限（不传则 auto） */
+    yMin?: number;
+    /** 可选 Y 轴固定上限（不传则 auto） */
+    yMax?: number;
 }
 
 /**

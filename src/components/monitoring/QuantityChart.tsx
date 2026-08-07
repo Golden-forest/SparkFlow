@@ -15,20 +15,21 @@ export interface QuantityChartProps {
   data: number[];           // Historical data array
   color: string;            // Line color
   unit: string;             // Unit for display
-  maxPoints?: number;       // Maximum number of points to display (default: 100)
+  maxPoints?: number;       // Maximum number of points to display (default: 200)
   height?: number;          // Chart height in pixels (default: 150)
+  yMin?: number;            // Fixed Y-axis lower bound (omit for auto)
+  yMax?: number;            // Fixed Y-axis upper bound (omit for auto)
 }
 
 /**
  * Real-time chart component for displaying physics quantity changes over time
  *
- * Uses recharts library to display a line chart that updates in real-time
- * as new data points arrive. Implements performance optimizations for smooth
- * rendering during rapid updates.
+ * Uses recharts library to display a line chart that accumulates over time.
+ * Implements performance optimizations for smooth rendering during rapid updates.
  *
  * Features:
- * - Data scrolling (shows only the most recent maxPoints)
- * - Auto-scaling Y-axis
+ * - X-axis accumulation: full history from start, left-aligned (origin stays)
+ * - Y-axis fixed range (via yMin/yMax props) or auto
  * - Performance optimizations (animations disabled)
  * - Custom tooltip with unit display
  *
@@ -38,32 +39,53 @@ export function QuantityChart({
   data,
   color,
   unit,
-  maxPoints = 100,
+  maxPoints = 200,
   height = 150,
+  yMin,
+  yMax,
 }: QuantityChartProps) {
   /**
-   * Limit displayed data to most recent points for performance
-   * Memoized to prevent recreation on every render
+   * 累积模式：保留全部历史，仅当点数超过 maxPoints 时做等间隔抽样。
+   * 与滚动窗口不同，左端始终是仿真起点，曲线从左向右持续生长。
+   * 抽样保持首尾点，避免末端被截断。
    */
-  const displayData = useMemo(
-    () =>
-      data.slice(-maxPoints).map((value, index) => ({
-        index,
-        value,
-      })),
-    [data, maxPoints]
-  );
+  const displayData = useMemo(() => {
+    if (data.length <= maxPoints) {
+      return data.map((value, index) => ({ index, value }));
+    }
+    // 等间隔抽样：保留 [0, step, 2*step, ..., last]
+    const step = data.length / (maxPoints - 1);
+    const sampled: { index: number; value: number }[] = [];
+    for (let i = 0; i < maxPoints - 1; i++) {
+      const srcIdx = Math.floor(i * step);
+      sampled.push({ index: srcIdx, value: data[srcIdx] });
+    }
+    // 确保最后一个点为最新数据
+    sampled.push({ index: data.length - 1, value: data[data.length - 1] });
+    return sampled;
+  }, [data, maxPoints]);
+
+  // Y 轴 domain：传入则固定，否则 auto
+  const yDomain: [number | string, number | string] =
+    yMin !== undefined && yMax !== undefined
+      ? [yMin, yMax]
+      : ['auto', 'auto'];
 
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={displayData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
-          {/* Hide X-axis as we're showing a scrolling window */}
-          <XAxis hide />
+          {/* X-axis: 累积模式，按全局索引显示，不滚动 */}
+          <XAxis
+            dataKey="index"
+            hide
+            type="number"
+            domain={[0, 'dataMax']}
+          />
 
-          {/* Y-axis with auto-scaling */}
+          {/* Y-axis: 固定范围或 auto */}
           <YAxis
-            domain={['auto', 'auto']}
+            domain={yDomain}
             tickFormatter={function(value: unknown) { return Number(value).toFixed(1); }}
             stroke="#64748b"
             tick={{ fill: '#94a3b8', fontSize: 10 }}
