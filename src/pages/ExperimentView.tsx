@@ -164,6 +164,21 @@ export default function ExperimentView() {
                     updateMonitoringHistory(quantity.key, numericValue);
                 }
             });
+
+            // 同步 experiment 内部参数变更回 UI（如电路图上拖动滑阻器/拨动开关等场景）。
+            // 仅在值发生变化时触发 setParameterValues，避免每帧无意义重渲染。
+            setParameterValues((previous) => {
+                let changed = false;
+                const next: Record<string, number | string | boolean> = { ...previous };
+                currentExperiment.config.parameters.forEach((param) => {
+                    const latest = currentExperiment.getParameter(param.key);
+                    if (previous[param.key] !== latest) {
+                        next[param.key] = latest;
+                        changed = true;
+                    }
+                });
+                return changed ? next : previous;
+            });
         }, sampleInterval);
 
         return () => clearInterval(timer);

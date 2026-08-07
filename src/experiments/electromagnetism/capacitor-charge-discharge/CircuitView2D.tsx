@@ -794,7 +794,20 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
 
                 {/* ===== 单刀双掷开关（左导线，公共端在中支路 y=220） ===== */}
                 <g>
-                    {/* 上接点（充电触点，y=100）—— 可点击 */}
+                    {/* 上接点（充电触点，y=100）—— 可点击；断开时呼吸脉冲提示 */}
+                    {state.mode === 'disconnected' && (
+                        <circle
+                            cx={SWITCH.x}
+                            cy={SWITCH.contactChargeY}
+                            r={10}
+                            fill={COLORS.wireHighlight}
+                            opacity={0.4}
+                            style={{ pointerEvents: 'none' }}
+                        >
+                            <animate attributeName="r" values="6;14;6" dur="1.5s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                    )}
                     <circle
                         cx={SWITCH.x}
                         cy={SWITCH.contactChargeY}
@@ -805,7 +818,20 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                         style={{ cursor: 'pointer' }}
                         onClick={() => experiment.setParameter('switchMode', 'charging')}
                     />
-                    {/* 下接点（放电触点，y=340）—— 可点击 */}
+                    {/* 下接点（放电触点，y=340）—— 可点击；断开时呼吸脉冲提示 */}
+                    {state.mode === 'disconnected' && (
+                        <circle
+                            cx={SWITCH.x}
+                            cy={SWITCH.contactDischargeY}
+                            r={10}
+                            fill={COLORS.wireHighlightDischarge}
+                            opacity={0.4}
+                            style={{ pointerEvents: 'none' }}
+                        >
+                            <animate attributeName="r" values="6;14;6" dur="1.5s" repeatCount="indefinite" begin="0.75s" />
+                            <animate attributeName="opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" begin="0.75s" />
+                        </circle>
+                    )}
                     <circle
                         cx={SWITCH.x}
                         cy={SWITCH.contactDischargeY}

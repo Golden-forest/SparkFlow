@@ -281,7 +281,7 @@ export class CapacitorExperiment extends ExperimentBase2D {
             title: 'Monitor',
             quantities: [
                 { key: 'voltage', label: 'Voltage U_C', unit: 'V', color: '#22D3EE', yMin: 0, yMax: 6 },
-                { key: 'current', label: 'Current i', unit: 'mA', color: '#F97316', yMin: -1, yMax: 3.5 },
+                { key: 'current', label: 'Current i', unit: 'mA', color: '#F97316', yMin: -0.3, yMax: 1.8 },
                 { key: 'charge', label: 'Charge Q', unit: '\u00B5C', color: '#34D399', yMin: 0, yMax: 1300 },
             ],
             defaultSelected: ['voltage', 'current', 'charge'],
