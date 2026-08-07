@@ -26,17 +26,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     analyzeTimeConstant,
+    analyzeDischargeTimeConstant,
     createInitialState,
     step,
     type CircuitParams,
     type CircuitState,
 } from '../RCCircuitPhysics.ts';
 
-// 默认参数：τ = 10 s
+// 默认参数：τ_充 = 10 s, τ_放 = 15 s (R_L = 5kΩ)
 const DEFAULT_PARAMS: CircuitParams = {
     resistance: 10,      // kΩ
     capacitance: 1000,   // μF
     sourceVoltage: 6,    // V
+    loadResistance: 5,   // kΩ（灯泡固定阻值）
 };
 
 /**
@@ -77,7 +79,7 @@ test('charging reaches steady state U0 within 0.1% after 7 tau', () => {
 
 // ---------- 2. 放电稳态收敛到 0 ----------
 test('discharging decays to zero within 0.1% after 7 tau', () => {
-    const tau = analyzeTimeConstant(DEFAULT_PARAMS);
+    const tau = analyzeDischargeTimeConstant(DEFAULT_PARAMS);
     const dt = 0.05;
     const steps = Math.round((7 * tau) / dt);
     const start: CircuitState = {
@@ -146,10 +148,10 @@ test('charging voltage reaches ~63.2% of U0 at t = tau', () => {
 });
 
 // ---------- 5. 放电 τ 时刻 U_C ≈ 0.368 × U₀ ----------
-test('discharging voltage decays to ~36.8% of U0 at t = tau', () => {
-    const tau = analyzeTimeConstant(DEFAULT_PARAMS);
+test('discharging voltage decays to ~36.8% of U0 at t = tau_discharge', () => {
+    const tauDischarge = analyzeDischargeTimeConstant(DEFAULT_PARAMS); // 15 s
     const dt = 0.01;
-    const steps = Math.round(tau / dt);
+    const steps = Math.round(tauDischarge / dt);
     const start: CircuitState = {
         mode: 'discharging',
         voltage: DEFAULT_PARAMS.sourceVoltage,
@@ -164,7 +166,7 @@ test('discharging voltage decays to ~36.8% of U0 at t = tau', () => {
     const relError = Math.abs(end.voltage - expected) / DEFAULT_PARAMS.sourceVoltage;
     assert.ok(
         relError < 0.01,
-        `t=τ 时 U_C 应 ≈ 0.368 U₀ (误差 < 1%), 实际 U_C=${end.voltage}, 相对误差=${relError.toExponential(3)}`,
+        `t=τ_放 时 U_C 应 ≈ 0.368 U₀ (误差 < 1%), 实际 U_C=${end.voltage}, 相对误差=${relError.toExponential(3)}`,
     );
 });
 
@@ -320,4 +322,43 @@ test('step is defensive against invalid params (NaN / Infinity / <= 0)', () => {
     const r5 = step(good, DEFAULT_PARAMS, 0);
     assert.equal(r5.voltage, good.voltage, 'dt=0 时电压应保持');
     assert.equal(r5.current, 0);
+});
+
+// ---------- 9. 放电电流流过 R + R_L 串联 ----------
+test('discharging current equals -U_C / (R + R_L)', () => {
+    const start: CircuitState = {
+        mode: 'discharging',
+        voltage: DEFAULT_PARAMS.sourceVoltage, // 6V
+        current: 0,
+        charge: 0,
+        time: 0,
+    };
+    const next = step(start, DEFAULT_PARAMS, 0.001); // 极小步长，电流≈初值
+
+    const R_total_ohm = (DEFAULT_PARAMS.resistance + DEFAULT_PARAMS.loadResistance) * 1000;
+    const expectedCurrent = -DEFAULT_PARAMS.sourceVoltage / R_total_ohm;
+    const relError = Math.abs(next.current - expectedCurrent) / Math.abs(expectedCurrent);
+    assert.ok(
+        relError < 0.01,
+        `放电电流应 ≈ -U/(R+R_L) = ${expectedCurrent.toExponential(3)} A, 实际 ${next.current.toExponential(3)}, 相对误差 ${relError.toExponential(3)}`,
+    );
+});
+
+// ---------- 10. analyzeDischargeTimeConstant 公式验证 ----------
+test('analyzeDischargeTimeConstant computes (R+R_L)*C correctly', () => {
+    // R=10kΩ, R_L=5kΩ, C=1000μF → 15 × 1000 × 1e-3 = 15 s
+    const tauD = analyzeDischargeTimeConstant(DEFAULT_PARAMS);
+    assert.ok(
+        Math.abs(tauD - 15) < 1e-9,
+        `τ_放 应为 15 s, 实际 ${tauD}`,
+    );
+
+    // 另一组：R=1kΩ, R_L=5kΩ, C=100μF → 6 × 100 × 1e-3 = 0.6 s
+    const tauD2 = analyzeDischargeTimeConstant({
+        resistance: 1,
+        capacitance: 100,
+        sourceVoltage: 9,
+        loadResistance: 5,
+    });
+    assert.ok(Math.abs(tauD2 - 0.6) < 1e-12, `τ_放 应为 0.6 s, 实际 ${tauD2}`);
 });
