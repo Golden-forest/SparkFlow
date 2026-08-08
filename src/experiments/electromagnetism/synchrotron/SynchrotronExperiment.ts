@@ -221,10 +221,12 @@ export class SynchrotronExperiment extends ExperimentBase {
     return {
       viewMode: {
         label: 'View Mode',
+        labelKey: 'experiments.synchrotron-em-fields:display.viewMode',
         value: viewMode === 'macro' ? 'Synchrotron Ring' : 'E/B Field Motion',
       },
       mechanism: {
         label: 'Micro Mechanism',
+        labelKey: 'experiments.synchrotron-em-fields:display.microMechanism',
         value: mechanism === 'rf'
           ? 'RF Acceleration'
           : mechanism === 'bending'
@@ -235,26 +237,31 @@ export class SynchrotronExperiment extends ExperimentBase {
       },
       speed: {
         label: 'Particle Speed',
+        labelKey: 'experiments.synchrotron-em-fields:display.particleSpeed',
         value: metrics.speed.toFixed(2),
         unit: 'm/s',
       },
       force: {
         label: 'Lorentz Force',
+        labelKey: 'experiments.synchrotron-em-fields:display.lorentzForce',
         value: metrics.forceMagnitude.toFixed(2),
         unit: 'N',
       },
       separation: {
         label: 'Beam Separation',
+        labelKey: 'experiments.synchrotron-em-fields:display.beamSeparation',
         value: metrics.separation.toFixed(2),
         unit: 'm',
       },
       kineticEnergy: {
         label: 'Kinetic Energy',
+        labelKey: 'experiments.synchrotron-em-fields:display.kineticEnergy',
         value: metrics.kineticEnergy.toFixed(2),
         unit: 'J',
       },
       time: {
         label: 'Particle Time',
+        labelKey: 'experiments.synchrotron-em-fields:display.particleTime',
         value: this.elapsedTime.toFixed(2),
         unit: 's',
       },

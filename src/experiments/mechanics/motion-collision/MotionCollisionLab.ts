@@ -370,11 +370,13 @@ export class MotionCollisionLab extends ExperimentBase {
     const data: Record<string, DisplayValue> = {
       time: {
         label: 'Time',
+        labelKey: 'experiments.motion-collision:display.time',
         value: this.simulationTime.toFixed(2),
         unit: 's',
       },
       objectCount: {
         label: 'Objects',
+        labelKey: 'experiments.motion-collision:display.objects',
         value: this.simulationObjects.size.toString(),
       },
     };
@@ -387,11 +389,13 @@ export class MotionCollisionLab extends ExperimentBase {
 
       data.velocity = {
         label: 'Velocity',
+        labelKey: 'experiments.motion-collision:display.velocity',
         value: v.toFixed(2),
         unit: 'm/s',
       };
       data.position = {
         label: 'Position',
+        labelKey: 'experiments.motion-collision:display.position',
         value: `(${firstObject.position.x.toFixed(1)}, ${firstObject.position.y.toFixed(1)}, ${firstObject.position.z.toFixed(1)})`,
         unit: 'm',
       };
@@ -399,6 +403,7 @@ export class MotionCollisionLab extends ExperimentBase {
       // 新增：加速度
       data.acceleration = {
         label: 'Acceleration',
+        labelKey: 'experiments.motion-collision:display.acceleration',
         value: firstObject.acceleration.length().toFixed(2),
         unit: 'm/s²',
       };
@@ -406,6 +411,7 @@ export class MotionCollisionLab extends ExperimentBase {
       // 新增：动量 p = mv
       data.momentum = {
         label: 'Momentum',
+        labelKey: 'experiments.motion-collision:display.momentum',
         value: (m * v).toFixed(2),
         unit: 'kg·m/s',
       };
@@ -413,6 +419,7 @@ export class MotionCollisionLab extends ExperimentBase {
       // 新增：动能 Ek = ½mv²
       data.kineticEnergy = {
         label: 'Kinetic Energy',
+        labelKey: 'experiments.motion-collision:display.kineticEnergy',
         value: (0.5 * m * v * v).toFixed(2),
         unit: 'J',
       };

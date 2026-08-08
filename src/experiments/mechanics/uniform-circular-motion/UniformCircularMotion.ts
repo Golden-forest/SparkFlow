@@ -177,64 +177,77 @@ export class UniformCircularMotion extends ExperimentBase {
     return {
       time: {
         label: 'Time',
+        labelKey: 'experiments.uniform-circular-motion:display.time',
         value: this.motionState.time.toFixed(2),
         unit: 's',
       },
       direction: {
         label: 'Direction',
+        labelKey: 'experiments.uniform-circular-motion:display.direction',
         value: direction === 'clockwise' ? 'Clockwise' : 'Counterclockwise',
       },
       angle: {
         label: 'Angle',
+        labelKey: 'experiments.uniform-circular-motion:display.angle',
         value: angleDeg.toFixed(1),
         unit: '°',
       },
       revolutions: {
         label: 'Revolutions',
+        labelKey: 'experiments.uniform-circular-motion:display.revolutions',
         value: this.motionState.revolutions.toFixed(2),
       },
       radius: {
         label: 'Radius',
+        labelKey: 'experiments.uniform-circular-motion:display.radius',
         value: this.motionState.radius.toFixed(2),
         unit: 'm',
       },
       mass: {
         label: 'Object Mass',
+        labelKey: 'experiments.uniform-circular-motion:display.objectMass',
         value: this.motionState.mass.toFixed(2),
         unit: 'kg',
       },
       height: {
         label: 'Motion Height',
+        labelKey: 'experiments.uniform-circular-motion:display.motionHeight',
         value: this.motionState.height.toFixed(2),
         unit: 'm',
       },
       angularSpeed: {
         label: 'Angular Speed',
+        labelKey: 'experiments.uniform-circular-motion:display.angularSpeed',
         value: this.motionState.angularSpeed.toFixed(2),
         unit: 'rad/s',
       },
       period: {
         label: 'Period',
+        labelKey: 'experiments.uniform-circular-motion:display.period',
         value: metrics.period.toFixed(2),
         unit: 's',
       },
       frequency: {
         label: 'Frequency',
+        labelKey: 'experiments.uniform-circular-motion:display.frequency',
         value: metrics.frequency.toFixed(2),
         unit: 'Hz',
       },
       tangentialSpeed: {
         label: 'Tangential Speed',
+        labelKey: 'experiments.uniform-circular-motion:display.tangentialSpeed',
         value: metrics.tangentialSpeed.toFixed(2),
         unit: 'm/s',
       },
       centripetalAcceleration: {
         label: 'Centripetal Acceleration',
+        labelKey: 'experiments.uniform-circular-motion:display.centripetalAcceleration',
         value: metrics.centripetalAcceleration.toFixed(2),
         unit: 'm/s²',
       },
       centripetalForce: {
         label: 'Centripetal Force',
+        labelKey: 'experiments.uniform-circular-motion:display.centripetalForce',
         value: metrics.centripetalForce.toFixed(2),
         unit: 'N',
       },

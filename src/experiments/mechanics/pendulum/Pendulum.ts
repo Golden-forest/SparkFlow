@@ -375,51 +375,61 @@ export class Pendulum extends ExperimentBase {
     return {
       time: {
         label: 'Time',
+        labelKey: 'experiments.pendulum:display.time',
         value: this.pendulumState.time.toFixed(2),
         unit: 's',
       },
       angle: {
         label: 'Angle',
+        labelKey: 'experiments.pendulum:display.angle',
         value: angleDeg.toFixed(1),
         unit: '°',
       },
       length: {
         label: 'Length',
+        labelKey: 'experiments.pendulum:display.length',
         value: this.pendulumState.length.toFixed(2),
         unit: 'm',
       },
       period: {
         label: 'Period',
+        labelKey: 'experiments.pendulum:display.period',
         value: data.period.toFixed(3),
         unit: 's',
       },
       frequency: {
         label: 'Frequency',
+        labelKey: 'experiments.pendulum:display.frequency',
         value: data.frequency.toFixed(3),
         unit: 'Hz',
       },
       angularFrequency: {
         label: 'Angular Frequency',
+        labelKey: 'experiments.pendulum:display.angularFrequency',
         value: data.angularFrequency.toFixed(2),
         unit: 'rad/s',
       },
       velocity: {
         label: 'Velocity',
+        labelKey: 'experiments.pendulum:display.velocity',
         value: data.velocity.toFixed(2),
         unit: 'm/s',
       },
       kineticEnergy: {
         label: 'Kinetic Energy',
+        labelKey: 'experiments.pendulum:display.kineticEnergy',
         value: data.kineticEnergy.toFixed(3),
         unit: 'J',
       },
       potentialEnergy: {
         label: 'Potential Energy',
+        labelKey: 'experiments.pendulum:display.potentialEnergy',
         value: data.potentialEnergy.toFixed(3),
         unit: 'J',
       },
       mechanicalEnergy: {
         label: 'Mechanical Energy',
+        labelKey: 'experiments.pendulum:display.mechanicalEnergy',
         value: data.mechanicalEnergy.toFixed(3),
         unit: 'J',
       },

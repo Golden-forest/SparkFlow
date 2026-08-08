@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from '@/i18n/LanguageSwitcher';
 
 interface ExperimentCard {
     id: string;
-    title: string;
     route?: string;
     quickViews?: Array<{
-        label: string;
+        labelKey: string;
         route: string;
     }>;
     diagram: ReactNode;
@@ -610,117 +611,102 @@ const SynchrotronDiagram = () => (
 const experiments: ExperimentCard[] = [
     {
         id: 'synchrotron-em-fields',
-        title: 'Synchrotron Fields',
         route: '/experiment/synchrotron-em-fields',
         quickViews: [
-            { label: 'Macro View', route: '/experiment/synchrotron-em-fields' },
-            { label: 'Micro View', route: '/experiment/synchrotron-em-fields/micro' },
+            { labelKey: 'common:view.macro', route: '/experiment/synchrotron-em-fields' },
+            { labelKey: 'common:view.micro', route: '/experiment/synchrotron-em-fields/micro' },
         ],
         diagram: <SynchrotronDiagram />,
         gradient: 'from-cyan-900/20 via-slate-900/10 to-orange-900/20',
     },
     {
         id: 'light-refraction',
-        title: 'Light Refraction',
         diagram: <LightRefractionDiagram />,
         gradient: 'from-cyan-900/20 via-sky-900/10 to-blue-900/20',
     },
     {
         id: 'boyle-law',
-        title: "Boyle's Law",
         diagram: <BoyleLawDiagram />,
         gradient: 'from-emerald-900/20 via-teal-900/10 to-cyan-900/20',
     },
     {
         id: 'double-slit-interference',
-        title: 'Double-Slit Interference',
         diagram: <DoubleSlitDiagram />,
         gradient: 'from-lime-900/20 via-emerald-900/10 to-green-900/20',
     },
     {
         id: 'hydrogen-transitions',
-        title: 'Hydrogen Atom',
         quickViews: [
-            { label: '3D View', route: '/experiment/hydrogen-transitions' },
-            { label: 'Abstract View', route: '/experiment/hydrogen-transitions/abstract' },
+            { labelKey: 'common:view.view3D', route: '/experiment/hydrogen-transitions' },
+            { labelKey: 'common:view.abstract', route: '/experiment/hydrogen-transitions/abstract' },
         ],
         diagram: <HydrogenAtomDiagram />,
         gradient: 'from-blue-900/20 via-purple-900/10 to-teal-900/20',
     },
     {
         id: 'rutherford-scattering',
-        title: 'Rutherford',
         route: '/experiment/rutherford-scattering',
         quickViews: [
-            { label: 'Macro View', route: '/experiment/rutherford-scattering' },
-            { label: 'Micro View', route: '/experiment/rutherford-scattering/micro' },
+            { labelKey: 'common:view.macro', route: '/experiment/rutherford-scattering' },
+            { labelKey: 'common:view.micro', route: '/experiment/rutherford-scattering/micro' },
         ],
         diagram: <RutherfordScatteringDiagram />,
         gradient: 'from-red-900/20 via-orange-900/10 to-yellow-900/20',
     },
     {
         id: 'solar-system',
-        title: 'Solar System',
         diagram: <SolarSystemDiagram />,
         gradient: 'from-blue-900/20 via-cyan-900/10 to-indigo-900/20',
     },
     {
         id: 'pendulum',
-        title: 'Simple Pendulum',
         diagram: <PendulumDiagram />,
         gradient: 'from-purple-900/20 via-pink-900/10 to-rose-900/20',
     },
     {
         id: 'motion-collision',
-        title: 'Motion & Collision',
         diagram: <MotionCollisionDiagram />,
         gradient: 'from-green-900/20 via-emerald-900/10 to-teal-900/20',
     },
     {
         id: 'projectile-motion',
-        title: 'Projectile Motion',
         diagram: <ProjectileDiagram />,
         gradient: 'from-sky-900/20 via-cyan-900/10 to-blue-900/20',
     },
     {
         id: 'uniform-circular-motion',
-        title: 'Circular Motion',
         diagram: <CircularMotionDiagram />,
         gradient: 'from-indigo-900/20 via-sky-900/10 to-cyan-900/20',
     },
     {
         id: 'inclined-plane-friction',
-        title: 'Inclined Plane',
         diagram: <InclinedPlaneDiagram />,
         gradient: 'from-amber-900/20 via-orange-900/10 to-slate-900/20',
     },
     {
         id: 'spring-oscillation',
-        title: 'Spring Oscillation',
         diagram: <SpringOscillationDiagram />,
         gradient: 'from-emerald-900/20 via-lime-900/10 to-sky-900/20',
     },
     {
         id: 'momentum-carts',
-        title: 'Momentum Carts',
         diagram: <MomentumCartsDiagram />,
         gradient: 'from-teal-900/20 via-blue-900/10 to-emerald-900/20',
     },
     {
         id: 'galvanic-cell',
-        title: 'Electrochemical Cell',
         diagram: <ElectrochemicalCellDiagram />,
         gradient: 'from-amber-900/20 via-yellow-900/10 to-orange-900/20',
     },
     {
         id: 'capacitor-charge-discharge',
-        title: 'Capacitor Circuit',
         diagram: <CapacitorCircuitDiagram />,
         gradient: 'from-amber-900/20 via-yellow-900/10 to-orange-900/20',
     },
 ];
 
 export default function Home() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<HomeTab>('experiments');
     const [coursewareCards, setCoursewareCards] = useState<CoursewareCard[]>([]);
@@ -745,7 +731,7 @@ export default function Home() {
                     (manifest.courseware ?? []).map((item) => ({
                         id: item.id,
                         title: item.title,
-                        description: `HTML Courseware: ${item.path}`,
+                        description: t('home:coursewarePrefix') + item.path,
                         status: 'ready',
                         href: item.path,
                     })),
@@ -779,13 +765,16 @@ export default function Home() {
                     '"Nunito", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             }}
         >
-            <header className="px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">
+            <header className="relative px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">
                 <h1
                     className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]"
                     style={{ filter: 'drop-shadow(0 10px 24px rgba(96, 165, 250, 0.35))' }}
                 >
-                    Spark Flow
+                    {t('common:app.title')}
                 </h1>
+                <div className="absolute right-6 top-12 sm:right-10 lg:right-20 lg:top-16">
+                    <LanguageSwitcher />
+                </div>
             </header>
 
             <main className="flex-1 px-6 pb-14 sm:px-10 lg:px-20 lg:pb-16">
@@ -793,9 +782,9 @@ export default function Home() {
                 <section className="flex justify-center" style={{ marginBottom: 80 }}>
                     <div className="inline-flex rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg">
                         {[
-                            { key: 'experiments', label: 'Experiments' },
-                            { key: 'courseware', label: 'Courseware' },
-                            { key: 'images', label: 'Images' },
+                            { key: 'experiments', labelKey: 'home:tab.experiments' },
+                            { key: 'courseware', labelKey: 'home:tab.courseware' },
+                            { key: 'images', labelKey: 'home:tab.images' },
                         ].map((tab) => {
                             const isActive = activeTab === tab.key;
                             return (
@@ -808,7 +797,7 @@ export default function Home() {
                                             : 'text-slate-300 hover:bg-white/5 hover:text-white'
                                     }`}
                                 >
-                                    {tab.label}
+                                    {t(tab.labelKey)}
                                 </button>
                             );
                         })}
@@ -827,7 +816,7 @@ export default function Home() {
 
                                 <div className="relative z-10 flex h-full flex-col">
                                     <h2 className="px-2 pt-1 text-[25px] font-[700] leading-[1.15] tracking-[-0.01em] text-[#F0F6FC] transition-colors duration-[400ms] group-hover:text-white">
-                                        {experiment.title}
+                                        {t(`home:card.${experiment.id}.title`)}
                                     </h2>
 
                                     <div className="flex flex-1 items-center justify-center py-7">
@@ -847,7 +836,7 @@ export default function Home() {
                                                     }}
                                                     className="rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200 transition-all hover:border-cyan-300/70 hover:bg-cyan-400/20 hover:text-white"
                                                 >
-                                                    {view.label}
+                                                    {t(view.labelKey)}
                                                 </button>
                                             ))}
                                         </div>
@@ -874,10 +863,10 @@ export default function Home() {
                         {coursewareCards.length === 0 ? (
                             <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
                                 <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
-                                    No Courseware Found
+                                    {t('home:empty.courseware')}
                                 </h2>
                                 <p className="text-sm leading-relaxed text-slate-300">
-                                    Add `.html` files to `public/courseware`, then refresh this page.
+                                    {t('home:empty.coursewareHint')}
                                 </p>
                             </article>
                         ) : null}
@@ -887,7 +876,7 @@ export default function Home() {
                                 className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-8"
                             >
                                 <div className="mb-5 inline-flex rounded-full border border-amber-400/40 bg-amber-900/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-200">
-                                    {card.status === 'ready' ? 'Ready' : 'Draft'}
+                                    {card.status === 'ready' ? t('common:status.ready') : t('common:status.draft')}
                                 </div>
                                 <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
                                     {card.title}
@@ -898,11 +887,11 @@ export default function Home() {
                                         href={card.href}
                                         className="mt-6 inline-flex items-center rounded-lg bg-gradient-to-r from-cyan-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition-all hover:from-cyan-500 hover:to-sky-400"
                                     >
-                                        Open HTML
+                                        {t('home:button.openHtml')}
                                     </a>
                                 ) : (
                                     <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
-                                        Waiting for HTML content
+                                        {t('common:status.waitingContent')}
                                     </p>
                                 )}
                             </article>
@@ -915,10 +904,10 @@ export default function Home() {
                         {imageResources.length === 0 ? (
                             <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 sm:col-span-2 xl:col-span-3">
                                 <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
-                                    No Image Assets Found
+                                    {t('home:empty.images')}
                                 </h2>
                                 <p className="text-sm leading-relaxed text-slate-300">
-                                    Add image files to `public/images`, then refresh this page.
+                                    {t('home:empty.imagesHint')}
                                 </p>
                             </article>
                         ) : null}

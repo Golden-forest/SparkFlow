@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { AbstractSideToolbar } from '../components/simulation/AbstractSideToolbar';
 import {
@@ -29,6 +30,8 @@ interface Arrow {
 }
 
 export default function HydrogenAbstractView() {
+    const { t } = useTranslation();
+
     // Canvas dimensions
     const width = 800;
     const height = 600;
@@ -336,7 +339,7 @@ export default function HydrogenAbstractView() {
                                 // Interaction failed (passed through)
                                 // Show "Energies don't match" feedback?
                                 setFeedbackMessage({
-                                    text: 'Energy mismatch',
+                                    text: t('experiments.hydrogen-transitions:abstract.energyMismatch'),
                                     x: hitX,
                                     y: p.y - 20,
                                     alpha: 1
@@ -537,11 +540,11 @@ export default function HydrogenAbstractView() {
                         className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-all duration-200 border border-white/5 hover:border-white/10"
                     >
                         <ArrowLeft size={18} />
-                        <span className="font-medium">Back to Experiment</span>
+                        <span className="font-medium">{t('common:navigation.backToExperiment')}</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
                     <h1 className="text-xl font-semibold text-white tracking-wide">
-                        Hydrogen Energy Level Transitions - Abstract Demo
+                        {t('experiments.hydrogen-transitions:abstract.title')}
                     </h1>
                 </div>
             </header>
@@ -567,10 +570,10 @@ export default function HydrogenAbstractView() {
                         />
                         {/* Titles */}
                         <text x={width * 0.25} y={40} textAnchor="middle" fill="#ffffff" opacity={0.5} fontSize={14}>
-                            Transition Demo Area
+                            {t('experiments.hydrogen-transitions:abstract.demoArea')}
                         </text>
                         <text x={width * 0.75} y={40} textAnchor="middle" fill="#ffffff" opacity={0.5} fontSize={14}>
-                            Energy Level Diagram
+                            {t('experiments.hydrogen-transitions:abstract.energyDiagram')}
                         </text>
 
                         {/* 0.5 Incident Particles */}

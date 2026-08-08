@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Monitored quantity interface
@@ -33,6 +34,7 @@ export function QuantitySelector({
   selectedIds,
   onChange,
 }: QuantitySelectorProps) {
+  const { t } = useTranslation();
   /**
    * Toggle selection of a single quantity
    */
@@ -63,21 +65,21 @@ export function QuantitySelector({
       {/* Header with title and select all/none buttons */}
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Monitor Quantities
+          {t('common:panel.monitorQuantities')}
         </span>
         <div className="flex gap-1">
           <button
             onClick={handleSelectAll}
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >
-            All
+            {t('common:quantity.all')}
           </button>
           <span className="text-slate-600">|</span>
           <button
             onClick={handleDeselectAll}
             className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
           >
-            None
+            {t('common:quantity.none')}
           </button>
         </div>
       </div>

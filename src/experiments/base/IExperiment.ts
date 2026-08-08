@@ -81,6 +81,8 @@ export interface MonitorSchema {
  */
 export interface DisplayValue {
     label: string;
+    /** i18n key（可选），UI 层调 t(labelKey) 翻译 */
+    labelKey?: string;
     value: string | number;
     unit?: string;
     precision?: number;

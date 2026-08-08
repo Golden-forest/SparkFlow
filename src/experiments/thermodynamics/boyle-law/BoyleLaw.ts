@@ -119,21 +119,25 @@ export class BoyleLaw extends ExperimentBase {
     return {
       pressure: {
         label: 'Pressure',
+        labelKey: 'experiments.boyle-law:display.pressure',
         value: this.round(pressure, 2),
         unit: 'kPa',
       },
       volume: {
         label: 'Volume',
+        labelKey: 'experiments.boyle-law:display.volume',
         value: this.round(volume, 2),
         unit: 'L',
       },
       pv: {
         label: 'PV Product',
+        labelKey: 'experiments.boyle-law:display.pvProduct',
         value: this.round(pv, 3),
         unit: 'kPa*L',
       },
       temperature: {
         label: 'Temperature',
+        labelKey: 'experiments.boyle-law:display.temperature',
         value: this.round(temperature, 1),
         unit: 'K',
       },

@@ -167,58 +167,69 @@ export class SpringOscillation extends ExperimentBase {
     const potentialEnergy = 0.5 * springConstant * this.state.displacement * this.state.displacement;
 
     return {
-      time: { label: 'Time', value: this.state.time.toFixed(2), unit: 's' },
+      time: { label: 'Time', labelKey: 'experiments.spring-oscillation:display.time', value: this.state.time.toFixed(2), unit: 's' },
       displacement: {
         label: 'Displacement',
+        labelKey: 'experiments.spring-oscillation:display.displacement',
         value: this.state.displacement.toFixed(3),
         unit: 'm',
       },
       velocity: {
         label: 'Velocity',
+        labelKey: 'experiments.spring-oscillation:display.velocity',
         value: this.state.velocity.toFixed(3),
         unit: 'm/s',
       },
       acceleration: {
         label: 'Acceleration',
+        labelKey: 'experiments.spring-oscillation:display.acceleration',
         value: this.state.acceleration.toFixed(3),
         unit: 'm/s²',
       },
       springForce: {
         label: 'Spring Force',
+        labelKey: 'experiments.spring-oscillation:display.springForce',
         value: springForce.toFixed(2),
         unit: 'N',
       },
       dampingForce: {
         label: 'Damping Force',
+        labelKey: 'experiments.spring-oscillation:display.dampingForce',
         value: dampingForce.toFixed(2),
         unit: 'N',
       },
       period: {
         label: 'Natural Period',
+        labelKey: 'experiments.spring-oscillation:display.naturalPeriod',
         value: period.toFixed(3),
         unit: 's',
       },
       frequency: {
         label: 'Natural Frequency',
+        labelKey: 'experiments.spring-oscillation:display.naturalFrequency',
         value: (1 / period).toFixed(3),
         unit: 'Hz',
       },
       dampingRatio: {
         label: 'Damping Ratio',
+        labelKey: 'experiments.spring-oscillation:display.dampingRatio',
         value: dampingRatio.toFixed(3),
       },
       kineticEnergy: {
         label: 'Kinetic Energy',
+        labelKey: 'experiments.spring-oscillation:display.kineticEnergy',
         value: kineticEnergy.toFixed(3),
         unit: 'J',
       },
       potentialEnergy: {
         label: 'Spring Potential Energy',
+        labelKey: 'experiments.spring-oscillation:display.springPotentialEnergy',
         value: potentialEnergy.toFixed(3),
         unit: 'J',
       },
       totalEnergy: {
         label: 'Total Mechanical Energy',
+        labelKey: 'experiments.spring-oscillation:display.totalMechanicalEnergy',
         value: (kineticEnergy + potentialEnergy).toFixed(3),
         unit: 'J',
       },

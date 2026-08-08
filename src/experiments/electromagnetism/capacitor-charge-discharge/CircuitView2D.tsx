@@ -33,6 +33,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactElement, PointerEvent as ReactPointerEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CapacitorExperiment } from './CapacitorExperiment';
 import type { CircuitState, CircuitParams, SwitchMode } from './RCCircuitPhysics';
 import { analyzeTimeConstant, analyzeDischargeTimeConstant } from './RCCircuitPhysics';
@@ -289,18 +290,22 @@ interface FormulaCardProps {
 }
 
 function FormulaCard({ mode, tauCharge, tauDischarge, visible }: FormulaCardProps) {
+    const { t } = useTranslation();
     if (!visible) return null;
     let eqnText: string;
     let tauText: string;
     if (mode === 'charging') {
-        eqnText = 'U_C(t) = U₀(1 − e^(−t/RC))';
-        tauText = `τ_充 = RC = ${tauCharge.toFixed(2)} s`;
+        eqnText = t('experiments.capacitor-charge-discharge:formula.charging');
+        tauText = t('experiments.capacitor-charge-discharge:formula.chargingTau', { tau: tauCharge.toFixed(2) });
     } else if (mode === 'discharging') {
-        eqnText = 'U_C(t) = U_C(0)·e^(−t/(R+R_L)C)';
-        tauText = `τ_放 = (R+R_L)C = ${tauDischarge.toFixed(2)} s`;
+        eqnText = t('experiments.capacitor-charge-discharge:formula.discharging');
+        tauText = t('experiments.capacitor-charge-discharge:formula.dischargingTau', { tau: tauDischarge.toFixed(2) });
     } else {
-        eqnText = 'U_C(t) = const (open circuit)';
-        tauText = `τ_充 = ${tauCharge.toFixed(2)} s, τ_放 = ${tauDischarge.toFixed(2)} s`;
+        eqnText = t('experiments.capacitor-charge-discharge:formula.open');
+        tauText = t('experiments.capacitor-charge-discharge:formula.openTau', {
+            tauCharge: tauCharge.toFixed(2),
+            tauDischarge: tauDischarge.toFixed(2),
+        });
     }
     const cardX = 200;
     const cardY = 26;

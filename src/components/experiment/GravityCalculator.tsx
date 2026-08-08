@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Props for GravityCalculator component
@@ -32,6 +33,7 @@ export function GravityCalculator({
   totalTime,
   pendulumLength,
 }: GravityCalculatorProps) {
+  const { t } = useTranslation(['experiments.pendulum', 'common']);
   // Theoretical gravitational acceleration (standard value)
   const THEORETICAL_G = 9.80665;
 
@@ -83,14 +85,14 @@ export function GravityCalculator({
     <div className="bg-slate-800/50 rounded-lg p-4 border border-white/10">
       {/* Title */}
       <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-3">
-        Results
+        {t('experiments.pendulum:gravity.results')}
       </div>
 
       {/* Results Display */}
       <div className="space-y-3">
         {/* Period */}
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-300">Period (T)</span>
+          <span className="text-sm text-slate-300">{t('experiments.pendulum:gravity.period')}</span>
           <span className="text-lg font-mono font-bold text-white">
             {calculations.isValid ? calculations.period.toFixed(3) : '0.000'} s
           </span>
@@ -98,7 +100,7 @@ export function GravityCalculator({
 
         {/* Calculated Gravitational Acceleration */}
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-300">Calculated g</span>
+          <span className="text-sm text-slate-300">{t('experiments.pendulum:gravity.calculatedG')}</span>
           <span className="text-lg font-mono font-bold text-emerald-400">
             {calculations.isValid ? calculations.calculatedG.toFixed(3) : '0.000'} m/s²
           </span>
@@ -106,7 +108,7 @@ export function GravityCalculator({
 
         {/* Theoretical Gravitational Acceleration */}
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-300">Theoretical g</span>
+          <span className="text-sm text-slate-300">{t('experiments.pendulum:gravity.theoreticalG')}</span>
           <span className="text-lg font-mono font-bold text-slate-400">
             {THEORETICAL_G.toFixed(3)} m/s²
           </span>
@@ -114,11 +116,11 @@ export function GravityCalculator({
 
         {/* Error Display */}
         <div className="flex justify-between items-center">
-          <span className="text-sm text-slate-300">Error</span>
+          <span className="text-sm text-slate-300">{t('experiments.pendulum:gravity.error')}</span>
           <span className={`text-lg font-mono font-bold ${errorColor}`}>
             {calculations.isValid
               ? `${calculations.absoluteError.toFixed(3)} m/s² (${calculations.percentageError.toFixed(2)}%)`
-              : 'N/A'}
+              : t('common:status.na')}
           </span>
         </div>
 
@@ -127,9 +129,9 @@ export function GravityCalculator({
 
         {/* Formula Display */}
         <div className="text-center">
-          <div className="text-xs text-slate-400 mb-1">Formula</div>
+          <div className="text-xs text-slate-400 mb-1">{t('experiments.pendulum:gravity.formula')}</div>
           <div className="text-sm font-mono text-slate-300">
-            g = 4π²L/T²
+            {t('experiments.pendulum:gravity.formulaExpression')}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { QuantitySelector, type MonitoredQuantity } from './QuantitySelector';
@@ -47,6 +48,7 @@ export function PhysicsMonitor({
   isExpanded,
   onToggleExpand,
 }: PhysicsMonitorProps) {
+  const { t } = useTranslation();
   /**
    * Validate selectedQuantities against available quantities
    * Auto-cleanup invalid selections to prevent undefined access
@@ -74,7 +76,7 @@ export function PhysicsMonitor({
       <button
         onClick={onToggleExpand}
         className="absolute right-0 top-1/2 -translate-y-1/2 bg-slate-800/90 backdrop-blur-md p-2 rounded-l-lg border border-l border-white/10 hover:bg-slate-700 transition-colors z-50"
-        aria-label="Expand Physics Monitor"
+        aria-label={t('common:monitor.expandPhysics')}
         aria-expanded={false}
       >
         <ChevronLeft size={20} className="text-white" />
@@ -101,11 +103,11 @@ export function PhysicsMonitor({
           <div className="w-full h-full bg-slate-900/90 backdrop-blur-md rounded-l-2xl border border-white/10 p-5 overflow-y-auto">
             {/* Header with title and toggle button */}
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-semibold">Physics Monitor</h3>
+              <h3 className="text-white font-semibold">{t('common:monitor.physicsMonitor')}</h3>
               <button
                 onClick={onToggleExpand}
                 className="p-1 hover:bg-white/10 rounded transition-colors"
-                aria-label="Collapse Physics Monitor"
+                aria-label={t('common:monitor.collapsePhysics')}
                 aria-expanded={true}
               >
                 <ChevronRight size={20} className="text-slate-400 hover:text-white" />
@@ -151,8 +153,7 @@ export function PhysicsMonitor({
               {/* Empty state */}
               {validSelectedQuantities.length === 0 && (
                 <div className="text-center py-8 text-slate-500 text-sm">
-                  No quantities selected.<br />
-                  Select quantities above to monitor.
+                  {t('common:monitor.empty')}
                 </div>
               )}
             </div>

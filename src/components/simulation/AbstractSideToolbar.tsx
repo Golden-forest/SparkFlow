@@ -1,5 +1,6 @@
 import React from 'react';
 import { Play, Pause, RotateCcw, Atom, ArrowRightLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface AbstractSideToolbarProps {
     initialLevel: number;
@@ -40,6 +41,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
     viewMode,
     onViewModeChange
 }) => {
+    const { t } = useTranslation();
     // Non-linear mapping for energy slider
     // We want to spread out the values: 10.2, 12.09, 12.75, 13.6
     // Let's define key points on slider (0-100) -> Energy (eV)
@@ -80,7 +82,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                 {/* 标题 */}
                 <div className="flex items-center gap-2 border-b border-white/10 pb-4">
                     <Atom className="text-purple-400" size={24} />
-                    <h3 className="text-white font-semibold">能级控制面板</h3>
+                    <h3 className="text-white font-semibold">{t('experiments.hydrogen-transitions:abstract.panelTitle')}</h3>
                 </div>
 
                 {/* Mode Tabs */}
@@ -92,7 +94,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                             : 'text-slate-400 hover:text-white'
                             }`}
                     >
-                        自发辐射
+                        {t('experiments.hydrogen-transitions:abstract.spontaneousEmissionTab')}
                     </button>
                     <button
                         onClick={() => onViewModeChange('excitation')}
@@ -101,7 +103,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                             : 'text-slate-400 hover:text-white'
                             }`}
                     >
-                        激发演示
+                        {t('experiments.hydrogen-transitions:abstract.excitationDemoTab')}
                     </button>
                 </div>
 
@@ -111,7 +113,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                         <div className="flex flex-col gap-3">
                             <span className="text-xs text-purple-400 font-bold uppercase tracking-wider flex items-center gap-2">
                                 <ArrowRightLeft size={12} />
-                                入射设置
+                                {t('experiments.hydrogen-transitions:abstract.incidentSettings')}
                             </span>
 
                             {/* 粒子类型选择 */}
@@ -123,7 +125,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                         : 'text-slate-400 hover:text-white'
                                         }`}
                                 >
-                                    入射光子
+                                    {t('experiments.hydrogen-transitions:abstract.incidentPhoton')}
                                 </button>
                                 <button
                                     onClick={() => onIncidentTypeChange('electron')}
@@ -132,14 +134,14 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                         : 'text-slate-400 hover:text-white'
                                         }`}
                                 >
-                                    入射电子
+                                    {t('experiments.hydrogen-transitions:abstract.incidentElectron')}
                                 </button>
                             </div>
 
                             {/* 能量调节 */}
                             <div className="flex flex-col gap-4 pt-2">
                                 <div className="flex justify-between items-center text-xs">
-                                    <span className="text-slate-400">入射能量</span>
+                                    <span className="text-slate-400">{t('experiments.hydrogen-transitions:abstract.incidentEnergy')}</span>
                                     <span className="font-mono text-white bg-slate-800 px-2 py-0.5 rounded">
                                         {incidentEnergy.toFixed(2)} eV
                                     </span>
@@ -176,7 +178,9 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                     disabled={isRunning}
                                     className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg font-bold text-sm shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    Emit {incidentType === 'photon' ? 'Photon' : 'Electron'}
+                                    {incidentType === 'photon'
+                                        ? t('experiments.hydrogen-transitions:abstract.emitPhoton')
+                                        : t('experiments.hydrogen-transitions:abstract.emitElectron')}
                                 </button>
                             </div>
                         </div>
@@ -187,7 +191,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                             className="w-full flex items-center justify-center gap-2 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-sm border border-slate-700 hover:border-slate-500"
                         >
                             <RotateCcw size={16} />
-                            重置基态
+                            {t('experiments.hydrogen-transitions:abstract.resetToGround')}
                         </button>
                     </div>
                 ) : (
@@ -197,7 +201,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                         <div className="flex flex-col gap-2">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                                    初始能级
+                                    {t('experiments.hydrogen-transitions:abstract.initialLevel')}
                                 </span>
                                 <span className="text-white font-mono bg-slate-800 px-2 py-0.5 rounded text-sm">
                                     n = {initialLevel}
@@ -225,7 +229,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
 
                         {/* 电子数量 */}
                         <div className="flex flex-col gap-2">
-                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">电子数量</span>
+                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t('experiments.hydrogen-transitions:abstract.electronCount')}</span>
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => onElectronCountChange('single')}
@@ -235,7 +239,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 disabled:opacity-50'
                                         }`}
                                 >
-                                    单电子
+                                    {t('experiments.hydrogen-transitions:abstract.singleElectron')}
                                 </button>
                                 <button
                                     onClick={() => onElectronCountChange('multi')}
@@ -245,7 +249,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 disabled:opacity-50'
                                         }`}
                                 >
-                                    多电子
+                                    {t('experiments.hydrogen-transitions:abstract.multipleElectrons')}
                                 </button>
                             </div>
                         </div>
@@ -254,7 +258,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
 
                         {/* 二次跃迁开关 */}
                         <div className="flex items-center justify-between">
-                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">允许二次跃迁</span>
+                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t('experiments.hydrogen-transitions:abstract.allowSecondary')}</span>
                             <button
                                 onClick={() => !isRunning && onAllowSecondaryChange(!allowSecondary)}
                                 disabled={isRunning}
@@ -275,7 +279,9 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                     }`}
                             >
                                 {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                                {isRunning ? 'Pause Transition' : 'Start Spontaneous Emission'}
+                                {isRunning
+                                    ? t('experiments.hydrogen-transitions:abstract.pauseTransition')
+                                    : t('experiments.hydrogen-transitions:abstract.startSpontaneous')}
                             </button>
 
                             <button
@@ -283,7 +289,7 @@ export const AbstractSideToolbar: React.FC<AbstractSideToolbarProps> = ({
                                 className="w-full flex items-center justify-center gap-2 py-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-sm border border-slate-700 hover:border-slate-500"
                             >
                                 <RotateCcw size={16} />
-                                重置演示
+                                {t('experiments.hydrogen-transitions:abstract.resetDemo')}
                             </button>
                         </div>
                     </div>

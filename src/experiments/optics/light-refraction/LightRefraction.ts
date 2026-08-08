@@ -153,36 +153,43 @@ export class LightRefraction extends ExperimentBase {
       },
       incidentAngle: {
         label: 'Incident Angle',
+        labelKey: 'experiments.light-refraction:display.incidentAngle',
         value: result.incidentAngleDeg.toFixed(2),
         unit: '°',
       },
       reflectedAngle: {
         label: 'Reflected Angle',
+        labelKey: 'experiments.light-refraction:display.reflectedAngle',
         value: result.reflectedAngleDeg.toFixed(2),
         unit: '°',
       },
       refractedAngle: {
         label: 'Refracted Angle',
+        labelKey: 'experiments.light-refraction:display.refractedAngle',
         value: result.refractedAngleDeg === null ? 'N/A (TIR)' : result.refractedAngleDeg.toFixed(2),
         unit: result.refractedAngleDeg === null ? undefined : '°',
       },
       criticalAngle: {
         label: 'Critical Angle',
+        labelKey: 'experiments.light-refraction:display.criticalAngle',
         value: result.criticalAngleDeg === null ? 'N/A' : result.criticalAngleDeg.toFixed(2),
         unit: result.criticalAngleDeg === null ? undefined : '°',
       },
       reflectance: {
         label: 'Reflectance',
+        labelKey: 'experiments.light-refraction:display.reflectance',
         value: (result.reflectance * 100).toFixed(2),
         unit: '%',
       },
       transmittance: {
         label: 'Transmittance',
+        labelKey: 'experiments.light-refraction:display.transmittance',
         value: (result.transmittance * 100).toFixed(2),
         unit: '%',
       },
       tirStatus: {
         label: 'TIR Status',
+        labelKey: 'experiments.light-refraction:display.tirStatus',
         value: result.isTotalInternalReflection ? 'Total Internal Reflection' : 'Refraction Active',
       },
     };

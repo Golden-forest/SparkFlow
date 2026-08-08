@@ -131,17 +131,17 @@ export class ProjectileMotion extends ExperimentBase2D {
         const energies = calculateProjectileEnergies(this.state, params.mass, params.gravity, 0);
 
         return {
-            status: { label: 'Status', value: this.state.hasLanded ? 'Landed' : 'In Flight' },
-            time: { label: 'Time', value: this.state.time.toFixed(2), unit: 's' },
-            horizontalDistance: { label: 'Horizontal Distance', value: this.state.horizontalDistance.toFixed(2), unit: 'm' },
-            height: { label: 'Current Height', value: Math.max(0, this.state.position.y).toFixed(2), unit: 'm' },
-            speed: { label: 'Speed', value: energies.speed.toFixed(2), unit: 'm/s' },
-            maxHeight: { label: 'Max Height', value: Math.max(0, this.state.maxHeight).toFixed(2), unit: 'm' },
-            theoreticalRange: { label: 'Theoretical Range', value: theoretical.range.toFixed(2), unit: 'm' },
-            theoreticalFlightTime: { label: 'Theoretical Flight Time', value: theoretical.flightTime.toFixed(2), unit: 's' },
-            kineticEnergy: { label: 'Kinetic Energy', value: energies.kineticEnergy.toFixed(2), unit: 'J' },
-            potentialEnergy: { label: 'Potential Energy', value: energies.potentialEnergy.toFixed(2), unit: 'J' },
-            totalEnergy: { label: 'Mechanical Energy', value: energies.mechanicalEnergy.toFixed(2), unit: 'J' },
+            status: { label: 'Status', labelKey: 'experiments.projectile-motion:display.status', value: this.state.hasLanded ? 'Landed' : 'In Flight' },
+            time: { label: 'Time', labelKey: 'experiments.projectile-motion:display.time', value: this.state.time.toFixed(2), unit: 's' },
+            horizontalDistance: { label: 'Horizontal Distance', labelKey: 'experiments.projectile-motion:display.horizontalDistance', value: this.state.horizontalDistance.toFixed(2), unit: 'm' },
+            height: { label: 'Current Height', labelKey: 'experiments.projectile-motion:display.currentHeight', value: Math.max(0, this.state.position.y).toFixed(2), unit: 'm' },
+            speed: { label: 'Speed', labelKey: 'experiments.projectile-motion:display.speed', value: energies.speed.toFixed(2), unit: 'm/s' },
+            maxHeight: { label: 'Max Height', labelKey: 'experiments.projectile-motion:display.maxHeight', value: Math.max(0, this.state.maxHeight).toFixed(2), unit: 'm' },
+            theoreticalRange: { label: 'Theoretical Range', labelKey: 'experiments.projectile-motion:display.theoreticalRange', value: theoretical.range.toFixed(2), unit: 'm' },
+            theoreticalFlightTime: { label: 'Theoretical Flight Time', labelKey: 'experiments.projectile-motion:display.theoreticalFlightTime', value: theoretical.flightTime.toFixed(2), unit: 's' },
+            kineticEnergy: { label: 'Kinetic Energy', labelKey: 'experiments.projectile-motion:display.kineticEnergy', value: energies.kineticEnergy.toFixed(2), unit: 'J' },
+            potentialEnergy: { label: 'Potential Energy', labelKey: 'experiments.projectile-motion:display.potentialEnergy', value: energies.potentialEnergy.toFixed(2), unit: 'J' },
+            totalEnergy: { label: 'Mechanical Energy', labelKey: 'experiments.projectile-motion:display.mechanicalEnergy', value: energies.mechanicalEnergy.toFixed(2), unit: 'J' },
         };
     }
 

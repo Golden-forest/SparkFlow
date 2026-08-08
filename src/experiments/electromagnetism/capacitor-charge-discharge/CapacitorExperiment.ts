@@ -223,41 +223,49 @@ export class CapacitorExperiment extends ExperimentBase2D {
         return {
             voltage: {
                 label: 'Capacitor Voltage',
+                labelKey: 'experiments.capacitor-charge-discharge:display.capacitorVoltage',
                 value: this.physicsState.voltage.toFixed(3),
                 unit: 'V',
             },
             current: {
                 label: 'Circuit Current',
+                labelKey: 'experiments.capacitor-charge-discharge:display.circuitCurrent',
                 value: (this.physicsState.current * 1000).toFixed(3),
                 unit: 'mA',
             },
             charge: {
                 label: 'Capacitor Charge',
+                labelKey: 'experiments.capacitor-charge-discharge:display.capacitorCharge',
                 value: (this.physicsState.charge * 1e6).toFixed(3),
                 unit: '\u00B5C',
             },
             time: {
                 label: 'Time',
+                labelKey: 'experiments.capacitor-charge-discharge:display.time',
                 value: this.physicsState.time.toFixed(2),
                 unit: 's',
             },
             resistance: {
                 label: 'Resistance',
+                labelKey: 'experiments.capacitor-charge-discharge:display.resistance',
                 value: this.getSafeNumber('resistance', 5, 1, 50).toString(),
                 unit: 'k\u03A9',
             },
             capacitance: {
                 label: 'Capacitance',
+                labelKey: 'experiments.capacitor-charge-discharge:display.capacitance',
                 value: this.getSafeNumber('capacitance', 200, 100, 5000).toString(),
                 unit: '\u00B5F',
             },
             sourceVolt: {
                 label: 'Source Voltage',
+                labelKey: 'experiments.capacitor-charge-discharge:display.sourceVoltage',
                 value: this.getSafeNumber('sourceVoltage', 6, 1, 12).toFixed(1),
                 unit: 'V',
             },
             loadResistance: {
                 label: 'Load Resistance',
+                labelKey: 'experiments.capacitor-charge-discharge:display.loadResistance',
                 value: '5.0',
                 unit: 'k\u03A9',
             },

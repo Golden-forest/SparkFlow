@@ -142,25 +142,30 @@ export class DoubleSlitInterference extends ExperimentBase {
     return {
       wavelength: {
         label: 'Wavelength',
+        labelKey: 'experiments.double-slit-interference:display.wavelength',
         value: this.round(setup.wavelengthNm, 0),
         unit: 'nm',
       },
       fringeSpacing: {
         label: 'Fringe Spacing',
+        labelKey: 'experiments.double-slit-interference:display.fringeSpacing',
         value: this.round(spacingM * 1000, 3),
         unit: 'mm',
       },
       centralWidth: {
         label: 'Central Bright Width',
+        labelKey: 'experiments.double-slit-interference:display.centralBrightWidth',
         value: this.round(centralWidthM * 1000, 3),
         unit: 'mm',
       },
       visibleOrder: {
         label: 'Visible Order k',
+        labelKey: 'experiments.double-slit-interference:display.visibleOrderK',
         value: visibleOrder,
       },
       colorBand: {
         label: 'Color Band',
+        labelKey: 'experiments.double-slit-interference:display.colorBand',
         value: wavelengthToLabel(setup.wavelengthNm),
       },
     };

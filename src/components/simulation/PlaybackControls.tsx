@@ -1,4 +1,5 @@
 import { Play, Pause, RotateCcw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { SimulationState } from '@/utils/constants';
 
@@ -9,6 +10,7 @@ interface PlaybackControlsProps {
 }
 
 export function PlaybackControls({ onStart, onPause, onReset }: PlaybackControlsProps) {
+    const { t } = useTranslation();
     const { state, start, pause, resume, reset } = useSimulationStore();
 
     const handlePlayPause = () => {
@@ -39,12 +41,12 @@ export function PlaybackControls({ onStart, onPause, onReset }: PlaybackControls
                 {isPlaying ? (
                     <>
                         <Pause size={18} />
-                        <span>Pause</span>
+                        <span>{t('common:playback.pause')}</span>
                     </>
                 ) : (
                     <>
                         <Play size={18} />
-                        <span>{state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
+                        <span>{state === SimulationState.Paused ? t('common:playback.resume') : t('common:playback.start')}</span>
                     </>
                 )}
             </button>
@@ -53,7 +55,7 @@ export function PlaybackControls({ onStart, onPause, onReset }: PlaybackControls
                 className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-white font-medium hover:bg-slate-600 transition-colors"
             >
                 <RotateCcw size={18} />
-                <span>Reset</span>
+                <span>{t('common:playback.reset')}</span>
             </button>
         </div>
     );

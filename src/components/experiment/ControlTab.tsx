@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Trash2 } from 'lucide-react';
 import * as THREE from 'three';
 import { PhysicsMonitor } from '@/components/monitoring/PhysicsMonitor';
@@ -31,6 +32,7 @@ export interface ControlTabProps {
  * Used for pendulum and motion-collision experiments
  */
 export const ControlTab = React.memo(({ controlContent, monitorContent }: ControlTabProps) => {
+  const { t } = useTranslation('common');
   const [activeTab, setActiveTab] = useState<'control' | 'monitor'>('control');
 
   return (
@@ -45,7 +47,7 @@ export const ControlTab = React.memo(({ controlContent, monitorContent }: Contro
               : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
           }`}
         >
-          Control
+          {t('panel.controls')}
         </button>
         <button
           onClick={() => setActiveTab('monitor')}
@@ -55,7 +57,7 @@ export const ControlTab = React.memo(({ controlContent, monitorContent }: Contro
               : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
           }`}
         >
-          Monitor
+          {t('panel.monitor')}
         </button>
       </div>
 
@@ -99,6 +101,7 @@ function ControlContent() {
 }
 
 function MonitorContent() {
+  const { t } = useTranslation('experiments.motion-collision');
   const [selectedQuantities, setSelectedQuantities] = useState<string[]>(['velocity', 'position']);
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -133,41 +136,41 @@ function MonitorContent() {
     return [
       {
         id: 'velocity',
-        name: 'Velocity',
+        name: t('display.velocity'),
         unit: 'm/s',
         color: '#00ff41',
         currentValue: obj.velocity.length(),
       },
       {
         id: 'acceleration',
-        name: 'Acceleration',
+        name: t('display.acceleration'),
         unit: 'm/s²',
         color: '#ff6b6b',
         currentValue: 1.5, // Demo value - will be calculated from physics engine in Task 2.4
       },
       {
         id: 'momentum',
-        name: 'Momentum',
+        name: t('display.momentum'),
         unit: 'kg·m/s',
         color: '#60a5fa',
         currentValue: obj.velocity.length() * obj.mass,
       },
       {
         id: 'kineticEnergy',
-        name: 'Kinetic Energy',
+        name: t('display.kineticEnergy'),
         unit: 'J',
         color: '#fbbf24',
         currentValue: 0.5 * obj.mass * Math.pow(obj.velocity.length(), 2),
       },
       {
         id: 'position',
-        name: 'Position',
+        name: t('display.position'),
         unit: 'm',
         color: '#a78bfa',
         currentValue: obj.position.length(),
       },
     ];
-  }, [demoObjects]);
+  }, [demoObjects, t]);
 
   return (
     <PhysicsMonitor
@@ -190,6 +193,7 @@ export function ObjectControlTab({
   onToggleTrajectory,
   onLoadPreset,
 }: ObjectControlTabProps) {
+  const { t } = useTranslation('experiments.motion-collision');
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   return (
@@ -203,10 +207,10 @@ export function ObjectControlTab({
       {onToggleTrajectory !== undefined && (
         <div className="space-y-2">
           <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-            Display Settings
+            {t('controlTab.displaySettings')}
           </span>
           <div className="flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-white/10">
-            <span className="text-sm text-slate-300">Show Trajectory</span>
+            <span className="text-sm text-slate-300">{t('controlTab.showTrajectory')}</span>
             <button
               onClick={() => onToggleTrajectory(!showTrajectory)}
               className={`relative w-12 h-6 rounded-full transition-colors ${
@@ -226,7 +230,7 @@ export function ObjectControlTab({
       {/* 添加物体按钮组 */}
       <div className="space-y-2">
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Add Object
+          {t('controlTab.addObject')}
         </span>
         <div className="grid grid-cols-3 gap-2">
           <button
@@ -234,21 +238,21 @@ export function ObjectControlTab({
             className="flex flex-col items-center gap-1 p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/10 transition-colors"
           >
             <div className="w-8 h-8 rounded-full bg-green-500"></div>
-            <span className="text-xs text-slate-300">Sphere</span>
+            <span className="text-xs text-slate-300">{t('controlTab.sphere')}</span>
           </button>
           <button
             onClick={() => onAddObject('box')}
             className="flex flex-col items-center gap-1 p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/10 transition-colors"
           >
             <div className="w-8 h-8 bg-blue-500"></div>
-            <span className="text-xs text-slate-300">Box</span>
+            <span className="text-xs text-slate-300">{t('controlTab.box')}</span>
           </button>
           <button
             onClick={() => onAddObject('plank')}
             className="flex flex-col items-center gap-1 p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/10 transition-colors"
           >
             <div className="w-12 h-3 bg-yellow-700"></div>
-            <span className="text-xs text-slate-300">Plank</span>
+            <span className="text-xs text-slate-300">{t('controlTab.plank')}</span>
           </button>
         </div>
       </div>
@@ -256,7 +260,7 @@ export function ObjectControlTab({
       {/* 物体列表 */}
       <div className="space-y-2">
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Objects ({objects.size})
+          {t('controlTab.objects', { count: objects.size })}
         </span>
         <div className="space-y-2 max-h-60 overflow-y-auto">
           {Array.from(objects.values()).map(obj => (
@@ -309,16 +313,17 @@ function ObjectParams({
   object: SimulationObject;
   onUpdate: (params: Partial<SimulationObject>) => void;
 }) {
+  const { t } = useTranslation('experiments.motion-collision');
   return (
     <div className="space-y-3">
       <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-        Parameters
+        {t('controlTab.parameters')}
       </span>
 
       {/* 质量滑块 */}
       <div>
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-slate-300">Mass</span>
+          <span className="text-slate-300">{t('controlTab.mass')}</span>
           <span className="text-blue-400">{object.mass.toFixed(1)} kg</span>
         </div>
         <input
@@ -334,7 +339,7 @@ function ObjectParams({
 
       {/* 初速度控制 */}
       <div className="space-y-2">
-        <span className="text-xs text-slate-300">Initial Velocity</span>
+        <span className="text-xs text-slate-300">{t('controlTab.initialVelocity')}</span>
         <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="text-xs text-slate-400">Vx</label>

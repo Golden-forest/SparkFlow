@@ -394,24 +394,42 @@ pnpm test
 ### UI 国际化规范
 
 > [!IMPORTANT]
-> **所有面向用户的界面文本必须使用英文**
+> **所有面向用户的界面文本必须通过 i18n 翻译键引用，禁止硬编码字面量**
 
-1. **实验标题和描述**
-   - 实验类 `metadata.name` 必须使用英文
-   - 描述使用专业准确的科技英文术语
+1. **i18n 框架**：`react-i18next` + `i18next`
+   - 翻译键集中在 `src/i18n/locales/{lang}/`
+   - 组件用 `useTranslation()` hook 读取：`const { t } = useTranslation();`
 
-2. **按钮和控件**
-   - 统一术语：`Back`、`Start`、`Pause`、`Resume`、`Reset`
-   - 使用祈使句，简洁明确
+2. **命名空间约定**
+   - `common.json`：通用按钮、标题（Start/Pause/Reset/Back 等）
+   - `home.json`：首页专属文案（Tab、卡片标题、空状态）
+   - `experiments/{id}.json`：每个实验独立 ns（参数标签、显示标签、公式等）
 
-3. **物理术语翻译标准**
-   - 受激吸收 → `Stimulated Absorption`
-   - 自发辐射 → `Spontaneous Emission`
-   - 受激辐射 → `Stimulated Emission`
-   - 能级跃迁 → `Energy Level Transition`
-   - 散射 → `Scattering`
+3. **支持语言**：中文（zh-CN，默认）+ 英文（en-US）
+   - localStorage key：`sparkflow.lang`，值为 `'zh-CN'` 或 `'en-US'`
+   - 切换组件：`src/i18n/LanguageSwitcher.tsx`（首页右上角"中/EN"双标签）
 
-4. **按钮样式统一**
+4. **数据接口约定**
+   - 实验 `metadata.name/description/keywords` 保持英文（ID 级数据，用于注册和路由）
+   - `getDisplayData()` 返回 `labelKey` 可选字段供 UI 翻译
+   - UI 层（DataDisplay）调用 `t(labelKey)`，缺失时 fallback 到 `label`
+
+5. **物理术语中英对照**（写入翻译键时遵循）
+
+   | 中文 | English |
+   |---|---|
+   | 受激吸收 | Stimulated Absorption |
+   | 自发辐射 | Spontaneous Emission |
+   | 受激辐射 | Stimulated Emission |
+   | 能级跃迁 | Energy-Level Transition |
+   | 散射 | Scattering |
+
+6. **禁止事项**
+   - ❌ 在 .tsx/.ts 中硬编码用户可见字面量（中英文都不行）
+   - ❌ 在 `metadata.name` 中放 i18n key
+   - ✅ 例外：物理符号（R、C、U₀）、单位（kΩ、μF）、元素符号（Zn、Cu）、数学公式本身**不翻译**
+
+7. **按钮样式统一**（保留原规范）
    - 使用渐变背景：`bg-gradient-to-r from-{color}-600 to-{color}-500`
    - 添加阴影：`shadow-lg shadow-{color}-900/30`
    - 统一间距：`gap-2.5 px-5 py-2.5`
@@ -544,6 +562,15 @@ test('用户可以调节α粒子入射速度', async ({ page }) => {
 
 ## 变更记录
 
+### 2026-08-08 - i18n 重构（反转旧规范）
+
+- 🔄 **反转 2026-01-18 规范**：从"必须英文"改为"必须走 i18n"
+- ✨ **引入 react-i18next**：双语（zh-CN/en-US）支持，默认中文
+- ✨ **按 ns 拆分翻译键**：common + home + experiments/{id}（共 36 个 JSON）
+- ✨ **DisplayValue 接口扩展**：新增 `labelKey?` 可选字段，UI 层 fallback 到 label
+- ✨ **LanguageSwitcher**：首页右上角"中/EN"双标签按钮，localStorage 持久化
+- 📝 **范围**：主路径全覆盖（首页/通用组件/16 实验 getDisplayData/电容公式卡）；3D TextSprite 延后
+
 ### 2026-01-18 - 国际化与UI规范
 
 - ✨ **新增 UI 国际化规范**：所有用户界面文本必须使用英文
@@ -618,4 +645,72 @@ test('用户可以调节α粒子入射速度', async ({ page }) => {
 
 ---
 
-*本文档随项目发展持续更新，最后修改时间: 2026-01-18*
+## 当前进行中的任务
+
+### 🔧 电容充放电实验 — 单刀双掷开关拓扑重构 — 待执行
+
+> **状态**: 设计 v1.0 + 执行计划 v1.0 已定稿，等待执行
+> **用户已指定**: 使用 `superpowers:subagent-driven-development` 技能执行
+> **触发词**: 当用户说"继续做电容实验"/"执行 SPDT 重构"/"开始拓扑重构"或类似话时
+
+**核心需求**（用户原话总结）：
+- 电路是单刀双掷开关（不是普通开关），开关一端固定在电容支路，另一端可拨到电源或用电器
+- 接掷1时：电源 + 变阻器 R + 电容 在电路中（充电，τ=R×C）
+- 接掷2时：电容 + 变阻器 R + 小灯泡 R_L 在电路中，电源不接入（放电，τ=(R+R_L)×C）
+- R 始终串联在电路中（无论充放电）
+- 小灯泡固定 5kΩ，不可调，放电时随电流大小发光（亮度变化）
+- 充电能充满（U_C→U₀），放电能放完（U_C→0）
+- 充放电曲线要在图表上明显显示
+- 充电时上支路青色高亮，放电时下支路橙色高亮，明确区分
+- 初始状态 = 断开（开关居中）
+
+**必读三件套**：
+1. **设计规格**: `docs/superpowers/specs/2026-08-07-capacitor-spdt-redesign.md` (v1.0)
+2. **执行计划**: `docs/superpowers/plans/2026-08-07-capacitor-spdt-redesign.md` (v1.0)
+3. **前置设计**: `docs/superpowers/specs/2026-08-06-capacitor-rc-circuit-design.md` (v2.0，原始单回路设计)
+
+**执行计划 14 个 Task**：
+- Task 1-3: 物理引擎（RCCircuitPhysics.ts）— CircuitParams 加 loadResistance、放电 τ=(R+R_L)C
+- Task 4: 测试更新（DEFAULT_PARAMS 加 loadResistance=5、修正放电 τ 测试、新增 2 个测试）
+- Task 5: 实验类（CapacitorExperiment.ts）— getParams + getDisplayData
+- Task 6: 2D 布局常量（CircuitView2D.tsx）— H 型坐标 + 双粒子路径 + 橙色
+- Task 7: FormulaCard 双 τ 显示
+- Task 8: 双粒子路径 ref
+- Task 9: 开关三接点拨杆（上=充电青、下=放电橙、水平=断开）
+- Task 10: H 型 6 段导线 W1-W6
+- Task 11: 小灯泡 BulbLamp 组件 + 光晕 filter
+- Task 12: FormulaCard 调用更新
+- Task 13: tsc + 测试 + build 验证
+- Task 14: 浏览器端到端验证
+
+**关键拓扑**（最重要！）：
+- 节点 A = R 上端（连电源正极 + 灯泡一端）
+- 节点 B = C 下板（连开关公共端）
+- 开关掷1 → 电源负极（充电回路闭合）
+- 开关掷2 → 灯泡另一端 → 节点A（放电回路闭合，电源旁路）
+
+**默认参数**：R=10kΩ, C=1000μF, U₀=6V, R_L=5kΩ
+- τ_充 = 10s，τ_放 = 15s（放电比充电慢 50%）
+
+**文件路径**：
+- 物理引擎: `src/experiments/electromagnetism/capacitor-charge-discharge/RCCircuitPhysics.ts`
+- 2D 视图: `src/experiments/electromagnetism/capacitor-charge-discharge/CircuitView2D.tsx`
+- 实验类: `src/experiments/electromagnetism/capacitor-charge-discharge/CapacitorExperiment.ts`
+- 测试: `src/experiments/electromagnetism/capacitor-charge-discharge/__tests__/RCCircuitPhysics.test.ts`
+- 3D 视图（不改）: `Capacitor3DView.ts` + `Capacitor3DCanvas.tsx`
+
+**已完成的前置工作**（v2.0 单回路实现，本次重构的基础）：
+- Phase 0-4 已完成：物理引擎 RK4、2D/3D 视图、Monitor、参数滑块全部可用
+- Phase 5 已完成：视觉协调审查、dispose 异步卸载修复（queueMicrotask）、浏览器验证通过
+- 所有 v2.0 代码已在 main 分支（未提交，工作区修改状态）
+
+**执行约束**：
+- 使用 `superpowers:subagent-driven-development` 技能
+- 每个 Task 派一个新 subagent
+- Task 间做 code review
+- 最大化复用现有代码（不重新造轮子）
+- dev server 运行在 port 5173 或 5174
+
+---
+
+*本文档随项目发展持续更新，最后修改时间: 2026-08-06*

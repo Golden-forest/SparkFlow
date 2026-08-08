@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 
 /**
@@ -26,6 +27,7 @@ export interface StopwatchProps {
  * @component
  */
 export function Stopwatch({ onPeriodsChange, onTimeChange }: StopwatchProps) {
+  const { t } = useTranslation(['experiments.pendulum', 'common']);
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [periods, setPeriods] = useState(0);
@@ -93,7 +95,7 @@ export function Stopwatch({ onPeriodsChange, onTimeChange }: StopwatchProps) {
           {formatTime(elapsedTime)}
         </div>
         <div className="text-sm text-slate-400">
-          Periods: {periods}
+          {t('experiments.pendulum:stopwatch.periodsLabel')}{periods}
         </div>
       </div>
 
@@ -108,7 +110,7 @@ export function Stopwatch({ onPeriodsChange, onTimeChange }: StopwatchProps) {
           }`}
         >
           {isRunning ? <Pause size={18} /> : <Play size={18} />}
-          <span>{isRunning ? 'Pause' : 'Start'}</span>
+          <span>{isRunning ? t('common:playback.pause') : t('common:playback.start')}</span>
         </button>
 
         <button
@@ -116,14 +118,14 @@ export function Stopwatch({ onPeriodsChange, onTimeChange }: StopwatchProps) {
           className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-medium transition-all shadow-lg shadow-slate-900/30"
         >
           <RotateCcw size={18} />
-          <span>Reset</span>
+          <span>{t('common:playback.reset')}</span>
         </button>
       </div>
 
       {/* Period Counting */}
       <div className="space-y-2">
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Manual Period Count
+          {t('experiments.pendulum:stopwatch.manualPeriodCount')}
         </span>
         <div className="flex items-center gap-2">
           <button

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
 import { ExperimentWorkbench } from '@/components/experiment';
 import { ExperimentScene, SceneContainer } from '@/components/simulation';
@@ -60,6 +61,7 @@ function buildDefaultControlSchema(parameters: ParameterDefinition[]): ControlSc
 }
 
 export default function ExperimentView() {
+    const { t } = useTranslation();
     const { experimentId } = useParams<{ experimentId: string }>();
     const location = useLocation();
 
@@ -239,7 +241,7 @@ export default function ExperimentView() {
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center bg-slate-950">
-                <p className="text-xl text-slate-100">Loading experiment...</p>
+                <p className="text-xl text-slate-100">{t('common:status.loading')}</p>
             </div>
         );
     }
@@ -247,9 +249,9 @@ export default function ExperimentView() {
     if (error || !currentExperiment) {
         return (
             <div className="flex h-screen flex-col items-center justify-center bg-slate-950">
-                <p className="mb-4 text-xl text-red-300">{error ?? 'Experiment unavailable.'}</p>
+                <p className="mb-4 text-xl text-red-300">{error ?? t('common:status.unavailable')}</p>
                 <Link to="/" className="text-cyan-300 transition-colors hover:text-cyan-200 hover:underline">
-                    Back to Home
+                    {t('common:navigation.backToHome')}
                 </Link>
             </div>
         );
@@ -271,7 +273,7 @@ export default function ExperimentView() {
                         className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/70 px-4 py-2 text-slate-200 transition-all duration-200 hover:border-cyan-200/40 hover:bg-slate-700/75"
                     >
                         <ArrowLeft size={18} />
-                        <span className="font-medium">Back</span>
+                        <span className="font-medium">{t('common:navigation.back')}</span>
                     </Link>
                     <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
                         {currentExperiment.metadata.name}
@@ -288,14 +290,14 @@ export default function ExperimentView() {
                         }`}
                     >
                         {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                        <span>{isRunning ? 'Pause' : state === SimulationState.Paused ? 'Resume' : 'Start'}</span>
+                        <span>{isRunning ? t('common:playback.pause') : state === SimulationState.Paused ? t('common:playback.resume') : t('common:playback.start')}</span>
                     </button>
                     <button
                         onClick={handleReset}
                         className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-800/85 px-5 py-2.5 font-medium text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-200 hover:bg-slate-700/85"
                     >
                         <RotateCcw size={18} />
-                        <span>Reset</span>
+                        <span>{t('common:playback.reset')}</span>
                     </button>
                 </div>
             </header>

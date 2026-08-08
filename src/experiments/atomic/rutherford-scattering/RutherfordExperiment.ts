@@ -311,21 +311,25 @@ export class RutherfordExperiment extends ExperimentBase {
         return {
             totalEmitted: {
                 label: 'Emitted Particles',
+                labelKey: 'experiments.rutherford-scattering:display.emittedParticles',
                 value: this.totalEmitted,
                 unit: 'count',
             },
             largeAngle: {
                 label: 'Large-Angle Events',
+                labelKey: 'experiments.rutherford-scattering:display.largeAngleEvents',
                 value: this.largeAngleCount,
                 unit: 'count',
             },
             ratio: {
                 label: 'Large-Angle Ratio',
+                labelKey: 'experiments.rutherford-scattering:display.largeAngleRatio',
                 value: ratio,
                 unit: '%',
             },
             theoretical: {
                 label: 'Reference Ratio (~1/8000)',
+                labelKey: 'experiments.rutherford-scattering:display.referenceRatio',
                 value: theoreticalRatio,
                 unit: '%',
             },

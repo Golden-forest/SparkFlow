@@ -392,33 +392,40 @@ export class SolarSystem extends ExperimentBase {
         return {
             currentView: {
                 label: 'Current View',
+                labelKey: 'experiments.solar-system:display.currentView',
                 value: this.currentViewMode === 'solar' ? 'Solar System' : 'Satellite System'
             },
             selectedPlanet: {
                 label: 'Selected Body',
+                labelKey: 'experiments.solar-system:display.selectedBody',
                 value: selectedPlanetName
             },
             ...(planetData && {
                 orbitalPeriod: {
                     label: 'Orbital Period',
+                    labelKey: 'experiments.solar-system:display.orbitalPeriod',
                     value: planetData.period,
                 },
                 relativeSpeed: {
                     label: 'Relative Speed',
+                    labelKey: 'experiments.solar-system:display.relativeSpeed',
                     value: relativeSpeed,
                     unit: 'Earth=1.0x'
                 }
             }),
             planetCount: {
                 label: 'Planets',
+                labelKey: 'experiments.solar-system:display.planets',
                 value: this.planets.length
             },
             satelliteCount: {
                 label: 'Satellites',
+                labelKey: 'experiments.solar-system:display.satellites',
                 value: this.satellites.length
             },
             timeScale: {
                 label: 'Time Scale',
+                labelKey: 'experiments.solar-system:display.timeScale',
                 value: this.timeScale,
                 unit: 'x'
             }

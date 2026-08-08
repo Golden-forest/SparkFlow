@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Stopwatch } from './Stopwatch';
 import { GravityCalculator } from './GravityCalculator';
 
@@ -45,6 +46,7 @@ export function PendulumControlPanel({
   initialAngle,
   onAngleChange,
 }: PendulumControlPanelProps) {
+  const { t } = useTranslation('experiments.pendulum');
   // State for stopwatch and calculator integration
   const [periods, setPeriods] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
@@ -82,7 +84,7 @@ export function PendulumControlPanel({
         {/* Pendulum Length Control */}
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-slate-300">Pendulum Length</span>
+            <span className="text-slate-300">{t('param.pendulumLength')}</span>
             <span className="text-blue-400">{pendulumLength.toFixed(1)} m</span>
           </div>
           <input
@@ -99,7 +101,7 @@ export function PendulumControlPanel({
         {/* Initial Angle Control */}
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-slate-300">Initial Angle</span>
+            <span className="text-slate-300">{t('param.initialAngle')}</span>
             <span className="text-blue-400">{initialAngle.toFixed(0)}°</span>
           </div>
           <input
@@ -116,7 +118,7 @@ export function PendulumControlPanel({
         {/* Bob Mass Control */}
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-slate-300">Bob Mass</span>
+            <span className="text-slate-300">{t('param.bobMass')}</span>
             <span className="text-blue-400">{mass.toFixed(1)} kg</span>
           </div>
           <input
@@ -137,7 +139,7 @@ export function PendulumControlPanel({
       {/* Section 2: Stopwatch */}
       <div>
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Timer
+          {t('panel.timer')}
         </span>
         <div className="mt-2">
           <Stopwatch
@@ -150,7 +152,7 @@ export function PendulumControlPanel({
       {/* Section 3: Gravity Calculator */}
       <div>
         <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-          Analysis
+          {t('panel.analysis')}
         </span>
         <div className="mt-2">
           <GravityCalculator

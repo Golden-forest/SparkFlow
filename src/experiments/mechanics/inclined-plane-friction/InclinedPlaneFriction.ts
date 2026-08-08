@@ -158,55 +158,65 @@ export class InclinedPlaneFriction extends ExperimentBase {
     const potentialEnergy = mass * EARTH_GRAVITY * height;
 
     return {
-      time: { label: 'Time', value: this.state.time.toFixed(2), unit: 's' },
-      motionState: { label: 'Motion State', value: this.state.motionState },
+      time: { label: 'Time', labelKey: 'experiments.inclined-plane-friction:display.time', value: this.state.time.toFixed(2), unit: 's' },
+      motionState: { label: 'Motion State', labelKey: 'experiments.inclined-plane-friction:display.motionState', value: this.state.motionState },
       angle: {
         label: 'Ramp Angle',
+        labelKey: 'experiments.inclined-plane-friction:display.rampAngle',
         value: (this.getAngleRad() * 180 / Math.PI).toFixed(1),
         unit: '°',
       },
       distance: {
         label: 'Distance from Top',
+        labelKey: 'experiments.inclined-plane-friction:display.distanceFromTop',
         value: this.state.distance.toFixed(2),
         unit: 'm',
       },
       velocity: {
         label: 'Velocity (Down Ramp +)',
+        labelKey: 'experiments.inclined-plane-friction:display.velocity',
         value: this.state.velocity.toFixed(3),
         unit: 'm/s',
       },
       acceleration: {
         label: 'Acceleration (Down Ramp +)',
+        labelKey: 'experiments.inclined-plane-friction:display.acceleration',
         value: this.state.acceleration.toFixed(3),
         unit: 'm/s²',
       },
       gravityComponent: {
         label: 'Gravity Component Along Ramp',
+        labelKey: 'experiments.inclined-plane-friction:display.gravityComponentAlongRamp',
         value: this.state.gravityComponent.toFixed(2),
         unit: 'N',
       },
       frictionForce: {
         label: 'Friction Force Magnitude',
+        labelKey: 'experiments.inclined-plane-friction:display.frictionForceMagnitude',
         value: this.state.frictionForce.toFixed(2),
         unit: 'N',
       },
       normalForce: {
         label: 'Normal Force',
+        labelKey: 'experiments.inclined-plane-friction:display.normalForce',
         value: this.state.normalForce.toFixed(2),
         unit: 'N',
       },
       kineticEnergy: {
         label: 'Kinetic Energy',
+        labelKey: 'experiments.inclined-plane-friction:display.kineticEnergy',
         value: kineticEnergy.toFixed(3),
         unit: 'J',
       },
       potentialEnergy: {
         label: 'Potential Energy',
+        labelKey: 'experiments.inclined-plane-friction:display.potentialEnergy',
         value: potentialEnergy.toFixed(3),
         unit: 'J',
       },
       totalEnergy: {
         label: 'Mechanical Energy',
+        labelKey: 'experiments.inclined-plane-friction:display.mechanicalEnergy',
         value: (kineticEnergy + potentialEnergy).toFixed(3),
         unit: 'J',
       },

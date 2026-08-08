@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ParameterDefinition } from '@/experiments/base';
 
 interface ParameterSliderProps {
@@ -57,15 +58,16 @@ interface ControlPanelProps {
 }
 
 export function ControlPanel({
-    title = 'Experiment Parameters',
+    title,
     parameters,
     values,
     onParameterChange,
     children,
 }: ControlPanelProps) {
+    const { t } = useTranslation();
     return (
         <div className="absolute top-4 right-4 w-80 rounded-xl bg-slate-800/90 backdrop-blur-sm border border-white/10 p-5">
-            <h3 className="text-lg font-semibold text-white mb-4">{title}</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">{title ?? t('common:panel.title')}</h3>
 
             <div className="space-y-1">
                 {parameters

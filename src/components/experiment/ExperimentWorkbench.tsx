@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Activity, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import type {
     ControlSchema,
@@ -135,7 +136,7 @@ function SelectControl({
 }
 
 export function ExperimentWorkbench({
-    title = 'Experiment Workbench',
+    title,
     controlSchema,
     monitorSchema,
     parameterValues,
@@ -146,6 +147,8 @@ export function ExperimentWorkbench({
     selectedMonitorIds,
     onSelectedMonitorIdsChange,
 }: ExperimentWorkbenchProps) {
+    const { t } = useTranslation('common');
+    const titleText = title ?? t('workbench.title');
     const [activeTab, setActiveTab] = useState<'controls' | 'monitor'>('controls');
     const [expanded, setExpanded] = useState(true);
 
@@ -177,7 +180,7 @@ export function ExperimentWorkbench({
         <aside className="absolute bottom-5 right-5 top-5 z-40 w-[min(368px,calc(100vw-2.5rem))] rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 p-4 shadow-2xl shadow-slate-950/45 backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
                 <h2 className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-sm font-semibold tracking-[0.18em] text-transparent">
-                    {title}
+                    {titleText}
                 </h2>
                 <button
                     onClick={() => setExpanded(false)}
@@ -198,7 +201,7 @@ export function ExperimentWorkbench({
                     }`}
                 >
                     <SlidersHorizontal size={16} />
-                    Controls
+                    {t('panel.controls')}
                 </button>
                 <button
                     onClick={() => setActiveTab('monitor')}
@@ -209,7 +212,7 @@ export function ExperimentWorkbench({
                     }`}
                 >
                     <Activity size={16} />
-                    Monitor
+                    {t('panel.monitor')}
                 </button>
             </div>
 
@@ -270,7 +273,7 @@ export function ExperimentWorkbench({
                     <div className="space-y-4 pb-1">
                         <div className="rounded-xl border border-white/10 bg-slate-800/70 p-3.5">
                             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                Monitored Quantities
+                                {t('panel.monitoredQuantities')}
                             </h3>
                             <div className="space-y-2">
                                 {monitorSchema.quantities.map((item) => {

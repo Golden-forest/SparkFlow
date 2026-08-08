@@ -604,42 +604,51 @@ export class GalvanicCell extends ExperimentBase {
         return {
             mode: {
                 label: 'Mode',
+                labelKey: 'experiments.galvanic-cell:display.mode',
                 value: mode === 'galvanic' ? 'Galvanic Cell' : 'Electrolytic Cell',
             },
             emf: {
                 label: 'EMF',
+                labelKey: 'experiments.galvanic-cell:display.emf',
                 value: data.emf.toFixed(3),
                 unit: 'V',
             },
             current: {
                 label: 'Current',
+                labelKey: 'experiments.galvanic-cell:display.current',
                 value: (data.current * 1000).toFixed(2),
                 unit: 'mA',
             },
             znConc: {
                 label: 'Zn\u00B2\u207A Conc.',
+                labelKey: 'experiments.galvanic-cell:display.znConc',
                 value: data.znConcentration.toFixed(3),
                 unit: 'mol/L',
             },
             cuDeposited: {
                 label: 'Cu Deposited',
+                labelKey: 'experiments.galvanic-cell:display.cuDeposited',
                 value: data.cuDepositedMass.toFixed(2),
                 unit: 'mg',
             },
             anodeReaction: {
                 label: reactions.anodeProcess === 'oxidation' ? 'Anode (Oxidation)' : 'Cathode (Reduction)',
+                labelKey: 'experiments.galvanic-cell:display.anodeOxidation',
                 value: reactions.anodeReaction,
             },
             cathodeReaction: {
                 label: reactions.cathodeProcess === 'reduction' ? 'Cathode (Reduction)' : 'Anode (Oxidation)',
+                labelKey: 'experiments.galvanic-cell:display.cathodeReduction',
                 value: reactions.cathodeReaction,
             },
             totalReaction: {
                 label: 'Total',
+                labelKey: 'experiments.galvanic-cell:display.total',
                 value: reactions.totalReaction,
             },
             elapsedTime: {
                 label: 'Time',
+                labelKey: 'experiments.galvanic-cell:display.time',
                 value: this.elapsedTime.toFixed(1),
                 unit: 's',
             },

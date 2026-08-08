@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, Atom } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 
 interface BottomToolbarProps {
@@ -33,6 +34,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
     onReset,
     onEmit,
 }) => {
+    const { t } = useTranslation();
     // 能量滑块磁吸逻辑
     const handleEnergyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let value = parseFloat(e.target.value);
@@ -55,15 +57,15 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
 
                 {/* 场景选择 */}
                 <div className="flex flex-col gap-1">
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">实验场景</span>
+                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t('experiments.hydrogen-transitions:toolbar.mode')}</span>
                     <select
                         value={sceneMode}
                         onChange={(e) => onSceneModeChange(e.target.value as SceneMode)}
                         className="bg-slate-800 text-white text-sm rounded-lg border border-slate-700 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                        <option value="stimulated-absorption">受激吸收</option>
-                        <option value="spontaneous-emission">自发辐射</option>
-                        <option value="stimulated-emission">受激辐射</option>
+                        <option value="stimulated-absorption">{t('experiments.hydrogen-transitions:toolbar.stimulatedAbsorption')}</option>
+                        <option value="spontaneous-emission">{t('experiments.hydrogen-transitions:toolbar.spontaneousEmission')}</option>
+                        <option value="stimulated-emission">{t('experiments.hydrogen-transitions:toolbar.stimulatedEmission')}</option>
                     </select>
                 </div>
 
@@ -72,7 +74,9 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                 {/* 能级选择 */}
                 <div className="flex flex-col gap-1">
                     <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-                        {sceneMode === 'stimulated-absorption' ? 'Initial Level' : 'Excited Level'}
+                        {sceneMode === 'stimulated-absorption'
+                            ? t('experiments.hydrogen-transitions:toolbar.initialLevel')
+                            : t('experiments.hydrogen-transitions:toolbar.excitedLevel')}
                     </span>
                     <div className="flex items-center gap-2">
                         <span className="text-white font-mono">n={currentLevel}</span>
@@ -101,7 +105,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                         <div className="w-px h-10 bg-white/10" />
                         <div className="flex flex-col gap-1 min-w-[200px]">
                             <div className="flex justify-between items-center">
-                                <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">光子能量</span>
+                                <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t('experiments.hydrogen-transitions:toolbar.photonEnergy')}</span>
                                 <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${validEnergies.includes(photonEnergy)
                                     ? 'bg-green-500/20 text-green-400'
                                     : 'bg-slate-700 text-slate-300'
@@ -142,7 +146,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                         // 如果不在有效能量上，点击只会发射穿透的光子，不会触发跃迁
                         >
                             <span className="text-lg">⚡</span>
-                            发射光子
+                            {t('experiments.hydrogen-transitions:toolbar.emitPhoton')}
                         </button>
                     </>
                 )}
@@ -152,21 +156,21 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                     <>
                         <div className="w-px h-10 bg-white/10" />
                         <div className="flex flex-col gap-1">
-                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">电子数量</span>
+                            <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">{t('experiments.hydrogen-transitions:toolbar.electronCount')}</span>
                             <div className="flex bg-slate-800 rounded-lg p-0.5 border border-slate-700">
                                 <button
                                     onClick={() => onElectronCountChange('single')}
                                     className={`px-3 py-1 text-xs rounded-md transition-all ${electronCount === 'single' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                                         }`}
                                 >
-                                    单电子
+                                    {t('experiments.hydrogen-transitions:toolbar.singleElectron')}
                                 </button>
                                 <button
                                     onClick={() => onElectronCountChange('multi')}
                                     className={`px-3 py-1 text-xs rounded-md transition-all ${electronCount === 'multi' ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                                         }`}
                                 >
-                                    多电子
+                                    {t('experiments.hydrogen-transitions:toolbar.multipleElectrons')}
                                 </button>
                             </div>
                         </div>
@@ -179,7 +183,9 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                         // disabled={isRunning}
                         >
                             {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                            {isRunning ? 'Stop' : 'Start'}
+                            {isRunning
+                                ? t('common:playback.pause')
+                                : t('common:playback.start')}
                         </button>
                     </>
                 )}
@@ -190,7 +196,7 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
                 <button
                     onClick={onReset}
                     className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                    title="Reset Experiment"
+                    title={t('experiments.hydrogen-transitions:toolbar.resetExperiment')}
                 >
                     <RotateCcw size={20} />
                 </button>

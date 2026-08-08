@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ZoomIn, Play, Pause, RotateCcw } from 'lucide-react';
 
 // 粒子状态
@@ -351,6 +352,7 @@ function ExperimentScene({
  * 宏观实验装置页面
  */
 export default function MacroExperimentView() {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [isRunning, setIsRunning] = useState(false);
     const [stats, setStats] = useState({ total: 0, direct: 0, small: 0, large: 0 });
@@ -376,11 +378,11 @@ export default function MacroExperimentView() {
                 <div className="flex items-center gap-4">
                     <Link to="/" className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-800/65 px-4 py-2 text-slate-200 transition-all duration-200 hover:border-cyan-200/40 hover:bg-slate-700/70">
                         <ArrowLeft size={18} />
-                        <span className="font-medium">Back</span>
+                        <span className="font-medium">{t('common:navigation.back')}</span>
                     </Link>
                     <div className="h-6 w-px bg-white/10" />
                     <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
-                        Rutherford α-Particle Scattering - Device View
+                        {t('experiments.rutherford-scattering:deviceTitle')}
                     </h1>
                 </div>
 
@@ -391,14 +393,14 @@ export default function MacroExperimentView() {
                             }`}
                     >
                         {isRunning ? <Pause size={18} /> : <Play size={18} />}
-                        <span className="tracking-wide">{isRunning ? 'Pause' : 'Start'}</span>
+                        <span className="tracking-wide">{isRunning ? t('common:playback.pause') : t('common:playback.start')}</span>
                     </button>
                     <button
                         onClick={handleReset}
                         className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-slate-800/85 px-5 py-2.5 font-medium text-slate-100 shadow-lg shadow-slate-950/40 transition-all duration-200 hover:bg-slate-700/85"
                     >
                         <RotateCcw size={18} />
-                        <span className="tracking-wide">Reset</span>
+                        <span className="tracking-wide">{t('common:playback.reset')}</span>
                     </button>
                 </div>
             </header>
@@ -433,22 +435,22 @@ export default function MacroExperimentView() {
 
                 {/* 右下角数据面板 */}
                 <div className="absolute bottom-8 right-8 w-72 rounded-2xl border border-white/10 bg-slate-900/82 p-4 shadow-xl shadow-slate-950/45 backdrop-blur-xl">
-                    <h3 className="mb-3 text-sm font-semibold text-white">Experiment Data</h3>
+                    <h3 className="mb-3 text-sm font-semibold text-white">{t('experiments.rutherford-scattering:data.title')}</h3>
                     <div className="space-y-1 text-xs">
                         <div className="flex justify-between">
-                            <span className="text-slate-400">Particles Emitted</span>
+                            <span className="text-slate-400">{t('experiments.rutherford-scattering:display.emittedParticles')}</span>
                             <span className="text-white font-mono">{stats.total}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-emerald-400">Direct Passage</span>
+                            <span className="text-emerald-400">{t('experiments.rutherford-scattering:display.directPassage')}</span>
                             <span className="text-white font-mono">{stats.direct} ({stats.total > 0 ? ((stats.direct / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-amber-400">Small Angle Scatter</span>
+                            <span className="text-amber-400">{t('experiments.rutherford-scattering:display.smallAngleScatter')}</span>
                             <span className="text-white font-mono">{stats.small} ({stats.total > 0 ? ((stats.small / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-orange-500">Large Angle Scatter</span>
+                            <span className="text-orange-500">{t('experiments.rutherford-scattering:display.largeAngleScatter')}</span>
                             <span className="text-white font-mono">{stats.large} ({stats.total > 0 ? ((stats.large / stats.total) * 100).toFixed(1) : 0}%)</span>
                         </div>
                     </div>
@@ -459,7 +461,7 @@ export default function MacroExperimentView() {
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-cyan-500 py-2 text-xs font-medium text-white transition-all duration-200 hover:from-sky-500 hover:to-cyan-400"
                         >
                             <ZoomIn size={16} />
-                            View Microscopic
+                            {t('experiments.rutherford-scattering:data.viewMicroscopic')}
                         </button>
                     </div>
                 </div>
@@ -469,15 +471,15 @@ export default function MacroExperimentView() {
                     <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                             <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                            <span className="text-slate-300">Direct Passage</span>
+                            <span className="text-slate-300">{t('experiments.rutherford-scattering:legend.directPassage')}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="h-3 w-3 rounded-full bg-amber-400" />
-                            <span className="text-slate-300">Small Angle</span>
+                            <span className="text-slate-300">{t('experiments.rutherford-scattering:legend.smallAngle')}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className="h-3 w-3 rounded-full bg-orange-500" />
-                            <span className="text-slate-300">Large Angle</span>
+                            <span className="text-slate-300">{t('experiments.rutherford-scattering:legend.largeAngle')}</span>
                         </div>
                     </div>
                 </div>

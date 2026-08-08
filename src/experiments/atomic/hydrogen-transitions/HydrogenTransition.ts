@@ -498,20 +498,24 @@ export class HydrogenTransition extends ExperimentBase {
         return {
             status: {
                 label: 'Mode Status',
+                labelKey: 'experiments.hydrogen-transitions:display.modeStatus',
                 value: this.sceneMode === 'stimulated-absorption' ? 'Ready for Absorption' : 'Emission Active',
             },
             currentLevel: {
                 label: 'Current Level',
+                labelKey: 'experiments.hydrogen-transitions:display.currentLevel',
                 value: this.currentLevel,
                 unit: 'n',
             },
             inputEnergy: {
                 label: 'Photon Energy',
+                labelKey: 'experiments.hydrogen-transitions:display.photonEnergy',
                 value: this.inputEnergy,
                 unit: 'eV',
             },
             photonCount: {
                 label: 'Active Photons',
+                labelKey: 'experiments.hydrogen-transitions:display.activePhotons',
                 value: this.photons.length,
                 unit: 'count',
             },
