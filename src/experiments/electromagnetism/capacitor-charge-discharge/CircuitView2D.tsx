@@ -700,15 +700,18 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const chargeDots = Qmax > 0 ? Math.floor((Qabs / Qmax) * (CHARGE_GRID.cols * CHARGE_GRID.rows)) : 0;
 
     // 灯泡亮度（放电时随电流变化）。
-    // 用 gamma=0.6 映射，让低电流时也有明显视觉变化（人眼对小亮度差异更敏感）。
-    //   raw = |i|/Imax ∈ [0,1]，bulbBrightness = raw^0.6
-    // 这样：raw=0.1 → 0.25，raw=0.37(1τ) → 0.55，raw=0.5 → 0.66，raw=1 → 1
+    // 用 gamma=1.8 映射，让电流衰减时灯泡快速变暗，视觉上"由亮到灭"更明显：
+    //   raw = |i|/Imax ∈ [0,1]，bulbBrightness = raw^1.8
+    // 这样：raw=0.5(0.7τ) → 0.29，raw=0.37(1τ) → 0.18，raw=0.1 → 0.016
+    // 配合 bulbActive 阈值（raw < 0.03 时灯泡彻底熄灭），放电末段灯泡明显转灰。
     const R_load_ohm = params.loadResistance * 1000;
     const i_max_discharge = R_ohm + R_load_ohm > 0 ? params.sourceVoltage / (R_ohm + R_load_ohm) : 0;
     const bulbRawBrightness = i_max_discharge > 0
         ? Math.min(Math.abs(state.current) / i_max_discharge, 1)
         : 0;
-    const bulbBrightness = Math.pow(bulbRawBrightness, 0.6);
+    const bulbBrightness = Math.pow(bulbRawBrightness, 1.8);
+    // 灯泡是否"通电发光"：放电模式 且 电流占比 > 3%（低于此值视为熄灭，灯泡回到灰色）
+    const bulbActive = state.mode === 'discharging' && bulbRawBrightness > 0.03;
 
     // 滑片 x 位置（由 params.resistance 完全决定，无内部 state）
     const knobRatio = (params.resistance - 1) / (50 - 1);
@@ -1020,7 +1023,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                     cy={BULB.cy}
                     radius={BULB.radius}
                     brightness={bulbBrightness}
-                    active={state.mode === 'discharging'}
+                    active={bulbActive}
                 />
                 {/* 灯泡标签 */}
                 {showLabels && (
@@ -1028,7 +1031,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                         x={BULB.cx}
                         y={BULB.cy + BULB.radius + 24}
                         text={`R_L = ${params.loadResistance} kΩ`}
-                        fill={state.mode === 'discharging' ? COLORS.bulbOn : COLORS.textDim}
+                        fill={bulbActive ? COLORS.bulbOn : COLORS.textDim}
                     />
                 )}
 
