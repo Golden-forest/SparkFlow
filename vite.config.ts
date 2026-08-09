@@ -10,6 +10,7 @@ function resourceManifestPlugin(): Plugin {
   const watchRoots = [
     path.resolve(projectRoot, 'public/images'),
     path.resolve(projectRoot, 'public/courseware'),
+    path.resolve(projectRoot, 'public/simcanvas'),
   ]
 
   const regenerate = () => {
@@ -39,22 +40,26 @@ function resourceManifestPlugin(): Plugin {
       regenerate()
       watchRoots.forEach((watchRoot) => server.watcher.add(watchRoot))
 
-      // Serve static HTML from public/courseware subdirectories before SPA fallback
-      server.middlewares.use('/courseware', (req, res, next) => {
-        const coursewareRoot = path.resolve(projectRoot, 'public/courseware')
-        const urlPath = req.url?.split('?')[0] ?? ''
-        // Match /courseware/<dirname>/ or /courseware/<dirname>
-        const dirMatch = urlPath.match(/^\/([^/]+)\/?$/)
-        if (dirMatch) {
-          const indexPath = path.join(coursewareRoot, dirMatch[1], 'index.html')
-          if (fs.existsSync(indexPath)) {
-            res.setHeader('Content-Type', 'text/html; charset=utf-8')
-            fs.createReadStream(indexPath).pipe(res)
-            return
+      // Serve static HTML from public subdirectories (courseware / simcanvas) before SPA fallback
+      const serveSubdirectoryIndex = (mountPath: string, rootDir: string) => {
+        server.middlewares.use(mountPath, (req, res, next) => {
+          const urlPath = req.url?.split('?')[0] ?? ''
+          // Match /<mountPath>/<dirname>/ or /<mountPath>/<dirname>
+          const dirMatch = urlPath.match(/^\/([^/]+)\/?$/)
+          if (dirMatch) {
+            const indexPath = path.join(rootDir, dirMatch[1], 'index.html')
+            if (fs.existsSync(indexPath)) {
+              res.setHeader('Content-Type', 'text/html; charset=utf-8')
+              fs.createReadStream(indexPath).pipe(res)
+              return
+            }
           }
-        }
-        next()
-      })
+          next()
+        })
+      }
+
+      serveSubdirectoryIndex('/courseware', path.resolve(projectRoot, 'public/courseware'))
+      serveSubdirectoryIndex('/simcanvas', path.resolve(projectRoot, 'public/simcanvas'))
 
       const onWatchChange = (targetPath: string) => {
         if (shouldRegenerate(targetPath)) {

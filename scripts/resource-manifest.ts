@@ -11,6 +11,7 @@ export interface ManifestItem {
 export interface ResourceManifest {
   generatedAt: string;
   courseware: ManifestItem[];
+  simcanvas: ManifestItem[];
   images: ManifestItem[];
 }
 
@@ -87,20 +88,37 @@ function createItems(publicRoot: string, baseDirectory: string, extensions: Set<
 }
 
 function createCoursewareItems(publicRoot: string, coursewareRoot: string): ManifestItem[] {
-  if (!fs.existsSync(coursewareRoot)) return [];
+  return createSubdirectoryIndexItems(publicRoot, coursewareRoot, 'courseware');
+}
 
-  const entries = fs.readdirSync(coursewareRoot, { withFileTypes: true });
+function createSimCanvasItems(publicRoot: string, simcanvasRoot: string): ManifestItem[] {
+  return createSubdirectoryIndexItems(publicRoot, simcanvasRoot, 'simcanvas');
+}
+
+/**
+ * Scan `baseDirectory` for subdirectories containing an `index.html`,
+ * producing one ManifestItem per such subdirectory.
+ * Used by both courseware and simcanvas tabs which follow the same pattern.
+ */
+function createSubdirectoryIndexItems(
+  publicRoot: string,
+  baseDirectory: string,
+  prefix: string,
+): ManifestItem[] {
+  if (!fs.existsSync(baseDirectory)) return [];
+
+  const entries = fs.readdirSync(baseDirectory, { withFileTypes: true });
   const items: ManifestItem[] = [];
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const indexPath = path.join(coursewareRoot, entry.name, 'index.html');
+    const indexPath = path.join(baseDirectory, entry.name, 'index.html');
     if (!fs.existsSync(indexPath)) continue;
 
-    const publicDirPath = `/${path.relative(publicRoot, coursewareRoot).split(path.sep).join('/')}/${entry.name}`;
-    const relative = `${path.relative(publicRoot, coursewareRoot).split(path.sep).join('/')}/${entry.name}/index.html`;
+    const publicDirPath = `/${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}`;
+    const relative = `${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}/index.html`;
     items.push({
-      id: toIdFromRelativePath(relative, 'courseware'),
+      id: toIdFromRelativePath(relative, prefix),
       title: toTitleFromFilename(entry.name),
       path: `${publicDirPath}/`,
     });
@@ -112,15 +130,18 @@ function createCoursewareItems(publicRoot: string, coursewareRoot: string): Mani
 export function generateResourceManifest(projectRoot: string): ResourceManifest {
   const publicRoot = path.resolve(projectRoot, 'public');
   const coursewareRoot = path.resolve(publicRoot, 'courseware');
+  const simcanvasRoot = path.resolve(publicRoot, 'simcanvas');
   const imagesRoot = path.resolve(publicRoot, 'images');
 
   ensureDirectory(publicRoot);
   ensureDirectory(coursewareRoot);
+  ensureDirectory(simcanvasRoot);
   ensureDirectory(imagesRoot);
 
   const manifest: ResourceManifest = {
     generatedAt: new Date().toISOString(),
     courseware: createCoursewareItems(publicRoot, coursewareRoot),
+    simcanvas: createSimCanvasItems(publicRoot, simcanvasRoot),
     images: createItems(publicRoot, imagesRoot, IMAGE_EXTENSIONS, 'images'),
   };
 

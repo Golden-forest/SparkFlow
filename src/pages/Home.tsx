@@ -15,9 +15,17 @@ interface ExperimentCard {
     gradient: string;
 }
 
-type HomeTab = 'experiments' | 'courseware' | 'images';
+type HomeTab = 'experiments' | 'simcanvas' | 'courseware' | 'images';
 
 interface CoursewareCard {
+    id: string;
+    title: string;
+    description: string;
+    status: 'draft' | 'ready';
+    href?: string;
+}
+
+interface SimCanvasCard {
     id: string;
     title: string;
     description: string;
@@ -33,6 +41,7 @@ interface ImageResourceCard {
 
 interface ResourceManifest {
     courseware: Array<{ id: string; title: string; path: string }>;
+    simcanvas: Array<{ id: string; title: string; path: string }>;
     images: Array<{ id: string; title: string; path: string }>;
 }
 
@@ -710,6 +719,7 @@ export default function Home() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<HomeTab>('experiments');
     const [coursewareCards, setCoursewareCards] = useState<CoursewareCard[]>([]);
+    const [simCanvasCards, setSimCanvasCards] = useState<SimCanvasCard[]>([]);
     const [imageResources, setImageResources] = useState<ImageResourceCard[]>([]);
 
     useEffect(() => {
@@ -736,6 +746,15 @@ export default function Home() {
                         href: item.path,
                     })),
                 );
+                setSimCanvasCards(
+                    (manifest.simcanvas ?? []).map((item) => ({
+                        id: item.id,
+                        title: item.title,
+                        description: t('home:simcanvasPrefix') + item.path,
+                        status: 'ready',
+                        href: item.path,
+                    })),
+                );
                 setImageResources(
                     (manifest.images ?? []).map((item) => ({
                         id: item.id,
@@ -746,6 +765,7 @@ export default function Home() {
             } catch {
                 if (cancelled) return;
                 setCoursewareCards([]);
+                setSimCanvasCards([]);
                 setImageResources([]);
             }
         };
@@ -783,6 +803,7 @@ export default function Home() {
                     <div className="inline-flex rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg">
                         {[
                             { key: 'experiments', labelKey: 'home:tab.experiments' },
+                            { key: 'simcanvas', labelKey: 'home:tab.simcanvas' },
                             { key: 'courseware', labelKey: 'home:tab.courseware' },
                             { key: 'images', labelKey: 'home:tab.images' },
                         ].map((tab) => {
@@ -853,6 +874,47 @@ export default function Home() {
                                         </div>
                                     </div>
                                 </div>
+                            </article>
+                        ))}
+                    </div>
+                ) : null}
+
+                {activeTab === 'simcanvas' ? (
+                    <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+                        {simCanvasCards.length === 0 ? (
+                            <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
+                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                                    {t('home:empty.simcanvas')}
+                                </h2>
+                                <p className="text-sm leading-relaxed text-slate-300">
+                                    {t('home:empty.simcanvasHint')}
+                                </p>
+                            </article>
+                        ) : null}
+                        {simCanvasCards.map((card) => (
+                            <article
+                                key={card.id}
+                                className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-8"
+                            >
+                                <div className="mb-5 inline-flex rounded-full border border-cyan-400/40 bg-cyan-900/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-cyan-200">
+                                    {card.status === 'ready' ? t('common:status.ready') : t('common:status.draft')}
+                                </div>
+                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                                    {card.title}
+                                </h2>
+                                <p className="text-sm leading-relaxed text-slate-300">{card.description}</p>
+                                {card.href ? (
+                                    <a
+                                        href={card.href}
+                                        className="mt-6 inline-flex items-center rounded-lg bg-gradient-to-r from-cyan-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition-all hover:from-cyan-500 hover:to-sky-400"
+                                    >
+                                        {t('home:button.openHtml')}
+                                    </a>
+                                ) : (
+                                    <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
+                                        {t('common:status.waitingContent')}
+                                    </p>
+                                )}
                             </article>
                         ))}
                     </div>
