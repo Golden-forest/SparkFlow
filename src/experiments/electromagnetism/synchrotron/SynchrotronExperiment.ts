@@ -42,28 +42,31 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'viewMode',
         label: 'View Mode',
+        labelKey: 'experiments.synchrotron-em-fields:param.viewMode',
         type: 'select',
         defaultValue: 'macro',
         options: [
-          { value: 'macro', label: 'Synchrotron Ring' },
-          { value: 'micro', label: 'E/B Field Motion' },
+          { value: 'macro', label: 'Synchrotron Ring', labelKey: 'experiments.synchrotron-em-fields:option.viewMode.ring' },
+          { value: 'micro', label: 'E/B Field Motion', labelKey: 'experiments.synchrotron-em-fields:option.viewMode.ebField' },
         ],
       },
       {
         key: 'mechanism',
         label: 'Micro Mechanism',
+        labelKey: 'experiments.synchrotron-em-fields:param.microMechanism',
         type: 'select',
         defaultValue: 'rf',
         options: [
-          { value: 'rf', label: 'RF Acceleration' },
-          { value: 'bending', label: 'Magnetic Bending' },
-          { value: 'synchronized', label: 'Synchronized Orbit' },
-          { value: 'collision', label: 'Collision Point' },
+          { value: 'rf', label: 'RF Acceleration', labelKey: 'experiments.synchrotron-em-fields:option.microMechanism.rfAcceleration' },
+          { value: 'bending', label: 'Magnetic Bending', labelKey: 'experiments.synchrotron-em-fields:option.microMechanism.magneticBending' },
+          { value: 'synchronized', label: 'Synchronized Orbit', labelKey: 'experiments.synchrotron-em-fields:option.microMechanism.synchronizedOrbit' },
+          { value: 'collision', label: 'Collision Point', labelKey: 'experiments.synchrotron-em-fields:option.microMechanism.collisionPoint' },
         ],
       },
       {
         key: 'electricFieldStrength',
         label: 'Electric Field E',
+        labelKey: 'experiments.synchrotron-em-fields:param.electricField',
         type: 'number',
         defaultValue: 1.1,
         min: -3,
@@ -74,6 +77,7 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'magneticFieldStrength',
         label: 'Magnetic Field B',
+        labelKey: 'experiments.synchrotron-em-fields:param.magneticField',
         type: 'number',
         defaultValue: 1.35,
         min: -3,
@@ -84,6 +88,7 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'charge',
         label: 'Particle Charge q',
+        labelKey: 'experiments.synchrotron-em-fields:param.particleCharge',
         type: 'number',
         defaultValue: 1,
         min: -2,
@@ -94,6 +99,7 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'mass',
         label: 'Particle Mass m',
+        labelKey: 'experiments.synchrotron-em-fields:param.particleMass',
         type: 'number',
         defaultValue: 1,
         min: 0.2,
@@ -104,6 +110,7 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'initialSpeed',
         label: 'Initial Speed',
+        labelKey: 'experiments.synchrotron-em-fields:param.initialSpeed',
         type: 'number',
         defaultValue: 1.8,
         min: 0.3,
@@ -114,12 +121,14 @@ export class SynchrotronExperiment extends ExperimentBase {
       {
         key: 'showVectors',
         label: 'Show v, E, B, F Vectors',
+        labelKey: 'experiments.synchrotron-em-fields:param.showVectors',
         type: 'boolean',
         defaultValue: true,
       },
       {
         key: 'showLabels',
         label: 'Show Scene Labels',
+        labelKey: 'experiments.synchrotron-em-fields:param.showSceneLabels',
         type: 'boolean',
         defaultValue: false,
       },
@@ -188,7 +197,7 @@ export class SynchrotronExperiment extends ExperimentBase {
       title: 'Controls',
       parameters: this.config.parameters,
       actions: [
-        { key: 'resetParticleTrack', label: 'Reset Micro Track', variant: 'secondary' },
+        { key: 'resetParticleTrack', label: 'Reset Micro Track', labelKey: 'experiments.synchrotron-em-fields:action.resetMicroTrack', variant: 'secondary' },
       ],
     };
   }
@@ -203,10 +212,10 @@ export class SynchrotronExperiment extends ExperimentBase {
     return {
       title: 'Field Monitor',
       quantities: [
-        { key: 'speed', label: 'Particle Speed', unit: 'm/s', color: '#38bdf8' },
-        { key: 'force', label: 'Lorentz Force', unit: 'N', color: '#f97316' },
-        { key: 'separation', label: 'Beam Separation', unit: 'm', color: '#34d399' },
-        { key: 'kineticEnergy', label: 'Kinetic Energy', unit: 'J', color: '#f59e0b' },
+        { key: 'speed', label: 'Particle Speed', labelKey: 'experiments.synchrotron-em-fields:monitor.particleSpeed', unit: 'm/s', color: '#38bdf8' },
+        { key: 'force', label: 'Lorentz Force', labelKey: 'experiments.synchrotron-em-fields:monitor.lorentzForce', unit: 'N', color: '#f97316' },
+        { key: 'separation', label: 'Beam Separation', labelKey: 'experiments.synchrotron-em-fields:monitor.beamSeparation', unit: 'm', color: '#34d399' },
+        { key: 'kineticEnergy', label: 'Kinetic Energy', labelKey: 'experiments.synchrotron-em-fields:monitor.kineticEnergy', unit: 'J', color: '#f59e0b' },
       ],
       defaultSelected: ['speed', 'force', 'separation'],
       sampleIntervalMs: 80,

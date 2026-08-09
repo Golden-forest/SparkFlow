@@ -43,6 +43,7 @@ export class MotionCollisionLab extends ExperimentBase {
       {
         key: 'showTrajectory',
         label: 'Show Trajectory',
+        labelKey: 'experiments.motion-collision:param.showTrajectory',
         type: 'boolean',
         defaultValue: true,
       },
@@ -432,10 +433,10 @@ export class MotionCollisionLab extends ExperimentBase {
     return {
       title: 'Monitor',
       quantities: [
-        { key: 'velocity', label: 'Velocity', unit: 'm/s', color: '#22d3ee' },
-        { key: 'acceleration', label: 'Acceleration', unit: 'm/s2', color: '#f59e0b' },
-        { key: 'momentum', label: 'Momentum', unit: 'kg*m/s', color: '#34d399' },
-        { key: 'kineticEnergy', label: 'Kinetic Energy', unit: 'J', color: '#a78bfa' },
+        { key: 'velocity', label: 'Velocity', labelKey: 'experiments.motion-collision:monitor.velocity', unit: 'm/s', color: '#22d3ee' },
+        { key: 'acceleration', label: 'Acceleration', labelKey: 'experiments.motion-collision:monitor.acceleration', unit: 'm/s2', color: '#f59e0b' },
+        { key: 'momentum', label: 'Momentum', labelKey: 'experiments.motion-collision:monitor.momentum', unit: 'kg*m/s', color: '#34d399' },
+        { key: 'kineticEnergy', label: 'Kinetic Energy', labelKey: 'experiments.motion-collision:monitor.kineticEnergy', unit: 'J', color: '#a78bfa' },
       ],
       defaultSelected: ['velocity', 'momentum', 'kineticEnergy'],
       sampleIntervalMs: 100,

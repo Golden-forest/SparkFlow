@@ -57,6 +57,7 @@ const config: ExperimentConfig2D = {
         {
             key: 'resistance',
             label: 'Resistance',
+            labelKey: 'experiments.capacitor-charge-discharge:param.resistance',
             type: 'number',
             defaultValue: 5,
             min: 1,
@@ -67,6 +68,7 @@ const config: ExperimentConfig2D = {
         {
             key: 'capacitance',
             label: 'Capacitance',
+            labelKey: 'experiments.capacitor-charge-discharge:param.capacitance',
             type: 'number',
             defaultValue: 200,
             min: 100,
@@ -77,6 +79,7 @@ const config: ExperimentConfig2D = {
         {
             key: 'sourceVoltage',
             label: 'Source Voltage',
+            labelKey: 'experiments.capacitor-charge-discharge:param.sourceVoltage',
             type: 'number',
             defaultValue: 6,
             min: 1,
@@ -89,23 +92,26 @@ const config: ExperimentConfig2D = {
         {
             key: 'switchMode',
             label: 'Switch',
+            labelKey: 'experiments.capacitor-charge-discharge:param.switch',
             type: 'select',
             defaultValue: 'disconnected',
             options: [
-                { value: 'disconnected', label: 'Disconnected' },
-                { value: 'charging', label: 'Charging' },
-                { value: 'discharging', label: 'Discharging' },
+                { value: 'disconnected', label: 'Disconnected', labelKey: 'experiments.capacitor-charge-discharge:option.switch.disconnected' },
+                { value: 'charging', label: 'Charging', labelKey: 'experiments.capacitor-charge-discharge:option.switch.charging' },
+                { value: 'discharging', label: 'Discharging', labelKey: 'experiments.capacitor-charge-discharge:option.switch.discharging' },
             ],
         },
         {
             key: 'showField3D',
             label: 'Show 3D View',
+            labelKey: 'experiments.capacitor-charge-discharge:param.show3DView',
             type: 'boolean',
             defaultValue: false,
         },
         {
             key: 'showLabels',
             label: 'Show Labels',
+            labelKey: 'experiments.capacitor-charge-discharge:param.showLabels',
             type: 'boolean',
             defaultValue: false,
         },
@@ -288,9 +294,9 @@ export class CapacitorExperiment extends ExperimentBase2D {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'voltage', label: 'Voltage U_C', unit: 'V', color: '#22D3EE', yMin: 0, yMax: 6 },
-                { key: 'current', label: 'Current i', unit: 'mA', color: '#F97316', yMin: -0.3, yMax: 1.8 },
-                { key: 'charge', label: 'Charge Q', unit: '\u00B5C', color: '#34D399', yMin: 0, yMax: 1300 },
+                { key: 'voltage', label: 'Voltage U_C', labelKey: 'experiments.capacitor-charge-discharge:monitor.voltageUC', unit: 'V', color: '#22D3EE', yMin: 0, yMax: 6 },
+                { key: 'current', label: 'Current i', labelKey: 'experiments.capacitor-charge-discharge:monitor.current', unit: 'mA', color: '#F97316', yMin: -0.3, yMax: 1.8 },
+                { key: 'charge', label: 'Charge Q', labelKey: 'experiments.capacitor-charge-discharge:monitor.charge', unit: '\u00B5C', color: '#34D399', yMin: 0, yMax: 1300 },
             ],
             defaultSelected: ['voltage', 'current', 'charge'],
             sampleIntervalMs: 50,

@@ -52,6 +52,7 @@ export class DoubleSlitInterference extends ExperimentBase {
       {
         key: 'wavelength',
         label: 'Wavelength',
+        labelKey: 'experiments.double-slit-interference:param.wavelength',
         type: 'number',
         defaultValue: 550,
         min: 380,
@@ -62,6 +63,7 @@ export class DoubleSlitInterference extends ExperimentBase {
       {
         key: 'slitSeparation',
         label: 'Slit Separation',
+        labelKey: 'experiments.double-slit-interference:param.slitSeparation',
         type: 'number',
         defaultValue: 0.5,
         min: 0.1,
@@ -72,6 +74,7 @@ export class DoubleSlitInterference extends ExperimentBase {
       {
         key: 'screenDistance',
         label: 'Screen Distance',
+        labelKey: 'experiments.double-slit-interference:param.screenDistance',
         type: 'number',
         defaultValue: 1,
         min: 0.5,
@@ -82,6 +85,7 @@ export class DoubleSlitInterference extends ExperimentBase {
       {
         key: 'slitWidth',
         label: 'Slit Width',
+        labelKey: 'experiments.double-slit-interference:param.slitWidth',
         type: 'number',
         defaultValue: 0.1,
         min: 0.01,
@@ -175,10 +179,10 @@ export class DoubleSlitInterference extends ExperimentBase {
     return {
       title: 'Monitor',
       quantities: [
-        { key: 'wavelength', label: 'Wavelength', unit: 'nm', color: '#22d3ee' },
-        { key: 'fringeSpacing', label: 'Fringe Spacing', unit: 'mm', color: '#34d399' },
-        { key: 'centralWidth', label: 'Central Bright Width', unit: 'mm', color: '#f59e0b' },
-        { key: 'visibleOrder', label: 'Visible Order k', color: '#a78bfa' },
+        { key: 'wavelength', label: 'Wavelength', labelKey: 'experiments.double-slit-interference:monitor.wavelength', unit: 'nm', color: '#22d3ee' },
+        { key: 'fringeSpacing', label: 'Fringe Spacing', labelKey: 'experiments.double-slit-interference:monitor.fringeSpacing', unit: 'mm', color: '#34d399' },
+        { key: 'centralWidth', label: 'Central Bright Width', labelKey: 'experiments.double-slit-interference:monitor.centralBrightWidth', unit: 'mm', color: '#f59e0b' },
+        { key: 'visibleOrder', label: 'Visible Order k', labelKey: 'experiments.double-slit-interference:monitor.visibleOrderK', color: '#a78bfa' },
       ],
       defaultSelected: ['fringeSpacing', 'centralWidth', 'visibleOrder'],
       sampleIntervalMs: 100,

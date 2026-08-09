@@ -8,6 +8,7 @@ import {
   type FieldParameters,
 } from './LorentzPhysics';
 import { createTextSprite } from './SynchrotronAnnotations';
+import i18n from '@/i18n/config';
 
 export interface MicroViewParameters {
   electricFieldStrength: number;
@@ -164,26 +165,44 @@ export class ElectromagneticFieldView {
     fieldSheet.position.y = -0.52;
     this.group.add(fieldSheet);
 
-    const eLabel = createTextSprite('Electric Field E accelerates charge', {
-      color: '#FED7AA',
-      border: 'rgba(251, 146, 60, 0.58)',
-      scale: 0.0064,
-    });
+    const eLabel = createTextSprite(
+      i18n.t('scene.eFieldDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Electric Field E accelerates charge',
+      }),
+      {
+        color: '#FED7AA',
+        border: 'rgba(251, 146, 60, 0.58)',
+        scale: 0.0064,
+      },
+    );
     eLabel.position.set(-1.5, 1.75, -2.15);
     this.group.add(eLabel);
 
-    const bLabel = createTextSprite('Magnetic Field B bends trajectory', {
-      color: '#BAE6FD',
-      border: 'rgba(56, 189, 248, 0.58)',
-      scale: 0.0064,
-    });
+    const bLabel = createTextSprite(
+      i18n.t('scene.bFieldDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Magnetic Field B bends trajectory',
+      }),
+      {
+        color: '#BAE6FD',
+        border: 'rgba(56, 189, 248, 0.58)',
+        scale: 0.0064,
+      },
+    );
     bLabel.position.set(1.25, 1.75, 2.0);
     this.group.add(bLabel);
 
-    const forceLabel = createTextSprite('Lorentz Force: F = q(E + v x B)', {
-      color: '#E0F2FE',
-      scale: 0.0067,
-    });
+    const forceLabel = createTextSprite(
+      i18n.t('scene.lorentzForceDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Lorentz Force: F = q(E + v x B)',
+      }),
+      {
+        color: '#E0F2FE',
+        scale: 0.0067,
+      },
+    );
     forceLabel.position.set(0, -0.02, 2.72);
     this.group.add(forceLabel);
   }

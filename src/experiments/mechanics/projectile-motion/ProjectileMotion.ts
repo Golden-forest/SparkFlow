@@ -31,12 +31,12 @@ const metadata = {
 
 const config: ExperimentConfig2D = {
     parameters: [
-        { key: 'launchSpeed', label: 'Launch Speed', type: 'number' as const, defaultValue: 20, min: 5, max: 60, step: 0.5, unit: 'm/s' },
-        { key: 'launchAngle', label: 'Launch Angle', type: 'number' as const, defaultValue: 45, min: 5, max: 85, step: 1, unit: '\u00b0' },
-        { key: 'launchHeight', label: 'Launch Height', type: 'number' as const, defaultValue: 0, min: 0, max: 12, step: 0.1, unit: 'm' },
-        { key: 'mass', label: 'Projectile Mass', type: 'number' as const, defaultValue: 0.2, min: 0.05, max: 2, step: 0.05, unit: 'kg' },
-        { key: 'gravity', label: 'Gravity', type: 'number' as const, defaultValue: EARTH_GRAVITY, min: 1.6, max: 15, step: 0.1, unit: 'm/s\u00b2' },
-        { key: 'showTrajectory', label: 'Show Trajectory', type: 'boolean' as const, defaultValue: true },
+        { key: 'launchSpeed', label: 'Launch Speed', labelKey: 'experiments.projectile-motion:param.launchSpeed', type: 'number' as const, defaultValue: 20, min: 5, max: 60, step: 0.5, unit: 'm/s' },
+        { key: 'launchAngle', label: 'Launch Angle', labelKey: 'experiments.projectile-motion:param.launchAngle', type: 'number' as const, defaultValue: 45, min: 5, max: 85, step: 1, unit: '\u00b0' },
+        { key: 'launchHeight', label: 'Launch Height', labelKey: 'experiments.projectile-motion:param.launchHeight', type: 'number' as const, defaultValue: 0, min: 0, max: 12, step: 0.1, unit: 'm' },
+        { key: 'mass', label: 'Projectile Mass', labelKey: 'experiments.projectile-motion:param.projectileMass', type: 'number' as const, defaultValue: 0.2, min: 0.05, max: 2, step: 0.05, unit: 'kg' },
+        { key: 'gravity', label: 'Gravity', labelKey: 'experiments.projectile-motion:param.gravity', type: 'number' as const, defaultValue: EARTH_GRAVITY, min: 1.6, max: 15, step: 0.1, unit: 'm/s\u00b2' },
+        { key: 'showTrajectory', label: 'Show Trajectory', labelKey: 'experiments.projectile-motion:param.showTrajectory', type: 'boolean' as const, defaultValue: true },
     ],
 };
 
@@ -149,12 +149,12 @@ export class ProjectileMotion extends ExperimentBase2D {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'time', label: 'Time', unit: 's', color: '#22d3ee' },
-                { key: 'horizontalDistance', label: 'H. Distance', unit: 'm', color: '#34d399' },
-                { key: 'height', label: 'Height', unit: 'm', color: '#fbbf24' },
-                { key: 'speed', label: 'Speed', unit: 'm/s', color: '#f87171' },
-                { key: 'kineticEnergy', label: 'KE', unit: 'J', color: '#60a5fa' },
-                { key: 'potentialEnergy', label: 'PE', unit: 'J', color: '#a78bfa' },
+                { key: 'time', label: 'Time', labelKey: 'experiments.projectile-motion:monitor.time', unit: 's', color: '#22d3ee' },
+                { key: 'horizontalDistance', label: 'H. Distance', labelKey: 'experiments.projectile-motion:monitor.hDistance', unit: 'm', color: '#34d399' },
+                { key: 'height', label: 'Height', labelKey: 'experiments.projectile-motion:monitor.height', unit: 'm', color: '#fbbf24' },
+                { key: 'speed', label: 'Speed', labelKey: 'experiments.projectile-motion:monitor.speed', unit: 'm/s', color: '#f87171' },
+                { key: 'kineticEnergy', label: 'KE', labelKey: 'experiments.projectile-motion:monitor.ke', unit: 'J', color: '#60a5fa' },
+                { key: 'potentialEnergy', label: 'PE', labelKey: 'experiments.projectile-motion:monitor.pe', unit: 'J', color: '#a78bfa' },
             ],
             defaultSelected: ['time', 'horizontalDistance', 'height', 'speed'],
             sampleIntervalMs: 80,

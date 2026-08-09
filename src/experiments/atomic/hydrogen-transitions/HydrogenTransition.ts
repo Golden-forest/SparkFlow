@@ -41,17 +41,31 @@ export class HydrogenTransition extends ExperimentBase {
             {
                 key: 'excitationMode',
                 label: 'Transition Mode',
+                labelKey: 'experiments.hydrogen-transitions:param.transitionMode',
                 type: 'select' as const,
                 defaultValue: 'stimulated-absorption',
                 options: [
-                    { value: 'stimulated-absorption', label: 'Stimulated Absorption' },
-                    { value: 'spontaneous-emission', label: 'Spontaneous Emission' },
-                    { value: 'stimulated-emission', label: 'Stimulated Emission' },
+                    {
+                        value: 'stimulated-absorption',
+                        label: 'Stimulated Absorption',
+                        labelKey: 'experiments.hydrogen-transitions:option.transitionMode.absorption',
+                    },
+                    {
+                        value: 'spontaneous-emission',
+                        label: 'Spontaneous Emission',
+                        labelKey: 'experiments.hydrogen-transitions:option.transitionMode.spontaneous',
+                    },
+                    {
+                        value: 'stimulated-emission',
+                        label: 'Stimulated Emission',
+                        labelKey: 'experiments.hydrogen-transitions:option.transitionMode.stimulated',
+                    },
                 ],
             },
             {
                 key: 'inputEnergy',
                 label: 'Photon Energy',
+                labelKey: 'experiments.hydrogen-transitions:param.photonEnergy',
                 type: 'number' as const,
                 defaultValue: 10.2,
                 min: 0,
@@ -62,6 +76,7 @@ export class HydrogenTransition extends ExperimentBase {
             {
                 key: 'initialLevel',
                 label: 'Initial Level',
+                labelKey: 'experiments.hydrogen-transitions:param.initialLevel',
                 type: 'number' as const,
                 defaultValue: 1,
                 min: 1,
@@ -71,10 +86,22 @@ export class HydrogenTransition extends ExperimentBase {
             {
                 key: 'atomType',
                 label: 'Atom Group',
+                labelKey: 'experiments.hydrogen-transitions:param.atomGroup',
                 type: 'select' as const,
                 defaultValue: 'single',
-                options: [{ value: 'single', label: 'Single Atom' }, { value: 'group', label: 'Atom Group' }]
-            }
+                options: [
+                    {
+                        value: 'single',
+                        label: 'Single Atom',
+                        labelKey: 'experiments.hydrogen-transitions:option.atomGroup.single',
+                    },
+                    {
+                        value: 'group',
+                        label: 'Atom Group',
+                        labelKey: 'experiments.hydrogen-transitions:option.atomGroup.group',
+                    },
+                ],
+            },
         ],
     };
 
@@ -232,7 +259,12 @@ export class HydrogenTransition extends ExperimentBase {
             title: 'Controls',
             parameters: this.config.parameters,
             actions: [
-                { key: 'emitPhoton', label: 'Emit Photon', variant: 'primary' as const },
+                {
+                    key: 'emitPhoton',
+                    label: 'Emit Photon',
+                    labelKey: 'experiments.hydrogen-transitions:action.emitPhoton',
+                    variant: 'primary' as const,
+                },
             ],
         };
     }
@@ -247,9 +279,27 @@ export class HydrogenTransition extends ExperimentBase {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'currentLevel', label: 'Current Level', unit: 'n', color: '#22d3ee' },
-                { key: 'inputEnergy', label: 'Photon Energy', unit: 'eV', color: '#f59e0b' },
-                { key: 'photonCount', label: 'Active Photons', unit: 'count', color: '#34d399' },
+                {
+                    key: 'currentLevel',
+                    label: 'Current Level',
+                    labelKey: 'experiments.hydrogen-transitions:monitor.currentLevel',
+                    unit: 'n',
+                    color: '#22d3ee',
+                },
+                {
+                    key: 'inputEnergy',
+                    label: 'Photon Energy',
+                    labelKey: 'experiments.hydrogen-transitions:monitor.photonEnergy',
+                    unit: 'eV',
+                    color: '#f59e0b',
+                },
+                {
+                    key: 'photonCount',
+                    label: 'Active Photons',
+                    labelKey: 'experiments.hydrogen-transitions:monitor.activePhotons',
+                    unit: 'count',
+                    color: '#34d399',
+                },
             ],
             defaultSelected: ['currentLevel', 'photonCount'],
             sampleIntervalMs: 100,

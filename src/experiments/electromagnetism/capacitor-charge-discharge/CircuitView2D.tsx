@@ -904,7 +904,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                                 : COLORS.textDim}
                             style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}
                         >
-                            {state.mode}
+                            {t(`experiments.capacitor-charge-discharge:option.switch.${state.mode}`, { defaultValue: state.mode })}
                         </text>
                     )}
                 </g>
@@ -1146,7 +1146,7 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
                             fill={COLORS.textDim}
                             style={{ pointerEvents: 'none', userSelect: 'none' }}
                         >
-                            drag
+                            {t('experiments.capacitor-charge-discharge:label.drag', { defaultValue: 'drag' })}
                         </text>
                     )}
                     {/* 阻值标签（跟随滑片） */}

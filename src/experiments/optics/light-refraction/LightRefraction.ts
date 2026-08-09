@@ -16,6 +16,7 @@ import {
   type RefractionResult,
 } from './RefractionPhysics';
 import { MEDIUM_SHAPE_OPTIONS, createMediumGeometry, resolveMediumShapeKey, type MediumShapeKey } from './shapes/MediumShapes';
+import i18n from '@/i18n/config';
 
 const INTERFACE_SIZE = 11;
 const RAY_LENGTH_UPPER = 4.2;
@@ -49,6 +50,7 @@ export class LightRefraction extends ExperimentBase {
       {
         key: 'incidentAngle',
         label: 'Incident Angle',
+        labelKey: 'experiments.light-refraction:param.incidentAngle',
         type: 'number',
         defaultValue: 30,
         min: 0,
@@ -59,27 +61,41 @@ export class LightRefraction extends ExperimentBase {
       {
         key: 'upperMedium',
         label: 'Upper Medium',
+        labelKey: 'experiments.light-refraction:param.upperMedium',
         type: 'select',
         defaultValue: 'air',
-        options: MEDIUM_OPTIONS,
+        options: MEDIUM_OPTIONS.map((opt) => ({
+          ...opt,
+          labelKey: `experiments.light-refraction:option.upperMedium.${opt.value}`,
+        })),
       },
       {
         key: 'lowerMedium',
         label: 'Lower Medium',
+        labelKey: 'experiments.light-refraction:param.lowerMedium',
         type: 'select',
         defaultValue: 'glass',
-        options: MEDIUM_OPTIONS,
+        options: MEDIUM_OPTIONS.map((opt) => ({
+          ...opt,
+          labelKey: `experiments.light-refraction:option.lowerMedium.${opt.value}`,
+        })),
       },
       {
         key: 'shape',
         label: 'Medium Shape',
+        labelKey: 'experiments.light-refraction:param.mediumShape',
         type: 'select',
         defaultValue: 'rectangle',
-        options: MEDIUM_SHAPE_OPTIONS.map((shape) => ({ value: shape.value, label: shape.label })),
+        options: MEDIUM_SHAPE_OPTIONS.map((shape) => ({
+          value: shape.value,
+          label: shape.label,
+          labelKey: `experiments.light-refraction:option.mediumShape.${shape.value}`,
+        })),
       },
       {
         key: 'wavelength',
         label: 'Wavelength',
+        labelKey: 'experiments.light-refraction:param.wavelength',
         type: 'number',
         defaultValue: 550,
         min: 380,
@@ -307,7 +323,14 @@ export class LightRefraction extends ExperimentBase {
     context.font = 'bold 52px sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText('Total Internal Reflection', canvas.width / 2, canvas.height / 2);
+    context.fillText(
+      i18n.t('scene.totalInternalReflection', {
+        ns: 'experiments.light-refraction',
+        defaultValue: 'Total Internal Reflection',
+      }),
+      canvas.width / 2,
+      canvas.height / 2,
+    );
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;

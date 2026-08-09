@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createTextSprite } from './SynchrotronAnnotations';
+import i18n from '@/i18n/config';
 
 const COLORS = {
   tube: 0x7dd3fc,
@@ -221,11 +222,28 @@ export class AcceleratorRing {
   }
 
   private createLabels(): void {
+    const ns = 'experiments.synchrotron-em-fields';
     const labels: Array<[string, THREE.Vector3, string]> = [
-      ['Vacuum Beam Pipe', new THREE.Vector3(-2.7, 1.05, -3.65), '#BAE6FD'],
-      ['Bending Magnets', new THREE.Vector3(-4.85, 0.95, 1.55), '#BFDBFE'],
-      ['RF Cavities', new THREE.Vector3(1.1, 1.16, -4.9), '#FED7AA'],
-      ['Collision Point', new THREE.Vector3(5.35, 1.25, 0.1), '#F8FAFC'],
+      [
+        i18n.t('scene.vacuumPipe', { ns, defaultValue: 'Vacuum Beam Pipe' }),
+        new THREE.Vector3(-2.7, 1.05, -3.65),
+        '#BAE6FD',
+      ],
+      [
+        i18n.t('scene.bendingMagnets', { ns, defaultValue: 'Bending Magnets' }),
+        new THREE.Vector3(-4.85, 0.95, 1.55),
+        '#BFDBFE',
+      ],
+      [
+        i18n.t('scene.rfCavities', { ns, defaultValue: 'RF Cavities' }),
+        new THREE.Vector3(1.1, 1.16, -4.9),
+        '#FED7AA',
+      ],
+      [
+        i18n.t('scene.collisionPoint', { ns, defaultValue: 'Collision Point' }),
+        new THREE.Vector3(5.35, 1.25, 0.1),
+        '#F8FAFC',
+      ],
     ];
 
     labels.forEach(([text, position, color]) => {

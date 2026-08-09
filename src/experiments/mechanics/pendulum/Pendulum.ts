@@ -54,6 +54,7 @@ export class Pendulum extends ExperimentBase {
       {
         key: 'length',
         label: 'Pendulum Length',
+        labelKey: 'experiments.pendulum:param.pendulumLength',
         type: 'number',
         defaultValue: 2.0,
         min: 0.5,
@@ -64,6 +65,7 @@ export class Pendulum extends ExperimentBase {
       {
         key: 'mass',
         label: 'Bob Mass',
+        labelKey: 'experiments.pendulum:param.bobMass',
         type: 'number',
         defaultValue: 1.0,
         min: 0.1,
@@ -74,6 +76,7 @@ export class Pendulum extends ExperimentBase {
       {
         key: 'initialAngle',
         label: 'Initial Angle',
+        labelKey: 'experiments.pendulum:param.initialAngle',
         type: 'number',
         defaultValue: 15,
         min: -15, // Limited to ±15° for small angle approximation validity
@@ -84,6 +87,7 @@ export class Pendulum extends ExperimentBase {
       {
         key: 'showTrace',
         label: 'Show Trace',
+        labelKey: 'experiments.pendulum:param.showTrace',
         type: 'boolean',
         defaultValue: true,
       },
@@ -440,11 +444,11 @@ export class Pendulum extends ExperimentBase {
     return {
       title: 'Monitor',
       quantities: [
-        { key: 'period', label: 'Period', unit: 's', color: '#22d3ee' },
-        { key: 'frequency', label: 'Frequency', unit: 'Hz', color: '#34d399' },
-        { key: 'velocity', label: 'Velocity', unit: 'm/s', color: '#f59e0b' },
-        { key: 'angle', label: 'Angle', unit: 'deg', color: '#f97316' },
-        { key: 'mechanicalEnergy', label: 'Mechanical Energy', unit: 'J', color: '#a78bfa' },
+        { key: 'period', label: 'Period', labelKey: 'experiments.pendulum:monitor.period', unit: 's', color: '#22d3ee' },
+        { key: 'frequency', label: 'Frequency', labelKey: 'experiments.pendulum:monitor.frequency', unit: 'Hz', color: '#34d399' },
+        { key: 'velocity', label: 'Velocity', labelKey: 'experiments.pendulum:monitor.velocity', unit: 'm/s', color: '#f59e0b' },
+        { key: 'angle', label: 'Angle', labelKey: 'experiments.pendulum:monitor.angle', unit: 'deg', color: '#f97316' },
+        { key: 'mechanicalEnergy', label: 'Mechanical Energy', labelKey: 'experiments.pendulum:monitor.mechanicalEnergy', unit: 'J', color: '#a78bfa' },
       ],
       defaultSelected: ['period', 'velocity', 'mechanicalEnergy'],
       sampleIntervalMs: 100,

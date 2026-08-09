@@ -40,17 +40,19 @@ function NumberControl({
     definition,
     value,
     onChange,
+    labelText,
 }: {
     definition: ParameterDefinition;
     value: number;
     onChange: (value: number) => void;
+    labelText: string;
 }) {
-    const { label, min = 0, max = 100, step = 0.1, unit } = definition;
+    const { min = 0, max = 100, step = 0.1, unit } = definition;
     const digits = step < 1 ? Math.abs(Math.floor(Math.log10(step))) : 0;
     return (
         <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/55 p-3.5">
             <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-200">{label}</label>
+                <label className="text-sm font-medium text-slate-200">{labelText}</label>
                 <span className="text-sm font-mono text-cyan-300">
                     {value.toFixed(digits)}
                     {unit ? <span className="ml-1 text-slate-400">{unit}</span> : null}
@@ -67,12 +69,10 @@ function NumberControl({
             />
             <div className="grid grid-cols-2 gap-2">
                 <span className="text-xs text-slate-500">
-                    Min: {min}
-                    {unit}
+                    {min}{unit}
                 </span>
                 <span className="text-right text-xs text-slate-500">
-                    Max: {max}
-                    {unit}
+                    {max}{unit}
                 </span>
             </div>
         </div>
@@ -96,7 +96,7 @@ function BooleanControl({
                 className={`relative h-6 w-12 rounded-full transition-colors ${
                     value ? 'bg-sky-600' : 'bg-slate-600'
                 }`}
-                aria-label={`Toggle ${label}`}
+                aria-label={label}
             >
                 <span
                     className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${
@@ -112,14 +112,18 @@ function SelectControl({
     definition,
     value,
     onChange,
+    labelText,
+    optionLabels,
 }: {
     definition: ParameterDefinition;
     value: string;
     onChange: (value: string) => void;
+    labelText: string;
+    optionLabels: Record<string, string>;
 }) {
     return (
         <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-900/55 p-3.5">
-            <label className="text-sm font-medium text-slate-200">{definition.label}</label>
+            <label className="text-sm font-medium text-slate-200">{labelText}</label>
             <select
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
@@ -127,7 +131,7 @@ function SelectControl({
             >
                 {(definition.options ?? []).map((option) => (
                     <option key={option.value} value={option.value}>
-                        {option.label}
+                        {optionLabels[option.value] ?? option.label}
                     </option>
                 ))}
             </select>
@@ -148,9 +152,27 @@ export function ExperimentWorkbench({
     onSelectedMonitorIdsChange,
 }: ExperimentWorkbenchProps) {
     const { t } = useTranslation('common');
-    const titleText = title ?? t('workbench.title');
+    const titleText = title ?? controlSchema.titleKey ? t(controlSchema.titleKey!, { defaultValue: controlSchema.title ?? '' }) : t('workbench.title');
     const [activeTab, setActiveTab] = useState<'controls' | 'monitor'>('controls');
     const [expanded, setExpanded] = useState(true);
+
+    /** 翻译 ParameterDefinition.label，有 labelKey 则 t(labelKey)，否则 fallback label */
+    const trParam = (d: ParameterDefinition): string =>
+        d.labelKey ? t(d.labelKey, { defaultValue: d.label }) : d.label;
+    /** 翻译 ParameterOption.label */
+    const trOption = (d: ParameterDefinition): Record<string, string> => {
+        const map: Record<string, string> = {};
+        for (const opt of d.options ?? []) {
+            map[opt.value] = opt.labelKey ? t(opt.labelKey, { defaultValue: opt.label }) : opt.label;
+        }
+        return map;
+    };
+    /** 翻译 ActionDefinition.label */
+    const trAction = (a: { label: string; labelKey?: string }): string =>
+        a.labelKey ? t(a.labelKey, { defaultValue: a.label }) : a.label;
+    /** 翻译 MonitorQuantityDefinition.label */
+    const trQty = (q: { label: string; labelKey?: string }): string =>
+        q.labelKey ? t(q.labelKey, { defaultValue: q.label }) : q.label;
 
     const availableMonitorIds = useMemo(
         () => new Set(monitorSchema.quantities.map((item) => item.key)),
@@ -168,7 +190,7 @@ export function ExperimentWorkbench({
                 <button
                     onClick={() => setExpanded(true)}
                     className="rounded-l-xl border border-white/10 bg-slate-900/82 px-2 py-5 text-slate-300 backdrop-blur-xl transition-colors hover:bg-slate-800/85"
-                    aria-label="Expand workbench"
+                    aria-label={t('panel.expand')}
                 >
                     <ChevronLeft size={18} />
                 </button>
@@ -185,7 +207,7 @@ export function ExperimentWorkbench({
                 <button
                     onClick={() => setExpanded(false)}
                     className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
-                    aria-label="Collapse workbench"
+                    aria-label={t('panel.collapse')}
                 >
                     <ChevronRight size={18} />
                 </button>
@@ -228,6 +250,7 @@ export function ExperimentWorkbench({
                                         definition={definition}
                                         value={typeof currentValue === 'number' ? currentValue : Number(currentValue) || 0}
                                         onChange={(value) => onParameterChange(definition.key, value)}
+                                        labelText={trParam(definition)}
                                     />
                                 );
                             }
@@ -235,7 +258,7 @@ export function ExperimentWorkbench({
                                 return (
                                     <BooleanControl
                                         key={definition.key}
-                                        label={definition.label}
+                                        label={trParam(definition)}
                                         value={Boolean(currentValue)}
                                         onChange={(value) => onParameterChange(definition.key, value)}
                                     />
@@ -247,6 +270,8 @@ export function ExperimentWorkbench({
                                     definition={definition}
                                     value={String(currentValue)}
                                     onChange={(value) => onParameterChange(definition.key, value)}
+                                    labelText={trParam(definition)}
+                                    optionLabels={trOption(definition)}
                                 />
                             );
                         })}
@@ -263,7 +288,7 @@ export function ExperimentWorkbench({
                                                 : 'bg-gradient-to-r from-sky-600 to-cyan-500 text-white shadow-lg shadow-cyan-900/30 hover:from-sky-500 hover:to-cyan-400'
                                         }`}
                                     >
-                                        {action.label}
+                                        {trAction(action)}
                                     </button>
                                 ))}
                             </div>
@@ -295,7 +320,7 @@ export function ExperimentWorkbench({
                                                 className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-sky-500"
                                             />
                                             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                                            <span className="text-sm text-slate-200">{item.label}</span>
+                                            <span className="text-sm text-slate-200">{trQty(item)}</span>
                                         </label>
                                     );
                                 })}
@@ -309,9 +334,9 @@ export function ExperimentWorkbench({
                             return (
                                 <section key={id} className="rounded-xl border border-white/10 bg-slate-800/70 p-3.5">
                                     <div className="mb-2 flex items-center justify-between">
-                                        <span className="text-sm text-slate-200">{definition.label}</span>
+                                        <span className="text-sm text-slate-200">{trQty(definition)}</span>
                                         <span className="font-mono text-sm text-white">
-                                            {numericValue !== null ? numericValue.toFixed(2) : 'N/A'}
+                                            {numericValue !== null ? numericValue.toFixed(2) : t('status.na')}
                                             {definition.unit ? (
                                                 <span className="ml-1 text-slate-500">{definition.unit}</span>
                                             ) : null}

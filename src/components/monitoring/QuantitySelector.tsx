@@ -96,14 +96,13 @@ export function QuantitySelector({
               checked={selectedIds.includes(quantity.id)}
               onChange={() => handleToggle(quantity.id)}
               className="rounded border-slate-600 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 focus:ring-1"
-              aria-label={`Toggle ${quantity.name} monitoring`}
+              aria-label={quantity.name}
               aria-checked={selectedIds.includes(quantity.id)}
             />
             {/* Color indicator */}
             <div
               className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ backgroundColor: quantity.color }}
-              title={`Color: ${quantity.color}`}
             />
             {/* Quantity name */}
             <span className="text-sm text-slate-300 select-none">{quantity.name}</span>

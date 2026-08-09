@@ -33,6 +33,7 @@ export class BoyleLaw extends ExperimentBase {
       {
         key: 'volume',
         label: 'Volume',
+        labelKey: 'experiments.boyle-law:param.volume',
         type: 'number',
         defaultValue: 5,
         min: 0.5,
@@ -43,17 +44,19 @@ export class BoyleLaw extends ExperimentBase {
       {
         key: 'amount',
         label: 'Amount of Gas',
+        labelKey: 'experiments.boyle-law:param.amountOfGas',
         type: 'select',
         defaultValue: '1',
         options: [
-          { value: '1', label: '1 mol' },
-          { value: '2', label: '2 mol' },
-          { value: '3', label: '3 mol' },
+          { value: '1', label: '1 mol', labelKey: 'experiments.boyle-law:option.amountOfGas.1mol' },
+          { value: '2', label: '2 mol', labelKey: 'experiments.boyle-law:option.amountOfGas.2mol' },
+          { value: '3', label: '3 mol', labelKey: 'experiments.boyle-law:option.amountOfGas.3mol' },
         ],
       },
       {
         key: 'temperature',
         label: 'Temperature',
+        labelKey: 'experiments.boyle-law:param.temperature',
         type: 'number',
         defaultValue: 300,
         min: 200,
@@ -148,10 +151,10 @@ export class BoyleLaw extends ExperimentBase {
     return {
       title: 'Monitor',
       quantities: [
-        { key: 'pressure', label: 'Pressure', unit: 'kPa', color: '#22d3ee' },
-        { key: 'volume', label: 'Volume', unit: 'L', color: '#34d399' },
-        { key: 'pv', label: 'PV Product', unit: 'kPa*L', color: '#f59e0b' },
-        { key: 'temperature', label: 'Temperature', unit: 'K', color: '#f97316' },
+        { key: 'pressure', label: 'Pressure', labelKey: 'experiments.boyle-law:monitor.pressure', unit: 'kPa', color: '#22d3ee' },
+        { key: 'volume', label: 'Volume', labelKey: 'experiments.boyle-law:monitor.volume', unit: 'L', color: '#34d399' },
+        { key: 'pv', label: 'PV Product', labelKey: 'experiments.boyle-law:monitor.pvProduct', unit: 'kPa*L', color: '#f59e0b' },
+        { key: 'temperature', label: 'Temperature', labelKey: 'experiments.boyle-law:monitor.temperature', unit: 'K', color: '#f97316' },
       ],
       defaultSelected: ['pressure', 'volume', 'pv'],
       sampleIntervalMs: 100,

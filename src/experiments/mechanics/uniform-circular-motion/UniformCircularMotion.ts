@@ -43,6 +43,7 @@ export class UniformCircularMotion extends ExperimentBase {
       {
         key: 'radius',
         label: 'Radius',
+        labelKey: 'experiments.uniform-circular-motion:param.radius',
         type: 'number',
         defaultValue: 2,
         min: 0.5,
@@ -53,6 +54,7 @@ export class UniformCircularMotion extends ExperimentBase {
       {
         key: 'angularSpeed',
         label: 'Angular Speed',
+        labelKey: 'experiments.uniform-circular-motion:param.angularSpeed',
         type: 'number',
         defaultValue: 2,
         min: 0.2,
@@ -63,6 +65,7 @@ export class UniformCircularMotion extends ExperimentBase {
       {
         key: 'mass',
         label: 'Object Mass',
+        labelKey: 'experiments.uniform-circular-motion:param.objectMass',
         type: 'number',
         defaultValue: 0.5,
         min: 0.1,
@@ -73,6 +76,7 @@ export class UniformCircularMotion extends ExperimentBase {
       {
         key: 'height',
         label: 'Motion Height',
+        labelKey: 'experiments.uniform-circular-motion:param.motionHeight',
         type: 'number',
         defaultValue: 1.2,
         min: 0.5,
@@ -83,22 +87,33 @@ export class UniformCircularMotion extends ExperimentBase {
       {
         key: 'direction',
         label: 'Direction',
+        labelKey: 'experiments.uniform-circular-motion:param.direction',
         type: 'select',
         defaultValue: 'counterclockwise',
         options: [
-          { value: 'counterclockwise', label: 'Counterclockwise' },
-          { value: 'clockwise', label: 'Clockwise' },
+          {
+            value: 'counterclockwise',
+            label: 'Counterclockwise',
+            labelKey: 'experiments.uniform-circular-motion:option.direction.counterclockwise',
+          },
+          {
+            value: 'clockwise',
+            label: 'Clockwise',
+            labelKey: 'experiments.uniform-circular-motion:option.direction.clockwise',
+          },
         ],
       },
       {
         key: 'showVectors',
         label: 'Show Vectors',
+        labelKey: 'experiments.uniform-circular-motion:param.showVectors',
         type: 'boolean',
         defaultValue: true,
       },
       {
         key: 'showPath',
         label: 'Show Path',
+        labelKey: 'experiments.uniform-circular-motion:param.showPath',
         type: 'boolean',
         defaultValue: true,
       },

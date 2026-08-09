@@ -276,7 +276,9 @@ export default function ExperimentView() {
                         <span className="font-medium">{t('common:navigation.back')}</span>
                     </Link>
                     <h1 className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-xl font-semibold tracking-wide text-transparent">
-                        {currentExperiment.metadata.name}
+                        {t(`home:card.${currentExperiment.metadata.id}.title`, {
+                            defaultValue: currentExperiment.metadata.name,
+                        })}
                     </h1>
                 </div>
 
@@ -321,7 +323,9 @@ export default function ExperimentView() {
                 </div>
 
                 <ExperimentWorkbench
-                    title={currentExperiment.metadata.name}
+                    title={t(`home:card.${currentExperiment.metadata.id}.title`, {
+                        defaultValue: currentExperiment.metadata.name,
+                    })}
                     controlSchema={controlSchema}
                     monitorSchema={monitorSchema}
                     parameterValues={parameterValues}

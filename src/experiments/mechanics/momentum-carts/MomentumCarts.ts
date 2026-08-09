@@ -45,6 +45,7 @@ export class MomentumCarts extends ExperimentBase {
       {
         key: 'cartAMass',
         label: 'Cart A Mass',
+        labelKey: 'experiments.momentum-carts:param.cartAMass',
         type: 'number',
         defaultValue: 1.0,
         min: 0.5,
@@ -55,6 +56,7 @@ export class MomentumCarts extends ExperimentBase {
       {
         key: 'cartBMass',
         label: 'Cart B Mass',
+        labelKey: 'experiments.momentum-carts:param.cartBMass',
         type: 'number',
         defaultValue: 2.0,
         min: 0.5,
@@ -65,6 +67,7 @@ export class MomentumCarts extends ExperimentBase {
       {
         key: 'cartAInitialVelocity',
         label: 'Cart A Initial Velocity',
+        labelKey: 'experiments.momentum-carts:param.cartAInitialVelocity',
         type: 'number',
         defaultValue: 2.0,
         min: -6.0,
@@ -75,6 +78,7 @@ export class MomentumCarts extends ExperimentBase {
       {
         key: 'cartBInitialVelocity',
         label: 'Cart B Initial Velocity',
+        labelKey: 'experiments.momentum-carts:param.cartBInitialVelocity',
         type: 'number',
         defaultValue: -1.0,
         min: -6.0,
@@ -85,6 +89,7 @@ export class MomentumCarts extends ExperimentBase {
       {
         key: 'restitution',
         label: 'Collision Restitution',
+        labelKey: 'experiments.momentum-carts:param.collisionRestitution',
         type: 'number',
         defaultValue: 1.0,
         min: 0,

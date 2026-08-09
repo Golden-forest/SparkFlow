@@ -46,6 +46,7 @@ export class InclinedPlaneFriction extends ExperimentBase {
       {
         key: 'angle',
         label: 'Ramp Angle',
+        labelKey: 'experiments.inclined-plane-friction:param.rampAngle',
         type: 'number',
         defaultValue: 25,
         min: 5,
@@ -56,6 +57,7 @@ export class InclinedPlaneFriction extends ExperimentBase {
       {
         key: 'mass',
         label: 'Block Mass',
+        labelKey: 'experiments.inclined-plane-friction:param.blockMass',
         type: 'number',
         defaultValue: 1.2,
         min: 0.2,
@@ -66,6 +68,7 @@ export class InclinedPlaneFriction extends ExperimentBase {
       {
         key: 'staticFriction',
         label: 'Static Friction Coefficient',
+        labelKey: 'experiments.inclined-plane-friction:param.staticFrictionCoefficient',
         type: 'number',
         defaultValue: 0.45,
         min: 0,
@@ -75,6 +78,7 @@ export class InclinedPlaneFriction extends ExperimentBase {
       {
         key: 'kineticFriction',
         label: 'Kinetic Friction Coefficient',
+        labelKey: 'experiments.inclined-plane-friction:param.kineticFrictionCoefficient',
         type: 'number',
         defaultValue: 0.32,
         min: 0,
@@ -84,6 +88,7 @@ export class InclinedPlaneFriction extends ExperimentBase {
       {
         key: 'releaseDistance',
         label: 'Release Distance',
+        labelKey: 'experiments.inclined-plane-friction:param.releaseDistance',
         type: 'number',
         defaultValue: 0.8,
         min: 0,

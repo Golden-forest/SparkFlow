@@ -35,6 +35,7 @@ export class SolarSystem extends ExperimentBase {
             {
                 key: 'timeScale',
                 label: 'Time Scale',
+                labelKey: 'experiments.solar-system:param.timeScale',
                 type: 'number' as const,
                 defaultValue: 1,
                 min: 0.1,
@@ -44,14 +45,17 @@ export class SolarSystem extends ExperimentBase {
             {
                 key: 'showOrbits',
                 label: 'Show Orbits',
+                labelKey: 'experiments.solar-system:param.showOrbits',
                 type: 'boolean' as const,
                 defaultValue: true,
             },
             {
                 key: 'selectedPlanet',
                 label: 'Selected Body',
+                labelKey: 'experiments.solar-system:param.selectedBody',
                 type: 'select' as const,
                 defaultValue: 'Earth',
+                // options 来自数据驱动的行星名（动态），按规范跳过 option labelKey
                 options: SOLAR_SYSTEM_VISUAL_DATA.planets.map(planet => ({
                     value: planet.name,
                     label: planet.name
@@ -60,11 +64,12 @@ export class SolarSystem extends ExperimentBase {
             {
                 key: 'viewMode',
                 label: 'View Mode',
+                labelKey: 'experiments.solar-system:param.viewMode',
                 type: 'select' as const,
                 defaultValue: 'solar',
                 options: [
-                    { value: 'solar', label: 'Solar System View' },
-                    { value: 'satellite', label: 'Satellite View' },
+                    { value: 'solar', label: 'Solar System View', labelKey: 'experiments.solar-system:option.viewMode.solarSystem' },
+                    { value: 'satellite', label: 'Satellite View', labelKey: 'experiments.solar-system:option.viewMode.satellite' },
                 ],
             },
         ],
@@ -436,10 +441,10 @@ export class SolarSystem extends ExperimentBase {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'planetCount', label: 'Planets', unit: 'count', color: '#22d3ee' },
-                { key: 'satelliteCount', label: 'Satellites', unit: 'count', color: '#34d399' },
-                { key: 'timeScale', label: 'Time Scale', unit: 'x', color: '#f59e0b' },
-                { key: 'relativeSpeed', label: 'Relative Speed', unit: 'Earth=1.0x', color: '#a78bfa' },
+                { key: 'planetCount', label: 'Planets', labelKey: 'experiments.solar-system:monitor.planets', unit: 'count', color: '#22d3ee' },
+                { key: 'satelliteCount', label: 'Satellites', labelKey: 'experiments.solar-system:monitor.satellites', unit: 'count', color: '#34d399' },
+                { key: 'timeScale', label: 'Time Scale', labelKey: 'experiments.solar-system:monitor.timeScale', unit: 'x', color: '#f59e0b' },
+                { key: 'relativeSpeed', label: 'Relative Speed', labelKey: 'experiments.solar-system:monitor.relativeSpeed', unit: 'Earth=1.0x', color: '#a78bfa' },
             ],
             defaultSelected: ['timeScale', 'relativeSpeed', 'planetCount'],
             sampleIntervalMs: 120,

@@ -16,6 +16,7 @@ import {
     type CellMode,
     type CalculationParams,
 } from './ElectrochemistryPhysics';
+import i18n from '@/i18n/config';
 
 /** Dopamine palette */
 const COLORS = {
@@ -49,16 +50,18 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'mode',
                 label: 'Cell Mode',
+                labelKey: 'experiments.galvanic-cell:param.mode',
                 type: 'select',
                 defaultValue: 'galvanic',
                 options: [
-                    { value: 'galvanic', label: 'Galvanic Cell' },
-                    { value: 'electrolytic', label: 'Electrolytic Cell' },
+                    { value: 'galvanic', label: 'Galvanic Cell', labelKey: 'experiments.galvanic-cell:option.mode.galvanic' },
+                    { value: 'electrolytic', label: 'Electrolytic Cell', labelKey: 'experiments.galvanic-cell:option.mode.electrolytic' },
                 ],
             },
             {
                 key: 'electrolyteConcentration',
                 label: 'CuSO\u2084 Concentration',
+                labelKey: 'experiments.galvanic-cell:param.electrolyteConcentration',
                 type: 'number',
                 defaultValue: 1.0,
                 min: 0.1,
@@ -69,6 +72,7 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'temperature',
                 label: 'Temperature',
+                labelKey: 'experiments.galvanic-cell:param.temperature',
                 type: 'number',
                 defaultValue: 25,
                 min: 0,
@@ -79,6 +83,7 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'electrodeSpacing',
                 label: 'Electrode Spacing',
+                labelKey: 'experiments.galvanic-cell:param.electrodeSpacing',
                 type: 'number',
                 defaultValue: 8,
                 min: 4,
@@ -89,6 +94,7 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'externalResistance',
                 label: 'External Resistance',
+                labelKey: 'experiments.galvanic-cell:param.externalResistance',
                 type: 'number',
                 defaultValue: 10,
                 min: 1,
@@ -99,6 +105,7 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'appliedVoltage',
                 label: 'Applied Voltage',
+                labelKey: 'experiments.galvanic-cell:param.appliedVoltage',
                 type: 'number',
                 defaultValue: 3.0,
                 min: 0,
@@ -109,12 +116,14 @@ export class GalvanicCell extends ExperimentBase {
             {
                 key: 'showParticles',
                 label: 'Show Particles',
+                labelKey: 'experiments.galvanic-cell:param.showParticles',
                 type: 'boolean',
                 defaultValue: true,
             },
             {
                 key: 'showEquations',
                 label: 'Show Equations',
+                labelKey: 'experiments.galvanic-cell:param.showEquations',
                 type: 'boolean',
                 defaultValue: true,
             },
@@ -385,12 +394,26 @@ export class GalvanicCell extends ExperimentBase {
             ctx.fillText('V', 128, 50);
             ctx.font = '16px sans-serif';
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('Voltmeter', 128, 90);
+            ctx.fillText(
+                i18n.t('scene.voltmeter', {
+                    ns: 'experiments.galvanic-cell',
+                    defaultValue: 'Voltmeter',
+                }),
+                128,
+                90,
+            );
         } else {
             ctx.fillText('DC', 128, 50);
             ctx.font = '16px sans-serif';
             ctx.fillStyle = '#94a3b8';
-            ctx.fillText('Power Supply', 128, 90);
+            ctx.fillText(
+                i18n.t('scene.powerSupply', {
+                    ns: 'experiments.galvanic-cell',
+                    defaultValue: 'Power Supply',
+                }),
+                128,
+                90,
+            );
         }
 
         const texture = new THREE.CanvasTexture(canvas);
@@ -666,7 +689,7 @@ export class GalvanicCell extends ExperimentBase {
         });
 
         const actions: ActionDefinition[] = [
-            { key: 'resetElectrodes', label: 'Reset Electrodes', variant: 'secondary' },
+            { key: 'resetElectrodes', label: 'Reset Electrodes', labelKey: 'experiments.galvanic-cell:action.resetElectrodes', variant: 'secondary' },
         ];
 
         return {
@@ -680,10 +703,10 @@ export class GalvanicCell extends ExperimentBase {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'emf', label: 'EMF', unit: 'V', color: '#22d3ee' },
-                { key: 'current', label: 'Current', unit: 'mA', color: '#f59e0b' },
-                { key: 'znConc', label: 'Zn\u00B2\u207A', unit: 'mol/L', color: '#FFD166' },
-                { key: 'cuDeposited', label: 'Cu Deposited', unit: 'mg', color: '#F97316' },
+                { key: 'emf', label: 'EMF', labelKey: 'experiments.galvanic-cell:monitor.emf', unit: 'V', color: '#22d3ee' },
+                { key: 'current', label: 'Current', labelKey: 'experiments.galvanic-cell:monitor.current', unit: 'mA', color: '#f59e0b' },
+                { key: 'znConc', label: 'Zn\u00B2\u207A', labelKey: 'experiments.galvanic-cell:monitor.znConc', unit: 'mol/L', color: '#FFD166' },
+                { key: 'cuDeposited', label: 'Cu Deposited', labelKey: 'experiments.galvanic-cell:monitor.cuDeposited', unit: 'mg', color: '#F97316' },
             ],
             defaultSelected: ['emf', 'current'],
             sampleIntervalMs: 100,

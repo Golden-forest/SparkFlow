@@ -340,9 +340,27 @@ export class RutherfordExperiment extends ExperimentBase {
         return {
             title: 'Monitor',
             quantities: [
-                { key: 'totalEmitted', label: 'Emitted Particles', unit: 'count', color: '#22d3ee' },
-                { key: 'largeAngle', label: 'Large-Angle Events', unit: 'count', color: '#f97316' },
-                { key: 'ratio', label: 'Large-Angle Ratio', unit: '%', color: '#34d399' },
+                {
+                    key: 'totalEmitted',
+                    label: 'Emitted Particles',
+                    labelKey: 'experiments.rutherford-scattering:monitor.emittedParticles',
+                    unit: 'count',
+                    color: '#22d3ee',
+                },
+                {
+                    key: 'largeAngle',
+                    label: 'Large-Angle Events',
+                    labelKey: 'experiments.rutherford-scattering:monitor.largeAngleEvents',
+                    unit: 'count',
+                    color: '#f97316',
+                },
+                {
+                    key: 'ratio',
+                    label: 'Large-Angle Ratio',
+                    labelKey: 'experiments.rutherford-scattering:monitor.largeAngleRatio',
+                    unit: '%',
+                    color: '#34d399',
+                },
             ],
             defaultSelected: ['ratio', 'largeAngle'],
             sampleIntervalMs: 100,

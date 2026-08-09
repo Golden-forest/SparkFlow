@@ -9,7 +9,11 @@ interface ParameterSliderProps {
 }
 
 export function ParameterSlider({ definition, value, onChange }: ParameterSliderProps) {
-    const { key, label, min = 0, max = 100, step = 1, unit } = definition;
+    const { t } = useTranslation();
+    const { key, min = 0, max = 100, step = 1, unit } = definition;
+    const labelText = definition.labelKey
+        ? t(definition.labelKey, { defaultValue: definition.label })
+        : definition.label;
 
     const handleChange = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,7 +30,7 @@ export function ParameterSlider({ definition, value, onChange }: ParameterSlider
     return (
         <div className="mb-4">
             <div className="flex justify-between mb-1.5">
-                <label className="text-sm text-slate-300">{label}</label>
+                <label className="text-sm text-slate-300">{labelText}</label>
                 <span className="text-sm text-blue-400 font-mono">
                     {displayValue}
                     {unit && <span className="text-slate-500 ml-1">{unit}</span>}

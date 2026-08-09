@@ -39,6 +39,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'mass',
         label: 'Mass',
+        labelKey: 'experiments.spring-oscillation:param.mass',
         type: 'number',
         defaultValue: 0.8,
         min: 0.2,
@@ -49,6 +50,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'springConstant',
         label: 'Spring Constant',
+        labelKey: 'experiments.spring-oscillation:param.springConstant',
         type: 'number',
         defaultValue: 22,
         min: 5,
@@ -59,6 +61,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'damping',
         label: 'Damping Coefficient',
+        labelKey: 'experiments.spring-oscillation:param.dampingCoefficient',
         type: 'number',
         defaultValue: 0.6,
         min: 0,
@@ -69,6 +72,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'initialDisplacement',
         label: 'Initial Displacement',
+        labelKey: 'experiments.spring-oscillation:param.initialDisplacement',
         type: 'number',
         defaultValue: 1.1,
         min: -1.8,
@@ -79,6 +83,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'initialVelocity',
         label: 'Initial Velocity',
+        labelKey: 'experiments.spring-oscillation:param.initialVelocity',
         type: 'number',
         defaultValue: 0,
         min: -3,
@@ -89,6 +94,7 @@ export class SpringOscillation extends ExperimentBase {
       {
         key: 'showEquilibrium',
         label: 'Show Equilibrium Marker',
+        labelKey: 'experiments.spring-oscillation:param.showEquilibriumMarker',
         type: 'boolean',
         defaultValue: true,
       },

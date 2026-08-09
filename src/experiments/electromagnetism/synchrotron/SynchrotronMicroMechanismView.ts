@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createTextSprite } from './SynchrotronAnnotations';
+import i18n from '@/i18n/config';
 import {
   DESIGN_ORBIT_RADIUS,
   createMicroState,
@@ -268,11 +269,17 @@ export class SynchrotronMicroMechanismView {
       this.rfGroup.add(arrow);
     }
 
-    const label = createTextSprite('RF Acceleration: electric field increases speed', {
-      color: '#FED7AA',
-      border: 'rgba(251,146,60,0.65)',
-      scale: 0.0065,
-    });
+    const label = createTextSprite(
+      i18n.t('scene.rfAccelerationDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'RF Acceleration: electric field increases speed',
+      }),
+      {
+        color: '#FED7AA',
+        border: 'rgba(251,146,60,0.65)',
+        scale: 0.0065,
+      },
+    );
     label.position.set(0, 1.55, -1.18);
     this.addLabel(this.rfGroup, label);
   }
@@ -471,19 +478,31 @@ export class SynchrotronMicroMechanismView {
     radialReference.name = 'Design radius marker';
     this.bendingGroup.add(radialReference);
 
-    const bendingLabel = createTextSprite('Magnetic Bending: top N pole to bottom S pole gives downward B', {
-      color: '#BAE6FD',
-      border: 'rgba(56,189,248,0.65)',
-      scale: 0.0057,
-    });
+    const bendingLabel = createTextSprite(
+      i18n.t('scene.magneticBendingDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Magnetic Bending: top N pole to bottom S pole gives downward B',
+      }),
+      {
+        color: '#BAE6FD',
+        border: 'rgba(56,189,248,0.65)',
+        scale: 0.0057,
+      },
+    );
     bendingLabel.position.set(0, 1.55, DESIGN_ORBIT_RADIUS + 0.42);
     this.addLabel(this.bendingGroup, bendingLabel);
 
-    const syncLabel = createTextSprite('Synchronized Orbit: slow injection, RF ramp, tuned B radius lock', {
-      color: '#FED7AA',
-      border: 'rgba(251,146,60,0.65)',
-      scale: 0.0058,
-    });
+    const syncLabel = createTextSprite(
+      i18n.t('scene.synchronizedOrbitDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Synchronized Orbit: slow injection, RF ramp, tuned B radius lock',
+      }),
+      {
+        color: '#FED7AA',
+        border: 'rgba(251,146,60,0.65)',
+        scale: 0.0058,
+      },
+    );
     syncLabel.position.set(0, 1.2, DESIGN_ORBIT_RADIUS + 0.42);
     this.addLabel(this.syncGroup, syncLabel);
 
@@ -531,19 +550,31 @@ export class SynchrotronMicroMechanismView {
     );
     this.collisionGroup.add(ringA, ringB, core);
 
-    const label = createTextSprite('Collision Point: counter-running beams meet here', {
-      color: '#F8FAFC',
-      border: 'rgba(248,250,252,0.62)',
-      scale: 0.0062,
-    });
+    const label = createTextSprite(
+      i18n.t('scene.collisionPointDesc', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'Collision Point: counter-running beams meet here',
+      }),
+      {
+        color: '#F8FAFC',
+        border: 'rgba(248,250,252,0.62)',
+        scale: 0.0062,
+      },
+    );
     label.position.set(0, 1.48, -1.16);
     this.addLabel(this.collisionGroup, label);
 
-    const note = createTextSprite('collision visualization', {
-      color: '#CBD5E1',
-      border: 'rgba(148,163,184,0.42)',
-      scale: 0.0055,
-    });
+    const note = createTextSprite(
+      i18n.t('scene.collisionVisualization', {
+        ns: 'experiments.synchrotron-em-fields',
+        defaultValue: 'collision visualization',
+      }),
+      {
+        color: '#CBD5E1',
+        border: 'rgba(148,163,184,0.42)',
+        scale: 0.0055,
+      },
+    );
     note.position.set(0, -0.28, 1.2);
     this.addLabel(this.collisionGroup, note);
   }

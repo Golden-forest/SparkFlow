@@ -7,7 +7,11 @@ import type { SimulationObject, ObjectType } from '../types/ObjectTypes';
 export interface ScenePreset {
   id: string;
   name: string;
+  /** i18n key（可选） */
+  nameKey?: string;
   description: string;
+  /** i18n key（可选） */
+  descriptionKey?: string;
   objects: Omit<SimulationObject, 'mesh' | 'trajectory' | 'isSelected' | 'acceleration'>[];
 }
 
@@ -18,7 +22,9 @@ export const SCENE_PRESETS: ScenePreset[] = [
   {
     id: 'free-fall',
     name: 'Free Fall',
+    nameKey: 'experiments.motion-collision:preset.freeFall.name',
     description: 'Single object falling under gravity',
+    descriptionKey: 'experiments.motion-collision:preset.freeFall.description',
     objects: [
       {
         id: 'sphere-1',
@@ -33,7 +39,9 @@ export const SCENE_PRESETS: ScenePreset[] = [
   {
     id: 'elastic-collision',
     name: 'Elastic Collision',
+    nameKey: 'experiments.motion-collision:preset.elasticCollision.name',
     description: 'Two spheres colliding head-on',
+    descriptionKey: 'experiments.motion-collision:preset.elasticCollision.description',
     objects: [
       {
         id: 'sphere-1',
@@ -56,7 +64,9 @@ export const SCENE_PRESETS: ScenePreset[] = [
   {
     id: 'projectile',
     name: 'Projectile Motion',
+    nameKey: 'experiments.motion-collision:preset.projectile.name',
     description: 'Ball launched at an angle',
+    descriptionKey: 'experiments.motion-collision:preset.projectile.description',
     objects: [
       {
         id: 'sphere-1',
@@ -71,7 +81,9 @@ export const SCENE_PRESETS: ScenePreset[] = [
   {
     id: 'three-body',
     name: 'Three Body Collision',
+    nameKey: 'experiments.motion-collision:preset.threeBody.name',
     description: 'Three objects with different masses',
+    descriptionKey: 'experiments.motion-collision:preset.threeBody.description',
     objects: [
       {
         id: 'sphere-1',

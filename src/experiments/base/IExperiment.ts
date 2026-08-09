@@ -20,16 +20,25 @@ export interface ExperimentMetadata {
 /**
  * 参数定义接口
  */
+export interface ParameterOption {
+    value: string;
+    label: string;
+    /** i18n key（可选），UI 层调 t(labelKey) 翻译 */
+    labelKey?: string;
+}
+
 export interface ParameterDefinition {
     key: string;
     label: string;
+    /** i18n key（可选），UI 层调 t(labelKey) 翻译 */
+    labelKey?: string;
     type: 'number' | 'boolean' | 'select';
     defaultValue: number | boolean | string;
     min?: number;
     max?: number;
     step?: number;
     unit?: string;
-    options?: { value: string; label: string }[];
+    options?: ParameterOption[];
 }
 
 /**
@@ -38,6 +47,8 @@ export interface ParameterDefinition {
 export interface ActionDefinition {
     key: string;
     label: string;
+    /** i18n key（可选），UI 层调 t(labelKey) 翻译 */
+    labelKey?: string;
     variant?: 'primary' | 'secondary';
 }
 
@@ -46,6 +57,8 @@ export interface ActionDefinition {
  */
 export interface ControlSchema {
     title?: string;
+    /** i18n key（可选），UI 层调 t(titleKey) 翻译 */
+    titleKey?: string;
     parameters: ParameterDefinition[];
     actions?: ActionDefinition[];
 }
@@ -56,6 +69,8 @@ export interface ControlSchema {
 export interface MonitorQuantityDefinition {
     key: string;
     label: string;
+    /** i18n key（可选），UI 层调 t(labelKey) 翻译 */
+    labelKey?: string;
     unit?: string;
     color: string;
     /** 可选 Y 轴固定下限（不传则 auto） */
@@ -69,6 +84,8 @@ export interface MonitorQuantityDefinition {
  */
 export interface MonitorSchema {
     title?: string;
+    /** i18n key（可选），UI 层调 t(titleKey) 翻译 */
+    titleKey?: string;
     quantities: MonitorQuantityDefinition[];
     defaultSelected?: string[];
     sampleIntervalMs?: number;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { SCENE_PRESETS, type ScenePreset } from '@/experiments/mechanics/motion-collision/presets/ScenePresets';
 
 interface ScenePresetSelectorProps {
@@ -10,10 +11,11 @@ interface ScenePresetSelectorProps {
  * Allows users to quickly load predefined experiment scenarios
  */
 export function ScenePresetSelector({ onLoadPreset }: ScenePresetSelectorProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-2">
       <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
-        Quick Start
+        {t('experiments.motion-collision:preset.quickStart')}
       </span>
       <div className="grid grid-cols-1 gap-2">
         {SCENE_PRESETS.map(preset => (
@@ -24,14 +26,14 @@ export function ScenePresetSelector({ onLoadPreset }: ScenePresetSelectorProps) 
           >
             <div className="flex items-center justify-between w-full mb-1">
               <span className="text-sm font-medium text-slate-200 group-hover:text-white">
-                {preset.name}
+                {preset.nameKey ? t(preset.nameKey, { defaultValue: preset.name }) : preset.name}
               </span>
               <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                Load →
+                {t('experiments.motion-collision:preset.load')}
               </span>
             </div>
             <span className="text-xs text-slate-400">
-              {preset.description}
+              {preset.descriptionKey ? t(preset.descriptionKey, { defaultValue: preset.description }) : preset.description}
             </span>
           </button>
         ))}
