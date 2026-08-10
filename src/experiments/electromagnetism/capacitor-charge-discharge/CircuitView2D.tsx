@@ -501,6 +501,7 @@ interface CircuitView2DProps {
 }
 
 export function CircuitView2D({ experiment }: CircuitView2DProps) {
+    const { t } = useTranslation();
     // 触发 React 重渲染的 state（每帧 setState）
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [, setTick] = useState(0);
