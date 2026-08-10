@@ -147,3 +147,58 @@ Cloudflare Pages 通过 `public/_redirects` 文件处理路由（Vite 构建时�
 ```
 
 之后 `npm run deploy` 一条命令搞定。但**课件改动仍需手动 import 后再 deploy**。
+
+## 关于"过期文件"（AI 助手必读，避免重复排查）
+
+### Cloudflare Pages 的部署模型
+
+- 每个 `wrangler pages deploy` 创建一个**不可变 deployment 快照**，旧 deployment 永久保留以便回滚。
+- **本次 deployment 引用的文件 = 本次 dist/ 的内容**。线上当前 deployment 只会返回本次 dist/ 里的文件，不会有"孤儿"。
+- `wrangler` 报告的 "X already uploaded" 指 **跨 deployment 的去重上传缓存**（节省上传时间），不代表线上有重复文件。
+
+### 何时需要清理旧 deployment
+
+- 默认 **不需要**。旧 deployment 不影响线上访问，仅占用 deployment 配额。
+- 仅在出现 "too many deployments" 报错，或在 Cloudflare Dashboard 想要清理回滚历史时执行。
+
+### 清理命令
+
+```bash
+# 查看所有 deployment
+npx wrangler pages deployment list --project-name=sparkflow
+
+# 删除单个旧 deployment（保留最新的生产 deployment）
+npx wrangler pages deployment delete <DEPLOYMENT_ID> --project-name=sparkflow
+```
+
+### 关于"探测到线上有旧文件"的误报
+
+**重要**：本项目 `_redirects` 第三条规则 `/* /index.html 200` 会让**任何不存在的路径都返回 200 + index.html (约 723 bytes)**。所以用 `curl` 探测某个旧文件路径返回 200 **不代表它真的存在**。
+
+正确判断方法：检查返回内容长度。
+- **~700 bytes** → SPA fallback（index.html），文件**不存在**
+- **>1 KB** → 真实文件
+
+### 部署前检查清单（每次必做）
+
+部署前确认以下事项，避免 build 失败或线上异常：
+
+1. `npx tsc --noEmit` —— 确认 TypeScript 无报错（`tsc -b` 是 build 一部分，类型错误会直接 fail）
+2. `npx wrangler whoami` —— 确认 wrangler 登录未失效
+3. 检查 `public/_redirects` 规则是否覆盖新增的子目录（如 `simcanvas/`、`courseware/`）
+4. `git status` —— 确认所有改动已 commit（便于追溯线上版本）
+
+### 部署后验证
+
+```bash
+# 首页
+curl -s -o /dev/null -w "%{http_code}" https://sparkflow-840.pages.dev/
+
+# 任一 SimCanvas 目录式 URL
+curl -s -o /dev/null -w "%{http_code}" https://sparkflow-840.pages.dev/simcanvas/block-board-motion/
+
+# SPA 任意路由
+curl -s -o /dev/null -w "%{http_code}" https://sparkflow-840.pages.dev/any-spa-route
+```
+
+CDN 边缘传播需 1-2 分钟，期间可能返回 522/524。
