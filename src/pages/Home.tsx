@@ -617,6 +617,56 @@ const SynchrotronDiagram = () => (
     </div>
 );
 
+const SimCanvasDiagram = () => (
+    <div className="relative flex h-36 w-full items-center justify-center">
+        <svg width="220" height="132" viewBox="0 0 220 132" className="overflow-visible opacity-80">
+            <defs>
+                <linearGradient id="simcanvasScreen" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0EA5E9" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#1E293B" stopOpacity="0.55" />
+                </linearGradient>
+                <linearGradient id="simcanvasBeam" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#22D3EE" />
+                    <stop offset="100%" stopColor="#00FF41" />
+                </linearGradient>
+            </defs>
+            {/* Monitor frame */}
+            <rect x="34" y="22" width="152" height="84" rx="8" fill="url(#simcanvasScreen)" stroke="#475569" strokeWidth="2" />
+            {/* Grid inside the screen */}
+            {[44, 60, 76, 92, 108, 124, 140, 156, 172].map((x) => (
+                <line key={`v-${x}`} x1={x} y1="28" x2={x} y2="100" stroke="#1E293B" strokeWidth="1" opacity="0.65" />
+            ))}
+            {[34, 46, 58, 70, 82, 94].map((y) => (
+                <line key={`h-${y}`} x1="40" y1={y} x2="180" y2={y} stroke="#1E293B" strokeWidth="1" opacity="0.65" />
+            ))}
+            {/* Sine-wave trace (the "simulation") */}
+            <path
+                d="M 42 66 Q 64 30 86 66 T 130 66 T 174 66"
+                stroke="url(#simcanvasBeam)"
+                strokeWidth="2.6"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray="6 6"
+            >
+                <animate attributeName="stroke-dashoffset" values="0;-24" dur="1.6s" repeatCount="indefinite" />
+            </path>
+            {/* Moving readout dot */}
+            <circle r="3.5" fill="#00FF41">
+                <animateMotion dur="2.4s" repeatCount="indefinite" path="M 42 66 Q 64 30 86 66 T 130 66 T 174 66" />
+            </circle>
+            {/* Parameter slider knobs (bottom) */}
+            <rect x="48" y="112" width="60" height="6" rx="3" fill="#334155" />
+            <circle cx="78" cy="115" r="5" fill="#22D3EE">
+                <animate attributeName="cx" values="58;98;58" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <rect x="120" y="112" width="60" height="6" rx="3" fill="#334155" />
+            <circle cx="156" cy="115" r="5" fill="#FACC15">
+                <animate attributeName="cx" values="136;176;136" dur="2.6s" repeatCount="indefinite" />
+            </circle>
+        </svg>
+    </div>
+);
+
 const experiments: ExperimentCard[] = [
     {
         id: 'synchrotron-em-fields',
@@ -882,8 +932,8 @@ export default function Home() {
                 {activeTab === 'simcanvas' ? (
                     <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
                         {simCanvasCards.length === 0 ? (
-                            <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
-                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
+                            <article className="relative min-h-[292px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
+                                <h2 className="mb-3 text-[25px] font-[700] leading-[1.15] text-[#F0F6FC]">
                                     {t('home:empty.simcanvas')}
                                 </h2>
                                 <p className="text-sm leading-relaxed text-slate-300">
@@ -892,30 +942,40 @@ export default function Home() {
                             </article>
                         ) : null}
                         {simCanvasCards.map((card) => (
-                            <article
+                            <a
                                 key={card.id}
-                                className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-slate-900/80 via-slate-800/40 to-slate-900/80 p-8"
+                                href={card.href ?? '#'}
+                                className={`group relative min-h-[292px] block overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br from-cyan-900/20 via-slate-900/10 to-emerald-900/20 p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
                             >
-                                <div className="mb-5 inline-flex rounded-full border border-cyan-400/40 bg-cyan-900/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-cyan-200">
-                                    {card.status === 'ready' ? t('common:status.ready') : t('common:status.draft')}
+                                <div className="absolute inset-2 rounded-[16px] bg-gradient-to-br from-white/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+
+                                <div className="relative z-10 flex h-full flex-col">
+                                    <h2 className="px-2 pt-1 text-[25px] font-[700] leading-[1.15] tracking-[-0.01em] text-[#F0F6FC] transition-colors duration-[400ms] group-hover:text-white">
+                                        {card.title}
+                                    </h2>
+
+                                    <div className="flex flex-1 items-center justify-center py-7">
+                                        <div className="w-full transform transition-transform duration-[400ms] group-hover:scale-[1.04]">
+                                            <SimCanvasDiagram />
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-auto flex items-center justify-between gap-3 px-2 pb-1 pt-2">
+                                        <p className="truncate text-xs text-slate-400">{card.description}</p>
+                                        <div className="flex h-8 w-8 scale-75 shrink-0 items-center justify-center rounded-full bg-[#00FF41]/10 opacity-0 transition-all duration-[400ms] group-hover:scale-100 group-hover:opacity-100">
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                                <path
+                                                    d="M6 3L11 8L6 13"
+                                                    stroke="#00FF41"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
                                 </div>
-                                <h2 className="mb-3 text-2xl font-[700] leading-tight text-[#F0F6FC]">
-                                    {card.title}
-                                </h2>
-                                <p className="text-sm leading-relaxed text-slate-300">{card.description}</p>
-                                {card.href ? (
-                                    <a
-                                        href={card.href}
-                                        className="mt-6 inline-flex items-center rounded-lg bg-gradient-to-r from-cyan-600 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition-all hover:from-cyan-500 hover:to-sky-400"
-                                    >
-                                        {t('home:button.openHtml')}
-                                    </a>
-                                ) : (
-                                    <p className="mt-6 text-xs font-medium uppercase tracking-wider text-slate-500">
-                                        {t('common:status.waitingContent')}
-                                    </p>
-                                )}
-                            </article>
+                            </a>
                         ))}
                     </div>
                 ) : null}
