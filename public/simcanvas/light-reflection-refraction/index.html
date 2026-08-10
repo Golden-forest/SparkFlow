@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>光的反射与折射</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #070b18;
+      --sim-surface: rgba(20, 28, 48, 0.85);
+      --sim-surface-soft: rgba(28, 38, 62, 0.7);
+      --sim-text: #e8eefc;
+      --sim-muted: #8294b8;
+      --sim-border: rgba(120, 145, 190, 0.22);
+      --sim-accent: #38bdf8;
+      --sim-accent-deep: #0284c7;
+      --sim-warning: #f59e0b;
+      --sim-incident: #22d3ee;
+      --sim-reflected: #fb923c;
+      --sim-refracted: #e879f9;
+      --sim-normal: rgba(200, 220, 255, 0.45);
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(232, 121, 249, 0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(56, 189, 248, 0.5); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(56, 189, 248, .32); border-radius: 999px; padding: 9px 14px; background: rgba(56, 189, 248, 0.12); color: #7dd3fc; font-weight: 780; white-space: nowrap; }
+    .status.tir { border-color: rgba(245, 158, 11, .35); background: rgba(245, 158, 11, 0.14); color: #fcd34d; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.92fr) minmax(300px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: var(--sim-surface); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); backdrop-filter: blur(8px); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    .scene-wrap { position: relative; min-height: 0; }
+    #scene { width: 100%; height: 100%; min-height: 380px; display: block; border: 1px solid rgba(56, 189, 248, 0.14); border-radius: 18px; background: radial-gradient(ellipse at 50% 30%, #0d1530 0%, #050912 100%); }
+    .shape-switch { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .shape-switch button { padding: 7px 12px; font-size: 0.82rem; }
+    .shape-switch button.active { border-color: var(--sim-accent); color: #e0f2fe; background: rgba(56, 189, 248, 0.18); }
+    .legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 0.78rem; color: var(--sim-muted); }
+    .legend-dot { display: inline-block; width: 22px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(56, 189, 248, .14); border-radius: 15px; background: linear-gradient(145deg, rgba(20, 32, 56, 0.6), rgba(28, 42, 70, 0.5)); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric.tir-active { border-color: rgba(245, 158, 11, .45); background: linear-gradient(145deg, rgba(60, 42, 12, 0.6), rgba(80, 56, 18, 0.5)); }
+    .metric.tir-active strong { color: #fcd34d; }
+    .model-note { display: grid; align-content: start; gap: 12px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(245, 158, 11, 0.10); color: #fcd34d !important; font-weight: 650; }
+    .formula { padding: 14px; border-radius: 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.18); }
+    .formula code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.95rem; color: #e0f2fe; display: block; margin-top: 6px; }
+    .controls { padding: 12px; display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(160px, 1fr) minmax(140px, 1fr) auto; gap: 14px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: rgba(56, 189, 248, 0.5); background: rgba(56, 189, 248, 0.10); }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(56, 189, 248, .25); }
+    button.toggle[aria-pressed="true"] { border-color: var(--sim-warning); color: #fcd34d; background: rgba(245, 158, 11, 0.15); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    select { background: var(--sim-surface-soft); color: var(--sim-text); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 10px; font-weight: 650; cursor: pointer; }
+    @media (max-width: 1100px) {
+      .controls { grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr); gap: 12px; }
+      .controls > *:nth-child(4), .controls > *:nth-child(5) { grid-column: span 1; }
+    }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 900 / 560; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first">
+    <header class="header" data-region="header">
+      <div>
+        <h1>光的反射与折射</h1>
+        <p>Reflection & Refraction · Snell's Law · Total Internal Reflection</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">正常折射</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">光路演示</h2>
+          <span>拖动入射角滑块或直接拖动光源调整角度</span>
+        </div>
+        <div class="scene-wrap">
+          <svg id="scene" viewBox="0 0 900 560" role="img" aria-labelledby="scene-title scene-desc">
+            <desc id="scene-desc">一束光从一种介质射向另一种介质，呈现入射、反射、折射三条光路。</desc>
+            <defs>
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <linearGradient id="mediumGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(96, 165, 250, 0.18)"/>
+                <stop offset="100%" stop-color="rgba(59, 130, 246, 0.28)"/>
+              </linearGradient>
+              <radialGradient id="sourceGlow">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="40%" stop-color="rgba(34, 211, 238, 0.8)"/>
+                <stop offset="100%" stop-color="rgba(34, 211, 238, 0)"/>
+              </radialGradient>
+            </defs>
+            <g id="layerGrid"></g>
+            <g id="layerMedium"></g>
+            <g id="layerRays">
+              <line id="normalLine" stroke="var(--sim-normal)" stroke-width="1.5" stroke-dasharray="6 5"/>
+              <line id="incidentRay" stroke="var(--sim-incident)" stroke-width="3" stroke-linecap="round" filter="url(#glow)"/>
+              <line id="reflectedRay" stroke="var(--sim-reflected)" stroke-width="3" stroke-linecap="round" filter="url(#glow)"/>
+              <line id="refractedRay" stroke="var(--sim-refracted)" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="1"/>
+              <circle id="hitPoint" r="5" fill="#fff" stroke="rgba(56,189,248,0.6)" stroke-width="2"/>
+            </g>
+            <g id="layerAngles"></g>
+            <g id="layerLabels"></g>
+            <g id="layerSource">
+              <circle id="sourceGlowCircle" r="14" fill="url(#sourceGlow)" pointer-events="none"/>
+              <circle id="sourceDot" r="6" fill="#22d3ee" stroke="#fff" stroke-width="2" cursor="grab"/>
+            </g>
+          </svg>
+        </div>
+        <div class="shape-switch" role="group" aria-label="介质形状">
+          <button data-shape="rectangle" class="active" type="button">矩形玻璃砖</button>
+          <button data-shape="semicircle" type="button">半圆柱</button>
+          <button data-shape="prism" type="button">三角棱镜</button>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><span class="legend-dot" style="background:#22d3ee"></span>入射光</span>
+          <span><span class="legend-dot" style="background:#fb923c"></span>反射光</span>
+          <span><span class="legend-dot" style="background:#e879f9"></span>折射光</span>
+          <span><span class="legend-dot" style="background:rgba(200,220,255,0.45)"></span>法线(虚)</span>
+        </div>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="panel-head"><h2>实时数值</h2><span>Live readouts</span></div>
+          <div class="readout-grid">
+            <div class="metric"><small>入射角 θ₁</small><strong id="readIncident">30.0°</strong></div>
+            <div class="metric"><small>反射角 θ_r</small><strong id="readReflect">30.0°</strong></div>
+            <div class="metric" id="metricRefract"><small>折射角 θ₂</small><strong id="readRefract">19.5°</strong></div>
+            <div class="metric"><small>临界角 θ_c</small><strong id="readCritical">41.8°</strong></div>
+            <div class="metric"><small>介质 n₁</small><strong id="readN1">1.000</strong></div>
+            <div class="metric"><small>介质 n₂</small><strong id="readN2">1.500</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>规律与提示</h2></div>
+          <div class="formula">
+            <span style="font-size:0.8rem;color:var(--sim-muted)">Snell 定律</span>
+            <code>n₁ sin θ₁ = n₂ sin θ₂</code>
+          </div>
+          <p id="insight" class="insight">调节入射角，观察折射光偏折变化。折射率越大，偏折越明显。</p>
+          <p style="font-size:0.82rem">介质材料：水 n=1.33 · 玻璃 n=1.50 · 钻石 n=2.42。临界角 θ_c = arcsin(n₂/n₁)（仅当 n₁&gt;n₂ 时存在）。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="resetBtn" type="button" class="primary">↺ 重置</button>
+      </div>
+      <div class="control">
+        <label for="angleInput">入射角 θ₁ <output id="angleOutput">30.0°</output></label>
+        <input id="angleInput" type="range" min="0" max="89" step="0.5" value="30">
+      </div>
+      <div class="control">
+        <label for="materialSelect">介质材料</label>
+        <select id="materialSelect">
+          <option value="1.000">空气 (n=1.00)</option>
+          <option value="1.333">水 (n=1.33)</option>
+          <option value="1.500" selected>玻璃 (n=1.50)</option>
+          <option value="2.417">钻石 (n=2.42)</option>
+        </select>
+      </div>
+      <div class="control" style="display:flex;align-items:center;gap:8px;">
+        <button id="tirBtn" type="button" class="toggle" aria-pressed="false">全反射模式</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ───────── 物理参数 ─────────
+    const AIR_N = 1.000;
+    const MATERIALS = { "1.000": "空气", "1.333": "水", "1.500": "玻璃", "2.417": "钻石" };
+    const COLORS = { incident: "#22d3ee", reflected: "#fb923c", refracted: "#e879f9", normal: "rgba(200,220,255,0.45)" };
+
+    // ───────── 画布 ─────────
+    const VW = 900, VH = 560;
+
+    // ───────── 状态 ─────────
+    const state = {
+      angleDeg: 30,        // 入射角（相对法线的角度）
+      shape: "rectangle",  // rectangle | semicircle | prism
+      n1: AIR_N,           // 入射侧介质（默认空气）
+      n2: 1.500,           // 透射侧介质（默认玻璃）
+      tirMode: false       // 全反射模式：光源在介质内，射向空气
+    };
+
+    // ───────── DOM ─────────
+    const $ = (id) => document.getElementById(id);
+    const el = {
+      status: $("status"), scene: $("scene"),
+      normalLine: $("normalLine"), incidentRay: $("incidentRay"),
+      reflectedRay: $("reflectedRay"), refractedRay: $("refractedRay"),
+      hitPoint: $("hitPoint"),
+      layerGrid: $("layerGrid"), layerMedium: $("layerMedium"),
+      layerAngles: $("layerAngles"), layerLabels: $("layerLabels"),
+      sourceDot: $("sourceDot"), sourceGlow: $("sourceGlowCircle"),
+      angleInput: $("angleInput"), angleOutput: $("angleOutput"),
+      materialSelect: $("materialSelect"), tirBtn: $("tirBtn"),
+      readIncident: $("readIncident"), readReflect: $("readReflect"),
+      readRefract: $("readRefract"), readCritical: $("readCritical"),
+      readN1: $("readN1"), readN2: $("readN2"),
+      metricRefract: $("metricRefract"), insight: $("insight")
+    };
+
+    // ───────── 工具 ─────────
+    const deg2rad = (d) => d * Math.PI / 180;
+    const rad2deg = (r) => r * 180 / Math.PI;
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+    // ───────── 介质几何 ─────────
+    // 返回 { surfaceY, hitPoint:{x,y}, normalDir:{x,y}（指向 n1 侧）, shapePaths:[svg-path] }
+    function getMediumGeometry() {
+      const cx = VW / 2;
+      if (state.shape === "rectangle") {
+        // 上方空气，下方介质，界面水平
+        const surfaceY = 230;
+        return {
+          surfaceY,
+          hit: { x: cx, y: surfaceY },
+          normal: { x: 0, y: -1 },   // 指向上方(空气)
+          shapePaths: [`M0,${surfaceY} L${VW},${surfaceY} L${VW},${VH} L0,${VH} Z`]
+        };
+      }
+      if (state.shape === "semicircle") {
+        // 半圆：下半圆为介质，平面向上，圆心在 surfaceY
+        const surfaceY = 230;
+        const r = 200;
+        return {
+          surfaceY,
+          hit: { x: cx, y: surfaceY },
+          normal: { x: 0, y: -1 },
+          shapePaths: [`M${cx - r},${surfaceY} A${r},${r} 0 0 1 ${cx + r},${surfaceY} Z`]
+        };
+      }
+      // prism：等边三角棱镜，顶点向上
+      // 光线命中左斜面中点，法线 = 左斜面外法线（指向棱镜左上方）
+      const topY = 150;
+      const baseY = 410;
+      const halfBase = 160;
+      const top = { x: cx, y: topY };
+      const bl = { x: cx - halfBase, y: baseY };
+      const br = { x: cx + halfBase, y: baseY };
+      // 左斜面方向（顶点→左下）：v = bl - top
+      const edgeL = { x: bl.x - top.x, y: bl.y - top.y };
+      const edgeLen = Math.hypot(edgeL.x, edgeL.y);
+      // 左斜面外法线：把 edge 方向逆时针旋转 90° → (−edge.y, edge.x) 归一化
+      // 顶点在上、左下在下，edge 大致朝左下；逆时针 90° 得到朝左上（即指向棱镜外）
+      let nx = -edgeL.y / edgeLen;
+      let ny = edgeL.x / edgeLen;
+      // 校验：法线应指向棱镜外（x 分量为负、y 分量为负）
+      if (nx > 0) { nx = -nx; ny = -ny; }
+      const hit = { x: (top.x + bl.x) / 2, y: (top.y + bl.y) / 2 };
+      return {
+        surfaceY: topY,
+        hit,
+        normal: { x: nx, y: ny },  // 单位外法线，指向 n1 侧（空气）
+        prism: { top, bl, br },
+        shapePaths: [`M${top.x},${top.y} L${bl.x},${bl.y} L${br.x},${br.y} Z`]
+      };
+    }
+
+    // ───────── 物理：计算反射角、折射角 ─────────
+    function computeOptics() {
+      const theta1 = deg2rad(state.angleDeg);
+      const reflectAngle = state.angleDeg;  // 反射角 = 入射角
+      const sinTheta2 = (state.n1 / state.n2) * Math.sin(theta1);
+      let refractDeg, isTIR = false, criticalDeg = null;
+      // 临界角：仅当 n1 > n2 才存在
+      if (state.n1 > state.n2) {
+        criticalDeg = rad2deg(Math.asin(state.n2 / state.n1));
+        if (sinTheta2 > 1) {
+          isTIR = true;
+          refractDeg = null;
+        } else {
+          refractDeg = rad2deg(Math.asin(sinTheta2));
+        }
+      } else {
+        refractDeg = rad2deg(Math.asin(clamp(sinTheta2, -1, 1)));
+      }
+      return { theta1Deg: state.angleDeg, reflectAngle, refractDeg, isTIR, criticalDeg };
+    }
+
+    // ───────── 光线端点计算（通用向量法线） ─────────
+    // 法线 n 始终指向 n1 侧（入射光来的那一侧）。
+    // 入射光方向 d_i（指向 hit）由"绕法线旋转 θ₁"得到，保持入射光在法线"左手边"。
+    // 反射 = d_i - 2(d_i · n) n（n 为指向 n1 侧的单位向量）
+    // 折射 = Snell 向量形式，进入 n2 侧（与法线相反方向）
+    function computeRays() {
+      const geo = getMediumGeometry();
+      const opt = computeOptics();
+      const hit = geo.hit;
+
+      // 单位法线（指向 n1 侧）。tir 模式下法线指向介质内（光源侧），需翻转。
+      let nx = geo.normal.x, ny = geo.normal.y;
+      if (state.tirMode) { nx = -nx; ny = -ny; }
+      const nLen = Math.hypot(nx, ny) || 1;
+      nx /= nLen; ny /= nLen;
+      const normal = { x: nx, y: ny };
+
+      // 入射光方向 d（指向 hit，即光的传播方向）
+      // 物理约定：d 与 -n 的夹角 = θ₁（入射角）。
+      // 视觉约定：光源在屏幕左侧（d.x > 0），符合从左向右射光的直觉。
+      // 公式：d = -n·cosθ₁ + t·sinθ₁，t 为法线垂直方向（两个候选中选 d.x>0 的）。
+      const t1 = deg2rad(state.angleDeg);
+      const cosT1 = Math.cos(t1), sinT1 = Math.sin(t1);
+      // 候选 a: t = (-ny, nx)
+      const dax = -nx * cosT1 + (-ny) * sinT1;
+      const day = -ny * cosT1 + nx * sinT1;
+      // 候选 b: t = (ny, -nx)
+      const dbx = -nx * cosT1 + ny * sinT1;
+      const dby = -ny * cosT1 + (-nx) * sinT1;
+      // 选 d.x > 0 的候选（光源在屏幕左侧）
+      const d = dax > dbx
+        ? { x: dax, y: day }
+        : { x: dbx, y: dby };
+      // 归一化
+      const dLen = Math.hypot(d.x, d.y) || 1;
+      d.x /= dLen; d.y /= dLen;
+
+      // 光源位置 = hit - d * rayLen
+      const rayLen = 300;
+      const source = { x: hit.x - d.x * rayLen, y: hit.y - d.y * rayLen };
+
+      // 反射光方向：r = d - 2(d·n)n，其中 n 指向 n1 侧（光源侧）
+      const dDotN = d.x * nx + d.y * ny;
+      const reflectDir = {
+        x: d.x - 2 * dDotN * nx,
+        y: d.y - 2 * dDotN * ny
+      };
+      const reflectEnd = { x: hit.x + reflectDir.x * 280, y: hit.y + reflectDir.y * 280 };
+
+      // 折射光方向（Snell 向量形式）
+      // 入射方向 d（已归一化），n 指向 n1 侧
+      // 设 cosθ₁ = -d·n（因为 d 指向界面，n 指向 n1 侧，二者夹角 > 90°）
+      //   η = n1/n2，cosθ₂ = √(1 - η²(1 - cos²θ₁))
+      //   t = η·d + (η·cosθ₁ - cosθ₂)·n   （折射方向，指向 n2 侧）
+      let refractEnd = null;
+      if (!opt.isTIR && opt.refractDeg !== null) {
+        const cosT1Val = -(d.x * nx + d.y * ny);  // = -dDotN
+        const eta = state.n1 / state.n2;
+        const sin2T2 = eta * eta * (1 - cosT1Val * cosT1Val);
+        const cosT2 = Math.sqrt(Math.max(0, 1 - sin2T2));
+        const refractDir = {
+          x: eta * d.x + (eta * cosT1Val - cosT2) * nx,
+          y: eta * d.y + (eta * cosT1Val - cosT2) * ny
+        };
+        refractEnd = { x: hit.x + refractDir.x * 320, y: hit.y + refractDir.y * 320 };
+      }
+
+      // 法线绘制（沿法线方向两侧延伸）
+      const normalLen = 130;
+      const normalEnd1 = { x: hit.x + nx * normalLen, y: hit.y + ny * normalLen };  // n1 侧
+      const normalEnd2 = { x: hit.x - nx * normalLen, y: hit.y - ny * normalLen };  // n2 侧
+
+      return { geo, opt, hit, source, reflectEnd, refractEnd, normalEnd1, normalEnd2, incidentDir: d, normal };
+    }
+
+    // ───────── 渲染：介质形状 ─────────
+    function renderMedium() {
+      const geo = getMediumGeometry();
+      let html = "";
+      // 介质区域填充
+      const fillColor = state.tirMode
+        ? "rgba(56, 189, 248, 0.10)"   // tir 模式：n1=介质在下方
+        : "url(#mediumGrad)";
+      geo.shapePaths.forEach((d) => {
+        html += `<path d="${d}" fill="${fillColor}" stroke="rgba(120,160,220,0.4)" stroke-width="1.5"/>`;
+      });
+      // 介质标签
+      const cx = VW / 2;
+      if (state.shape === "rectangle") {
+        html += `<text x="${VW - 20}" y="${geo.surfaceY + 28}" text-anchor="end" fill="rgba(180,210,250,0.7)" font-size="14" font-weight="600">${state.tirMode ? `空气 n₂=${state.n2.toFixed(3)}` : `${MATERIALS[String(state.n2)] || ""} n₂=${state.n2.toFixed(3)}`}</text>`;
+        html += `<text x="20" y="${geo.surfaceY - 14}" fill="rgba(180,210,250,0.7)" font-size="14" font-weight="600">${state.tirMode ? `${MATERIALS[String(state.n1)] || ""} n₁=${state.n1.toFixed(3)}` : `空气 n₁=${state.n1.toFixed(3)}`}</text>`;
+      } else if (state.shape === "semicircle") {
+        html += `<text x="${VW - 20}" y="${VH - 20}" text-anchor="end" fill="rgba(180,210,250,0.7)" font-size="14" font-weight="600">${state.tirMode ? `空气 n₂=${state.n2.toFixed(3)}` : `${MATERIALS[String(state.n2)] || ""} n₂=${state.n2.toFixed(3)}`}</text>`;
+        html += `<text x="20" y="${geo.surfaceY - 14}" fill="rgba(180,210,250,0.7)" font-size="14" font-weight="600">${state.tirMode ? `${MATERIALS[String(state.n1)] || ""} n₁=${state.n1.toFixed(3)}` : `空气 n₁=${state.n1.toFixed(3)}`}</text>`;
+      } else {
+        // 棱镜
+        html += `<text x="${cx}" y="${VH - 20}" text-anchor="middle" fill="rgba(180,210,250,0.7)" font-size="14" font-weight="600">玻璃棱镜 n=${state.tirMode ? state.n1.toFixed(2) : state.n2.toFixed(2)}</text>`;
+      }
+      el.layerMedium.innerHTML = html;
+    }
+
+    // ───────── 渲染：光线 + 光源 ─────────
+    function renderRays() {
+      const r = computeRays();
+      const { hit, source, reflectEnd, refractEnd, normalEnd1, normalEnd2, opt } = r;
+
+      // 法线
+      el.normalLine.setAttribute("x1", normalEnd1.x);
+      el.normalLine.setAttribute("y1", normalEnd1.y);
+      el.normalLine.setAttribute("x2", normalEnd2.x);
+      el.normalLine.setAttribute("y2", normalEnd2.y);
+
+      // 入射光
+      el.incidentRay.setAttribute("x1", source.x);
+      el.incidentRay.setAttribute("y1", source.y);
+      el.incidentRay.setAttribute("x2", hit.x);
+      el.incidentRay.setAttribute("y2", hit.y);
+
+      // 反射光
+      el.reflectedRay.setAttribute("x1", hit.x);
+      el.reflectedRay.setAttribute("y1", hit.y);
+      el.reflectedRay.setAttribute("x2", reflectEnd.x);
+      el.reflectedRay.setAttribute("y2", reflectEnd.y);
+
+      // 折射光
+      if (opt.isTIR || refractEnd === null) {
+        el.refractedRay.setAttribute("opacity", "0");
+        el.refractedRay.setAttribute("x1", hit.x);
+        el.refractedRay.setAttribute("y1", hit.y);
+        el.refractedRay.setAttribute("x2", hit.x);
+        el.refractedRay.setAttribute("y2", hit.y);
+      } else {
+        el.refractedRay.setAttribute("opacity", "1");
+        el.refractedRay.setAttribute("x1", hit.x);
+        el.refractedRay.setAttribute("y1", hit.y);
+        el.refractedRay.setAttribute("x2", refractEnd.x);
+        el.refractedRay.setAttribute("y2", refractEnd.y);
+      }
+
+      // 命中点
+      el.hitPoint.setAttribute("cx", hit.x);
+      el.hitPoint.setAttribute("cy", hit.y);
+
+      // 光源
+      el.sourceDot.setAttribute("cx", source.x);
+      el.sourceDot.setAttribute("cy", source.y);
+      el.sourceGlow.setAttribute("cx", source.x);
+      el.sourceGlow.setAttribute("cy", source.y);
+
+      // 角度弧标
+      renderAngles(r);
+      // 光线标签
+      renderLabels(r);
+    }
+
+    // ───────── 渲染：角度弧标（基于向量法线） ─────────
+    function renderAngles(r) {
+      const { hit, opt, normal, source, reflectEnd, refractEnd } = r;
+      const radius = 42;
+      let html = "";
+
+      // 法线角度（指向 n1 侧，SVG 坐标系，atan2(y, x)）
+      const normalA = rad2deg(Math.atan2(normal.y, normal.x));
+      // 入射光来向角（从 hit 指向 source 的方向）
+      const incomingA = rad2deg(Math.atan2(source.y - hit.y, source.x - hit.x));
+      // 反射光方向角（从 hit 指向 reflectEnd）
+      const reflectA = rad2deg(Math.atan2(reflectEnd.y - hit.y, reflectEnd.x - hit.x));
+
+      // 入射角弧：法线 → 入射光来向
+      html += arcPath(hit.x, hit.y, radius, normalA, incomingA, COLORS.incident, "θ₁");
+      // 反射角弧：法线 → 反射方向
+      html += arcPath(hit.x, hit.y, radius, normalA, reflectA, COLORS.reflected, "θ_r");
+
+      // 折射角弧：-法线（n2 侧）→ 折射方向
+      if (!opt.isTIR && refractEnd) {
+        const refractNormalA = normalA + 180;  // 折射侧法线（与 n1 侧相反）
+        const refractA = rad2deg(Math.atan2(refractEnd.y - hit.y, refractEnd.x - hit.x));
+        html += arcPath(hit.x, hit.y, radius + 6, refractNormalA, refractA, COLORS.refracted, "θ₂");
+      }
+
+      el.layerAngles.innerHTML = html;
+    }
+
+    function arcPath(cx, cy, r, a1, a2, color, label) {
+      const rad1 = deg2rad(a1), rad2 = deg2rad(a2);
+      const x1 = cx + r * Math.cos(rad1), y1 = cy + r * Math.sin(rad1);
+      const x2 = cx + r * Math.cos(rad2), y2 = cy + r * Math.sin(rad2);
+      let delta = a2 - a1;
+      while (delta > 180) delta -= 360;
+      while (delta < -180) delta += 360;
+      const sweep = delta > 0 ? 1 : 0;
+      const largeArc = Math.abs(delta) > 180 ? 1 : 0;
+      const midA = deg2rad(a1 + delta / 2);
+      const lx = cx + (r + 14) * Math.cos(midA);
+      const ly = cy + (r + 14) * Math.sin(midA);
+      return `<path d="M${x1},${y1} A${r},${r} 0 ${largeArc} ${sweep} ${x2},${y2}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.85"/>
+              <text x="${lx}" y="${ly}" fill="${color}" font-size="13" font-weight="700" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
+    }
+
+    function renderLabels(r) {
+      const { source, reflectEnd, refractEnd, opt } = r;
+      let html = "";
+      // 入射光标签
+      html += rayLabel(source.x + 60, source.y + 40, "入射光", COLORS.incident);
+      // 反射光标签
+      html += rayLabel(reflectEnd.x - 50, reflectEnd.y + 30, "反射光", COLORS.reflected);
+      // 折射光标签
+      if (!opt.isTIR && refractEnd) {
+        html += rayLabel(refractEnd.x + 10, refractEnd.y + 20, "折射光", COLORS.refracted);
+      }
+      el.layerLabels.innerHTML = html;
+    }
+
+    function rayLabel(x, y, text, color) {
+      return `<text x="${x}" y="${y}" fill="${color}" font-size="12" font-weight="700" opacity="0.9">${text}</text>`;
+    }
+
+    // ───────── 渲染：读数面板 ─────────
+    function renderReadouts() {
+      const opt = computeOptics();
+      el.readIncident.textContent = `${opt.theta1Deg.toFixed(1)}°`;
+      el.readReflect.textContent = `${opt.reflectAngle.toFixed(1)}°`;
+      if (opt.isTIR || opt.refractDeg === null) {
+        el.readRefract.textContent = "—";
+        el.metricRefract.classList.add("tir-active");
+      } else {
+        el.readRefract.textContent = `${opt.refractDeg.toFixed(1)}°`;
+        el.metricRefract.classList.remove("tir-active");
+      }
+      el.readCritical.textContent = opt.criticalDeg !== null ? `${opt.criticalDeg.toFixed(1)}°` : "—";
+      el.readN1.textContent = state.n1.toFixed(3);
+      el.readN2.textContent = state.n2.toFixed(3);
+
+      // 状态徽章
+      if (opt.isTIR) {
+        el.status.textContent = "全反射";
+        el.status.classList.add("tir");
+      } else {
+        el.status.textContent = state.tirMode ? "光密→光疏" : "正常折射";
+        el.status.classList.remove("tir");
+      }
+
+      // 洞察文案
+      if (opt.isTIR) {
+        el.insight.textContent = `已超过临界角 θc=${opt.criticalDeg.toFixed(1)}°，折射光消失，全部能量反射回介质。`;
+      } else if (state.tirMode && opt.criticalDeg !== null) {
+        const margin = opt.criticalDeg - opt.theta1Deg;
+        if (margin < 5) {
+          el.insight.textContent = `接近临界角！再增大 ${(margin).toFixed(1)}° 即将发生全反射。`;
+        } else {
+          el.insight.textContent = `光从光密介质射向光疏介质，折射角大于入射角。当前距临界角 ${margin.toFixed(1)}°。`;
+        }
+      } else {
+        const ratio = state.n2 / state.n1;
+        if (ratio > 1.3) {
+          el.insight.textContent = "折射率差异大，光路偏折明显。折射光线偏向法线。";
+        } else if (ratio < 0.8) {
+          el.insight.textContent = "光从光密射向光疏，折射光线远离法线。";
+        } else {
+          el.insight.textContent = "调节入射角或切换介质材料，观察折射光线如何偏折。";
+        }
+      }
+    }
+
+    // ───────── 主渲染 ─────────
+    function render() {
+      renderMedium();
+      renderRays();
+      renderReadouts();
+      el.angleOutput.textContent = `${state.angleDeg.toFixed(1)}°`;
+      el.angleInput.value = String(state.angleDeg);
+    }
+
+    // ───────── 网格背景 ─────────
+    function renderGrid() {
+      let html = "";
+      for (let x = 0; x <= VW; x += 60) {
+        html += `<line x1="${x}" y1="0" x2="${x}" y2="${VH}" stroke="rgba(100,130,180,0.06)" stroke-width="1"/>`;
+      }
+      for (let y = 0; y <= VH; y += 60) {
+        html += `<line x1="0" y1="${y}" x2="${VW}" y2="${y}" stroke="rgba(100,130,180,0.06)" stroke-width="1"/>`;
+      }
+      el.layerGrid.innerHTML = html;
+    }
+
+    // ───────── 交互绑定 ─────────
+    function bindControls() {
+      // 入射角滑块
+      el.angleInput.addEventListener("input", () => {
+        state.angleDeg = parseFloat(el.angleInput.value);
+        render();
+      });
+
+      // 介质材料
+      el.materialSelect.addEventListener("change", () => {
+        const n = parseFloat(el.materialSelect.value);
+        if (state.tirMode) {
+          // 全反射模式：n1 = 选中的介质，n2 = 空气
+          state.n1 = n;
+          state.n2 = AIR_N;
+        } else {
+          state.n2 = n;
+          state.n1 = AIR_N;
+        }
+        render();
+      });
+
+      // 全反射模式开关
+      el.tirBtn.addEventListener("click", () => {
+        state.tirMode = !state.tirMode;
+        el.tirBtn.setAttribute("aria-pressed", String(state.tirMode));
+        if (state.tirMode) {
+          // 翻转：n1 = 当前选中材料，n2 = 空气
+          state.n1 = parseFloat(el.materialSelect.value);
+          state.n2 = AIR_N;
+          el.tirBtn.textContent = "退出全反射";
+        } else {
+          // 恢复：n1 = 空气，n2 = 当前材料
+          state.n1 = AIR_N;
+          state.n2 = parseFloat(el.materialSelect.value);
+          el.tirBtn.textContent = "全反射模式";
+        }
+        render();
+      });
+
+      // 介质形状切换
+      document.querySelectorAll(".shape-switch button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".shape-switch button").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          state.shape = btn.dataset.shape;
+          render();
+        });
+      });
+
+      // 重置
+      $("resetBtn").addEventListener("click", () => {
+        state.angleDeg = 30;
+        state.shape = "rectangle";
+        state.tirMode = false;
+        state.n1 = AIR_N;
+        state.n2 = 1.500;
+        el.materialSelect.value = "1.500";
+        el.tirBtn.setAttribute("aria-pressed", "false");
+        el.tirBtn.textContent = "全反射模式";
+        document.querySelectorAll(".shape-switch button").forEach((b) => b.classList.remove("active"));
+        document.querySelector('.shape-switch button[data-shape="rectangle"]').classList.add("active");
+        render();
+      });
+
+      // 拖动光源改变入射角
+      let dragging = false;
+      const svg = el.scene;
+      function getSVGPoint(evt) {
+        const rect = svg.getBoundingClientRect();
+        const x = ((evt.clientX - rect.left) / rect.width) * VW;
+        const y = ((evt.clientY - rect.top) / rect.height) * VH;
+        return { x, y };
+      }
+      el.sourceDot.addEventListener("pointerdown", (e) => {
+        dragging = true;
+        el.sourceDot.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      svg.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const p = getSVGPoint(e);
+        const geo = getMediumGeometry();
+        const hit = geo.hit;
+        // 通用向量法线：source→hit 向量在法线上的投影决定入射角
+        let nx = geo.normal.x, ny = geo.normal.y;
+        if (state.tirMode) { nx = -nx; ny = -ny; }
+        const nLen = Math.hypot(nx, ny) || 1;
+        nx /= nLen; ny /= nLen;
+        // source 到 hit 的向量
+        const dx = p.x - hit.x;
+        const dy = p.y - hit.y;
+        // 投影到法线（沿法线分量 = cosθ₁）和切线（垂直法线分量 = sinθ₁）
+        // source 应在 n1 侧（与法线同向），否则忽略
+        const alongNormal = dx * nx + dy * ny;
+        if (alongNormal <= 0) return;  // source 拖到 n2 侧去了
+        const perpX = dx - alongNormal * nx;
+        const perpY = dy - alongNormal * ny;
+        const angle = rad2deg(Math.atan2(Math.hypot(perpX, perpY), alongNormal));
+        state.angleDeg = clamp(angle, 0, 89);
+        render();
+      });
+      el.sourceDot.addEventListener("pointerup", (e) => {
+        dragging = false;
+        el.sourceDot.releasePointerCapture(e.pointerId);
+      });
+      svg.addEventListener("pointerup", () => { dragging = false; });
+    }
+
+    // ───────── 初始化 ─────────
+    function init() {
+      renderGrid();
+      bindControls();
+      render();
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>

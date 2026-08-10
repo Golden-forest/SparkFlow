@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>抛体运动仿真 · Projectile Motion</title>
+<style>
+  :root{
+    --bg:#f5f7fb;
+    --paper:#fbfcfe;
+    --panel:#ffffff;
+    --ink:#1f2937;
+    --muted:#64748b;
+    --line:#2f3542;
+    --grid-soft:#e6ecf4;
+    --grid-strong:#cfd8e6;
+    --ground:#b6c2d2;
+    --shadow:0 14px 35px rgba(39,53,78,.10);
+    --radius:18px;
+    --radius-sm:12px;
+    --accent:#1f6feb;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(31,111,235,.07), transparent 28%),
+      radial-gradient(circle at 92% 4%, rgba(245,158,11,.06), transparent 26%),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    width:min(1480px,100vw);
+    min-height:100vh;
+    margin:0 auto;
+    padding:18px 20px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .header{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    min-height:48px;
+  }
+  .title h1{
+    font-size:22px;line-height:1.1;margin:0 0 4px;font-weight:760;letter-spacing:-.02em;
+  }
+  .title p{margin:0;color:var(--muted);font-size:12.5px}
+  .status-pill{
+    padding:9px 14px;border-radius:999px;background:#eef2f7;color:#536071;
+    font-weight:700;font-size:13.5px;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .status-pill::before{
+    content:"";width:7px;height:7px;border-radius:50%;background:#94a3b8;
+  }
+  .status-pill.run{background:rgba(34,197,94,.12);color:#15803d}
+  .status-pill.run::before{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  .status-pill.pause{background:rgba(245,158,11,.14);color:#b96800}
+  .status-pill.pause::before{background:#f59e0b}
+
+  .main-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1.55fr) minmax(380px,.95fr);
+    gap:14px;
+    align-items:stretch;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid rgba(148,163,184,.18);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .canvas-panel{
+    padding:14px 16px 12px;
+    display:flex;flex-direction:column;min-height:600px;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:10px;gap:12px;
+  }
+  .panel-head h2{font-size:15.5px;margin:0;font-weight:750;letter-spacing:-.01em}
+  .panel-head .hint{font-size:11.5px;color:var(--muted)}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);align-items:center}
+  .legend .swatch{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
+
+  .canvas-wrap{
+    position:relative;flex:1;
+    border-radius:14px;overflow:hidden;
+    background:var(--paper);
+    border:1px solid rgba(148,163,184,.22);
+    box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
+  }
+  #stage{display:block;width:100%;height:auto;aspect-ratio:900/600}
+
+  .side{
+    display:flex;flex-direction:column;gap:14px;min-width:0;
+  }
+  .controls{padding:16px 18px}
+  .controls h2{font-size:15.5px;margin:0 0 12px;font-weight:750}
+  .btn-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .btn-row-secondary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+  button{
+    appearance:none;border:none;border-radius:11px;padding:10px 8px;
+    font:inherit;font-size:13.5px;font-weight:700;
+    background:#eef2f7;color:#344154;cursor:pointer;transition:.16s ease;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  }
+  button:hover{transform:translateY(-1px);background:#e2e8f1}
+  button:active{transform:translateY(0)}
+  button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  button.primary{background:#172033;color:#fff}
+  button.primary:hover{background:#222d43}
+  button.warn{background:rgba(239,68,68,.1);color:#b91c1c}
+  button.warn:hover{background:rgba(239,68,68,.18)}
+  button.ghost{background:transparent;border:1px solid rgba(148,163,184,.35);color:#475569}
+  button.ghost:hover{background:#f1f5f9}
+
+  .info-line{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;
+    background:#f7f9fc;border-radius:11px;border:1px solid #edf1f6;
+    font-size:12px;color:#536071;margin-bottom:14px;
+  }
+  .info-line b{color:#0f172a;font-weight:700}
+
+  .ball-list{
+    display:flex;flex-direction:column;gap:10px;
+    max-height:420px;overflow-y:auto;padding-right:4px;
+  }
+  .ball-list::-webkit-scrollbar{width:6px}
+  .ball-list::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+
+  .ball-card{
+    border:1px solid rgba(148,163,184,.22);
+    border-radius:13px;overflow:hidden;background:#fff;
+    transition:.16s;
+  }
+  .ball-card:hover{border-color:rgba(148,163,184,.4)}
+  .ball-card.landed{opacity:.78}
+  .ball-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:#f7f9fc;border-bottom:1px solid #edf1f6;
+  }
+  .ball-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13px}
+  .ball-dot{
+    width:14px;height:14px;border-radius:50%;
+    box-shadow:0 0 0 2px #fff,0 0 0 3px rgba(15,23,42,.12);
+  }
+  .ball-status{
+    font-size:11px;color:var(--muted);font-weight:600;
+    padding:2px 8px;border-radius:999px;background:#eef2f7;
+  }
+  .ball-status.air{background:rgba(31,111,235,.1);color:#1d4ed8}
+  .ball-status.landed{background:rgba(148,163,184,.2);color:#475569}
+  .ball-del{
+    appearance:none;border:none;background:transparent;color:#94a3b8;
+    cursor:pointer;font-size:16px;padding:0 4px;line-height:1;transition:.15s;
+  }
+  .ball-del:hover{color:#dc2626}
+  .ball-body{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:11px;color:var(--muted);font-weight:600}
+  .field .num-wrap{
+    display:flex;align-items:center;gap:4px;
+    border:1px solid #d8dee8;border-radius:8px;padding:4px 8px;
+    background:#fff;transition:.15s;
+  }
+  .field .num-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
+  .field input[type=number]{
+    appearance:none;border:none;background:transparent;outline:none;
+    font:inherit;font-size:13.5px;font-weight:700;color:var(--ink);
+    width:100%;padding:0;min-width:0;
+  }
+  .field .unit{font-size:11px;color:#94a3b8;font-weight:600}
+
+  .empty-hint{
+    padding:22px 16px;text-align:center;color:var(--muted);
+    font-size:13px;background:#f7f9fc;border-radius:11px;
+    border:1px dashed rgba(148,163,184,.4);
+  }
+
+  .readout-row{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;
+  }
+  .metric{
+    padding:11px 12px;border-radius:11px;background:#f7f9fc;border:1px solid #edf1f6;
+  }
+  .metric small{display:block;color:var(--muted);font-size:10.5px;margin-bottom:4px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+  .metric strong{font-size:17px;font-variant-numeric:tabular-nums;font-weight:750}
+  .metric .sub{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+
+  footer.foot{
+    font-size:11.5px;color:var(--muted);text-align:center;padding-top:6px;
+  }
+  footer.foot code{background:#eef2f7;padding:2px 6px;border-radius:5px;font-size:11px}
+
+  @media (max-width:960px){
+    .main-grid{grid-template-columns:1fr}
+    .canvas-panel{min-height:420px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="title">
+      <h1>抛体运动仿真</h1>
+      <p>Projectile Motion · 多球对比 · 高中物理</p>
+    </div>
+    <span id="status" class="status-pill">就绪 · Ready</span>
+  </header>
+
+  <div class="main-grid">
+    <!-- 左：主画布 -->
+    <section class="panel canvas-panel">
+      <div class="panel-head">
+        <div>
+          <h2>仿真画布</h2>
+          <span class="hint">1 px = 0.5 m · g = 9.8 m/s² · 网格 50 px</span>
+        </div>
+        <div class="legend">
+          <span class="swatch"><i style="background:#94a3b8"></i>轨迹</span>
+          <span class="swatch"><i style="background:#ef4444;opacity:.6"></i>落点 ✕</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="stage" width="900" height="600"></canvas>
+      </div>
+      <div class="readout-row" id="global-readout">
+        <div class="metric">
+          <small>仿真时间 · t</small>
+          <strong id="rd-time">0.00</strong>
+          <span class="sub">秒 (s)</span>
+        </div>
+        <div class="metric">
+          <small>活跃小球 · Active</small>
+          <strong id="rd-active">0</strong>
+          <span class="sub">个 / 共 <span id="rd-total">0</span> 个</span>
+        </div>
+        <div class="metric">
+          <small>最长射程 · Max Range</small>
+          <strong id="rd-range">—</strong>
+          <span class="sub">米 (m)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右：控制 + 小球列表 -->
+    <aside class="side">
+      <section class="panel controls">
+        <h2>全局控制</h2>
+        <div class="btn-row">
+          <button id="btn-start" class="primary">开始</button>
+          <button id="btn-pause">暂停</button>
+          <button id="btn-reset" class="warn">重置</button>
+        </div>
+        <div class="btn-row-secondary">
+          <button id="btn-add" class="ghost">+ 添加小球</button>
+          <button id="btn-apply">应用参数</button>
+        </div>
+        <div class="info-line">
+          <span>提示：修改参数后点 <b>应用参数</b> 生效；快捷键 <b>Space</b> 暂停 / <b>R</b> 重置 / <b>A</b> 加球</span>
+        </div>
+      </section>
+
+      <section class="panel controls" style="padding-top:14px">
+        <div class="panel-head" style="margin-bottom:10px">
+          <h2>小球参数</h2>
+          <span class="hint">每球独立颜色 · 最多 12 个</span>
+        </div>
+        <div id="ball-list" class="ball-list"></div>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    公式：<code>x = x₀ + v·cosθ · t</code> · <code>y = y₀ + v·sinθ · t − ½gt²</code> · 比例尺 1 px = 0.5 m
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // -------- 常量 --------
+  const PX_PER_METER = 2;       // 1 m = 2 px  ⇔  1 px = 0.5 m
+  const G_PHYS = 9.8;           // m/s²，物理 y 向上为正
+  const DT = 0.016;             // 仿真时间步长（秒）
+  const CANVAS_W = 900;
+  const CANVAS_H = 600;
+  const GROUND_Y_PX = 600;      // 地面在 canvas 上的 y 像素
+  const COLORS = [
+    '#ef4444','#06b6d4','#f59e0b','#a855f7',
+    '#22c55e','#ec4899','#3b82f6','#84cc16'
+  ];
+
+  // -------- DOM --------
+  const stage   = document.getElementById('stage');
+  const ctx     = stage.getContext('2d');
+  const listEl  = document.getElementById('ball-list');
+  const btnStart= document.getElementById('btn-start');
+  const btnPause= document.getElementById('btn-pause');
+  const btnReset= document.getElementById('btn-reset');
+  const btnAdd  = document.getElementById('btn-add');
+  const btnApply= document.getElementById('btn-apply');
+  const statusEl= document.getElementById('status');
+  const rdTime  = document.getElementById('rd-time');
+  const rdActive= document.getElementById('rd-active');
+  const rdTotal = document.getElementById('rd-total');
+  const rdRange = document.getElementById('rd-range');
+
+  // -------- 状态 --------
+  let balls = [];
+  let nextId = 1;
+  let running = false;
+  let paused  = false;
+  let simTime = 0;
+  let rafId   = null;
+  let lastFrameTs = 0;
+  let colorIdx = 0;
+
+  // -------- 工具 --------
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+  function lighten(hex, amt){
+    const m = hex.replace('#','');
+    const r = parseInt(m.substring(0,2),16);
+    const g = parseInt(m.substring(2,4),16);
+    const b = parseInt(m.substring(4,6),16);
+    const nr = Math.round(r + (255 - r) * amt);
+    const ng = Math.round(g + (255 - g) * amt);
+    const nb = Math.round(b + (255 - b) * amt);
+    return `rgb(${nr},${ng},${nb})`;
+  }
+
+  function roundRect(c, x, y, w, h, r){
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  // -------- Ball 模型 --------
+  function makeBall(opts){
+    const color = COLORS[colorIdx % COLORS.length];
+    colorIdx++;
+    const x0px = clamp(opts?.x0px ?? 60, 0, CANVAS_W - 20);
+    const y0px = clamp(opts?.y0px ?? GROUND_Y_PX - 1, 0, GROUND_Y_PX);
+    const v    = clamp(opts?.v ?? 25, 0, 50);
+    const theta= clamp(opts?.theta ?? 45, -90, 90);
+    const b = {
+      id: nextId++,
+      color,
+      x0px, y0px, v, theta,
+      x: x0px, y: y0px,
+      vxpx: 0, vypx: 0,
+      trail: [],
+      landed: false,
+      landXpx: 0, landYpx: 0, landT: 0,
+      rangeM: 0, peakYpx: y0px,
+      dirty: false,
+    };
+    applyParamsToBall(b);
+    return b;
+  }
+
+  function applyParamsToBall(b){
+    // θ 正值 = 物理上向上方抛；约定 vx 水平分量向右
+    // vx_phys = v·cosθ (m/s) → 像素/秒 = v·cosθ · PX_PER_METER
+    // vy_phys = v·sinθ (m/s, 正上) → canvas vy 像素/秒 = -v·sinθ · PX_PER_METER（canvas y 向下）
+    const rad = b.theta * Math.PI / 180;
+    b.vxpx = b.v * Math.cos(rad) * PX_PER_METER;
+    b.vypx = -b.v * Math.sin(rad) * PX_PER_METER;
+    b.x = b.x0px;
+    b.y = b.y0px;
+    b.trail = [];
+    b.landed = false;
+    b.peakYpx = b.y0px;
+    b.rangeM = 0;
+    b.dirty = false;
+    b._landedSeen = false;
+  }
+
+  // -------- 物理步进 --------
+  function step(b, dt){
+    if (b.landed) return;
+    // 半隐式 Euler：先更新速度再更新位置
+    b.vypx += G_PHYS * PX_PER_METER * dt;  // 重力使 canvas y 方向速度增大（向下）
+    b.x += b.vxpx * dt;
+    b.y += b.vypx * dt;
+    if (b.y < b.peakYpx) b.peakYpx = b.y;
+
+    b.trail.push([b.x, b.y]);
+    if (b.trail.length > 800) b.trail.shift();
+
+    // 落地或越界
+    if (b.y >= GROUND_Y_PX || b.x < 0 || b.x > CANVAS_W){
+      const prev = b.trail.length >= 2 ? b.trail[b.trail.length - 2] : [b.x, b.y];
+      const cur  = [b.x, b.y];
+      let lx, ly;
+      if (b.y >= GROUND_Y_PX){
+        const t = (GROUND_Y_PX - prev[1]) / (cur[1] - prev[1] || 1);
+        lx = prev[0] + (cur[0] - prev[0]) * t;
+        ly = GROUND_Y_PX;
+      } else if (b.x > CANVAS_W){
+        lx = CANVAS_W; ly = b.y;
+      } else {
+        lx = 0; ly = b.y;
+      }
+      b.x = lx; b.y = ly;
+      b.landed = true;
+      b.landXpx = lx;
+      b.landYpx = ly;
+      b.landT = simTime;
+      b.rangeM = Math.max(0, (lx - b.x0px) / PX_PER_METER);
+      b.trail.push([lx, ly]);
+    }
+  }
+
+  // -------- 渲染 --------
+  function drawGrid(){
+    ctx.fillStyle = '#fbfcfe';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // 细网格 25 px
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#e6ecf4';
+    ctx.beginPath();
+    for (let x = 25; x < CANVAS_W; x += 25){
+      ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, CANVAS_H);
+    }
+    for (let y = 25; y < CANVAS_H; y += 25){
+      ctx.moveTo(0, y + 0.5); ctx.lineTo(CANVAS_W, y + 0.5);
+    }
+    ctx.stroke();
+
+    // 粗网格 50 px
+    ctx.strokeStyle = '#cfd8e6';
+    ctx.beginPath();
+    for (let x = 50; x < CANVAS_W; x += 50){
+      ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, CANVAS_H);
+    }
+    for (let y = 50; y < CANVAS_H; y += 50){
+      ctx.moveTo(0, y + 0.5); ctx.lineTo(CANVAS_W, y + 0.5);
+    }
+    ctx.stroke();
+
+    // 地面阴影区
+    ctx.fillStyle = 'rgba(148,163,184,.08)';
+    ctx.fillRect(0, GROUND_Y_PX, CANVAS_W, CANVAS_H - GROUND_Y_PX);
+
+    // 地面线
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y_PX + 0.5);
+    ctx.lineTo(CANVAS_W, GROUND_Y_PX + 0.5);
+    ctx.stroke();
+
+    // 距离刻度
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px ui-monospace,SFMono-Regular,Menlo,monospace';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    for (let x = 100; x < CANVAS_W; x += 100){
+      const m = Math.round(x / PX_PER_METER);
+      ctx.fillText(m + 'm', x + 3, GROUND_Y_PX + 4);
+    }
+    ctx.textBaseline = 'bottom';
+    for (let y = GROUND_Y_PX - 100; y > 0; y -= 100){
+      const m = Math.round((GROUND_Y_PX - y) / PX_PER_METER);
+      ctx.fillText(m + 'm', 4, y - 2);
+    }
+  }
+
+  function drawBall(b){
+    // 轨迹
+    if (b.trail.length > 1){
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.trail[0][0], b.trail[0][1]);
+      for (let i = 1; i < b.trail.length; i++){
+        ctx.lineTo(b.trail[i][0], b.trail[i][1]);
+      }
+      ctx.stroke();
+    }
+
+    // 起点圈
+    ctx.fillStyle = b.color;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(b.x0px, b.y0px, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(b.x0px, b.y0px, 5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 落点叉号 + 坐标标签
+    if (b.landed){
+      const x = b.landXpx, y = b.landYpx;
+      ctx.strokeStyle = b.color;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y - 7); ctx.lineTo(x + 7, y + 7);
+      ctx.moveTo(x + 7, y - 7); ctx.lineTo(x - 7, y + 7);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      const xm = (x / PX_PER_METER).toFixed(2);
+      const ym = ((GROUND_Y_PX - y) / PX_PER_METER).toFixed(2);
+      const label = `(x=${xm}m, y=${ym}m)  t=${b.landT.toFixed(2)}s`;
+      ctx.font = '11px ui-monospace,SFMono-Regular,Menlo,monospace';
+      const w = ctx.measureText(label).width + 12;
+      let lx = x + 10;
+      if (lx + w > CANVAS_W) lx = x - w - 10;
+      const ly = Math.max(2, y - 24);
+      ctx.fillStyle = 'rgba(255,255,255,.94)';
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 1;
+      roundRect(ctx, lx, ly, w, 18, 4);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = b.color;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, lx + 6, ly + 9);
+    }
+
+    // 球本体
+    if (!b.landed){
+      const r = 8;
+      const grad = ctx.createRadialGradient(b.x - 2.5, b.y - 2.5, 0.5, b.x, b.y, r);
+      grad.addColorStop(0, lighten(b.color, 0.55));
+      grad.addColorStop(1, b.color);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(15,23,42,.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  function render(){
+    drawGrid();
+    for (const b of balls) drawBall(b);
+  }
+
+  // -------- 动画循环 --------
+  function loop(ts){
+    if (!running){ return; }
+    if (paused){ rafId = requestAnimationFrame(loop); return; }
+    if (!lastFrameTs) lastFrameTs = ts;
+    // 真实时间步进：用 elapsed 切片，最多追 0.25s 防后台爆发
+    const elapsed = Math.min(0.25, Math.max(0, (ts - lastFrameTs) / 1000));
+    lastFrameTs = ts;
+    const steps = Math.max(1, Math.round(elapsed / DT));
+    for (let i = 0; i < steps; i++){
+      simTime += DT;
+      for (const b of balls) step(b, DT);
+    }
+    render();
+    updateReadout();
+    // 任何球状态变化时刷新一次小球列表（落地徽章等）
+    const anyJustLanded = balls.some(b => b.landed && b._landedSeen !== true);
+    if (anyJustLanded){
+      balls.forEach(b => { if (b.landed) b._landedSeen = true; });
+      renderBallList();
+    }
+    if (balls.length > 0 && balls.every(b => b.landed)){
+      paused = true;
+      setStatus('pause', '已结束 · Done');
+      renderBallList();
+    }
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // -------- UI 渲染 --------
+  function renderBallList(){
+    if (balls.length === 0){
+      listEl.innerHTML = `<div class="empty-hint">暂无小球，点击「+ 添加小球」开始</div>`;
+      return;
+    }
+    listEl.innerHTML = balls.map(b => `
+      <div class="ball-card ${b.landed ? 'landed' : ''}" data-id="${b.id}">
+        <div class="ball-head">
+          <div class="ball-title">
+            <span class="ball-dot" style="background:${b.color}" aria-hidden="true"></span>
+            <span>小球 #${b.id}</span>
+            ${b.dirty ? '<span class="ball-status" style="background:rgba(245,158,11,.18);color:#b96800">未应用</span>' :
+              b.landed ? `<span class="ball-status landed">射程 ${b.rangeM.toFixed(2)} m</span>` :
+              `<span class="ball-status air">空中</span>`}
+          </div>
+          <button class="ball-del" title="删除小球 #${b.id}" data-del="${b.id}" aria-label="删除小球 #${b.id}">×</button>
+        </div>
+        <div class="ball-body">
+          <div class="field">
+            <label for="b${b.id}-x0">初始位置 X</label>
+            <div class="num-wrap">
+              <input id="b${b.id}-x0" type="number" data-field="x0px" value="${b.x0px}" min="0" max="900" step="1">
+              <span class="unit">px</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="b${b.id}-y0">离地高度 (Y↑)</label>
+            <div class="num-wrap">
+              <input id="b${b.id}-y0" type="number" data-field="y0px" value="${(GROUND_Y_PX - b.y0px).toFixed(0)}" min="0" max="600" step="1">
+              <span class="unit">px</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="b${b.id}-v">初速度 v</label>
+            <div class="num-wrap">
+              <input id="b${b.id}-v" type="number" data-field="v" value="${b.v}" min="0" max="50" step="0.5">
+              <span class="unit">m/s</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="b${b.id}-t">方向角 θ</label>
+            <div class="num-wrap">
+              <input id="b${b.id}-t" type="number" data-field="theta" value="${b.theta}" min="-90" max="90" step="1">
+              <span class="unit">°</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // 标记 dirty（不立即重渲染，避免 input 焦点丢失/值被覆盖）
+    listEl.querySelectorAll('.ball-card').forEach(card => {
+      const id = +card.dataset.id;
+      card.querySelectorAll('input[type=number]').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const b = balls.find(x => x.id === id);
+          if (b && !b.dirty){
+            b.dirty = true;
+            // 只更新当前 card 的状态徽章，不重建整个 list
+            const statusEl = card.querySelector('.ball-status');
+            if (statusEl){
+              statusEl.textContent = '未应用';
+              statusEl.style.background = 'rgba(245,158,11,.18)';
+              statusEl.style.color = '#b96800';
+            }
+          }
+        });
+      });
+    });
+    // 删除
+    listEl.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = +btn.dataset.del;
+        balls = balls.filter(x => x.id !== id);
+        renderBallList();
+        render();
+        updateReadout();
+      });
+    });
+  }
+
+  function setStatus(kind, text){
+    statusEl.className = 'status-pill' + (kind ? ' ' + kind : '');
+    statusEl.textContent = text;
+  }
+
+  function updateReadout(){
+    rdTime.textContent = simTime.toFixed(2);
+    const active = balls.filter(b => !b.landed).length;
+    rdActive.textContent = active;
+    rdTotal.textContent = balls.length;
+    const ranges = balls.filter(b => b.landed).map(b => b.rangeM);
+    rdRange.textContent = ranges.length ? Math.max(...ranges).toFixed(2) : '—';
+  }
+
+  // -------- 控制 --------
+  function start(){
+    if (balls.length === 0){
+      flashStatus('请先添加至少 1 个小球');
+      return;
+    }
+    if (balls.every(b => b.landed)){
+      resetAll(false);
+    }
+    running = true;
+    paused = false;
+    lastFrameTs = 0;
+    setStatus('run', '运行中 · Running');
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+  function pause(){
+    if (!running) return;
+    paused = !paused;
+    if (paused){
+      setStatus('pause', '已暂停 · Paused');
+    } else {
+      setStatus('run', '运行中 · Running');
+      lastFrameTs = 0;
+    }
+  }
+  function resetAll(redraw = true){
+    running = false; paused = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    simTime = 0;
+    for (const b of balls) applyParamsToBall(b);
+    setStatus('', '就绪 · Ready');
+    if (redraw){ render(); updateReadout(); renderBallList(); }
+  }
+  function applyParams(){
+    listEl.querySelectorAll('.ball-card').forEach(card => {
+      const id = +card.dataset.id;
+      const b = balls.find(x => x.id === id);
+      if (!b) return;
+      const get = f => parseFloat(card.querySelector(`[data-field="${f}"]`).value);
+      b.x0px = clamp(isNaN(get('x0px')) ? b.x0px : get('x0px'), 0, CANVAS_W);
+      const yUp = clamp(isNaN(get('y0px')) ? (GROUND_Y_PX - b.y0px) : get('y0px'), 0, GROUND_Y_PX);
+      b.y0px = GROUND_Y_PX - yUp;
+      b.v     = clamp(isNaN(get('v')) ? b.v : get('v'), 0, 50);
+      b.theta = clamp(isNaN(get('theta')) ? b.theta : get('theta'), -90, 90);
+      applyParamsToBall(b);
+    });
+    running = false; paused = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    simTime = 0;
+    setStatus('', '就绪 · Ready');
+    render(); updateReadout(); renderBallList();
+    flashStatus('参数已应用', '');
+  }
+  function addBall(){
+    if (balls.length >= 12){
+      flashStatus('最多 12 个小球');
+      return;
+    }
+    balls.push(makeBall({ x0px: 60, y0px: GROUND_Y_PX - 1, v: 25, theta: 45 }));
+    renderBallList();
+    render();
+    updateReadout();
+  }
+  function flashStatus(msg, kind = ''){
+    const savedText = statusEl.textContent;
+    const savedCls = statusEl.className;
+    setStatus(kind, msg);
+    setTimeout(() => {
+      statusEl.textContent = savedText;
+      statusEl.className = savedCls;
+    }, 1400);
+  }
+
+  // -------- 事件 --------
+  btnStart.addEventListener('click', start);
+  btnPause.addEventListener('click', pause);
+  btnReset.addEventListener('click', () => resetAll(true));
+  btnAdd.addEventListener('click', addBall);
+  btnApply.addEventListener('click', applyParams);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space'){ e.preventDefault(); pause(); }
+    else if (e.key === 'r' || e.key === 'R'){ resetAll(true); }
+    else if (e.key === 'a' || e.key === 'A'){ addBall(); }
+  });
+
+  // -------- Canvas 高分辨率 --------
+  function fitCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    stage.width = CANVAS_W * dpr;
+    stage.height = CANVAS_H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+
+  // -------- 初始化 --------
+  function init(){
+    balls.push(makeBall({ x0px: 60, y0px: GROUND_Y_PX - 1, v: 25, theta: 45 }));
+    fitCanvas();
+    renderBallList();
+    updateReadout();
+    render();
+  }
+
+  window.addEventListener('resize', () => { render(); });
+
+  init();
+})();
+</script>
+</body>
+</html>
