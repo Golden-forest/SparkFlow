@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>测量电源的电动势和内阻</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* 学科语义色（扩展，非替代） */
+      --sim-wire: #8aa0b8;
+      --sim-wire-hot: #c4cedb;
+      --sim-lead-pos: #dc2626;
+      --sim-lead-neg: #172033;
+      --sim-particle: #f59e0b;
+      --sim-fit-ext: #0f9fba;
+      --sim-fit-int: #d97706;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 360px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .readouts { padding: 14px; }
+    .meter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .meter { padding: 10px; border: 1px solid rgba(15,159,186,.12); border-radius: 14px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); display: grid; gap: 6px; }
+    .meter small { display: block; color: var(--sim-muted); font-size: 0.72rem; font-weight: 700; }
+    .meter-dial { width: 100%; aspect-ratio: 2 / 1.05; display: block; }
+    .meter strong { font-size: 1.3rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; text-align: center; }
+    .chart-block { padding: 12px; display: grid; grid-template-rows: auto minmax(150px,1fr) auto; gap: 8px; min-height: 0; }
+    .chart-block h3 { margin: 0; font-size: 0.9rem; }
+    #chart { width: 100%; height: 100%; min-height: 160px; display: block; }
+    .result-card { padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #0f9fba 0%, #08758a 100%); color: #fff; display: grid; gap: 4px; }
+    .result-card small { opacity: 0.92; font-size: 0.72rem; letter-spacing: 0.02em; }
+    .result-card strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+    .result-card .row { display: flex; justify-content: space-between; gap: 10px; }
+    .result-card .row.ext { color: #a7e8f0; }
+    .result-card .row.int { color: #fcd9a6; }
+    .model-note { padding: 10px 14px; display: grid; gap: 6px; }
+    .model-note .insight { padding: 9px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 10px 10px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.82rem; line-height: 1.45; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(140px, 1fr) auto auto minmax(110px, 1fr) minmax(110px, 1fr); gap: 12px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .toggle-group { display: inline-flex; border: 1px solid var(--sim-border); border-radius: 10px; overflow: hidden; }
+    .toggle-group button { border: none; border-radius: 0; padding: 8px 12px; background: var(--sim-surface-soft); font-size: 0.82rem; }
+    .toggle-group button.active { background: var(--sim-accent-deep); color: #fff; }
+    .toggle-group.int-mode button.active { background: #d97706; }
+    .control label { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 5px; font-size: 0.76rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .axis-line { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 11px; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 460; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <!-- SimCanvas stable shell: 用户明确要求无独立 INSIGHT 视觉块，insight data-region 以 evidence 内嵌文本承载 -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>测量电源的电动势和内阻</h1>
+        <p>伏安法 · U–I 图象 · 安培表内/外接法系统误差对比</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">未启动</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">电路原理图 · 伏安法测 E 和 r</h2>
+          <span>橙色光点 = 电流方向（速度 ∝ I）· 红/黑线 = 正/负接线</span>
+        </div>
+        <svg id="scene" viewBox="0 0 760 460" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">伏安法测电源电动势和内阻电路：电池(E,r)、开关、滑线变阻器、电流表、电压表。电流粒子在回路中流动。</desc>
+          <defs>
+            <radialGradient id="particleGrad" cx="0.35" cy="0.35">
+              <stop offset="0" stop-color="#fff7e6"/>
+              <stop offset="0.45" stop-color="#f59e0b"/>
+              <stop offset="1" stop-color="#b45309"/>
+            </radialGradient>
+            <linearGradient id="rheoGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#e5ebf2"/>
+              <stop offset="1" stop-color="#b9c4d2"/>
+            </linearGradient>
+            <linearGradient id="batteryGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#fbe9b8"/>
+              <stop offset="1" stop-color="#d4a55a"/>
+            </linearGradient>
+          </defs>
+
+          <g id="wires" stroke-linecap="round" stroke-linejoin="round" fill="none"></g>
+          <g id="components"></g>
+          <g id="particles"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时仪表读数">
+          <div class="meter-row">
+            <div class="meter">
+              <small>电压表 V（路端电压）</small>
+              <svg class="meter-dial" viewBox="0 0 200 110" aria-hidden="true">
+                <path d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="#dfe6ef" stroke-width="6"/>
+                <g id="voltTicks"></g>
+                <g id="voltNeedle" transform="rotate(-90 100 100)">
+                  <line x1="100" y1="100" x2="100" y2="34" stroke="#dc2626" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle cx="100" cy="100" r="5" fill="#dc2626"/>
+                </g>
+                <text x="100" y="96" text-anchor="middle" font-size="10" fill="#657188">V</text>
+              </svg>
+              <strong id="voltReadout">0.000 V</strong>
+            </div>
+            <div class="meter">
+              <small>电流表 A（干路电流）</small>
+              <svg class="meter-dial" viewBox="0 0 200 110" aria-hidden="true">
+                <path d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="#dfe6ef" stroke-width="6"/>
+                <g id="ampTicks"></g>
+                <g id="ampNeedle" transform="rotate(-90 100 100)">
+                  <line x1="100" y1="100" x2="100" y2="34" stroke="#0f9fba" stroke-width="2.4" stroke-linecap="round"/>
+                  <circle cx="100" cy="100" r="5" fill="#0f9fba"/>
+                </g>
+                <text x="100" y="96" text-anchor="middle" font-size="10" fill="#657188">A</text>
+              </svg>
+              <strong id="ampReadout">0.000 A</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-block" aria-label="U-I 数据图">
+          <div class="panel-head" style="margin-bottom:0">
+            <h3>U–I 图 · 最小二乘拟合</h3>
+            <span id="pointCount">0 个数据点</span>
+          </div>
+          <svg id="chart" viewBox="0 0 360 220" role="img" aria-label="路端电压-电流散点图">
+            <g id="chartGrid"></g>
+            <line class="axis-line" x1="42" y1="180" x2="345" y2="180"/>
+            <line class="axis-line" x1="42" y1="20" x2="42" y2="180"/>
+            <text class="axis-label" x="340" y="197" text-anchor="end">I / A</text>
+            <text class="axis-label" x="48" y="28">U / V</text>
+            <g id="chartLabels"></g>
+            <g id="dataPoints"></g>
+            <g id="cursorPoint"></g>
+          </svg>
+          <div class="result-card">
+            <div class="row ext">
+              <small>安培表内接（V 只并电源）</small>
+              <strong id="resultInt">—</strong>
+            </div>
+            <div class="row int">
+              <small>安培表外接（V 并 A+电源）</small>
+              <strong id="resultExt">—</strong>
+            </div>
+            <small id="formulaDetail" style="opacity:0.85">U = E − I·r · 纵截距 = E · 斜率 = −r</small>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-region="insight" aria-label="状态提示">
+          <div id="insight" class="insight">未启动：按下「启动」接通电路，拖动滑片改变路端电压。</div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">启动</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+        <button id="sampleBtn" type="button" title="记录当前 (I, U) 到 U-I 图">采样</button>
+        <button id="clearBtn" type="button" title="清空所有采样点">清空</button>
+      </div>
+      <div class="control">
+        <label for="rheoInput">滑线变阻器 R <output id="rheoOutput">15.0 Ω</output></label>
+        <input id="rheoInput" type="range" min="0" max="30" step="0.5" value="15">
+      </div>
+      <div class="toggle-group" id="configToggle" role="group" aria-label="安培表接法（相对电源）">
+        <button id="btnInt" type="button" aria-pressed="true" class="active">A 内接</button>
+        <button id="btnExt" type="button" aria-pressed="false">A 外接</button>
+      </div>
+      <div class="toggle-group" id="meterToggle" role="group" aria-label="电表精度">
+        <button id="btnReal" type="button" aria-pressed="true" class="active">真实表</button>
+        <button id="btnIdeal" type="button" aria-pressed="false">理想表</button>
+      </div>
+      <div class="control">
+        <label for="emfInput">电动势 E <output id="emfOutput">3.0 V</output></label>
+        <input id="emfInput" type="range" min="1.5" max="6" step="0.1" value="3.0">
+      </div>
+      <div class="control">
+        <label for="rIntInput">内阻 r <output id="rIntOutput">3.0 Ω</output></label>
+        <input id="rIntInput" type="range" min="0.5" max="8" step="0.1" value="3.0">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ============================================================
+    // 参数 schema & 物理常数
+    // ============================================================
+    // 【教材标准】测电源 E,r 的两种接法——相对【可变电阻 R】定义（与教材一致）：
+    //
+    //   - "int"（A 内接法）：A 表在 V 表测量框【内】
+    //       拓扑：电源(E,r) → 节点 P → 【A 表 → R】 → 节点 Q → 回电源
+    //              V 表接 (P, Q)，即 V 跨过 A，包住 (A + R)
+    //       读数：U_V = U_A + U_R，I_A = I_R（R 支路电流，**不含 V 表分流 I_V**）
+    //       含 R_V 推导（理想表 R_V=∞ 时退化为标准式）：
+    //         U_V = U_R + U_A = I·R + I·R_A = I·(R + R_A)
+    //         其中 I = I_R（流过 A 和 R 的支路电流）
+    //         电源：E = (I + I_V)·r + U_V，I_V = U_V / R_V
+    //         ⇒ U_V(1 + r/R_V) = E − I·r
+    //         ⇒ U_V = E/(1+r/R_V) − I·r/(1+r/R_V)
+    //       拟合得：E_测 = E/(1+r/R_V)（偏小，量级 r/R_V），r_测 = r/(1+r/R_V)（偏小）
+    //       误差量级：r/R_V = 3/2000 ≈ 0.15%（教学推荐接法，误差最小）
+    //
+    //   - "ext"（A 外接法）：A 表在 V 表测量框【外】
+    //       拓扑：电源(E,r) → 节点 P → 【A 表】 → 节点 M → 【R】 → 节点 Q → 回电源
+    //              V 表接 (M, Q)，即 V 只包住 R，A 表在 V 外（A 与电源紧贴）
+    //       读数：U_V = U_R，I_A = I_总 = I_R + I_V（含 V 表分流）
+    //       含 R_A 推导：
+    //         U_V = U_R = I_R·R = (I_总 − I_V)·R
+    //         电源：E = I_总·r + I_总·R_A + U_R
+    //         ⇒ U_R = E − I_总·(r + R_A)
+    //       拟合得：E_测 = E（准确），r_测 = r + R_A（偏大，量级 R_A）
+    //       误差量级：R_A/r = 0.5/3 ≈ 17%（误差明显）
+    //
+    // 教学结论：A 内接法误差小（0.15%），是教材推荐接法
+    const parameterSchema = [
+      { key: "rheo", label: "滑线变阻器", type: "slider", min: 0, max: 30, step: 0.5, default: 15, unit: "Ω" },
+      { key: "E",    label: "电动势",    type: "slider", min: 1.5, max: 6, step: 0.1, default: 3.0, unit: "V" },
+      { key: "r",    label: "内阻",      type: "slider", min: 0.5, max: 8, step: 0.1, default: 3.0, unit: "Ω" }
+    ];
+
+    const CONST = {
+      R_V: 2000.0,   // 电压表内阻
+      R_A: 0.5,      // 电流表内阻
+    };
+
+    // ============================================================
+    // 状态
+    // ============================================================
+    const state = {
+      running: false,
+      t: 0,
+      lastTimestamp: null,
+      rheo: 15,
+      E: 3.0,
+      r: 3.0,
+      config: "int",       // "int" = 安培表内接（教材默认）；"ext" = 安培表外接
+      meterIdeal: false,
+      samples: [],         // [{ I, U, config }]
+      particlePhase: 0,
+      voltDisplay: 0,
+      ampDisplay: 0,
+      voltTarget: 0,
+      ampTarget: 0,
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      sampleBtn: document.querySelector("#sampleBtn"),
+      clearBtn: document.querySelector("#clearBtn"),
+      rheoInput: document.querySelector("#rheoInput"),
+      rheoOutput: document.querySelector("#rheoOutput"),
+      emfInput: document.querySelector("#emfInput"),
+      emfOutput: document.querySelector("#emfOutput"),
+      rIntInput: document.querySelector("#rIntInput"),
+      rIntOutput: document.querySelector("#rIntOutput"),
+      btnInt: document.querySelector("#btnInt"),
+      btnExt: document.querySelector("#btnExt"),
+      btnReal: document.querySelector("#btnReal"),
+      btnIdeal: document.querySelector("#btnIdeal"),
+      configToggle: document.querySelector("#configToggle"),
+      voltReadout: document.querySelector("#voltReadout"),
+      ampReadout: document.querySelector("#ampReadout"),
+      resultInt: document.querySelector("#resultInt"),
+      resultExt: document.querySelector("#resultExt"),
+      formulaDetail: document.querySelector("#formulaDetail"),
+      voltNeedle: document.querySelector("#voltNeedle"),
+      ampNeedle: document.querySelector("#ampNeedle"),
+      voltTicks: document.querySelector("#voltTicks"),
+      ampTicks: document.querySelector("#ampTicks"),
+      wires: document.querySelector("#wires"),
+      components: document.querySelector("#components"),
+      particles: document.querySelector("#particles"),
+      dataPoints: document.querySelector("#dataPoints"),
+      chartGrid: document.querySelector("#chartGrid"),
+      chartLabels: document.querySelector("#chartLabels"),
+      cursorPoint: document.querySelector("#cursorPoint"),
+      pointCount: document.querySelector("#pointCount"),
+      insight: document.querySelector("#insight"),
+    };
+
+    // ============================================================
+    // 辅助
+    // ============================================================
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    // 电路求解：返回电表读数 {U, I}（U=V读数, I=A读数）和理想真实路端电压电流 {U_true, I_true}
+    //
+    // 电路拓扑（按教材标准，相对【R】定义接法）：
+    //
+    // 主回路：电源(E,r) → 节点 P → A 表串联 → 节点 M → R → 节点 Q → 回电源
+    //
+    //   - "int"（A 内接）：V 表接 (P, Q)，即 V 跨过 A 包住 (A+R)
+    //       U_V = U_R + U_A = I_A·(R + R_A)
+    //       I_A = I_R（A 表测 R 支路电流，**不含 V 分流**）
+    //       节点关系：I_总 = I_A + I_V = I_A + U_V/R_V
+    //       电源：E = I_总·r + U_V
+    //       代入：E = (I_A + U_V/R_V)·r + U_V = I_A·r + U_V·(1 + r/R_V)
+    //       ⇒ U_V·(1 + r/R_V) = E − I_A·r
+    //       ⇒ U_V = (E − I_A·r) / (1 + r/R_V)
+    //       又 U_V = I_A·(R + R_A)，所以：I_A·(R + R_A)·(1 + r/R_V) = E − I_A·r
+    //       ⇒ I_A · [(R + R_A)(1 + r/R_V) + r] = E
+    //       ⇒ I_A = E / [(R + R_A)(1 + r/R_V) + r]
+    //
+    //   - "ext"（A 外接）：V 表接 (M, Q)，即 V 只包住 R，A 表紧贴电源在 V 外
+    //       U_V = U_R = I_R · R
+    //       I_A = I_总 = I_R + I_V（**含 V 分流**）
+    //       电源：E = I_总·r + I_总·R_A + U_R = I_A·(r + R_A) + U_R
+    //       ⇒ U_R = E − I_A·(r + R_A)  ⇒  I_R·R = E − I_A·(r + R_A)
+    //       又 I_A = I_R + I_V = I_R + U_R/R_V = I_R + I_R·R/R_V = I_R·(1 + R/R_V)
+    //       ⇒ I_R = I_A / (1 + R/R_V)
+    //       代入：I_A·R/(1 + R/R_V) = E − I_A·(r + R_A)
+    //       ⇒ I_A · [R/(1 + R/R_V) + r + R_A] = E
+    //       ⇒ I_A = E / [R/(1 + R/R_V) + r + R_A]
+    //
+    // 理想表：R_V = ∞, R_A = 0（两种接法都退化为 U = E − I·r）
+    function solveCircuit() {
+      const eps = state.E;
+      const r_int = Math.max(state.r, 1e-6);
+      const R = Math.max(state.rheo, 1e-6);
+      const ideal = state.meterIdeal;
+      const RV = ideal ? Infinity : CONST.R_V;
+      const RA = ideal ? 0 : CONST.R_A;
+
+      let U_read, I_read;
+      if (state.config === "int") {
+        // A 内接：V 跨过 A 包住 (A+R)
+        // I_A = E / [(R + R_A)(1 + r/R_V) + r]
+        const factor = 1 + (Number.isFinite(RV) ? r_int / RV : 0);   // 1 + r/R_V
+        const denom = (R + RA) * factor + r_int;
+        const I_A = eps / Math.max(denom, 1e-9);
+        U_read = I_A * (R + RA);                  // V 读数 = U_A + U_R
+        I_read = I_A;                              // A 读数 = R 支路电流
+      } else {
+        // A 外接：V 只包 R，A 紧贴电源
+        // I_A = E / [R/(1 + R/R_V) + r + R_A]
+        const factor = 1 + (Number.isFinite(RV) ? R / RV : 0);       // 1 + R/R_V
+        const Reff = R / factor;                                       // R ‖ R_V
+        const denom = Reff + r_int + RA;
+        const I_A = eps / Math.max(denom, 1e-9);
+        U_read = I_A * Reff;                       // V 读数 = U_R = I_总 · (R‖R_V)
+        I_read = I_A;                               // A 读数 = I_总（含 V 分流）
+      }
+
+      // 真实路端电压电流（理想表 R_V=∞, R_A=0 时的"理想"值，作为对照）
+      const I_true = eps / (r_int + R);
+      const U_true = eps - I_true * r_int;
+
+      return {
+        U: finite(U_read, 0),
+        I: finite(I_read, 0),
+        U_true: finite(U_true, 0),
+        I_true: finite(I_true, 0),
+      };
+    }
+
+    // U-I 直线拟合：U = a·I + b，最小二乘
+    // 返回 { slope, intercept } 或 null
+    function fitLine(points) {
+      if (points.length < 2) return null;
+      const n = points.length;
+      let sI = 0, sU = 0, sIU = 0, sII = 0;
+      for (const p of points) {
+        sI += p.I;
+        sU += p.U;
+        sIU += p.I * p.U;
+        sII += p.I * p.I;
+      }
+      const denom = n * sII - sI * sI;
+      if (Math.abs(denom) < 1e-18) return null;
+      const slope = (n * sIU - sI * sU) / denom;
+      const intercept = (sU - slope * sI) / n;
+      return { slope, intercept };
+    }
+
+    // ============================================================
+    // ============================================================
+    // 电路几何（新版：A 表位置切换，V 表固定并 R）
+    // ============================================================
+    // 主回路（顺时针）：电池(左线) → 顶线 → R(顶线右部) → 右线 → 底线 → 回电池
+    // V 表：固定并在 R 两端（节点 P = R 左端、节点 Q = R 右端）
+    //   - V 上端引线从 P 引出，V 下端引线从 Q 引出，两引线向下到 V 表
+    // A 表位置（关键切换点，决定接法）：
+    //   - "int"（A 内接）: A 表在【顶线左段】= P 节点左侧 与 电池之间
+    //       拓扑：电池(+) → 节点 P0 → 【A】 → 节点 P → R → 节点 Q → 电池(-)
+    //       A 表在 V 表测量框 P-Q 内部
+    //   - "ext"（A 外接）: A 表在【左线】= 电池(+) 与 顶线左端 P 之间
+    //       拓扑：电池(+) → 【A】 → 节点 P → R → 节点 Q → 电池(-)
+    //       A 表在 V 表测量框 P-Q 外部
+    // 两种位置物理等价但 A 表读数含义不同（int: I_R 支路；ext: I_总含 V 分流）
+    // ============================================================
+    const C = {
+      // 主回路矩形坐标
+      x0: 120, x1: 640, y_top: 110, y_bot: 340,
+      // 电池（E, r）：左线中部（固定）
+      battery:  { x: 120, y: 215 },
+      battTopY: 187,        // battery.y - 28，电池正极引出点
+      battBotY: 243,        // battery.y + 28，电池负极引出点
+      // 滑线变阻器 R：顶线右部（固定位置）
+      rheo:     { x: 480, y: 110, w: 140, h: 22 },
+      // R 左端节点 P（V 上端接点）：rheo.x - w/2
+      rLeftX:   410,        // 480 - 70
+      rRightX:  550,        // 480 + 70
+      // V 表位置（固定，下方居中偏左）
+      vTableX:  200, vY: 290,
+      // V 表接点（固定，并在 R 两端 = P 和 Q）
+      vUpTapX:  410, vUpTapY: 110,      // P 节点 = R 左端
+      vLoTapX:  550, vLoTapY: 110,      // Q 节点 = R 右端
+      // A 表两种位置
+      aInt:  { x: 260, y: 110 },        // int: 顶线左段（P 节点左侧、电池右侧）
+      aExt:  { x: 120, y: 160 },        // ext: 左线（电池正极上方、顶线左端下方）
+      // 顶线左端起点（顶线最左端）
+      topLeftX: 120, topLeftY: 110,
+    };
+
+    // 返回当前 A 表位置（根据 state.config）
+    function getAPos() {
+      return state.config === "int" ? C.aInt : C.aExt;
+    }
+
+    function drawCircuit() {
+      const W = [];
+      const leadColorPos = "#dc2626";
+      const leadColorNeg = "#172033";
+      const leadColorMid = "#5d7185";
+      const leadW = 3.2;
+      const isInt = state.config === "int";
+      const aPos = getAPos();
+      const aR = 22;          // A 表半径
+      const rL = C.rLeftX;    // R 左端 = 节点 P
+      const rR = C.rRightX;   // R 右端 = 节点 Q
+
+      // ============ 主回路导线（分段避开 A 表和电池）============
+      if (isInt) {
+        // int 拓扑：电池(+) → 左线 → 顶线左段 → 【A】 → 顶线中段 → R → 右线 → 底线 → 电池(-)
+        // 左线（电池正极到顶线左端，整段无元件）
+        W.push(`<line x1="${C.x0}" y1="${C.battTopY}" x2="${C.x0}" y2="${C.y_top}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 顶线左段（顶线左端到 A 表左侧）
+        W.push(`<line x1="${C.x0}" y1="${C.y_top}" x2="${aPos.x - aR}" y2="${C.y_top}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 顶线中段（A 表右侧到 R 左端）
+        W.push(`<line x1="${aPos.x + aR}" y1="${C.y_top}" x2="${rL}" y2="${C.y_top}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 顶线右段（R 右端到顶线右端）—— R 自身用元件代替，导线分两段：rL→R左端、R右端→rR 已由 R 元件填充
+        // 右线
+        W.push(`<line x1="${C.x1}" y1="${C.y_top}" x2="${C.x1}" y2="${C.y_bot}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 底线
+        W.push(`<line x1="${C.x1}" y1="${C.y_bot}" x2="${C.x0}" y2="${C.y_bot}" stroke="${leadColorNeg}" stroke-width="${leadW}"/>`);
+        // 左线下段（电池负极到底线）
+        W.push(`<line x1="${C.x0}" y1="${C.y_bot}" x2="${C.x0}" y2="${C.battBotY}" stroke="${leadColorNeg}" stroke-width="${leadW}"/>`);
+      } else {
+        // ext 拓扑：电池(+) → 【A】 → 左线上段 → 顶线 → R → 右线 → 底线 → 电池(-)
+        // 左线下段（电池正极到 A 表下端）
+        W.push(`<line x1="${C.x0}" y1="${C.battTopY}" x2="${C.x0}" y2="${aPos.y + aR}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 左线上段（A 表上端到顶线左端）
+        W.push(`<line x1="${C.x0}" y1="${aPos.y - aR}" x2="${C.x0}" y2="${C.y_top}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 整条顶线（顶线左端到 R 左端，无 A 表阻拦）
+        W.push(`<line x1="${C.x0}" y1="${C.y_top}" x2="${rL}" y2="${C.y_top}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 右线
+        W.push(`<line x1="${C.x1}" y1="${C.y_top}" x2="${C.x1}" y2="${C.y_bot}" stroke="${leadColorPos}" stroke-width="${leadW}"/>`);
+        // 底线
+        W.push(`<line x1="${C.x1}" y1="${C.y_bot}" x2="${C.x0}" y2="${C.y_bot}" stroke="${leadColorNeg}" stroke-width="${leadW}"/>`);
+        // 左线下段（电池负极到底线）
+        W.push(`<line x1="${C.x0}" y1="${C.y_bot}" x2="${C.x0}" y2="${C.battBotY}" stroke="${leadColorNeg}" stroke-width="${leadW}"/>`);
+      }
+
+      // ============ V 表引线（固定，并在 R 两端 P-Q）============
+      // V 表上端引线：从 P 节点 (rL, y_top) 向下、向左到 V 表右端
+      const vColor = "#dc2626";
+      // P 节点向下一段
+      W.push(`<line x1="${C.vUpTapX}" y1="${C.vUpTapY}" x2="${C.vUpTapX}" y2="${C.vY - 18}" stroke="${vColor}" stroke-width="2" stroke-dasharray="0"/>`);
+      // 水平到 V 表右端
+      W.push(`<line x1="${C.vUpTapX}" y1="${C.vY - 18}" x2="${C.vTableX + aR}" y2="${C.vY - 18}" stroke="${vColor}" stroke-width="2"/>`);
+      W.push(`<line x1="${C.vTableX + aR}" y1="${C.vY - 18}" x2="${C.vTableX + aR}" y2="${C.vY}" stroke="${vColor}" stroke-width="2"/>`);
+      // V 表下端引线：从 Q 节点 (rR, y_top) 向下、向左到 V 表左端
+      W.push(`<line x1="${C.vLoTapX}" y1="${C.vLoTapY}" x2="${C.vLoTapX}" y2="${C.vY + 18}" stroke="${vColor}" stroke-width="2"/>`);
+      W.push(`<line x1="${C.vLoTapX}" y1="${C.vY + 18}" x2="${C.vTableX - aR}" y2="${C.vY + 18}" stroke="${vColor}" stroke-width="2"/>`);
+      W.push(`<line x1="${C.vTableX - aR}" y1="${C.vY + 18}" x2="${C.vTableX - aR}" y2="${C.vY}" stroke="${vColor}" stroke-width="2"/>`);
+
+      // 标记 V 表接点 P 和 Q（红色实心圆）
+      W.push(`<circle cx="${C.vUpTapX}" cy="${C.vUpTapY}" r="4" fill="${vColor}"/>`);
+      W.push(`<circle cx="${C.vLoTapX}" cy="${C.vLoTapY}" r="4" fill="${vColor}"/>`);
+
+      // ============ V 表测量框提示（int 模式下橙色虚线框）============
+      if (isInt) {
+        // 用橙色虚线包围 (P, A, Q) 区域，提示 V 表测量框包含 A
+        const boxL = aPos.x - aR - 4;
+        const boxR = rR + 4;
+        const boxY = C.y_top - 14;
+        const boxH = 28;
+        W.push(`<rect x="${boxL}" y="${boxY}" width="${boxR - boxL}" height="${boxH}" rx="6" fill="none" stroke="#d97706" stroke-width="1.6" stroke-dasharray="4 3" opacity="0.75"/>`);
+        W.push(`<text x="${(boxL + boxR)/2}" y="${boxY - 4}" text-anchor="middle" font-size="9" font-weight="700" fill="#d97706">V 测量框（含 A）</text>`);
+      } else {
+        // ext 模式：橙色虚线框只包围 R
+        const boxL = rL - 4;
+        const boxR = rR + 4;
+        const boxY = C.y_top - 14;
+        const boxH = 28;
+        W.push(`<rect x="${boxL}" y="${boxY}" width="${boxR - boxL}" height="${boxH}" rx="6" fill="none" stroke="#d97706" stroke-width="1.6" stroke-dasharray="4 3" opacity="0.75"/>`);
+        W.push(`<text x="${(boxL + boxR)/2}" y="${boxY - 4}" text-anchor="middle" font-size="9" font-weight="700" fill="#d97706">V 测量框（A 在外）</text>`);
+      }
+
+      elements.wires.innerHTML = W.join("");
+
+      // ============ 元件层 ============
+      const M = [];
+
+      // 电池 E（含内阻 r 标注）
+      const bx = C.battery.x, by = C.battery.y;
+      M.push(`<g transform="translate(${bx},${by})">
+        <rect x="-26" y="-28" width="52" height="56" rx="4" fill="url(#batteryGrad)" stroke="#9a6a1a" stroke-width="1.2"/>
+        <line x1="-12" y1="-22" x2="-12" y2="-10" stroke="#dc2626" stroke-width="3.4"/>
+        <line x1="6" y1="-18" x2="6" y2="-8" stroke="#172033" stroke-width="3.4"/>
+        <line x1="-12" y1="-2" x2="12" y2="-2" stroke="#9a6a1a" stroke-width="1" opacity="0.4"/>
+        <line x1="-12" y1="4" x2="12" y2="4" stroke="#9a6a1a" stroke-width="1" opacity="0.4"/>
+        <line x1="-12" y1="10" x2="-12" y2="22" stroke="#172033" stroke-width="3.4"/>
+        <line x1="6" y1="14" x2="6" y2="22" stroke="#dc2626" stroke-width="3.4"/>
+        <text x="-22" y="-30" font-size="11" font-weight="700" fill="#dc2626">+</text>
+        <text x="14" y="30" font-size="11" font-weight="700" fill="#172033">−</text>
+        <text x="34" y="-2" font-size="11" font-weight="700" fill="#172033">E=${state.E.toFixed(1)} V</text>
+        <text x="34" y="14" font-size="10" fill="#657188">r=${state.r.toFixed(1)} Ω</text>
+      </g>`);
+
+      // 开关（位置随接法变化）
+      const swY = isInt ? C.y_top : (C.battBotY + 32);
+      const sx = isInt ? 200 : C.x0;
+      const swClosed = state.running;
+      if (isInt) {
+        // int: 开关在顶线左侧、A 表左侧
+        M.push(`<g transform="translate(${sx},${swY})">
+          <circle cx="-16" cy="0" r="3" fill="#5d7185"/>
+          <circle cx="16" cy="0" r="3" fill="#5d7185"/>
+          <line x1="-16" y1="0" x2="${swClosed ? 16 : 14}" y2="${swClosed ? 0 : -18}" stroke="#5d7185" stroke-width="2.6" stroke-linecap="round"/>
+          <text x="0" y="${swClosed ? -10 : -24}" text-anchor="middle" font-size="10" fill="#657188">S</text>
+        </g>`);
+      } else {
+        // ext: 开关在底线
+        M.push(`<g transform="translate(360,${C.y_bot})">
+          <circle cx="-16" cy="0" r="3" fill="#5d7185"/>
+          <circle cx="16" cy="0" r="3" fill="#5d7185"/>
+          <line x1="-16" y1="0" x2="${swClosed ? 16 : 14}" y2="${swClosed ? 0 : 18}" stroke="#5d7185" stroke-width="2.6" stroke-linecap="round"/>
+          <text x="0" y="${swClosed ? 14 : 28}" text-anchor="middle" font-size="10" fill="#657188">S</text>
+        </g>`);
+      }
+
+      // 滑线变阻器（顶线右部，位置固定）
+      const rh = C.rheo;
+      const rheoMax = parameterSchema[0].max;
+      const slPos = state.rheo / rheoMax;
+      const slX = rh.x - rh.w/2 + slPos * rh.w;
+      const turns = 14;
+      M.push(`<g transform="translate(${rh.x},${rh.y})">
+        <rect x="${-rh.w/2}" y="${-rh.h/2}" width="${rh.w}" height="${rh.h}" rx="4" fill="url(#rheoGrad)" stroke="#9aa7ba" stroke-width="1"/>
+        ${Array.from({length: turns}, (_, i) => {
+          const x = -rh.w/2 + 6 + i * (rh.w - 12) / (turns - 1);
+          return `<line x1="${x}" y1="${-rh.h/2 + 4}" x2="${x}" y2="${rh.h/2 - 4}" stroke="#5d7185" stroke-width="0.7" opacity="0.6"/>`;
+        }).join("")}
+        <line x1="${slX}" y1="${-rh.h/2 - 14}" x2="${slX}" y2="${rh.h/2 + 6}" stroke="#172033" stroke-width="2.6"/>
+        <polygon points="${slX-6},${-rh.h/2-14} ${slX+6},${-rh.h/2-14} ${slX},${-rh.h/2-6}" fill="#172033"/>
+        <text x="0" y="${-rh.h/2 - 22}" text-anchor="middle" font-size="11" font-weight="700" fill="#657188">R = ${state.rheo.toFixed(1)} Ω</text>
+      </g>`);
+
+      // 电压表 V（位置固定，下方居中偏左）
+      M.push(`<g transform="translate(${C.vTableX},${C.vY})">
+        <circle r="22" fill="#ffffff" stroke="#dc2626" stroke-width="2.2"/>
+        <text x="0" y="5" text-anchor="middle" font-size="14" font-weight="700" fill="#dc2626">V</text>
+        <text x="0" y="-28" text-anchor="middle" font-size="10" font-weight="700" fill="#657188">${state.voltDisplay.toFixed(3)} V</text>
+      </g>`);
+
+      // 电流表 A（位置随接法变化！这是关键视觉区别）
+      M.push(`<g transform="translate(${aPos.x},${aPos.y})">
+        <circle r="22" fill="#ffffff" stroke="#0f9fba" stroke-width="2.2"/>
+        <text x="0" y="5" text-anchor="middle" font-size="14" font-weight="700" fill="#0f9fba">A</text>
+        <text x="0" y="34" text-anchor="middle" font-size="10" font-weight="700" fill="#657188">${state.ampDisplay.toFixed(3)} A</text>
+      </g>`);
+
+      // 节点标记（P, Q）—— V 表接点
+      const nodeLabel = (x, y, label, color = "#657188") =>
+        `<text x="${x}" y="${y - 8}" text-anchor="middle" font-size="11" font-weight="700" fill="${color}">${label}</text>`;
+      M.push(nodeLabel(rL, C.y_top, "P", "#dc2626"));
+      M.push(nodeLabel(rR, C.y_top, "Q", "#dc2626"));
+
+      // 接法标签
+      const cfgLabel = isInt
+        ? "A 内接法：A 表在 V 测量框【内】（V 跨 A 包住 A+R）→ r_测 = r/(1+r/R_V) 偏小 ≈0.15%（教材推荐）"
+        : "A 外接法：A 表在 V 测量框【外】（V 只并 R）→ r_测 = r + R_A 偏大 ≈17%（应避免）";
+      const cfgColor = isInt ? "#0f9fba" : "#d97706";
+      M.push(`<g transform="translate(${(C.x0+C.x1)/2},${C.y_bot + 32})">
+        <rect x="-260" y="-12" width="520" height="22" rx="11" fill="#ffffff" stroke="${cfgColor}" stroke-width="1.2" opacity="0.96"/>
+        <text x="0" y="3" text-anchor="middle" font-size="11" font-weight="700" fill="${cfgColor}">${cfgLabel}</text>
+      </g>`);
+
+      elements.components.innerHTML = M.join("");
+    }
+
+    // 电流粒子路径（顺时针沿回路周长，与电阻率仿真一致）
+    const PERIM = (() => {
+      const pts = [];
+      const step = 8;
+      for (let x = C.x0; x <= C.x1; x += step) pts.push({x, y: C.y_top});
+      for (let y = C.y_top; y <= C.y_bot; y += step) pts.push({x: C.x1, y});
+      for (let x = C.x1; x >= C.x0; x -= step) pts.push({x, y: C.y_bot});
+      for (let y = C.y_bot; y >= C.y_top; y -= step) pts.push({x: C.x0, y});
+      return pts;
+    })();
+    const PERIM_LEN = PERIM.length;
+
+    function drawParticles() {
+      if (!state.running || state.ampDisplay < 1e-4) {
+        elements.particles.innerHTML = "";
+        return;
+      }
+      const N = 14;
+      const spacing = PERIM_LEN / N;
+      const phase = state.particlePhase % PERIM_LEN;
+      const parts = [];
+      for (let i = 0; i < N; i++) {
+        const idx = Math.floor((phase + i * spacing) % PERIM_LEN);
+        const p = PERIM[idx];
+        parts.push(`<circle cx="${p.x}" cy="${p.y}" r="3.4" fill="url(#particleGrad)" opacity="0.92"/>`);
+      }
+      elements.particles.innerHTML = parts.join("");
+    }
+
+    // ============================================================
+    // 仪表刻度
+    // ============================================================
+    function buildMeterTicks() {
+      // V 表刻度：0 ~ 6V（覆盖 E 最大 6V）
+      const vt = [];
+      const VMAX = 6;
+      for (let i = 0; i <= 6; i++) {
+        const angle = -90 + (i / 6) * 180;
+        const rad = angle * Math.PI / 180;
+        const x1 = 100 + 70 * Math.sin(rad);
+        const y1 = 100 - 70 * Math.cos(rad);
+        const x2 = 100 + 78 * Math.sin(rad);
+        const y2 = 100 - 78 * Math.cos(rad);
+        vt.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#9aa7ba" stroke-width="1.5"/>`);
+        const tx = 100 + 58 * Math.sin(rad);
+        const ty = 100 - 58 * Math.cos(rad) + 3;
+        vt.push(`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="8" fill="#657188">${i}</text>`);
+      }
+      elements.voltTicks.innerHTML = vt.join("");
+
+      // A 表刻度：0 ~ 1.5A（覆盖 I_max = E/(r+R_A) ≈ 6/0.5 = 12A 太大；实际 r≥0.5 ⇒ I_max = E/r ≈ 6/0.5 = 12A 仍大）
+      // 实际默认 E=3, r=3 ⇒ I_max = 1A；允许 r 最小 0.5 ⇒ I_max = 6/0.5 = 12A
+      // 这里用 2A 量程，足够覆盖 E=3,r≥1.5 或 E=6,r≥3 的常见场景
+      const at = [];
+      const AMAX = 2;
+      for (let i = 0; i <= 4; i++) {
+        const angle = -90 + (i / 4) * 180;
+        const rad = angle * Math.PI / 180;
+        const x1 = 100 + 70 * Math.sin(rad);
+        const y1 = 100 - 70 * Math.cos(rad);
+        const x2 = 100 + 78 * Math.sin(rad);
+        const y2 = 100 - 78 * Math.cos(rad);
+        at.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#9aa7ba" stroke-width="1.5"/>`);
+        const tx = 100 + 58 * Math.sin(rad);
+        const ty = 100 - 58 * Math.cos(rad) + 3;
+        at.push(`<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="8" fill="#657188">${(i * AMAX / 4).toFixed(1)}</text>`);
+      }
+      elements.ampTicks.innerHTML = at.join("");
+    }
+
+    // ============================================================
+    // U-I 图表
+    // ============================================================
+    // x 轴 = I (0 ~ iMax), y 轴 = U (0 ~ uMax)
+    const CHART = { x0: 42, y0: 180, x1: 345, y1: 20, iMax: 1.5, uMax: 6.0 };
+    function iToX(i) { return CHART.x0 + (i / CHART.iMax) * (CHART.x1 - CHART.x0); }
+    function uToY(u) { return CHART.y0 - (u / CHART.uMax) * (CHART.y0 - CHART.y1); }
+
+    function initChartGrid() {
+      const g = [];
+      // 纵向网格（I 轴刻度）
+      for (let i = 1; i < 6; i++) {
+        const x = CHART.x0 + (i / 6) * (CHART.x1 - CHART.x0);
+        g.push(`<line class="grid-line" x1="${x}" y1="${CHART.y1}" x2="${x}" y2="${CHART.y0}"/>`);
+      }
+      // 横向网格（U 轴刻度）
+      for (let i = 1; i < 6; i++) {
+        const y = CHART.y0 - (i / 6) * (CHART.y0 - CHART.y1);
+        g.push(`<line class="grid-line" x1="${CHART.x0}" y1="${y}" x2="${CHART.x1}" y2="${y}"/>`);
+      }
+      // I 刻度数字
+      for (let i = 0; i <= 6; i++) {
+        const x = CHART.x0 + (i / 6) * (CHART.x1 - CHART.x0);
+        g.push(`<text class="axis-label" x="${x}" y="${CHART.y0 + 12}" text-anchor="middle">${(i * CHART.iMax / 6).toFixed(2)}</text>`);
+      }
+      // U 刻度数字
+      for (let i = 0; i <= 6; i++) {
+        const y = CHART.y0 - (i / 6) * (CHART.y0 - CHART.y1);
+        g.push(`<text class="axis-label" x="${CHART.x0 - 6}" y="${y + 3}" text-anchor="end">${(i * CHART.uMax / 6).toFixed(1)}</text>`);
+      }
+      elements.chartGrid.innerHTML = g.join("");
+    }
+
+    function drawChart() {
+      // 散点
+      const pts = state.samples.map(s => {
+        const x = iToX(s.I);
+        const y = uToY(s.U);
+        const color = s.config === "int" ? "#0f9fba" : "#d97706";
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${color}" stroke="#fff" stroke-width="1.2" opacity="0.92"/>`;
+      });
+      elements.dataPoints.innerHTML = pts.join("");
+      elements.pointCount.textContent = `${state.samples.length} 个数据点（青=A内接 / 橙=A外接）`;
+
+      // 当前光标点（实时显示当前电表读数对应位置）
+      if (state.running || state.voltDisplay > 1e-4) {
+        const cx = iToX(state.ampDisplay);
+        const cy = uToY(state.voltDisplay);
+        const cColor = state.config === "int" ? "#0f9fba" : "#d97706";
+        elements.cursorPoint.innerHTML = `
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="${cColor}" stroke-width="2" opacity="0.7">
+            <animate attributeName="r" values="6;9;6" dur="1.4s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.4s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${cColor}"/>`;
+      } else {
+        elements.cursorPoint.innerHTML = "";
+      }
+
+      // 拟合线（按 config 分组）
+      const intPts = state.samples.filter(s => s.config === "int");
+      const extPts = state.samples.filter(s => s.config === "ext");
+      let fitHtml = "";
+      let intResult = null, extResult = null;
+
+      // 内接法拟合（青色实线）
+      if (intPts.length >= 2) {
+        const fit = fitLine(intPts);
+        if (fit) {
+          intResult = { E: fit.intercept, r: -fit.slope };
+          // 画线：从 I=0 到 I=iMax
+          const x0 = iToX(0);
+          const y0 = uToY(fit.intercept);
+          const x1 = iToX(CHART.iMax);
+          const y1 = uToY(fit.intercept + fit.slope * CHART.iMax);
+          fitHtml += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${clamp(y1.toFixed(1), CHART.y1 - 10, CHART.y0 + 10)}" stroke="#0f9fba" stroke-width="2.2" opacity="0.9"/>`;
+          fitHtml += `<text x="${x1 - 6}" y="${Math.max(y0 + 14, 30)}" text-anchor="end" font-size="10" font-weight="700" fill="#0f9fba">A内接: E=${fit.intercept.toFixed(2)}V, r=${(-fit.slope).toFixed(2)}Ω</text>`;
+        }
+      }
+      // 外接法拟合（橙色虚线）
+      if (extPts.length >= 2) {
+        const fit = fitLine(extPts);
+        if (fit) {
+          extResult = { E: fit.intercept, r: -fit.slope };
+          const x0 = iToX(0);
+          const y0 = uToY(fit.intercept);
+          const x1 = iToX(CHART.iMax);
+          const y1 = uToY(fit.intercept + fit.slope * CHART.iMax);
+          fitHtml += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${clamp(y1.toFixed(1), CHART.y1 - 10, CHART.y0 + 10)}" stroke="#d97706" stroke-width="2.2" opacity="0.9" stroke-dasharray="6 3"/>`;
+          fitHtml += `<text x="${x1 - 6}" y="${Math.max(y0 + 28, 44)}" text-anchor="end" font-size="10" font-weight="700" fill="#d97706">A外接: E=${fit.intercept.toFixed(2)}V, r=${(-fit.slope).toFixed(2)}Ω</text>`;
+        }
+      }
+      elements.chartLabels.innerHTML = fitHtml;
+
+      // 结果卡
+      const E_true = state.E;
+      const r_true = state.r;
+      const fmtLine = (res) => {
+        if (!res) return "—";
+        const eErr = ((res.E - E_true) / E_true * 100).toFixed(1);
+        const rErr = ((res.r - r_true) / r_true * 100).toFixed(1);
+        return `E=${res.E.toFixed(2)}V (${eErr}%) · r=${res.r.toFixed(2)}Ω (${rErr}%)`;
+      };
+      elements.resultInt.textContent = fmtLine(intResult);
+      elements.resultExt.textContent = fmtLine(extResult);
+
+      // 详细公式行
+      const parts = [];
+      if (intResult || extResult) {
+        if (intResult) parts.push(`r_内接测=${intResult.r.toFixed(3)}Ω`);
+        if (extResult) parts.push(`r_外接测=${extResult.r.toFixed(3)}Ω`);
+        parts.push(`r_真=${r_true.toFixed(3)}Ω`);
+      } else {
+        parts.push(`U = E − I·r · 纵截距 = E · 斜率 = −r`);
+      }
+      elements.formulaDetail.textContent = parts.join(" · ");
+    }
+
+    // ============================================================
+    // 状态提示（evidence 内嵌）
+    // ============================================================
+    function updateInsight() {
+      const ideal = state.meterIdeal;
+      if (!state.running && state.t === 0 && state.samples.length === 0) {
+        elements.insight.textContent = "未启动：按下「启动」接通电路，拖动滑片改变外接电阻 R。";
+        return;
+      }
+      if (state.samples.length < 2) {
+        elements.insight.textContent = `调节滑片到不同位置，按「采样」记录至少 2 组 (I, U) 数据。当前 R=${state.rheo.toFixed(1)}Ω，I_max=E/r≈${(state.E/Math.max(state.r,1e-6)).toFixed(2)}A。`;
+        return;
+      }
+      if (ideal) {
+        elements.insight.textContent = `理想仪表：R_V=∞，R_A=0。两种接法都应得 E_测=E_真=${state.E.toFixed(2)}V，r_测=r_真=${state.r.toFixed(2)}Ω。`;
+        return;
+      }
+      if (state.config === "int") {
+        const ratio = state.r / CONST.R_V * 100;
+        elements.insight.textContent = `A 内接法：V 跨过 A 包住 (A+R)，I_A 不含 V 分流。r_测 = r/(1+r/R_V) = ${state.r/(1+state.r/CONST.R_V).toFixed(3)}Ω（真值 ${state.r.toFixed(2)}Ω，偏小 ${ratio.toFixed(2)}%）。误差最小 ⇒ 教材推荐。`;
+      } else {
+        const r_measured = state.r + CONST.R_A;
+        const err = CONST.R_A / state.r * 100;
+        elements.insight.textContent = `A 外接法：V 只测 R 两端，I_A 含 V 分流。r_测 = r + R_A = ${r_measured.toFixed(3)}Ω（真值 ${state.r.toFixed(2)}Ω，偏大 ${err.toFixed(1)}%）。误差明显，应避免。`;
+      }
+    }
+
+    // ============================================================
+    // 生命周期
+    // ============================================================
+    function init() {
+      buildMeterTicks();
+      initChartGrid();
+      bindControls();
+      setParameters({ rheo: 15, E: 3.0, r: 3.0 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0;
+      state.lastTimestamp = null;
+      state.samples = [];
+      state.particlePhase = 0;
+      state.voltDisplay = 0;
+      state.ampDisplay = 0;
+      state.voltTarget = 0;
+      state.ampTarget = 0;
+      elements.status.textContent = "未启动";
+      render();
+    }
+
+    function clearSamples() {
+      state.samples = [];
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const dts = clamp(finite(dt, 0), 0, 0.05);
+      state.t += dts;
+
+      const r = solveCircuit();
+      state.voltTarget = r.U;
+      state.ampTarget = r.I;
+
+      const alpha = 1 - Math.exp(-dts / 0.12);
+      state.voltDisplay += (state.voltTarget - state.voltDisplay) * alpha;
+      state.ampDisplay += (state.ampTarget - state.ampDisplay) * alpha;
+
+      const speed = state.ampDisplay * 8;
+      state.particlePhase += speed * PERIM_LEN * dts;
+    }
+
+    function render() {
+      drawCircuit();
+      drawParticles();
+
+      // 注意：V 表量程 6V，A 表量程 2A（与 buildMeterTicks 一致）
+      const vAngle = -90 + (clamp(state.voltDisplay, 0, 6) / 6) * 180;
+      elements.voltNeedle.setAttribute("transform", `rotate(${vAngle.toFixed(2)} 100 100)`);
+      const aAngle = -90 + (clamp(state.ampDisplay, 0, 2) / 2) * 180;
+      elements.ampNeedle.setAttribute("transform", `rotate(${aAngle.toFixed(2)} 100 100)`);
+
+      elements.voltReadout.textContent = `${state.voltDisplay.toFixed(3)} V`;
+      elements.ampReadout.textContent = `${state.ampDisplay.toFixed(3)} A`;
+
+      drawChart();
+      updateInsight();
+
+      elements.rheoOutput.textContent = `${state.rheo.toFixed(1)} Ω`;
+      elements.emfOutput.textContent = `${state.E.toFixed(1)} V`;
+      elements.rIntOutput.textContent = `${state.r.toFixed(1)} Ω`;
+    }
+
+    function setParameters(values) {
+      const dRheo = parameterSchema[0], dE = parameterSchema[1], dR = parameterSchema[2];
+      state.rheo = clamp(finite(Number(values.rheo), dRheo.default), dRheo.min, dRheo.max);
+      state.E = clamp(finite(Number(values.E), dE.default), dE.min, dE.max);
+      state.r = clamp(finite(Number(values.r), dR.default), dR.min, dR.max);
+      elements.rheoInput.value = String(state.rheo);
+      elements.emfInput.value = String(state.E);
+      elements.rIntInput.value = String(state.r);
+      render();
+    }
+
+    function getState() {
+      return { ...state, samples: state.samples.map(s => ({...s})) };
+    }
+    function getReadouts() {
+      const r = solveCircuit();
+      return { U: r.U, I: r.I, E: state.E, r: state.r };
+    }
+
+    // ============================================================
+    // 模型校验
+    // ============================================================
+    // fitCfg: 在指定 config/ideal 下取 5 个 R 采样点，做最小二乘 U-I 拟合
+    // 返回 { slope, intercept, r_meas, E_meas }，其中 r_meas = -slope，E_meas = intercept
+    function fitCfg(cfg, ideal) {
+      const samples = [2, 5, 10, 20, 30];
+      const pts = samples.map(R => {
+        state.rheo = R; state.config = cfg; state.meterIdeal = ideal;
+        const r = solveCircuit();
+        return { I: r.I, U: r.U };
+      });
+      const n = pts.length;
+      const sI = pts.reduce((s, p) => s + p.I, 0);
+      const sU = pts.reduce((s, p) => s + p.U, 0);
+      const sII = pts.reduce((s, p) => s + p.I * p.I, 0);
+      const sIU = pts.reduce((s, p) => s + p.I * p.U, 0);
+      const denom = n * sII - sI * sI;
+      const slope = Math.abs(denom) < 1e-12 ? 0 : (n * sIU - sI * sU) / denom;
+      const intercept = (sU - slope * sI) / n;
+      return { slope, intercept, r_meas: -slope, E_meas: intercept };
+    }
+
+    function runModelChecks() {
+      const savedE = state.E, savedR = state.r, savedRheo = state.rheo, savedCfg = state.config, savedIdeal = state.meterIdeal;
+      state.E = 3.0; state.r = 3.0;
+
+      // 理论期望值（教材标准结论，已在 solveCircuit 上方注释中严格推导）
+      const E_true = 3.0, r_true = 3.0;
+      const R_A = CONST.R_A, R_V = CONST.R_V;
+      // 内接法（A 在 V 测量框内）：r_测 = r/(1+r/R_V) 偏小；E_测 = E/(1+r/R_V) 偏小
+      const r_int_theory = r_true / (1 + r_true / R_V);
+      const E_int_theory = E_true / (1 + r_true / R_V);
+      // 外接法（A 在 V 测量框外）：r_测 = r + R_A 偏大；E_测 = E 准确
+      const r_ext_theory = r_true + R_A;
+      const E_ext_theory = E_true;
+
+      // 在 4 种组合下取 5 点采样并最小二乘拟合 U-I 直线
+      const ideal_int = fitCfg("int", true);
+      const ideal_ext = fitCfg("ext", true);
+      const real_int  = fitCfg("int", false);
+      const real_ext  = fitCfg("ext", false);
+
+      const rel = (actual, expected) => Math.abs(actual - expected) / Math.max(Math.abs(expected), 1e-9);
+      const TOL = 0.02;  // 2% 容差
+
+      // 还原状态
+      state.E = savedE; state.r = savedR; state.rheo = savedRheo; state.config = savedCfg; state.meterIdeal = savedIdeal;
+
+      return [
+        {
+          name: "理想表·内接：r_测 ≈ r_真（R_A=0, R_V=∞ 时无系统误差）",
+          pass: rel(ideal_int.r_meas, r_true) < TOL,
+          expected: `r = ${r_true.toFixed(2)} Ω`,
+          actual: `r_测 = ${ideal_int.r_meas.toFixed(3)} Ω`,
+          tolerance: `< ${(TOL*100).toFixed(1)}%`
+        },
+        {
+          name: "理想表·外接：r_测 ≈ r_真（理想表两种接法均无误差）",
+          pass: rel(ideal_ext.r_meas, r_true) < TOL,
+          expected: `r = ${r_true.toFixed(2)} Ω`,
+          actual: `r_测 = ${ideal_ext.r_meas.toFixed(3)} Ω`,
+          tolerance: `< ${(TOL*100).toFixed(1)}%`
+        },
+        {
+          name: "真实表·内接：r_测 ≈ r/(1+r/R_V)（偏小，V 分流效应）",
+          pass: rel(real_int.r_meas, r_int_theory) < TOL,
+          expected: `r_理论 = ${r_int_theory.toFixed(3)} Ω`,
+          actual: `r_测 = ${real_int.r_meas.toFixed(3)} Ω`,
+          tolerance: `< ${(TOL*100).toFixed(1)}%`
+        },
+        {
+          name: "真实表·外接：r_测 ≈ r + R_A（偏大，A 压降被算进内阻）",
+          pass: rel(real_ext.r_meas, r_ext_theory) < TOL,
+          expected: `r_理论 = ${r_ext_theory.toFixed(3)} Ω`,
+          actual: `r_测 = ${real_ext.r_meas.toFixed(3)} Ω`,
+          tolerance: `< ${(TOL*100).toFixed(1)}%`
+        },
+        {
+          name: "对比：真实内接 r_测 < r_真（教材推荐接法，误差最小）",
+          pass: real_int.r_meas < r_true,
+          expected: `r_测 < r_真 = ${r_true.toFixed(2)} Ω`,
+          actual: `r_测 = ${real_int.r_meas.toFixed(3)} Ω`,
+          tolerance: "r_测 < r_真"
+        },
+        {
+          name: "对比：真实外接 r_测 > r_真（应避免的接法）",
+          pass: real_ext.r_meas > r_true,
+          expected: `r_测 > r_真 = ${r_true.toFixed(2)} Ω`,
+          actual: `r_测 = ${real_ext.r_meas.toFixed(3)} Ω`,
+          tolerance: "r_测 > r_真"
+        }
+      ];
+    }
+
+    // ============================================================
+    // 事件绑定
+    // ============================================================
+    function setConfig(cfg) {
+      state.config = cfg;
+      if (cfg === "int") {
+        elements.btnInt.classList.add("active");
+        elements.btnExt.classList.remove("active");
+        elements.btnInt.setAttribute("aria-pressed", "true");
+        elements.btnExt.setAttribute("aria-pressed", "false");
+        elements.configToggle.classList.remove("int-mode");
+      } else {
+        elements.btnExt.classList.add("active");
+        elements.btnInt.classList.remove("active");
+        elements.btnExt.setAttribute("aria-pressed", "true");
+        elements.btnInt.setAttribute("aria-pressed", "false");
+        elements.configToggle.classList.add("int-mode");
+      }
+      render();
+    }
+
+    function setMeter(ideal) {
+      state.meterIdeal = ideal;
+      if (ideal) {
+        elements.btnIdeal.classList.add("active");
+        elements.btnReal.classList.remove("active");
+        elements.btnIdeal.setAttribute("aria-pressed", "true");
+        elements.btnReal.setAttribute("aria-pressed", "false");
+      } else {
+        elements.btnReal.classList.add("active");
+        elements.btnIdeal.classList.remove("active");
+        elements.btnReal.setAttribute("aria-pressed", "true");
+        elements.btnIdeal.setAttribute("aria-pressed", "false");
+      }
+      render();
+    }
+
+    function takeSample() {
+      if (!state.running && state.ampDisplay < 1e-4) return;
+      state.samples.push({ I: state.ampDisplay, U: state.voltDisplay, config: state.config });
+      if (state.samples.length > 60) state.samples.shift();
+      render();
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.sampleBtn.addEventListener("click", takeSample);
+      elements.clearBtn.addEventListener("click", clearSamples);
+      elements.rheoInput.addEventListener("input", () => setParameters({ rheo: Number(elements.rheoInput.value), E: state.E, r: state.r }));
+      elements.emfInput.addEventListener("input", () => setParameters({ rheo: state.rheo, E: Number(elements.emfInput.value), r: state.r }));
+      elements.rIntInput.addEventListener("input", () => setParameters({ rheo: state.rheo, E: state.E, r: Number(elements.rIntInput.value) }));
+      elements.btnInt.addEventListener("click", () => setConfig("int"));
+      elements.btnExt.addEventListener("click", () => setConfig("ext"));
+      elements.btnReal.addEventListener("click", () => setMeter(false));
+      elements.btnIdeal.addEventListener("click", () => setMeter(true));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>
