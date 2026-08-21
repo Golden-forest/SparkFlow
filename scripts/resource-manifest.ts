@@ -149,3 +149,12 @@ export function generateResourceManifest(projectRoot: string): ResourceManifest 
   fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
   return manifest;
 }
+
+// CLI entry: regenerate public/resource-manifest.json when run directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const manifest = generateResourceManifest(process.cwd());
+  console.log(
+    `resource-manifest.json regenerated: ${manifest.courseware.length} courseware, ` +
+      `${manifest.simcanvas.length} simcanvas, ${manifest.images.length} images`,
+  );
+}
