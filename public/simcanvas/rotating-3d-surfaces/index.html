@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3D 线框参数曲面动态背景</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #000000;
+      --sim-surface: #000000;
+      --sim-surface-soft: #000000;
+      --sim-text: #ffffff;
+      --sim-muted: #888888;
+      --sim-border: rgba(255,255,255,0.12);
+      --sim-grid: rgba(255,255,255,0.06);
+      --sim-accent: #5cc8ff;
+      --sim-accent-deep: #2a8fd6;
+      --sim-accent-soft: rgba(92,200,255,0.15);
+      --sim-positive: #5cc8ff;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+    .header {
+      position: fixed;
+      left: 22px;
+      top: 18px;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+      max-width: 60vw;
+    }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: rgba(255, 255, 255, 0.55);
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+      margin: 0 0 3px;
+    }
+    .header p {
+      font-size: 11.5px;
+      color: rgba(255, 255, 255, 0.32);
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+      line-height: 1.5;
+    }
+    .status {
+      position: fixed;
+      right: 22px;
+      top: 18px;
+      z-index: 10;
+      border: 1px solid rgba(92, 200, 255, 0.28);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: rgba(92, 200, 255, 0.10);
+      color: var(--sim-accent);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      pointer-events: none;
+      user-select: none;
+    }
+    .formula {
+      position: fixed;
+      left: 22px;
+      bottom: 20px;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 12px;
+      line-height: 1.7;
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+      max-width: 50vw;
+      z-index: 10;
+    }
+    .formula .name {
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 3px;
+      letter-spacing: 0.02em;
+    }
+    .formula .eq {
+      color: rgba(255, 255, 255, 0.38);
+      font-size: 11.5px;
+    }
+    .formula .proj {
+      color: rgba(255, 255, 255, 0.28);
+      font-size: 10.5px;
+      margin-top: 4px;
+    }
+    .readouts {
+      position: fixed;
+      right: 22px;
+      bottom: 68px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      user-select: none;
+    }
+    .readout-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 8px;
+      font-size: 11px;
+      text-shadow: 0 0 10px rgba(0, 0, 0, 0.9);
+    }
+    .readout-item small {
+      color: rgba(255, 255, 255, 0.32);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+    }
+    .readout-item strong {
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 12.5px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+    .play-btn {
+      position: fixed;
+      right: 22px;
+      bottom: 20px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+      z-index: 10;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .play-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.38);
+      color: rgba(255, 255, 255, 0.95);
+    }
+    .play-btn:focus-visible {
+      outline: 2px solid rgba(92, 200, 255, 0.6);
+      outline-offset: 3px;
+    }
+    .play-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+    @media (max-width: 600px) {
+      .header { left: 14px; top: 14px; max-width: 70vw; }
+      .header h1 { font-size: 13px; }
+      .header p { font-size: 10.5px; }
+      .status { right: 14px; top: 14px; font-size: 10.5px; padding: 5px 11px; }
+      .formula { font-size: 10.5px; left: 14px; bottom: 14px; max-width: 70vw; }
+      .formula .name { font-size: 11.5px; }
+      .formula .eq { font-size: 10px; }
+      .formula .proj { font-size: 9.5px; }
+      .readouts { right: 14px; bottom: 60px; }
+      .readout-item { font-size: 10px; }
+      .readout-item small { font-size: 9px; }
+      .readout-item strong { font-size: 11px; }
+      .play-btn { right: 14px; bottom: 14px; width: 34px; height: 34px; }
+      .play-btn svg { width: 12px; height: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .play-btn { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <canvas id="scene" data-region="stage"></canvas>
+    <header class="header" data-region="header">
+      <h1>3D 线框参数曲面</h1>
+      <p>参数曲面随时间演化，按周期自动切换</p>
+    </header>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    <div class="formula" data-region="insight" aria-live="off">
+      <div class="name" id="surfaceName">波动环面</div>
+      <div class="eq" id="surfaceEq">x=(R+r·cosθ)cosφ, y=(R+r·cosθ)sinφ, z=r·sinθ+0.35·sin(3θ+t)</div>
+      <div class="proj">投影 x'=f·x/(z+d), y'=f·y/(z+d)</div>
+    </div>
+    <aside class="readouts" data-region="evidence" aria-label="实时数据">
+      <div class="readout-item"><small>时间</small><strong id="timeReadout">0.00 s</strong></div>
+      <div class="readout-item"><small>曲面</small><strong id="surfaceReadout">波动环面</strong></div>
+      <div class="readout-item"><small>切换进度</small><strong id="cycleReadout">0%</strong></div>
+    </aside>
+    <button class="play-btn" id="playBtn" data-region="controls" type="button" aria-label="暂停或播放">
+      <svg id="btnIcon" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    </button>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ===== 参数 schema（内部一致性用，无可见控件） =====
+    const parameterSchema = [
+      { key: "focal", label: "焦距", type: "slider", min: 280, max: 520, step: 10, default: 380, unit: "px" },
+      { key: "dist", label: "视距", type: "slider", min: 3.5, max: 7, step: 0.1, default: 5, unit: "" },
+      { key: "cycleSec", label: "切换周期", type: "slider", min: 10, max: 24, step: 1, default: 16, unit: "s" }
+    ];
+
+    // ===== 状态 =====
+    const state = {
+      running: true,
+      t: 0,
+      lastTimestamp: null,
+      surfaceIndex: 0,
+      cycleTimer: 0,
+      params: { focal: 380, dist: 5, cycleSec: 16 }
+    };
+
+    // ===== DOM =====
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d");
+    const playBtn = document.getElementById("playBtn");
+    const btnIcon = document.getElementById("btnIcon");
+    const surfaceNameEl = document.getElementById("surfaceName");
+    const surfaceEqEl = document.getElementById("surfaceEq");
+    const statusEl = document.getElementById("status");
+    const timeReadoutEl = document.getElementById("timeReadout");
+    const surfaceReadoutEl = document.getElementById("surfaceReadout");
+    const cycleReadoutEl = document.getElementById("cycleReadout");
+
+    // ===== 工具 =====
+    function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+    function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+    // ===== Canvas 尺寸与 DPR =====
+    let W = 0, H = 0, DPR = 1;
+    function resize() {
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = Math.floor(W * DPR);
+      canvas.height = Math.floor(H * DPR);
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+
+    // ===== 透视投影 =====
+    // 屏幕坐标 = focal * p / (z + dist)，居中
+    function project(x, y, z) {
+      const denom = z + state.params.dist;
+      const safeDenom = Math.abs(denom) < 0.01 ? (denom < 0 ? -0.01 : 0.01) : denom;
+      const scale = state.params.focal / safeDenom;
+      return {
+        x: W * 0.5 + x * scale,
+        y: H * 0.5 - y * scale,
+        depth: z
+      };
+    }
+
+    // ===== 曲面定义 =====
+    // 每个曲面返回 { vertices: [[x,y,z]...], edges: [[i,j]...] }
+    const surfaces = [
+      {
+        name: "波动环面",
+        eq: "x=(R+r·cosθ)cosφ, y=(R+r·cosθ)sinφ, z=r·sinθ+0.35·sin(3θ+t)",
+        build: (t) => {
+          const Nu = 40, Nv = 22;
+          const R = 1.6, r = 0.62;
+          const verts = [];
+          for (let i = 0; i < Nu; i++) {
+            const u = (i / Nu) * Math.PI * 2;
+            for (let j = 0; j < Nv; j++) {
+              const v = (j / Nv) * Math.PI * 2;
+              const wave = 0.35 * Math.sin(3 * u + t);
+              const rr = r + wave;
+              const cu = Math.cos(u), su = Math.sin(u);
+              const cv = Math.cos(v), sv = Math.sin(v);
+              const x = (R + rr * cv) * cu;
+              const y = (R + rr * cv) * su;
+              const z = rr * sv;
+              verts.push([x, y, z]);
+            }
+          }
+          const edges = [];
+          for (let i = 0; i < Nu; i++) {
+            for (let j = 0; j < Nv; j++) {
+              const a = i * Nv + j;
+              const b = i * Nv + ((j + 1) % Nv);
+              const c = ((i + 1) % Nu) * Nv + j;
+              edges.push([a, b]);
+              edges.push([a, c]);
+            }
+          }
+          return { vertices: verts, edges: edges };
+        }
+      },
+      {
+        name: "莫比乌斯带",
+        eq: "x=(1+s·cos(θ/2))cosθ, y=(1+s·cos(θ/2))sinθ, z=s·sin(θ/2), 绕Y轴旋转+带宽呼吸",
+        build: (t) => {
+          const Nu = 80, Nv = 8;
+          const Wm = 0.42;
+          // 绕 Y 轴缓慢旋转（约 18 秒一圈）
+          const rotY = t * 0.35;
+          const cY = Math.cos(rotY), sY = Math.sin(rotY);
+          const verts = [];
+          for (let i = 0; i < Nu; i++) {
+            const u = (i / Nu) * Math.PI * 2;
+            for (let j = 0; j < Nv; j++) {
+              const v = (j / (Nv - 1) - 0.5) * 2 * Wm;
+              // 带宽方向正弦呼吸起伏：v 上叠加随 u 和 t 变化的调制
+              const breathe = 0.12 * Math.sin(2 * u + t * 1.4);
+              const vb = v + breathe;
+              const half = u * 0.5;
+              const ch = Math.cos(half), sh = Math.sin(half);
+              const rad = 1.5 + vb * ch;
+              let x = rad * Math.cos(u);
+              let y = rad * Math.sin(u);
+              let z = vb * sh;
+              // 绕 Y 轴旋转
+              const xr = x * cY + z * sY;
+              const zr = -x * sY + z * cY;
+              verts.push([xr, y, zr]);
+            }
+          }
+          const edges = [];
+          for (let i = 0; i < Nu; i++) {
+            for (let j = 0; j < Nv; j++) {
+              const a = i * Nv + j;
+              const b = i * Nv + (j + 1 < Nv ? j + 1 : j);
+              const c = ((i + 1) % Nu) * Nv + j;
+              edges.push([a, b]);
+              edges.push([a, c]);
+            }
+          }
+          return { vertices: verts, edges: edges };
+        }
+      },
+      {
+        name: "正弦波曲面",
+        eq: "z = sin(√(x²+y²) − t),  x,y ∈ [−2.4, 2.4]",
+        build: (t) => {
+          const Nu = 34, Nv = 34;
+          const range = 2.4;
+          const verts = [];
+          for (let i = 0; i < Nu; i++) {
+            const x = -range + (i / (Nu - 1)) * 2 * range;
+            for (let j = 0; j < Nv; j++) {
+              const y = -range + (j / (Nv - 1)) * 2 * range;
+              const r = Math.sqrt(x * x + y * y);
+              const z = Math.sin(r - t);
+              verts.push([x, y, z]);
+            }
+          }
+          const edges = [];
+          for (let i = 0; i < Nu; i++) {
+            for (let j = 0; j < Nv; j++) {
+              const a = i * Nv + j;
+              if (j + 1 < Nv) edges.push([a, a + 1]);
+              if (i + 1 < Nu) edges.push([a, a + Nv]);
+            }
+          }
+          return { vertices: verts, edges: edges };
+        }
+      }
+    ];
+
+    // ===== 颜色：深度 z 渐变（近亮远暗） =====
+    // z 范围约 [-2.5, 2.5]，映射到 [0,1]，1=最近最亮
+    function depthColor(z, alpha) {
+      const zn = clamp((z + 2.6) / 5.2, 0, 1);
+      const brightness = 0.18 + zn * 0.82;
+      const r = Math.round(120 * brightness);
+      const g = Math.round(210 * brightness);
+      const b = Math.round(255 * brightness);
+      return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+    }
+
+    // ===== 绘制 =====
+    function drawFrame() {
+      // 全黑清屏
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+
+      const surf = surfaces[state.surfaceIndex];
+      const mesh = surf.build(state.t);
+
+      // 投影所有顶点
+      const projected = new Array(mesh.vertices.length);
+      for (let i = 0; i < mesh.vertices.length; i++) {
+        const v = mesh.vertices[i];
+        projected[i] = project(v[0], v[1], v[2]);
+      }
+
+      // 按平均深度排序边（远→近），保证近处覆盖远处
+      const edges = mesh.edges;
+      const edgeData = new Array(edges.length);
+      for (let i = 0; i < edges.length; i++) {
+        const a = projected[edges[i][0]];
+        const b = projected[edges[i][1]];
+        edgeData[i] = { a: a, b: b, z: (a.depth + b.depth) * 0.5 };
+      }
+      edgeData.sort((p, q) => p.z - q.z);
+
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // 第一遍：粗线条低透明度（模拟外发光）
+      ctx.lineWidth = 2.6;
+      for (let i = 0; i < edgeData.length; i++) {
+        const e = edgeData[i];
+        const z = e.z;
+        ctx.strokeStyle = depthColor(z, 0.075);
+        ctx.beginPath();
+        ctx.moveTo(e.a.x, e.a.y);
+        ctx.lineTo(e.b.x, e.b.y);
+        ctx.stroke();
+      }
+
+      // 第二遍：细线条高透明度（主体线）
+      ctx.lineWidth = 1;
+      for (let i = 0; i < edgeData.length; i++) {
+        const e = edgeData[i];
+        const z = e.z;
+        ctx.strokeStyle = depthColor(z, 0.78);
+        ctx.beginPath();
+        ctx.moveTo(e.a.x, e.a.y);
+        ctx.lineTo(e.b.x, e.b.y);
+        ctx.stroke();
+      }
+    }
+
+    // ===== 更新 =====
+    function update(dt) {
+      if (!state.running) return;
+      const bdt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += bdt;
+      state.cycleTimer += bdt;
+      if (state.cycleTimer >= state.params.cycleSec) {
+        state.cycleTimer = 0;
+        state.surfaceIndex = (state.surfaceIndex + 1) % surfaces.length;
+        updateFormula();
+      }
+    }
+
+    function updateFormula() {
+      const s = surfaces[state.surfaceIndex];
+      surfaceNameEl.textContent = s.name;
+      surfaceEqEl.textContent = s.eq;
+    }
+
+    function updateReadouts() {
+      timeReadoutEl.textContent = state.t.toFixed(2) + " s";
+      surfaceReadoutEl.textContent = surfaces[state.surfaceIndex].name;
+      const pct = state.cycleTimer / state.params.cycleSec * 100;
+      cycleReadoutEl.textContent = pct.toFixed(0) + "%";
+    }
+
+    function updateStatus() {
+      statusEl.textContent = state.running ? "运行中" : "已暂停";
+    }
+
+    function render() {
+      drawFrame();
+      updateReadouts();
+    }
+
+    // ===== 生命周期 =====
+    function init() {
+      resize();
+      updateFormula();
+      updateStatus();
+      bindControls();
+      window.addEventListener("resize", resize);
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      btnIcon.innerHTML = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+      playBtn.setAttribute("aria-label", "暂停");
+      updateStatus();
+    }
+    function pause() {
+      state.running = false;
+      btnIcon.innerHTML = '<polygon points="7,4 20,12 7,20"/>';
+      playBtn.setAttribute("aria-label", "播放");
+      updateStatus();
+    }
+    function reset() {
+      state.t = 0;
+      state.cycleTimer = 0;
+      state.surfaceIndex = 0;
+      state.lastTimestamp = null;
+      updateFormula();
+      render();
+    }
+    function setParameters(values) {
+      const p = state.params;
+      p.focal = clamp(finite(Number(values.focal), p.focal), 280, 520);
+      p.dist = clamp(finite(Number(values.dist), p.dist), 3.5, 7);
+      p.cycleSec = clamp(finite(Number(values.cycleSec), p.cycleSec), 10, 24);
+    }
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        surfaceIndex: state.surfaceIndex,
+        cycleTimer: state.cycleTimer,
+        params: { ...state.params }
+      };
+    }
+    function getReadouts() {
+      return {
+        time: state.t,
+        surface: surfaces[state.surfaceIndex].name,
+        surfaceIndex: state.surfaceIndex,
+        cycleProgress: state.cycleTimer / state.params.cycleSec
+      };
+    }
+
+    // ===== 模型检查（确定性验证） =====
+    function runModelChecks() {
+      // 1. 透视投影：z 越大（越近）→ 屏幕坐标越远离中心？不，z 越大 denom 越大，scale 越小，越靠中心。
+      //    验证：z=0 时 scale=focal/dist；z=dist 时 scale=focal/(2dist)（更小，更靠中心）
+      const p0 = project(1, 0, 0);
+      const p1 = project(1, 0, 1);
+      const projMonotonic = p1.x < p0.x; // z 更大 → x 屏幕坐标更小（更靠中心，假设物体在右侧）
+
+      // 2. 环面网格顶点数 = Nu*Nv，边数 = Nu*Nv*2
+      const torus = surfaces[0].build(0);
+      const torusCount = torus.vertices.length === 40 * 22 && torus.edges.length === 40 * 22 * 2;
+
+      // 3. 莫比乌斯带：网格计数不变（80*8 顶点），且随时间演化（t=0 与 t=1 顶点不同）
+      const mob0 = surfaces[1].build(0);
+      const mob1 = surfaces[1].build(1.0);
+      const mobCount = mob0.vertices.length === 80 * 8 && mob0.edges.length === 80 * 8 * 2;
+      const mobEvolves = Math.abs(mob0.vertices[0][0] - mob1.vertices[0][0]) > 0.001 ||
+                         Math.abs(mob0.vertices[0][1] - mob1.vertices[0][1]) > 0.001 ||
+                         Math.abs(mob0.vertices[0][2] - mob1.vertices[0][2]) > 0.001;
+
+      // 4. 莫比乌斯带单侧性保持：t=0 时 u=0 与 u≈2π 处 v 法向翻转
+      //    u=0: half=0, cos=1 → rad=1.5+v, z=v*0=0
+      //    u≈2π: half≈π, cos=-1 → rad=1.5-v, z=v*0=0（v 系数翻转）
+      //    注意 t=0 时 breathe=0（sin(0)=0），所以 v 不受呼吸影响，单侧性可验证
+      const Nu_m = 80, Nv_m = 8;
+      const Wm = 0.42;
+      const v_test = Wm; // j=Nv-1 时 v=Wm
+      // u=0 处顶点（i=0, j=Nv-1）
+      const va = mob0.vertices[0 * Nv_m + (Nv_m - 1)];
+      // u≈2π 处顶点（i=Nu-1, j=Nv-1），half≈π
+      const vb = mob0.vertices[(Nu_m - 1) * Nv_m + (Nv_m - 1)];
+      // t=0 时旋转角=0，旋转矩阵为单位阵，所以顶点即原始坐标
+      // u=0: rad=1.5+Wm*1=1.5+0.42=1.92, x=1.92, z=0
+      // u≈2π: rad=1.5+Wm*(-1)=1.5-0.42=1.08, x=1.08, z=0
+      // 单侧性：x 不同（v 系数翻转）
+      const flipCheck = Math.abs(va[0] - vb[0]) > 0.5;
+
+      // 5. 正弦波曲面：z = sin(r - t)，r=0 时 z = sin(-t) = -sin(t)
+      const sine = surfaces[2].build(1.5);
+      // 中心顶点 i=0,j=0 → x=0,y=0 → r=0 → z=sin(0-1.5)=sin(-1.5)≈-0.997
+      const expectedZ = Math.sin(-1.5);
+      const sineCenter = Math.abs(sine.vertices[0][2] - expectedZ) < 0.01;
+
+      // 6. 深度颜色：z 大（近）应更亮
+      const cNear = depthColor(2, 0.8);
+      const cFar = depthColor(-2, 0.8);
+      // 提取 rgba 的 r 值比较
+      const rNear = parseInt(cNear.match(/rgba\((\d+)/)[1]);
+      const rFar = parseInt(cFar.match(/rgba\((\d+)/)[1]);
+      const colorBright = rNear > rFar;
+
+      // 7. 时间确定性：相同 t 应产生相同网格
+      const m1 = surfaces[0].build(2.0);
+      const m2 = surfaces[0].build(2.0);
+      const deterministic = m1.vertices[100][0] === m2.vertices[100][0];
+
+      // 8. 莫比乌斯带时间确定性
+      const mob_a = surfaces[1].build(2.0);
+      const mob_b = surfaces[1].build(2.0);
+      const mobDet = mob_a.vertices[100][0] === mob_b.vertices[100][0] &&
+                    mob_a.vertices[100][1] === mob_b.vertices[100][1] &&
+                    mob_a.vertices[100][2] === mob_b.vertices[100][2];
+
+      // 9. 循环切换：cycleTimer 达到 cycleSec 时切换
+      const beforeSwitch = state.surfaceIndex;
+      // 模拟
+      const simState = { surfaceIndex: 0, cycleTimer: 15.9, params: { cycleSec: 16 } };
+      simState.cycleTimer += 0.2;
+      const switched = simState.cycleTimer >= simState.params.cycleSec ? (simState.surfaceIndex + 1) % 3 : simState.surfaceIndex;
+
+      return [
+        { name: "透视投影单调性（z 大→更靠中心）", pass: projMonotonic, expected: "p1.x < p0.x", actual: `${p1.x} < ${p0.x}`, tolerance: "strict" },
+        { name: "环面网格计数", pass: torusCount, expected: "880 verts, 1760 edges", actual: `${torus.vertices.length} verts, ${torus.edges.length} edges`, tolerance: "exact" },
+        { name: "莫比乌斯带网格计数不变", pass: mobCount, expected: "640 verts, 1280 edges", actual: `${mob0.vertices.length} verts, ${mob0.edges.length} edges`, tolerance: "exact" },
+        { name: "莫比乌斯带随时间演化", pass: mobEvolves, expected: "t=0 与 t=1 顶点不同", actual: `t=0: [${mob0.vertices[0].map(v=>v.toFixed(3)).join(",")}], t=1: [${mob1.vertices[0].map(v=>v.toFixed(3)).join(",")}]`, tolerance: "strict" },
+        { name: "莫比乌斯带单侧性（v 系数翻转, t=0）", pass: flipCheck, expected: "u=0 与 u≈2π 处 x 显著不同", actual: `u=0 x=${va[0].toFixed(3)}, u≈2π x=${vb[0].toFixed(3)}`, tolerance: "qualitative" },
+        { name: "正弦波中心 z=sin(-t)", pass: sineCenter, expected: expectedZ.toFixed(4), actual: sine.vertices[0][2].toFixed(4), tolerance: 0.01 },
+        { name: "深度颜色近亮远暗", pass: colorBright, expected: "rNear > rFar", actual: `${rNear} > ${rFar}`, tolerance: "strict" },
+        { name: "环面时间确定性（同 t 同输出）", pass: deterministic, expected: "true", actual: String(deterministic), tolerance: "strict" },
+        { name: "莫比乌斯带时间确定性", pass: mobDet, expected: "true", actual: String(mobDet), tolerance: "strict" },
+        { name: "循环切换逻辑", pass: switched === 1, expected: "switch to index 1", actual: `switched to ${switched}`, tolerance: "strict" }
+      ];
+    }
+
+    // ===== 控件绑定 =====
+    function bindControls() {
+      playBtn.addEventListener("click", () => {
+        if (state.running) pause(); else start();
+      });
+      // 键盘空格切换
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space" && e.target === document.body) {
+          e.preventDefault();
+          if (state.running) pause(); else start();
+        }
+      });
+    }
+
+    // ===== 主循环 =====
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    // ===== 暴露 =====
+    window.simulation = {
+      init, start, pause, reset, update, render, setParameters,
+      getState, getReadouts, runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

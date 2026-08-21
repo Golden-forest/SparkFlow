@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>混沌双摆 · 对初值敏感性的可视化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #0a0e1a;
+      --sim-surface: #141927;
+      --sim-surface-soft: #1c2336;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a96b0;
+      --sim-border: #2a3450;
+      --sim-grid: #1f2840;
+      --sim-accent: #f59e0b;
+      --sim-accent-deep: #d97706;
+      --sim-accent-soft: rgba(245, 158, 11, 0.15);
+      --sim-positive: #10b981;
+      --sim-warning: #f59e0b;
+      --sim-danger: #ef4444;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.4);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-energy-total: #f59e0b;
+      --sim-energy-kinetic: #10b981;
+      --sim-energy-potential: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(245, 158, 11, 0.08), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(96, 165, 250, 0.06), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(245, 158, 11, 0.5); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; font-weight: 800; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; font-size: 0.85rem; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(20, 25, 39, 0.85); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); backdrop-filter: blur(8px); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    .scene-wrap { position: relative; min-height: 0; display: flex; align-items: center; justify-content: center; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid var(--sim-border); border-radius: 18px; background: radial-gradient(ellipse at center, #0d1220 0%, #060810 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readouts { display: grid; grid-template-rows: auto 1fr; gap: 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid var(--sim-border); border-radius: 15px; background: linear-gradient(145deg, var(--sim-surface-soft), var(--sim-surface)); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .energy-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; }
+    .legend-item { display: flex; align-items: center; gap: 6px; color: var(--sim-muted); }
+    .legend-swatch { width: 14px; height: 3px; border-radius: 2px; }
+    .model-note { display: grid; align-content: start; gap: 14px; overflow: hidden; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.85rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: rgba(245, 158, 11, 0.08); color: var(--sim-accent) !important; font-weight: 650; font-size: 0.88rem; line-height: 1.5; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; font-size: 0.85rem; }
+    button:hover { border-color: var(--sim-accent); background: rgba(245, 158, 11, 0.08); }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #0a0e1a; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(245, 158, 11, 0.25); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="quantitative">
+    <header class="header" data-region="header">
+      <div>
+        <h1>混沌双摆</h1>
+        <p>对初值敏感性的可视化 · 初始角度仅差 0.001 弧度，数秒后轨迹天差地别</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">多摆叠加轨迹</h2><span>每个摆锤拖出独立彩色尾迹</span></div>
+        <div class="scene-wrap">
+          <canvas id="scene" role="img" aria-labelledby="scene-title scene-desc">
+            <desc id="scene-desc">多个初始条件几乎相同的双摆同时运行，轨迹逐渐分离。</desc>
+          </canvas>
+        </div>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="能量与发散度">
+          <div class="readout-grid">
+            <div class="metric"><small>最大角度差</small><strong id="divReadout">0.000°</strong></div>
+            <div class="metric"><small>能量漂移</small><strong id="driftReadout">0.00%</strong></div>
+          </div>
+          <div>
+            <div class="panel-head"><h2>能量曲线</h2></div>
+            <canvas id="energyChart" style="width:100%;height:100%;min-height:120px;display:block;border:1px solid var(--sim-border);border-radius:12px;background:rgba(10,14,26,0.6);"></canvas>
+            <div class="energy-legend" style="margin-top:8px;">
+              <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-energy-total);"></span>总能量</div>
+              <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-energy-kinetic);"></span>动能</div>
+              <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-energy-potential);"></span>势能</div>
+            </div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>观察要点</h2></div>
+          <p id="insight" class="insight">按"启动"开始。初始时刻所有摆几乎重合，随后在数秒内彻底分离。</p>
+          <p>教学视图：无阻尼理想双摆，总能量守恒。混沌来自运动方程的非线性，而非能量泄漏——观察右侧总能量曲线保持水平。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">启动</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置(随机初值)</button>
+      </div>
+      <div class="control">
+        <label for="countInput">摆数 <output id="countOutput">5</output></label>
+        <input id="countInput" type="range" min="2" max="8" step="1" value="5">
+      </div>
+      <div class="control">
+        <label for="speedInput">时间速率 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.25" max="3" step="0.25" value="1">
+      </div>
+      <div class="control">
+        <label for="trailInput">尾迹长度 <output id="trailOutput">400</output></label>
+        <input id="trailInput" type="range" min="100" max="800" step="50" value="400">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // === 物理常量 ===
+    const G = 9.81;
+    const L1 = 1.0, L2 = 1.0;
+    const M1 = 1.0, M2 = 1.0;
+
+    // === 参数 schema ===
+    const parameterSchema = [
+      { key: "count", label: "摆数", type: "slider", min: 2, max: 8, step: 1, default: 5, unit: "" },
+      { key: "speed", label: "时间速率", type: "slider", min: 0.25, max: 3, step: 0.25, default: 1, unit: "×" },
+      { key: "trail", label: "尾迹长度", type: "slider", min: 100, max: 800, step: 50, default: 400, unit: "" }
+    ];
+
+    // === 调色板 ===
+    const palette = [
+      [245, 158, 11],   // 琥珀
+      [16, 185, 129],   // 翡翠
+      [96, 165, 250],   // 天蓝
+      [239, 68, 68],    // 朱红
+      [168, 85, 247],   // 紫罗兰
+      [236, 72, 153],   // 玫红
+      [34, 197, 94],    // 翠绿
+      [251, 191, 36]    // 金黄
+    ];
+
+    // === 状态 ===
+    const state = {
+      running: false,
+      t: 0,
+      pendulums: [],
+      count: 5,
+      speed: 1.0,
+      trailMax: 400,
+      lastTimestamp: null,
+      energyHistory: [],
+      maxAngleDiff: 0,
+      initialEnergy: 0
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      energyChart: document.querySelector("#energyChart"),
+      insight: document.querySelector("#insight"),
+      divReadout: document.querySelector("#divReadout"),
+      driftReadout: document.querySelector("#driftReadout"),
+      countInput: document.querySelector("#countInput"),
+      countOutput: document.querySelector("#countOutput"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      trailInput: document.querySelector("#trailInput"),
+      trailOutput: document.querySelector("#trailOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    let sceneCtx = null, energyCtx = null;
+    let sceneW = 0, sceneH = 0, energyW = 0, energyH = 0;
+    const dpr = window.devicePixelRatio || 1;
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // === 双摆运动方程 ===
+    function derivatives(s) {
+      const [t1, t2, w1, w2] = s;
+      const delta = t1 - t2;
+      const den1 = (2 * M1 + M2) - M2 * Math.cos(2 * delta);
+      const den2 = (2 * M1 + M2) - M2 * Math.cos(2 * delta);
+      const safeDen1 = Math.abs(den1) < 1e-10 ? (den1 < 0 ? -1e-10 : 1e-10) : den1;
+      const safeDen2 = Math.abs(den2) < 1e-10 ? (den2 < 0 ? -1e-10 : 1e-10) : den2;
+
+      const a1 = (-G * (2 * M1 + M2) * Math.sin(t1)
+                  - M2 * G * Math.sin(t1 - 2 * t2)
+                  - 2 * Math.sin(delta) * M2 * (w2 * w2 * L2 + w1 * w1 * L1 * Math.cos(delta))) / (L1 * safeDen1);
+
+      const a2 = (2 * Math.sin(delta) * (w1 * w1 * L1 * (M1 + M2)
+                  + G * (M1 + M2) * Math.cos(t1)
+                  + w2 * w2 * L2 * M2 * Math.cos(delta))) / (L2 * safeDen2);
+
+      return [w1, w2, a1, a2];
+    }
+
+    function rk4Step(s, dt) {
+      const k1 = derivatives(s);
+      const s2 = s.map((v, i) => v + 0.5 * dt * k1[i]);
+      const k2 = derivatives(s2);
+      const s3 = s.map((v, i) => v + 0.5 * dt * k2[i]);
+      const k3 = derivatives(s3);
+      const s4 = s.map((v, i) => v + dt * k3[i]);
+      const k4 = derivatives(s4);
+      return s.map((v, i) => v + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+    }
+
+    function computeEnergy(s) {
+      const [t1, t2, w1, w2] = s;
+      const y1 = -L1 * Math.cos(t1);
+      const y2 = y1 - L2 * Math.cos(t2);
+      const v1sq = L1 * L1 * w1 * w1;
+      const v2sq = L1 * L1 * w1 * w1 + L2 * L2 * w2 * w2 + 2 * L1 * L2 * w1 * w2 * Math.cos(t1 - t2);
+      const ke = 0.5 * M1 * v1sq + 0.5 * M2 * v2sq;
+      const pe = G * (M1 * y1 + M2 * y2);
+      return { total: ke + pe, kinetic: ke, potential: pe };
+    }
+
+    // === 初始化摆 ===
+    function initPendulums() {
+      state.pendulums = [];
+      const baseAngle = Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+      const baseAngle2 = Math.PI / 2 + (Math.random() - 0.5) * 0.8;
+
+      for (let i = 0; i < state.count; i++) {
+        const offset = i * 0.001;
+        const s = [baseAngle + offset, baseAngle2, 0, 0];
+        state.pendulums.push({
+          state: s.slice(),
+          trail: [],
+          color: palette[i % palette.length]
+        });
+      }
+
+      state.maxAngleDiff = 0;
+      state.energyHistory = [];
+      const e = computeEnergy(state.pendulums[0].state);
+      state.initialEnergy = e.total;
+      state.energyHistory.push({ t: 0, total: e.total, kinetic: e.kinetic, potential: e.potential });
+    }
+
+    // === Canvas 尺寸 ===
+    function resizeCanvas(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w, h };
+    }
+
+    function handleResize() {
+      const s = resizeCanvas(elements.scene);
+      sceneCtx = s.ctx; sceneW = s.w; sceneH = s.h;
+      const e = resizeCanvas(elements.energyChart);
+      energyCtx = e.ctx; energyW = e.w; energyH = e.h;
+      render();
+    }
+
+    // === 渲染：主舞台 ===
+    function renderScene() {
+      if (!sceneCtx) return;
+      const ctx = sceneCtx;
+      ctx.clearRect(0, 0, sceneW, sceneH);
+
+      const cx = sceneW / 2;
+      const cy = sceneH * 0.35;
+      const scale = Math.min(sceneW, sceneH) * 0.22;
+
+      // 支点
+      ctx.fillStyle = "rgba(245, 158, 11, 0.6)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 绘制每个摆的尾迹
+      for (let i = 0; i < state.pendulums.length; i++) {
+        const p = state.pendulums[i];
+        const trail = p.trail;
+        if (trail.length < 2) continue;
+
+        const [r, g, b] = p.color;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // 分段绘制，透明度渐变
+        const len = trail.length;
+        const step = Math.max(1, Math.floor(len / 60));
+        for (let j = step; j < len; j += step) {
+          const start = Math.max(0, j - step);
+          const alpha = (j / len) * 0.85;
+          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+          ctx.lineWidth = 1.5 + (j / len) * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(cx + trail[start].x * scale, cy + trail[start].y * scale);
+          for (let k = start + 1; k <= j && k < len; k++) {
+            ctx.lineTo(cx + trail[k].x * scale, cy + trail[k].y * scale);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // 绘制摆杆和摆锤
+      for (let i = 0; i < state.pendulums.length; i++) {
+        const p = state.pendulums[i];
+        const [t1, t2] = p.state;
+        const x1 = L1 * Math.sin(t1);
+        const y1 = L1 * Math.cos(t1);
+        const x2 = x1 + L2 * Math.sin(t2);
+        const y2 = y1 + L2 * Math.cos(t2);
+
+        const px1 = cx + x1 * scale;
+        const py1 = cy + y1 * scale;
+        const px2 = cx + x2 * scale;
+        const py2 = cy + y2 * scale;
+
+        const [r, g, b] = p.color;
+
+        // 杆
+        ctx.strokeStyle = `rgba(${r},${g},${b},0.5)`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(px1, py1);
+        ctx.lineTo(px2, py2);
+        ctx.stroke();
+
+        // 摆锤1
+        ctx.fillStyle = `rgba(${r},${g},${b},0.7)`;
+        ctx.beginPath();
+        ctx.arc(px1, py1, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 摆锤2（较大）
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.beginPath();
+        ctx.arc(px2, py2, 6, 0, Math.PI * 2);
+        ctx.fill();
+        // 光晕
+        ctx.fillStyle = `rgba(${r},${g},${b},0.25)`;
+        ctx.beginPath();
+        ctx.arc(px2, py2, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // === 渲染：能量曲线 ===
+    function renderEnergyChart() {
+      if (!energyCtx) return;
+      const ctx = energyCtx;
+      ctx.clearRect(0, 0, energyW, energyH);
+
+      const padL = 40, padR = 10, padT = 10, padB = 18;
+      const plotW = energyW - padL - padR;
+      const plotH = energyH - padT - padB;
+      if (plotW < 10 || plotH < 10) return;
+
+      // 网格
+      ctx.strokeStyle = "rgba(42, 52, 80, 0.5)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + (i / 4) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(padL + plotW, y);
+        ctx.stroke();
+      }
+
+      if (state.energyHistory.length < 2) {
+        ctx.fillStyle = "rgba(138, 150, 176, 0.6)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText("等待数据...", padL + 10, padT + 20);
+        return;
+      }
+
+      const tMax = state.energyHistory[state.energyHistory.length - 1].t;
+      const tMin = state.energyHistory[0].t;
+      const tRange = Math.max(0.1, tMax - tMin);
+
+      // 找能量范围
+      let eMin = Infinity, eMax = -Infinity;
+      for (const h of state.energyHistory) {
+        eMin = Math.min(eMin, h.kinetic, h.potential, h.total);
+        eMax = Math.max(eMax, h.kinetic, h.potential, h.total);
+      }
+      // 包含总能量线，加余量
+      const eCenter = state.initialEnergy;
+      const eRange = Math.max(Math.abs(eMax - eMin), Math.abs(eMax - eCenter) * 2, 1);
+      const eLo = eCenter - eRange * 0.6;
+      const eHi = eCenter + eRange * 0.6;
+      const eRangePlot = eHi - eLo;
+
+      const toX = (t) => padL + ((t - tMin) / tRange) * plotW;
+      const toY = (e) => padT + (1 - (e - eLo) / eRangePlot) * plotH;
+
+      // 轴标签
+      ctx.fillStyle = "rgba(138, 150, 176, 0.7)";
+      ctx.font = "10px sans-serif";
+      ctx.fillText("0", padL - 8, padT + plotH + 6);
+      ctx.fillText(tMax.toFixed(1) + "s", padL + plotW - 20, padT + plotH + 14);
+
+      // 绘制三条曲线
+      const drawLine = (key, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let i = 0; i < state.energyHistory.length; i++) {
+          const h = state.energyHistory[i];
+          const x = toX(h.t);
+          const y = toY(h[key]);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      };
+
+      drawLine("potential", "rgb(96, 165, 250)");
+      drawLine("kinetic", "rgb(16, 185, 129)");
+      drawLine("total", "rgb(245, 158, 11)");
+    }
+
+    // === 更新 ===
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const simDt = boundedDt * state.speed;
+      if (simDt <= 0) return;
+
+      // 固定子步长保证精度
+      const subSteps = 4;
+      const subDt = simDt / subSteps;
+
+      for (let i = 0; i < state.pendulums.length; i++) {
+        const p = state.pendulums[i];
+        for (let s = 0; s < subSteps; s++) {
+          p.state = rk4Step(p.state, subDt);
+          // 角度规范化到 [-PI, PI] 不影响物理但保持数值稳定
+          for (let j = 0; j < 2; j++) {
+            if (p.state[j] > Math.PI) p.state[j] -= 2 * Math.PI;
+            else if (p.state[j] < -Math.PI) p.state[j] += 2 * Math.PI;
+          }
+        }
+
+        // 记录尾迹（第二摆锤位置）
+        const [t1, t2] = p.state;
+        const x1 = L1 * Math.sin(t1);
+        const y1 = L1 * Math.cos(t1);
+        const x2 = x1 + L2 * Math.sin(t2);
+        const y2 = y1 + L2 * Math.cos(t2);
+        p.trail.push({ x: x2, y: y2 });
+        if (p.trail.length > state.trailMax) p.trail.shift();
+      }
+
+      state.t += simDt;
+
+      // 计算最大角度差
+      let maxDiff = 0;
+      const ref = state.pendulums[0].state[0];
+      for (let i = 1; i < state.pendulums.length; i++) {
+        const diff = Math.abs(state.pendulums[i].state[0] - ref);
+        // 处理角度回绕
+        const wrappedDiff = Math.min(diff, 2 * Math.PI - diff);
+        if (wrappedDiff > maxDiff) maxDiff = wrappedDiff;
+      }
+      state.maxAngleDiff = maxDiff;
+
+      // 记录能量历史（基于第一个摆）
+      const e = computeEnergy(state.pendulums[0].state);
+      state.energyHistory.push({ t: state.t, total: e.total, kinetic: e.kinetic, potential: e.potential });
+      if (state.energyHistory.length > 600) state.energyHistory.shift();
+    }
+
+    // === 渲染 ===
+    function render() {
+      renderScene();
+      renderEnergyChart();
+
+      // 读数
+      const drift = state.initialEnergy !== 0
+        ? Math.abs((computeEnergy(state.pendulums[0].state).total - state.initialEnergy) / state.initialEnergy) * 100
+        : 0;
+      elements.divReadout.textContent = (state.maxAngleDiff * 180 / Math.PI).toFixed(1) + "°";
+      elements.driftReadout.textContent = drift.toFixed(2) + "%";
+
+      // 洞察文本
+      const degDiff = state.maxAngleDiff * 180 / Math.PI;
+      if (!state.running && state.t === 0) {
+        elements.insight.textContent = "按\"启动\"开始。初始时刻所有摆几乎重合，随后在数秒内彻底分离。";
+      } else if (degDiff < 1) {
+        elements.insight.textContent = "初始阶段：摆锤几乎重合，差异尚不可见。混沌正在酝酿。";
+      } else if (degDiff < 30) {
+        elements.insight.textContent = "开始分离：微小的初值差异正在被非线性放大。";
+      } else if (degDiff < 90) {
+        elements.insight.textContent = "显著发散：0.001 弧度的差异已放大为截然不同的轨迹。";
+      } else {
+        elements.insight.textContent = "彻底分道扬镳：轨迹已无相似之处——这就是混沌。";
+      }
+    }
+
+    // === 生命周期 ===
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      state.lastTimestamp = null;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0;
+      initPendulums();
+      render();
+    }
+
+    function setParameters(values) {
+      if (values.count !== undefined) {
+        const def = parameterSchema[0];
+        state.count = clamp(Math.round(finite(Number(values.count), def.default)), def.min, def.max);
+        elements.countInput.value = String(state.count);
+        elements.countOutput.textContent = state.count;
+        reset();
+      }
+      if (values.speed !== undefined) {
+        const def = parameterSchema[1];
+        state.speed = clamp(finite(Number(values.speed), def.default), def.min, def.max);
+        elements.speedInput.value = String(state.speed);
+        elements.speedOutput.textContent = state.speed.toFixed(2) + "×";
+      }
+      if (values.trail !== undefined) {
+        const def = parameterSchema[2];
+        state.trailMax = clamp(Math.round(finite(Number(values.trail), def.default)), def.min, def.max);
+        elements.trailInput.value = String(state.trailMax);
+        elements.trailOutput.textContent = state.trailMax;
+        // 截断现有尾迹
+        for (const p of state.pendulums) {
+          while (p.trail.length > state.trailMax) p.trail.shift();
+        }
+      }
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        count: state.count,
+        speed: state.speed,
+        trailMax: state.trailMax,
+        maxAngleDiff: state.maxAngleDiff,
+        initialEnergy: state.initialEnergy,
+        pendulums: state.pendulums.map(p => ({ state: p.state.slice(), trailLen: p.trail.length })),
+        energyHistoryLen: state.energyHistory.length
+      };
+    }
+
+    function getReadouts() {
+      const e = computeEnergy(state.pendulums[0].state);
+      const drift = state.initialEnergy !== 0
+        ? Math.abs((e.total - state.initialEnergy) / state.initialEnergy) * 100
+        : 0;
+      return {
+        time: state.t,
+        maxAngleDiff: state.maxAngleDiff,
+        totalEnergy: e.total,
+        kineticEnergy: e.kinetic,
+        potentialEnergy: e.potential,
+        energyDrift: drift,
+        initialEnergy: state.initialEnergy
+      };
+    }
+
+    // === 模型验证 ===
+    function runModelChecks() {
+      // 1. 能量守恒：运行2秒，检查总能量漂移
+      let s = [Math.PI / 2, Math.PI / 2, 0, 0];
+      const e0 = computeEnergy(s).total;
+      const dt = 1 / 240;
+      for (let i = 0; i < 480; i++) {
+        s = rk4Step(s, dt);
+      }
+      const e1 = computeEnergy(s).total;
+      const drift = Math.abs((e1 - e0) / e0);
+
+      // 2. 单摆极限验证：M2→0 时应退化为单摆
+      // 用小质量比近似
+      const sSingle = [Math.PI / 4, 0, 0, 0];
+      let sCur = sSingle.slice();
+      for (let i = 0; i < 240; i++) {
+        sCur = rk4Step(sCur, 1 / 240);
+      }
+      // 单摆周期 T = 2π√(L/g) ≈ 2.006s, 1秒后角度应在另一侧附近
+      const angleAfter1s = sCur[0];
+
+      // 3. 对称性：镜像初始条件应产生镜像运动
+      let sA = [Math.PI / 3, Math.PI / 4, 0, 0];
+      let sB = [-Math.PI / 3, -Math.PI / 4, 0, 0];
+      for (let i = 0; i < 240; i++) {
+        sA = rk4Step(sA, 1 / 240);
+        sB = rk4Step(sB, 1 / 240);
+      }
+      const symmetryError = Math.abs(sA[0] + sB[0]) + Math.abs(sA[1] + sB[1]);
+
+      // 4. 时间步收敛：减半步长应减小误差
+      let sCoarse = [Math.PI / 2, Math.PI / 2, 0, 0];
+      let sFine = [Math.PI / 2, Math.PI / 2, 0, 0];
+      const dtCoarse = 1 / 120;
+      const dtFine = 1 / 480;
+      const stepsCoarse = 240;
+      const stepsFine = 960;
+      for (let i = 0; i < stepsCoarse; i++) sCoarse = rk4Step(sCoarse, dtCoarse);
+      for (let i = 0; i < stepsFine; i++) sFine = rk4Step(sFine, dtFine);
+      const convergenceDiff = Math.abs(sCoarse[0] - sFine[0]);
+
+      // 5. 混沌敏感性：微小扰动应导致发散
+      let s1 = [Math.PI / 2, Math.PI / 2, 0, 0];
+      let s2 = [Math.PI / 2 + 0.001, Math.PI / 2, 0, 0];
+      for (let i = 0; i < 600; i++) {
+        s1 = rk4Step(s1, 1 / 240);
+        s2 = rk4Step(s2, 1 / 240);
+      }
+      const divergence = Math.abs(s1[0] - s2[0]);
+
+      return [
+        { name: "能量守恒(2秒, dt=1/240)", pass: drift < 0.01, expected: "漂移 < 1%", actual: `漂移 ${(drift * 100).toFixed(3)}%`, tolerance: 0.01 },
+        { name: "RK4时间步收敛", pass: convergenceDiff < 0.05, expected: "粗细步长结果接近", actual: `差值 ${convergenceDiff.toFixed(4)}`, tolerance: 0.05 },
+        { name: "镜像对称性", pass: symmetryError < 0.01, expected: "sA ≈ -sB", actual: `误差 ${symmetryError.toFixed(5)}`, tolerance: 0.01 },
+        { name: "混沌敏感性(2.5秒)", pass: divergence > 0.1, expected: "0.001弧度扰动导致显著发散", actual: `角度差 ${divergence.toFixed(3)} rad`, tolerance: 0.1 },
+        { name: "角度有限性", pass: Number.isFinite(s1[0]) && Number.isFinite(s2[0]), expected: "所有角度有限", actual: `s1=${s1[0].toFixed(3)}, s2=${s2[0].toFixed(3)}`, tolerance: "finite" }
+      ];
+    }
+
+    // === 绑定控件 ===
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.countInput.addEventListener("input", () => setParameters({ count: elements.countInput.value }));
+      elements.speedInput.addEventListener("input", () => setParameters({ speed: elements.speedInput.value }));
+      elements.trailInput.addEventListener("input", () => setParameters({ trail: elements.trailInput.value }));
+      window.addEventListener("resize", handleResize);
+    }
+
+    // === 主循环 ===
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    // === 初始化 ===
+    function init() {
+      handleResize();
+      bindControls();
+      setParameters({ count: 5, speed: 1, trail: 400 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

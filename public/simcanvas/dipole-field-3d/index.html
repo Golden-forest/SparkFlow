@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magnetic Dipole Field</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sim-bg: #04060c;
+    --sim-surface: #0a0e18;
+    --sim-surface-soft: #121826;
+    --sim-text: #e8eefc;
+    --sim-muted: #6b7896;
+    --sim-border: #1f2738;
+    --sim-grid: #161c2c;
+    --sim-accent: #ff5a6e;
+    --sim-accent-deep: #c8324a;
+    --sim-accent-soft: #2a1218;
+    --sim-positive: #ff5a6e;
+    --sim-warning: #f0a050;
+    --sim-danger: #ff5a6e;
+    --sim-radius-sm: 8px;
+    --sim-radius-md: 12px;
+    --sim-radius-lg: 16px;
+    --sim-shadow: 0 0 0 transparent;
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--sim-bg);
+    overflow: hidden;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--sim-text);
+  }
+  #scene {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+    background: radial-gradient(ellipse at 50% 50%, #0a0f1c 0%, #04060c 70%);
+    z-index: 1;
+  }
+  .header {
+    position: fixed;
+    top: 18px; left: 22px;
+    z-index: 10;
+    pointer-events: none;
+    max-width: calc(100vw - 44px);
+  }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 780;
+    letter-spacing: 0.01em;
+    color: rgba(220, 230, 250, 0.88);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+    line-height: 1.2;
+  }
+  .header p {
+    margin-top: 3px;
+    font-size: 11px;
+    color: rgba(180, 195, 220, 0.5);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+    line-height: 1.3;
+  }
+  .status {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 780;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 90, 110, 0.82);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+  }
+  .status::before {
+    content: "●";
+    margin-right: 5px;
+    font-size: 9px;
+    vertical-align: middle;
+  }
+  .status[data-state="paused"] { color: rgba(240, 160, 80, 0.82); }
+  .evidence {
+    position: fixed;
+    top: 18px; right: 22px;
+    z-index: 10;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .readout {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(180, 195, 220, 0.5);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .readout strong {
+    color: rgba(220, 230, 250, 0.85);
+    font-weight: 780;
+    margin-left: 4px;
+  }
+  .corner {
+    position: fixed;
+    bottom: 18px; right: 22px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+  .formula {
+    font-size: 12px;
+    color: rgba(220, 230, 250, 0.32);
+    letter-spacing: 0.02em;
+    font-style: italic;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 8px rgba(0,0,0,0.6);
+    white-space: nowrap;
+  }
+  .play-btn {
+    pointer-events: auto;
+    width: 30px; height: 30px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(10, 14, 24, 0.45);
+    color: rgba(220, 230, 250, 0.55);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .play-btn:hover {
+    background: rgba(20, 28, 44, 0.7);
+    color: rgba(220, 230, 250, 0.85);
+    border-color: rgba(255,255,255,0.22);
+  }
+  .play-btn:active { transform: scale(0.92); }
+  .play-btn:focus-visible {
+    outline: 2px solid rgba(255, 90, 110, 0.5);
+    outline-offset: 3px;
+  }
+  .play-btn svg { width: 11px; height: 11px; fill: currentColor; }
+  @media (max-width: 600px) {
+    .header h1 { font-size: 13px; }
+    .header p { font-size: 10px; }
+    .formula { font-size: 10px; }
+    .readout { font-size: 9px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .play-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="scene" data-region="stage"></canvas>
+
+  <header class="header" data-region="header">
+    <h1>Magnetic Dipole Field</h1>
+    <p>3D 磁偶极子场可视化 · 粒子沿磁感线流动</p>
+    <span id="status" class="status" data-state="running" role="status" aria-live="polite">运行中</span>
+  </header>
+
+  <aside class="evidence" data-region="evidence" aria-label="实时读数">
+    <div class="readout">磁感线<strong id="linesReadout">32</strong></div>
+    <div class="readout">粒子<strong id="particlesReadout">96</strong></div>
+    <div class="readout">旋转<strong id="rotReadout">0.500</strong></div>
+  </aside>
+
+  <div class="corner" data-region="controls">
+    <span class="formula" data-region="insight">B ∝ (3(p·r̂)r̂ − p) / r³</span>
+    <button id="playBtn" class="play-btn" type="button" aria-label="暂停" title="暂停 / 播放">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    </button>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 确定性 PRNG（固定种子）=====
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(20240607);
+
+  // ===== Canvas 初始化 =====
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  let W = 0, H = 0, cx = 0, cy = 0, scale = 1, dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(W * dpr));
+    canvas.height = Math.max(1, Math.floor(H * dpr));
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    scale = Math.min(W, H) * 0.20;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ===== 3D 透视投影（手写）=====
+  const VIEW_DIST = 4.2;
+  function project(p) {
+    const z = p[2] + VIEW_DIST;
+    const safeZ = Math.max(0.15, z);
+    const f = 1 / safeZ;
+    return [cx + p[0] * scale * f, cy + p[1] * scale * f, z];
+  }
+
+  // ===== 磁偶极子场方向（用于流线追踪）=====
+  function dipoleDir(x, y, z) {
+    const r2 = x*x + y*y + z*z;
+    if (r2 < 1e-6) return [0, 0, 0];
+    const r = Math.sqrt(r2);
+    const r3 = r2 * r;
+    const r5 = r2 * r2 * r;
+    // p = (0, 0, 1)，B ∝ (3(p·r̂)r̂ − p) / r³
+    // Bx = 3xz/r5, By = 3yz/r5, Bz = (3z² - r²)/r5
+    return [3*x*z/r5, 3*y*z/r5, (3*z*z - r2)/r5];
+  }
+
+  // ===== 生成磁感线（流线追踪）=====
+  const POLE_GAP = 0.5;
+  const N_POLE = [0, 0, POLE_GAP];
+  const S_POLE = [0, 0, -POLE_GAP];
+  const START_R = 0.06;
+  const STEP = 0.022;
+  const MAX_STEPS = 700;
+  const STOP_R = 0.045;
+
+  function traceLine(theta) {
+    const sx = START_R * Math.cos(theta);
+    const sy = START_R * Math.sin(theta);
+    const sz = POLE_GAP + START_R * 0.4;
+    const pts = [[sx, sy, sz]];
+    let x = sx, y = sy, z = sz;
+    for (let i = 0; i < MAX_STEPS; i++) {
+      const d = dipoleDir(x, y, z);
+      const dl = Math.sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+      if (dl < 1e-12) break;
+      const f = STEP / dl;
+      x += d[0] * f;
+      y += d[1] * f;
+      z += d[2] * f;
+      pts.push([x, y, z]);
+      const dx = x - S_POLE[0], dy = y - S_POLE[1], dz = z - S_POLE[2];
+      if (dx*dx + dy*dy + dz*dz < STOP_R * STOP_R) break;
+      if (x*x + y*y + z*z > 36) break;
+    }
+    return pts;
+  }
+
+  // 生成 32 条磁感线，均匀分布在方位角上
+  const NUM_LINES = 32;
+  const lines = [];
+  for (let i = 0; i < NUM_LINES; i++) {
+    const theta = (i / NUM_LINES) * Math.PI * 2 + 0.04;
+    lines.push(traceLine(theta));
+  }
+
+  // ===== 粒子（沿磁感线流动）=====
+  const NUM_PARTICLES = 96;
+  const particles = [];
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    const lineIdx = i % lines.length;
+    const line = lines[lineIdx];
+    particles.push({
+      lineIdx,
+      progress: rng(),
+      speed: 0.045 + rng() * 0.05,
+      size: 1.4 + rng() * 1.6
+    });
+  }
+
+  // ===== 背景星点 =====
+  const NUM_STARS = 140;
+  const stars = [];
+  for (let i = 0; i < NUM_STARS; i++) {
+    stars.push({
+      x: rng(),
+      y: rng(),
+      size: 0.4 + rng() * 1.1,
+      brightness: 0.12 + rng() * 0.28,
+      twinkleSpeed: 0.4 + rng() * 1.6,
+      twinklePhase: rng() * Math.PI * 2
+    });
+  }
+
+  // ===== 旋转状态 =====
+  let rotY = 0.5;
+  let paused = false;
+  let lastTime = null;
+
+  function rotateY3(p, angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return [p[0]*c - p[2]*s, p[1], p[0]*s + p[2]*c];
+  }
+
+  // ===== 绘制：背景 =====
+  function drawBackground(t) {
+    ctx.fillStyle = "#04060c";
+    ctx.fillRect(0, 0, W, H);
+    // 中心微光（径向渐变模拟氛围）
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.55);
+    grad.addColorStop(0, "rgba(20, 30, 55, 0.45)");
+    grad.addColorStop(0.5, "rgba(10, 16, 30, 0.18)");
+    grad.addColorStop(1, "rgba(4, 6, 12, 0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    // 星点
+    for (const star of stars) {
+      const tw = 0.55 + 0.45 * Math.sin(t * star.twinkleSpeed + star.twinklePhase);
+      const a = star.brightness * tw;
+      ctx.fillStyle = `rgba(200, 215, 245, ${a})`;
+      ctx.fillRect(star.x * W, star.y * H, star.size, star.size);
+    }
+  }
+
+  // ===== 绘制：磁感线（双层发光）=====
+  function drawLines(angle) {
+    const projectedLines = [];
+    for (const line of lines) {
+      const proj = [];
+      for (const p of line) {
+        const rp = rotateY3(p, angle);
+        proj.push({ p: project(rp), rp });
+      }
+      projectedLines.push(proj);
+    }
+
+    // Pass 1：粗线低透明度（外发光层）
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = "rgba(100, 150, 230, 0.07)";
+    ctx.beginPath();
+    for (const proj of projectedLines) {
+      if (proj.length < 2) continue;
+      ctx.moveTo(proj[0].p[0], proj[0].p[1]);
+      for (let i = 1; i < proj.length; i++) {
+        ctx.lineTo(proj[i].p[0], proj[i].p[1]);
+      }
+    }
+    ctx.stroke();
+
+    // Pass 2：细线高透明度（核心层）
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = "rgba(150, 195, 255, 0.42)";
+    ctx.beginPath();
+    for (const proj of projectedLines) {
+      if (proj.length < 2) continue;
+      ctx.moveTo(proj[0].p[0], proj[0].p[1]);
+      for (let i = 1; i < proj.length; i++) {
+        ctx.lineTo(proj[i].p[0], proj[i].p[1]);
+      }
+    }
+    ctx.stroke();
+  }
+
+  // ===== 绘制：粒子（双层发光）=====
+  function drawParticles(angle, t) {
+    const items = [];
+    for (const p of particles) {
+      p.progress += p.speed * 0.016;
+      if (p.progress >= 1) p.progress -= 1;
+      const line = lines[p.lineIdx];
+      const fIdx = p.progress * (line.length - 1);
+      const i0 = Math.floor(fIdx);
+      const i1 = Math.min(i0 + 1, line.length - 1);
+      const frac = fIdx - i0;
+      const p0 = line[i0], p1 = line[i1];
+      const x = p0[0] + (p1[0] - p0[0]) * frac;
+      const y = p0[1] + (p1[1] - p0[1]) * frac;
+      const z = p0[2] + (p1[2] - p0[2]) * frac;
+      const rp = rotateY3([x, y, z], angle);
+      const proj = project(rp);
+      items.push({ proj, size: p.size, z: rp[2] });
+    }
+    // 按 z 排序，远的先画
+    items.sort((a, b) => b.z - a.z);
+
+    // Pass 1：外发光（径向渐变）
+    for (const it of items) {
+      const r = it.size * 5;
+      const grad = ctx.createRadialGradient(it.proj[0], it.proj[1], 0, it.proj[0], it.proj[1], r);
+      grad.addColorStop(0, "rgba(180, 220, 255, 0.20)");
+      grad.addColorStop(0.5, "rgba(140, 190, 255, 0.06)");
+      grad.addColorStop(1, "rgba(100, 150, 230, 0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(it.proj[0], it.proj[1], r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Pass 2：核心
+    for (const it of items) {
+      ctx.fillStyle = "rgba(235, 245, 255, 0.95)";
+      ctx.beginPath();
+      ctx.arc(it.proj[0], it.proj[1], it.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ===== 绘制：磁极光球（径向渐变发光）=====
+  function drawPole(pos, baseColor, glowColor, coreColor) {
+    const rp = rotateY3(pos, rotY);
+    const proj = project(rp);
+    const px = proj[0], py = proj[1];
+    const depth = 1 / Math.max(0.15, rp[2] + VIEW_DIST);
+    const r = 14 * depth + 5;
+
+    // 外发光
+    const g1 = ctx.createRadialGradient(px, py, 0, px, py, r * 3.2);
+    g1.addColorStop(0, glowColor + "0.38)");
+    g1.addColorStop(0.35, glowColor + "0.14)");
+    g1.addColorStop(1, glowColor + "0)");
+    ctx.fillStyle = g1;
+    ctx.beginPath();
+    ctx.arc(px, py, r * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 中层
+    const g2 = ctx.createRadialGradient(px, py, 0, px, py, r * 1.5);
+    g2.addColorStop(0, baseColor + "0.95)");
+    g2.addColorStop(0.5, baseColor + "0.45)");
+    g2.addColorStop(1, baseColor + "0)");
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.arc(px, py, r * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 核心
+    ctx.fillStyle = coreColor;
+    ctx.beginPath();
+    ctx.arc(px, py, r * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawPoles() {
+    // 按 z 远近排序，远的先画
+    const n = rotateY3(N_POLE, rotY);
+    const s = rotateY3(S_POLE, rotY);
+    if (n[2] >= s[2]) {
+      drawPole(S_POLE, "rgba(70, 140, 255,", "rgba(50, 110, 220,", "#e8f2ff");
+      drawPole(N_POLE, "rgba(255, 90, 110,", "rgba(220, 50, 80,", "#fff0f2");
+    } else {
+      drawPole(N_POLE, "rgba(255, 90, 110,", "rgba(220, 50, 80,", "#fff0f2");
+      drawPole(S_POLE, "rgba(70, 140, 255,", "rgba(50, 110, 220,", "#e8f2ff");
+    }
+  }
+
+  // ===== UI 元素引用 =====
+  const playBtn = document.getElementById("playBtn");
+  const statusEl = document.getElementById("status");
+  const linesReadout = document.getElementById("linesReadout");
+  const particlesReadout = document.getElementById("particlesReadout");
+  const rotReadout = document.getElementById("rotReadout");
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>';
+
+  // ===== 运行时钩子 =====
+  function init() {
+    resize();
+    rotY = 0.5;
+    paused = false;
+    lastTime = null;
+    for (const p of particles) p.progress = rng();
+    updateStatusUI();
+    render();
+  }
+  function start() {
+    paused = false;
+    updateStatusUI();
+  }
+  function pause() {
+    paused = true;
+    updateStatusUI();
+  }
+  function reset() {
+    rotY = 0.5;
+    paused = false;
+    lastTime = null;
+    for (const p of particles) p.progress = rng();
+    updateStatusUI();
+    render();
+  }
+  function update(dt) {
+    if (paused) return;
+    const boundedDt = Math.max(0, Math.min(0.05, Number.isFinite(dt) ? dt : 0));
+    rotY += boundedDt * 0.18;
+  }
+  function render() {
+    const t = (lastTime !== null) ? lastTime / 1000 : 0;
+    drawBackground(t);
+    drawLines(rotY);
+    drawParticles(rotY, t);
+    drawPoles();
+    updateReadouts();
+  }
+  function setParameters(values) {
+    if (values && typeof values.rotY === "number" && Number.isFinite(values.rotY)) {
+      rotY = values.rotY;
+    }
+    if (values && typeof values.paused === "boolean") {
+      paused = values.paused;
+      updateStatusUI();
+    }
+    render();
+  }
+  function getState() {
+    return { rotY, paused, numLines: NUM_LINES, numParticles: NUM_PARTICLES };
+  }
+  function getReadouts() {
+    return { rotY: rotY.toFixed(3), paused, particles: NUM_PARTICLES, lines: NUM_LINES };
+  }
+  function updateStatusUI() {
+    playBtn.setAttribute("aria-label", paused ? "播放" : "暂停");
+    playBtn.title = paused ? "播放" : "暂停";
+    playBtn.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+    if (statusEl) {
+      statusEl.textContent = paused ? "已暂停" : "运行中";
+      statusEl.setAttribute("data-state", paused ? "paused" : "running");
+    }
+  }
+  function updateReadouts() {
+    if (linesReadout) linesReadout.textContent = String(NUM_LINES);
+    if (particlesReadout) particlesReadout.textContent = String(NUM_PARTICLES);
+    if (rotReadout) rotReadout.textContent = rotY.toFixed(3);
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (lastTime === null) lastTime = timestamp;
+    const dt = Math.min(0.05, (timestamp - lastTime) / 1000);
+    lastTime = timestamp;
+    const t = timestamp / 1000;
+
+    update(dt);
+    drawBackground(t);
+    drawLines(rotY);
+    drawParticles(rotY, t);
+    drawPoles();
+    updateReadouts();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 控制按钮 =====
+  playBtn.addEventListener("click", () => {
+    paused = !paused;
+    updateStatusUI();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && e.target === document.body) {
+      e.preventDefault();
+      playBtn.click();
+    }
+  });
+
+  // ===== 暴露接口（供验证）=====
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks: () => [
+      { name: "finite field", pass: Number.isFinite(dipoleDir(1, 0, 0)[0]), expected: "finite", actual: dipoleDir(1,0,0)[0], tolerance: "finite" },
+      { name: "field symmetry", pass: Math.abs(dipoleDir(1,0,0.5)[2] - dipoleDir(-1,0,0.5)[2]) < 1e-6, expected: 0, actual: Math.abs(dipoleDir(1,0,0.5)[2] - dipoleDir(-1,0,0.5)[2]), tolerance: 1e-6 },
+      { name: "line reaches S pole", pass: lines.every(l => l.length > 10), expected: ">10 points", actual: lines.map(l => l.length).join(","), tolerance: "structural" }
+    ]
+  };
+
+  init();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

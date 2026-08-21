@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>粒子万花筒</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1c;
+      --sim-surface-soft: #0e1424;
+      --sim-text: #e8f0ff;
+      --sim-muted: #6b7a99;
+      --sim-border: #1a2438;
+      --sim-grid: #131c2e;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #0e2a36;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--sim-bg); }
+    body {
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 2px solid rgba(15, 159, 186, 0.6); outline-offset: 2px; }
+
+    .app {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 24px 10px;
+      min-height: 48px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+      letter-spacing: 0.02em;
+      line-height: 1;
+      font-weight: 600;
+      color: var(--sim-text);
+    }
+    .header p {
+      margin: 4px 0 0;
+      color: var(--sim-muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+    }
+    .status {
+      border: 1px solid rgba(15, 159, 186, 0.3);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: var(--sim-accent-soft);
+      color: #7dd3fc;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .main { min-height: 0; position: relative; }
+    .scene-panel {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+    #scene {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .scene-vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+      z-index: 2;
+    }
+
+    .overlay {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      z-index: 4;
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+      max-width: calc(100% - 36px);
+      pointer-events: none;
+    }
+    .readouts {
+      display: flex;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid rgba(15, 159, 186, 0.22);
+      border-radius: var(--sim-radius-md);
+      background: rgba(10, 15, 28, 0.62);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 64px;
+    }
+    .metric small {
+      color: var(--sim-muted);
+      font-size: 0.66rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric strong {
+      color: var(--sim-text);
+      font-size: 1.05rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .insight {
+      flex: 1 1 auto;
+      max-width: 320px;
+      padding: 10px 14px;
+      border-left: 3px solid var(--sim-accent);
+      border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+      background: rgba(14, 42, 54, 0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #c7e9f3;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .controls {
+      padding: 14px 24px 18px;
+      display: grid;
+      grid-template-columns: auto minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr);
+      gap: 24px;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(10, 15, 28, 0) 0%, rgba(10, 15, 28, 0.85) 40%, var(--sim-surface) 100%);
+      border-top: 1px solid rgba(15, 159, 186, 0.12);
+      z-index: 3;
+    }
+    .actions { display: flex; gap: 8px; }
+    button {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 9px 16px;
+      color: var(--sim-text);
+      background: var(--sim-surface-soft);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.82rem;
+      letter-spacing: 0.03em;
+      transition: transform .14s ease, background .14s ease, border-color .14s ease, color .14s ease;
+    }
+    button:hover { border-color: rgba(15, 159, 186, 0.5); background: #131c30; }
+    button:active { transform: scale(.97); }
+    button.primary {
+      border-color: var(--sim-accent-deep);
+      color: #fff;
+      background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+      box-shadow: 0 6px 16px rgba(15, 159, 186, 0.25);
+    }
+    button.primary[aria-pressed="true"] {
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35), 0 6px 16px rgba(15, 159, 186, 0.25);
+    }
+    .symmetry-toggle {
+      display: flex;
+      gap: 6px;
+      padding: 3px;
+      border: 1px solid var(--sim-border);
+      border-radius: 999px;
+      background: var(--sim-surface-soft);
+    }
+    .symmetry-toggle button {
+      padding: 7px 14px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--sim-muted);
+    }
+    .symmetry-toggle button[aria-pressed="true"] {
+      color: #fff;
+      background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+      border-color: var(--sim-accent-deep);
+      box-shadow: 0 4px 12px rgba(15, 159, 186, 0.3);
+    }
+    .control { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--sim-muted);
+      text-transform: uppercase;
+    }
+    .control output {
+      color: #7dd3fc;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--sim-accent);
+      height: 4px;
+    }
+
+    @media (max-width: 720px) {
+      .app { grid-template-rows: auto minmax(0, 1fr) auto; }
+      .header { padding: 10px 14px 6px; min-height: 40px; }
+      .header h1 { font-size: 1rem; }
+      .header p { display: none; }
+      .overlay {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        flex-direction: column;
+        max-width: none;
+      }
+      .readouts { flex-wrap: wrap; }
+      .insight { max-width: none; }
+      .controls {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas: "sym sym" "p1 p2" "p3 p3" "act act";
+        gap: 12px 14px;
+        padding: 12px 14px 16px;
+      }
+      .actions { grid-area: act; justify-content: center; }
+      .symmetry-toggle { grid-area: sym; justify-content: center; }
+      .control:nth-of-type(1) { grid-area: p1; }
+      .control:nth-of-type(2) { grid-area: p2; }
+      .control:nth-of-type(3) { grid-area: p3; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="qualitative">
+    <header class="header" data-region="header">
+      <div>
+        <h1>粒子万花筒</h1>
+        <p>旋转镜像对称生成</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    </header>
+
+    <main class="main">
+      <section class="scene-panel" data-region="stage" aria-label="万花筒主舞台">
+        <canvas id="scene" role="img" aria-label="粒子万花筒图案"></canvas>
+        <div class="scene-vignette"></div>
+        <div class="overlay">
+          <section class="readouts" data-region="evidence" aria-label="实时读数">
+            <div class="metric"><small>对称重数</small><strong id="symReadout">6 重</strong></div>
+            <div class="metric"><small>粒子数</small><strong id="countReadout">36</strong></div>
+            <div class="metric"><small>旋转角</small><strong id="rotReadout">0.0°</strong></div>
+          </section>
+          <section class="insight" data-region="insight" aria-live="polite">
+            <span id="insightText">单扇区粒子被 N 重旋转复制并镜像，构成连续对称图案。</span>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="参数控件">
+      <div class="symmetry-toggle" role="group" aria-label="对称重数">
+        <button id="sym6" type="button" aria-pressed="true">6 重</button>
+        <button id="sym8" type="button" aria-pressed="false">8 重</button>
+      </div>
+      <div class="control">
+        <label for="countInput">粒子数 <output id="countOutput">36</output></label>
+        <input id="countInput" type="range" min="8" max="80" step="2" value="36">
+      </div>
+      <div class="control">
+        <label for="speedInput">运动速度 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.1" max="3" step="0.1" value="1.0">
+      </div>
+      <div class="control">
+        <label for="rotateInput">旋转速率 <output id="rotateOutput">0.4</output></label>
+        <input id="rotateInput" type="range" min="0" max="2" step="0.05" value="0.4">
+      </div>
+      <div class="actions">
+        <button id="pauseBtn" class="primary" type="button" aria-pressed="false">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "symmetry", label: "对称重数", type: "toggle", options: [6, 8], default: 6 },
+      { key: "count", label: "粒子数", type: "slider", min: 8, max: 80, step: 2, default: 36, unit: "" },
+      { key: "speed", label: "运动速度", type: "slider", min: 0.1, max: 3, step: 0.1, default: 1.0, unit: "×" },
+      { key: "rotateRate", label: "旋转速率", type: "slider", min: 0, max: 2, step: 0.05, default: 0.4, unit: "" }
+    ];
+
+    // 调色板：单色系渐变（青色系），从深到亮
+    const palette = [
+      { r: 8, g: 117, b: 138 },    // 深青
+      { r: 15, g: 159, b: 186 },   // 主青
+      { r: 56, g: 189, b: 248 },   // 亮青
+      { r: 125, g: 211, b: 252 },  // 浅青
+      { r: 186, g: 230, b: 253 }   // 近白
+    ];
+
+    const state = {
+      running: true,
+      t: 0,
+      rotation: 0,
+      symmetry: 6,
+      count: 36,
+      speed: 1.0,
+      rotateRate: 0.4,
+      particles: [],
+      lastTimestamp: null,
+      width: 0,
+      height: 0,
+      cx: 0,
+      cy: 0,
+      maxR: 0
+    };
+
+    const elements = {
+      canvas: document.querySelector("#scene"),
+      status: document.querySelector("#status"),
+      countInput: document.querySelector("#countInput"),
+      countOutput: document.querySelector("#countOutput"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      rotateInput: document.querySelector("#rotateInput"),
+      rotateOutput: document.querySelector("#rotateOutput"),
+      sym6: document.querySelector("#sym6"),
+      sym8: document.querySelector("#sym8"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      symReadout: document.querySelector("#symReadout"),
+      countReadout: document.querySelector("#countReadout"),
+      rotReadout: document.querySelector("#rotReadout"),
+      insightText: document.querySelector("#insightText")
+    };
+    const ctx = elements.canvas.getContext("2d");
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    function makeParticle() {
+      const sectorAngle = (Math.PI * 2) / state.symmetry / 2; // 半扇区
+      const r = Math.random() * state.maxR * 0.85 + state.maxR * 0.05;
+      const a = Math.random() * sectorAngle;
+      const colorIdx = Math.floor(Math.random() * palette.length);
+      return {
+        x: r * Math.cos(a),
+        y: r * Math.sin(a),
+        vx: (Math.random() - 0.5) * 120,
+        vy: (Math.random() - 0.5) * 120,
+        radius: 2 + Math.random() * 4,
+        colorIdx,
+        phase: Math.random() * Math.PI * 2
+      };
+    }
+
+    function rebuildParticles() {
+      state.particles = [];
+      for (let i = 0; i < state.count; i += 1) {
+        state.particles.push(makeParticle());
+      }
+    }
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = elements.canvas.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      elements.canvas.width = w * dpr;
+      elements.canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      state.width = w;
+      state.height = h;
+      state.cx = w / 2;
+      state.cy = h / 2;
+      state.maxR = Math.min(w, h) * 0.48;
+    }
+
+    function init() {
+      resize();
+      rebuildParticles();
+      bindControls();
+      setParameters({ symmetry: 6, count: 36, speed: 1.0, rotateRate: 0.4 });
+      window.addEventListener("resize", () => {
+        resize();
+      });
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.pauseBtn.setAttribute("aria-pressed", "false");
+      elements.pauseBtn.textContent = "暂停";
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.pauseBtn.setAttribute("aria-pressed", "true");
+      elements.pauseBtn.textContent = "继续";
+    }
+    function reset() {
+      state.t = 0;
+      state.rotation = 0;
+      state.lastTimestamp = null;
+      rebuildParticles();
+      // 清屏一次
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, state.width, state.height);
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      state.rotation += state.rotateRate * boundedDt;
+
+      const sectorAngle = (Math.PI * 2) / state.symmetry;
+      const halfSector = sectorAngle / 2;
+      const maxR = state.maxR;
+      const speedScale = state.speed;
+
+      for (let i = 0; i < state.particles.length; i += 1) {
+        const p = state.particles[i];
+        p.x += p.vx * boundedDt * speedScale;
+        p.y += p.vy * boundedDt * speedScale;
+        p.phase += boundedDt * 1.5;
+
+        // 极坐标反射边界：保持在 [0, maxR] 半径与 [0, halfSector] 角度内
+        let r = Math.sqrt(p.x * p.x + p.y * p.y);
+        let a = Math.atan2(p.y, p.x);
+        // 把角度归一到 [-halfSector, halfSector]
+        if (a < -halfSector || a > halfSector) {
+          // 镜像反射到扇区内
+          a = -a;
+          p.vy = -p.vy;
+        }
+        // 归一化角度到主扇区
+        while (a < -halfSector) a += sectorAngle;
+        while (a > halfSector) a -= sectorAngle;
+
+        if (r > maxR * 0.95) {
+          r = maxR * 0.95;
+          // 径向反弹
+          const nx = p.x / Math.max(1e-6, Math.sqrt(p.x * p.x + p.y * p.y));
+          const ny = p.y / Math.max(1e-6, Math.sqrt(p.x * p.x + p.y * p.y));
+          const dot = p.vx * nx + p.vy * ny;
+          p.vx -= 2 * dot * nx;
+          p.vy -= 2 * dot * ny;
+        }
+        if (r < maxR * 0.03) {
+          r = maxR * 0.03;
+        }
+
+        p.x = r * Math.cos(a);
+        p.y = r * Math.sin(a);
+      }
+    }
+
+    function render() {
+      // 半透明清屏制造拖尾余晖
+      ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+      ctx.fillRect(0, 0, state.width, state.height);
+
+      const n = state.symmetry;
+      const sectorAngle = (Math.PI * 2) / n;
+      const baseRotation = state.rotation;
+
+      ctx.save();
+      ctx.translate(state.cx, state.cy);
+
+      for (let s = 0; s < n; s += 1) {
+        ctx.save();
+        ctx.rotate(baseRotation + s * sectorAngle);
+
+        // 绘制扇区内的粒子（含镜像）
+        for (let i = 0; i < state.particles.length; i += 1) {
+          const p = state.particles[i];
+          const color = palette[p.colorIdx];
+          const pulse = 0.7 + 0.3 * Math.sin(p.phase);
+          const radius = p.radius * (0.85 + 0.3 * pulse);
+
+          // 原粒子
+          drawParticle(p.x, p.y, radius, color, pulse);
+          // 镜像粒子（沿扇区起始边翻转）
+          drawParticle(p.x, -p.y, radius, color, pulse);
+        }
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // 更新读数与洞察文本
+      const rotDeg = ((state.rotation * 180 / Math.PI) % 360 + 360) % 360;
+      elements.symReadout.textContent = `${state.symmetry} 重`;
+      elements.countReadout.textContent = String(state.count);
+      elements.rotReadout.textContent = `${rotDeg.toFixed(1)}°`;
+
+      if (!state.running) {
+        elements.insightText.textContent = "已暂停：图案静止，便于观察单扇区如何被旋转复制。";
+      } else if (state.rotateRate === 0) {
+        elements.insightText.textContent = "旋转速率为 0：整体不旋转，仅粒子在扇区内运动并被镜像复制。";
+      } else {
+        elements.insightText.textContent = `单扇区粒子被 ${state.symmetry} 重旋转复制并镜像，构成连续对称图案。`;
+      }
+    }
+
+    function drawParticle(x, y, radius, color, intensity) {
+      // 外发光
+      const glowR = radius * 4;
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+      grad.addColorStop(0, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.55 * intensity})`);
+      grad.addColorStop(0.4, `rgba(${color.r}, ${color.g}, ${color.b}, ${0.18 * intensity})`);
+      grad.addColorStop(1, `rgba(${color.r}, ${color.g}, ${color.b}, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 实心核心
+      ctx.fillStyle = `rgba(${Math.min(255, color.r + 40)}, ${Math.min(255, color.g + 40)}, ${Math.min(255, color.b + 40)}, ${0.9})`;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function setParameters(values) {
+      if (values.symmetry !== undefined) {
+        state.symmetry = (values.symmetry === 8) ? 8 : 6;
+        elements.sym6.setAttribute("aria-pressed", state.symmetry === 6 ? "true" : "false");
+        elements.sym8.setAttribute("aria-pressed", state.symmetry === 8 ? "true" : "false");
+        rebuildParticles();
+      }
+      if (values.count !== undefined) {
+        const countDef = parameterSchema[1];
+        state.count = clamp(Math.round(finite(Number(values.count), countDef.default) / countDef.step) * countDef.step, countDef.min, countDef.max);
+        elements.countInput.value = String(state.count);
+        rebuildParticles();
+      }
+      if (values.speed !== undefined) {
+        const speedDef = parameterSchema[2];
+        state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+        elements.speedInput.value = String(state.speed);
+      }
+      if (values.rotateRate !== undefined) {
+        const rotDef = parameterSchema[3];
+        state.rotateRate = clamp(finite(Number(values.rotateRate), rotDef.default), rotDef.min, rotDef.max);
+        elements.rotateInput.value = String(state.rotateRate);
+      }
+      elements.countOutput.textContent = String(state.count);
+      elements.speedOutput.textContent = `${state.speed.toFixed(1)}×`;
+      elements.rotateOutput.textContent = state.rotateRate.toFixed(2);
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        rotation: state.rotation,
+        symmetry: state.symmetry,
+        count: state.count,
+        speed: state.speed,
+        rotateRate: state.rotateRate,
+        particleCount: state.particles.length
+      };
+    }
+    function getReadouts() {
+      return {
+        symmetry: state.symmetry,
+        count: state.count,
+        speed: state.speed,
+        rotateRate: state.rotateRate,
+        rotation: state.rotation,
+        running: state.running
+      };
+    }
+
+    function runModelChecks() {
+      // 对称性检查：N 重对称下，旋转 2π/N 应与原图重合
+      const symCheck = (state.symmetry === 6 || state.symmetry === 8) && (Math.PI * 2) % state.symmetry === 0;
+      // 粒子边界检查：所有粒子在扇区内
+      let allInBounds = true;
+      const sectorAngle = (Math.PI * 2) / state.symmetry;
+      const halfSector = sectorAngle / 2;
+      for (const p of state.particles) {
+        const a = Math.atan2(p.y, p.x);
+        const normA = ((a % sectorAngle) + sectorAngle) % sectorAngle;
+        const relA = normA > halfSector ? normA - sectorAngle : normA;
+        if (Math.abs(relA) > halfSector + 0.001) { allInBounds = false; break; }
+        const r = Math.sqrt(p.x * p.x + p.y * p.y);
+        if (r > state.maxR * 1.05 || r < 0) { allInBounds = false; break; }
+      }
+      // 有限性检查
+      let allFinite = true;
+      for (const p of state.particles) {
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.vx) || !Number.isFinite(p.vy)) {
+          allFinite = false; break;
+        }
+      }
+      return [
+        { name: "对称重数合法", pass: symCheck, expected: "6 或 8", actual: state.symmetry, tolerance: "strict" },
+        { name: "粒子坐标有限", pass: allFinite, expected: "全部有限", actual: allFinite ? "finite" : "non-finite detected", tolerance: "strict" },
+        { name: "粒子在扇区边界内", pass: allInBounds, expected: "|angle| <= halfSector, 0 <= r <= maxR", actual: allInBounds ? "in bounds" : "out of bounds", tolerance: "strict" },
+        { name: "旋转角度连续累积", pass: Number.isFinite(state.rotation), expected: "finite rotation", actual: state.rotation, tolerance: "finite" }
+      ];
+    }
+
+    function bindControls() {
+      elements.sym6.addEventListener("click", () => setParameters({ symmetry: 6 }));
+      elements.sym8.addEventListener("click", () => setParameters({ symmetry: 8 }));
+      elements.countInput.addEventListener("input", () => setParameters({ count: elements.countInput.value }));
+      elements.speedInput.addEventListener("input", () => setParameters({ speed: elements.speedInput.value }));
+      elements.rotateInput.addEventListener("input", () => setParameters({ rotateRate: elements.rotateInput.value }));
+      elements.pauseBtn.addEventListener("click", () => { state.running ? pause() : start(); });
+      elements.resetBtn.addEventListener("click", reset);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

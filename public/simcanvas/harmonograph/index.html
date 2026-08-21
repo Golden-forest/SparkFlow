@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>谐波记录仪 · Harmonograph</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0e1a;
+      --sim-surface-soft: #0f1422;
+      --sim-text: #e8eefc;
+      --sim-muted: #6b7a96;
+      --sim-border: #1a2238;
+      --sim-grid: #0f1626;
+      --sim-accent: #00e5ff;
+      --sim-accent-deep: #0096b3;
+      --sim-accent-soft: rgba(0, 229, 255, 0.12);
+      --sim-positive: #00e5ff;
+      --sim-warning: #ff2d92;
+      --sim-danger: #ff5566;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background: var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 2px solid rgba(0, 229, 255, 0.5); outline-offset: 2px; }
+
+    .app {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 24px 10px;
+      min-height: 48px;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+    .header h1 {
+      margin: 0;
+      font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      color: var(--sim-text);
+    }
+    .header h1 .accent { color: var(--sim-accent); font-weight: 500; }
+    .header .ratio-display {
+      font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+      font-weight: 600;
+      color: var(--sim-accent);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
+    .header .ratio-display .sep { color: var(--sim-muted); font-weight: 300; margin: 0 2px; }
+    .header .phase-display {
+      font-size: 0.85rem;
+      color: var(--sim-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .status {
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: var(--sim-accent-soft);
+      color: var(--sim-accent);
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Stage ── */
+    .stage-panel {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: #030509;
+    }
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .stage-overlay {
+      position: absolute;
+      top: 16px;
+      left: 24px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stage-overlay .label {
+      font-size: 0.7rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .stage-overlay .value {
+      font-size: 0.82rem;
+      color: rgba(232, 238, 252, 0.6);
+      font-variant-numeric: tabular-nums;
+    }
+    .stage-corner {
+      position: absolute;
+      bottom: 14px;
+      right: 20px;
+      pointer-events: none;
+      font-size: 0.68rem;
+      color: rgba(107, 122, 150, 0.5);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Evidence & Insight ── */
+    .side-panel {
+      position: absolute;
+      top: 16px;
+      right: 24px;
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .evidence-panel, .insight-panel {
+      background: rgba(10, 14, 26, 0.72);
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-md);
+      padding: 14px 16px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+    .evidence-panel h2, .insight-panel h2 {
+      margin: 0 0 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--sim-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .readout-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .metric small {
+      font-size: 0.65rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--sim-text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .metric.accent strong { color: var(--sim-accent); }
+    .insight-panel {
+      border-left: 3px solid var(--sim-warning);
+    }
+    .insight-panel p {
+      margin: 0;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: rgba(232, 238, 252, 0.82);
+    }
+
+    /* ── Controls ── */
+    .controls {
+      padding: 14px 24px 16px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: linear-gradient(to top, rgba(10, 14, 26, 0.98), rgba(10, 14, 26, 0.7));
+      border-top: 1px solid var(--sim-border);
+      backdrop-filter: blur(8px);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    button {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 9px 16px;
+      color: var(--sim-text);
+      background: var(--sim-surface-soft);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.82rem;
+      transition: all 0.15s ease;
+      letter-spacing: 0.02em;
+    }
+    button:hover {
+      border-color: rgba(0, 229, 255, 0.4);
+      background: rgba(0, 229, 255, 0.06);
+    }
+    button:active { transform: scale(0.97); }
+    button.primary {
+      border-color: var(--sim-accent-deep);
+      color: #001016;
+      background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep));
+      box-shadow: 0 4px 14px rgba(0, 229, 255, 0.25);
+    }
+    button.primary:hover {
+      box-shadow: 0 6px 20px rgba(0, 229, 255, 0.35);
+      border-color: var(--sim-accent);
+    }
+    button.mode-btn {
+      min-width: 64px;
+    }
+    button.mode-btn[aria-pressed="true"] {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: rgba(0, 229, 255, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(0, 229, 255, 0.2);
+    }
+    .divider {
+      width: 1px;
+      height: 32px;
+      background: var(--sim-border);
+      flex-shrink: 0;
+    }
+    .sliders {
+      display: flex;
+      gap: 22px;
+      flex: 1;
+      align-items: center;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--sim-muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .control output {
+      color: var(--sim-accent);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 130px;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+      transition: box-shadow 0.15s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 5px rgba(0, 229, 255, 0.2);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+    }
+
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .stage-panel { min-height: 50vh; }
+      .controls { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+      .sliders { gap: 14px; }
+      input[type="range"] { width: 110px; }
+      .header { padding: 10px 16px 8px; }
+      .stage-overlay { top: 10px; left: 16px; }
+      .side-panel { width: 200px; top: 10px; right: 16px; }
+    }
+    @media (max-width: 520px) {
+      .sliders { width: 100%; }
+      .control { flex: 1; min-width: 120px; }
+      input[type="range"] { width: 100%; }
+      .side-panel { position: static; width: auto; flex-direction: row; margin: 10px 16px 0; }
+      .evidence-panel, .insight-panel { flex: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>谐波记录仪 <span class="accent">Harmonograph</span></h1>
+        <span class="ratio-display"><span id="ratioDisplay">3</span><span class="sep">:</span><span>2</span></span>
+        <span class="phase-display">φ = <span id="phaseDisplay">0.00</span> π</span>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <section class="stage-panel" data-region="stage">
+      <canvas id="scene" aria-label="利萨如衰减曲线"></canvas>
+      <div class="stage-overlay">
+        <span class="label">绘制进度</span>
+        <span class="value" id="progressDisplay">0%</span>
+      </div>
+      <div class="stage-corner">x = A·sin(f₁t + φ)·e⁻ᵈᵗ　y = A·sin(f₂t)·e⁻ᵈᵗ</div>
+
+      <aside class="side-panel">
+        <section class="evidence-panel" data-region="evidence" aria-label="实时数值">
+          <h2>实时数值</h2>
+          <div class="readout-grid">
+            <div class="metric accent"><small>频率比</small><strong id="evidenceRatio">1.50</strong></div>
+            <div class="metric"><small>相位 φ</small><strong id="evidencePhase">0.00π</strong></div>
+            <div class="metric"><small>阻尼 d</small><strong id="evidenceDamping">0.040</strong></div>
+            <div class="metric"><small>振幅 A</small><strong id="evidenceAmplitude">1.00</strong></div>
+            <div class="metric"><small>速度</small><strong id="evidenceSpeed">1.0×</strong></div>
+            <div class="metric accent"><small>进度</small><strong id="evidenceProgress">0%</strong></div>
+          </div>
+        </section>
+        <section class="insight-panel" data-region="insight" aria-label="观察提示">
+          <h2>观察</h2>
+          <p id="insightText">调整频率比与相位，观察利萨如图形的闭合与衰减轨迹的形态变化。</p>
+        </section>
+      </aside>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="参数控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">绘制</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重绘</button>
+      </div>
+      <div class="divider"></div>
+      <div class="sliders">
+        <div class="control">
+          <label for="ratioInput">频率比 f₂/f₁ <output id="ratioOutput">1.50</output></label>
+          <input id="ratioInput" type="range" min="0.5" max="6" step="0.05" value="1.5">
+        </div>
+        <div class="control">
+          <label for="phaseInput">相位 φ <output id="phaseOutput">0.00 π</output></label>
+          <input id="phaseInput" type="range" min="0" max="2" step="0.02" value="0">
+        </div>
+        <div class="control">
+          <label for="dampingInput">阻尼 d <output id="dampingOutput">0.040</output></label>
+          <input id="dampingInput" type="range" min="0" max="0.2" step="0.005" value="0.04">
+        </div>
+        <div class="control">
+          <label for="amplitudeInput">振幅 A <output id="amplitudeOutput">1.00</output></label>
+          <input id="amplitudeInput" type="range" min="0.3" max="1.4" step="0.05" value="1.0">
+        </div>
+        <div class="control">
+          <label for="speedInput">速度 <output id="speedOutput">1.0×</output></label>
+          <input id="speedInput" type="range" min="0.3" max="3" step="0.1" value="1.0">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="actions">
+        <button id="continuousBtn" class="mode-btn" type="button" aria-pressed="true">连续</button>
+        <button id="singleBtn" class="mode-btn" type="button" aria-pressed="false">单笔</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "ratio", label: "频率比", type: "slider", min: 0.5, max: 6, step: 0.05, default: 1.5, unit: "" },
+      { key: "phase", label: "相位", type: "slider", min: 0, max: 2, step: 0.02, default: 0, unit: "π" },
+      { key: "damping", label: "阻尼", type: "slider", min: 0, max: 0.2, step: 0.005, default: 0.04, unit: "" },
+      { key: "amplitude", label: "振幅", type: "slider", min: 0.3, max: 1.4, step: 0.05, default: 1.0, unit: "" },
+      { key: "speed", label: "速度", type: "slider", min: 0.3, max: 3, step: 0.1, default: 1.0, unit: "×" }
+    ];
+
+    const state = {
+      running: false,
+      mode: "continuous",
+      ratio: 1.5,
+      phase: 0,
+      damping: 0.04,
+      amplitude: 1.0,
+      speed: 1.0,
+      drawProgress: 0,
+      lastTimestamp: null,
+      needsRebuild: true,
+      trajectory: [],
+      maxPoints: 20000
+    };
+
+    const elements = {
+      canvas: document.getElementById("scene"),
+      status: document.getElementById("status"),
+      ratioDisplay: document.getElementById("ratioDisplay"),
+      phaseDisplay: document.getElementById("phaseDisplay"),
+      progressDisplay: document.getElementById("progressDisplay"),
+      ratioInput: document.getElementById("ratioInput"),
+      ratioOutput: document.getElementById("ratioOutput"),
+      phaseInput: document.getElementById("phaseInput"),
+      phaseOutput: document.getElementById("phaseOutput"),
+      dampingInput: document.getElementById("dampingInput"),
+      dampingOutput: document.getElementById("dampingOutput"),
+      amplitudeInput: document.getElementById("amplitudeInput"),
+      amplitudeOutput: document.getElementById("amplitudeOutput"),
+      speedInput: document.getElementById("speedInput"),
+      speedOutput: document.getElementById("speedOutput"),
+      startBtn: document.getElementById("startBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      continuousBtn: document.getElementById("continuousBtn"),
+      singleBtn: document.getElementById("singleBtn"),
+      evidenceRatio: document.getElementById("evidenceRatio"),
+      evidencePhase: document.getElementById("evidencePhase"),
+      evidenceDamping: document.getElementById("evidenceDamping"),
+      evidenceAmplitude: document.getElementById("evidenceAmplitude"),
+      evidenceSpeed: document.getElementById("evidenceSpeed"),
+      evidenceProgress: document.getElementById("evidenceProgress"),
+      insightText: document.getElementById("insightText")
+    };
+
+    const ctx = elements.canvas.getContext("2d");
+    let dpr = window.devicePixelRatio || 1;
+    let stageW = 0, stageH = 0;
+
+    // ── Utilities ──
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    // ── Canvas sizing ──
+    function resizeCanvas() {
+      const rect = elements.canvas.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      stageW = Math.max(100, rect.width);
+      stageH = Math.max(100, rect.height);
+      elements.canvas.width = Math.floor(stageW * dpr);
+      elements.canvas.height = Math.floor(stageH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // ── Trajectory generation (analytic) ──
+    function generateTrajectory() {
+      const { ratio, phase, damping, amplitude } = state;
+      const f1 = 1.0;
+      const f2 = ratio;
+      const omega1 = 2 * Math.PI * f1;
+      const omega2 = 2 * Math.PI * f2;
+      const phaseRad = phase * Math.PI;
+      const T = 24;
+      const N = state.maxPoints;
+      const dt = T / N;
+      const points = new Array(N);
+      let maxR = 0;
+
+      for (let i = 0; i < N; i++) {
+        const t = i * dt;
+        const decay = Math.exp(-damping * t);
+        const x = amplitude * Math.sin(omega1 * t + phaseRad) * decay;
+        const y = amplitude * Math.sin(omega2 * t) * decay;
+        points[i] = { x, y, t, decay };
+        const r = Math.sqrt(x * x + y * y);
+        if (r > maxR) maxR = r;
+      }
+      state.trajectory = points;
+      state.maxR = Math.max(maxR, 0.01);
+      state.needsRebuild = false;
+    }
+
+    // ── Color: cyan → magenta along draw progress ──
+    function getColor(progress, alpha) {
+      const h = 180 + progress * 150;
+      const s = 100;
+      const l = 55 + (1 - progress) * 8;
+      return `hsla(${h.toFixed(1)}, ${s}%, ${l.toFixed(1)}%, ${alpha.toFixed(3)})`;
+    }
+
+    // ── Render ──
+    function render() {
+      if (state.needsRebuild) generateTrajectory();
+
+      ctx.clearRect(0, 0, stageW, stageH);
+
+      const cx = stageW / 2;
+      const cy = stageH / 2;
+      const padding = 40;
+      const availW = stageW - 2 * padding;
+      const availH = stageH - 2 * padding;
+      const scale = Math.min(availW, availH) / 2 / state.maxR * 0.92;
+
+      const traj = state.trajectory;
+      const N = traj.length;
+      const drawCount = Math.floor(state.drawProgress * N);
+      if (drawCount < 2) return;
+
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // Batch by color buckets for performance
+      const buckets = 60;
+      const bucketSize = Math.ceil(drawCount / buckets);
+      for (let b = 0; b < buckets; b++) {
+        const startIdx = b * bucketSize;
+        const endIdx = Math.min(startIdx + bucketSize, drawCount);
+        if (endIdx - startIdx < 2) continue;
+        const midProgress = (startIdx + endIdx) / 2 / N;
+        const alpha = 0.55 + Math.min(0.35, traj[Math.floor((startIdx + endIdx) / 2)].decay * 0.4);
+        ctx.strokeStyle = getColor(midProgress, alpha);
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let i = startIdx; i < endIdx; i++) {
+          const p = traj[i];
+          const px = cx + p.x * scale;
+          const py = cy - p.y * scale;
+          if (i === startIdx) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+
+      // Leading point glow
+      if (state.running && drawCount > 0 && drawCount < N) {
+        const p = traj[drawCount - 1];
+        const px = cx + p.x * scale;
+        const py = cy - p.y * scale;
+        const leadProgress = drawCount / N;
+        ctx.globalCompositeOperation = "source-over";
+        // outer halo
+        const grad = ctx.createRadialGradient(px, py, 0, px, py, 18);
+        grad.addColorStop(0, getColor(leadProgress, 0.5));
+        grad.addColorStop(1, getColor(leadProgress, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(px, py, 18, 0, Math.PI * 2);
+        ctx.fill();
+        // bright core
+        ctx.fillStyle = getColor(leadProgress, 0.95);
+        ctx.beginPath();
+        ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    // ── Update ──
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const N = state.maxPoints;
+      const baseSpeed = N / 9; // ~9 seconds for full draw at 1×
+      const increment = baseSpeed * state.speed * boundedDt;
+
+      if (state.mode === "continuous") {
+        state.drawProgress += increment / N;
+        if (state.drawProgress >= 1) {
+          state.drawProgress = 0;
+          state.needsRebuild = true;
+        }
+      } else {
+        state.drawProgress += increment / N;
+        if (state.drawProgress >= 1) {
+          state.drawProgress = 1;
+          pause();
+          elements.status.textContent = "完成";
+        }
+      }
+    }
+
+    // ── Lifecycle ──
+    function init() {
+      resizeCanvas();
+      bindControls();
+      setParameters({
+        ratio: 1.5, phase: 0, damping: 0.04,
+        amplitude: 1.0, speed: 1.0
+      });
+      state.needsRebuild = true;
+      state.drawProgress = 0;
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (state.mode === "single" && state.drawProgress >= 1) {
+        state.drawProgress = 0;
+        state.needsRebuild = true;
+      }
+      state.running = true;
+      elements.status.textContent = "绘制中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      if (state.drawProgress < 1) elements.status.textContent = "暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.drawProgress = 0;
+      state.needsRebuild = true;
+      elements.status.textContent = "就绪";
+      render();
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      elements.continuousBtn.setAttribute("aria-pressed", mode === "continuous" ? "true" : "false");
+      elements.singleBtn.setAttribute("aria-pressed", mode === "single" ? "true" : "false");
+      reset();
+    }
+
+    function setParameters(values) {
+      const defs = {};
+      parameterSchema.forEach(d => defs[d.key] = d);
+      if (values.ratio !== undefined) state.ratio = clamp(finite(Number(values.ratio), defs.ratio.default), defs.ratio.min, defs.ratio.max);
+      if (values.phase !== undefined) state.phase = clamp(finite(Number(values.phase), defs.phase.default), defs.phase.min, defs.phase.max);
+      if (values.damping !== undefined) state.damping = clamp(finite(Number(values.damping), defs.damping.default), defs.damping.min, defs.damping.max);
+      if (values.amplitude !== undefined) state.amplitude = clamp(finite(Number(values.amplitude), defs.amplitude.default), defs.amplitude.min, defs.amplitude.max);
+      if (values.speed !== undefined) state.speed = clamp(finite(Number(values.speed), defs.speed.default), defs.speed.min, defs.speed.max);
+
+      elements.ratioInput.value = String(state.ratio);
+      elements.phaseInput.value = String(state.phase);
+      elements.dampingInput.value = String(state.damping);
+      elements.amplitudeInput.value = String(state.amplitude);
+      elements.speedInput.value = String(state.speed);
+
+      state.needsRebuild = true;
+      updateReadouts();
+      render();
+    }
+
+    function updateReadouts() {
+      elements.ratioOutput.textContent = state.ratio.toFixed(2);
+      elements.ratioDisplay.textContent = state.ratio.toFixed(2);
+      elements.phaseOutput.textContent = state.phase.toFixed(2) + " π";
+      elements.phaseDisplay.textContent = state.phase.toFixed(2);
+      elements.dampingOutput.textContent = state.damping.toFixed(3);
+      elements.amplitudeOutput.textContent = state.amplitude.toFixed(2);
+      elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+      elements.progressDisplay.textContent = Math.round(state.drawProgress * 100) + "%";
+
+      elements.evidenceRatio.textContent = state.ratio.toFixed(2);
+      elements.evidencePhase.textContent = state.phase.toFixed(2) + "π";
+      elements.evidenceDamping.textContent = state.damping.toFixed(3);
+      elements.evidenceAmplitude.textContent = state.amplitude.toFixed(2);
+      elements.evidenceSpeed.textContent = state.speed.toFixed(1) + "×";
+      elements.evidenceProgress.textContent = Math.round(state.drawProgress * 100) + "%";
+
+      // Insight text
+      let insight = "调整频率比与相位，观察利萨如图形的闭合与衰减轨迹的形态变化。";
+      if (state.running) {
+        if (state.damping > 0.1) {
+          insight = "强阻尼下轨迹快速向中心收缩，外层包络清晰可见。";
+        } else if (state.damping < 0.01) {
+          insight = "近乎无阻尼：曲线持续叠加，有理比闭合为稳定图形。";
+        } else {
+          insight = "阻尼使轨迹螺旋收敛，频率比决定利萨如图形的拓扑。";
+        }
+      } else if (state.drawProgress >= 1) {
+        insight = "绘制完成。改变相位可旋转或镜像图形而不改变其拓扑。";
+      } else if (state.drawProgress > 0) {
+        insight = "绘制中：笔尖沿衰减利萨如路径运动，颜色随进度渐变。";
+      }
+      elements.insightText.textContent = insight;
+    }
+
+    function getState() {
+      return { ...state, trajectory: state.trajectory.length };
+    }
+    function getReadouts() {
+      return {
+        ratio: state.ratio, phase: state.phase, damping: state.damping,
+        amplitude: state.amplitude, speed: state.speed,
+        drawProgress: state.drawProgress, mode: state.mode, running: state.running
+      };
+    }
+
+    // ── Model checks ──
+    function runModelChecks() {
+      const simulate = (ratio, phase, damping, amplitude, T, N) => {
+        const omega1 = 2 * Math.PI;
+        const omega2 = 2 * Math.PI * ratio;
+        const phaseRad = phase * Math.PI;
+        const dt = T / N;
+        const pts = [];
+        for (let i = 0; i < N; i++) {
+          const t = i * dt;
+          const decay = Math.exp(-damping * t);
+          pts.push({
+            x: amplitude * Math.sin(omega1 * t + phaseRad) * decay,
+            y: amplitude * Math.sin(omega2 * t) * decay,
+            t
+          });
+        }
+        return pts;
+      };
+
+      // 1. Damping monotonic decrease
+      const d04 = simulate(1.5, 0, 0.04, 1.0, 24, 2000);
+      const peakEarly = Math.max(...d04.slice(0, 100).map(p => Math.abs(p.x)));
+      const peakLate = Math.max(...d04.slice(-100).map(p => Math.abs(p.x)));
+      const dampingDecrease = peakLate < peakEarly * 0.5;
+
+      // 2. Zero damping preserves amplitude
+      const d0 = simulate(1.5, 0, 0, 1.0, 24, 2000);
+      const peakStart0 = Math.max(...d0.slice(0, 50).map(p => Math.abs(p.x)));
+      const peakEnd0 = Math.max(...d0.slice(-50).map(p => Math.abs(p.x)));
+      const noDampingPreserved = Math.abs(peakEnd0 - peakStart0) < 0.01;
+
+      // 3. Rational ratio closure (3:2 should close)
+      const closed = simulate(1.5, 0, 0, 1.0, 6, 3000); // 6s = 3 periods of f1
+      const startPt = closed[0];
+      const endPt = closed[closed.length - 1];
+      const closureDist = Math.sqrt((startPt.x - endPt.x) ** 2 + (startPt.y - endPt.y) ** 2);
+      const rationalClosure = closureDist < 0.02;
+
+      // 4. Irrational ratio does not close
+      const irrational = simulate(Math.sqrt(2), 0, 0, 1.0, 6, 3000);
+      const irrStart = irrational[0];
+      const irrEnd = irrational[irrational.length - 1];
+      const irrDist = Math.sqrt((irrStart.x - irrEnd.x) ** 2 + (irrStart.y - irrEnd.y) ** 2);
+      const irrationalNoClosure = irrDist > 0.05;
+
+      // 5. Phase shift symmetry: φ=0 and φ=1 should produce mirrored x at t=0
+      const phi0 = simulate(1.5, 0, 0, 1.0, 0.01, 10);
+      const phi1 = simulate(1.5, 1, 0, 1.0, 0.01, 10);
+      const phaseSymmetry = Math.abs(phi0[5].x - phi1[5].x) > 0.01 && Math.abs(phi0[5].y - phi1[5].y) < 0.001;
+
+      // 6. Amplitude scaling
+      const amp1 = simulate(1.5, 0, 0, 1.0, 1, 1000);
+      const amp2 = simulate(1.5, 0, 0, 2.0, 1, 1000);
+      const ampScale = Math.abs(amp2[500].x / amp1[500].x - 2.0) < 0.01;
+
+      return [
+        { name: "阻尼单调衰减", pass: dampingDecrease, expected: "peakLate < 0.5 × peakEarly", actual: `${peakLate.toFixed(4)} < ${(0.5 * peakEarly).toFixed(4)}`, tolerance: "strict" },
+        { name: "零阻尼保幅", pass: noDampingPreserved, expected: "|peakEnd - peakStart| < 0.01", actual: `${Math.abs(peakEnd0 - peakStart0).toFixed(4)}`, tolerance: 0.01 },
+        { name: "有理比闭合 (3:2)", pass: rationalClosure, expected: "closureDist < 0.02", actual: closureDist.toFixed(4), tolerance: 0.02 },
+        { name: "无理比不闭合 (√2)", pass: irrationalNoClosure, expected: "irrDist > 0.05", actual: irrDist.toFixed(4), tolerance: 0.05 },
+        { name: "相位对称性", pass: phaseSymmetry, expected: "x differs, y same", actual: `Δx=${Math.abs(phi0[5].x - phi1[5].x).toFixed(4)}, Δy=${Math.abs(phi0[5].y - phi1[5].y).toFixed(4)}`, tolerance: "strict" },
+        { name: "振幅线性缩放", pass: ampScale, expected: "ratio = 2.0", actual: (amp2[500].x / amp1[500].x).toFixed(4), tolerance: 0.01 }
+      ];
+    }
+
+    // ── Bindings ──
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.continuousBtn.addEventListener("click", () => setMode("continuous"));
+      elements.singleBtn.addEventListener("click", () => setMode("single"));
+
+      elements.ratioInput.addEventListener("input", () => {
+        state.ratio = clamp(finite(Number(elements.ratioInput.value), 1.5), 0.5, 6);
+        state.needsRebuild = true;
+        if (state.mode === "single") state.drawProgress = 0;
+        updateReadouts(); render();
+      });
+      elements.phaseInput.addEventListener("input", () => {
+        state.phase = clamp(finite(Number(elements.phaseInput.value), 0), 0, 2);
+        state.needsRebuild = true;
+        if (state.mode === "single") state.drawProgress = 0;
+        updateReadouts(); render();
+      });
+      elements.dampingInput.addEventListener("input", () => {
+        state.damping = clamp(finite(Number(elements.dampingInput.value), 0.04), 0, 0.2);
+        state.needsRebuild = true;
+        if (state.mode === "single") state.drawProgress = 0;
+        updateReadouts(); render();
+      });
+      elements.amplitudeInput.addEventListener("input", () => {
+        state.amplitude = clamp(finite(Number(elements.amplitudeInput.value), 1.0), 0.3, 1.4);
+        state.needsRebuild = true;
+        if (state.mode === "single") state.drawProgress = 0;
+        updateReadouts(); render();
+      });
+      elements.speedInput.addEventListener("input", () => {
+        state.speed = clamp(finite(Number(elements.speedInput.value), 1.0), 0.3, 3);
+        updateReadouts();
+      });
+
+      let resizeTimer = null;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          resizeCanvas();
+          render();
+        }, 100);
+      });
+    }
+
+    // ── Frame loop ──
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      if (state.running) updateReadouts();
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

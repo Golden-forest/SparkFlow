@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>向量场流线可视化</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #070b18;
+      --sim-surface: #0d1326;
+      --sim-surface-soft: #111a30;
+      --sim-text: #e8eefc;
+      --sim-muted: #7a8aa8;
+      --sim-border: #1e2a44;
+      --sim-grid: #131c30;
+      --sim-accent: #5fc7ff;
+      --sim-accent-deep: #2a8fd6;
+      --sim-accent-soft: rgba(95, 199, 255, 0.14);
+      --sim-positive: #5fc7ff;
+      --sim-warning: #f0a040;
+      --sim-danger: #e85858;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--sim-space-4);
+      padding: var(--sim-space-3) var(--sim-space-5);
+      background: linear-gradient(to bottom, rgba(13, 19, 38, 0.96), rgba(13, 19, 38, 0.82));
+      border-bottom: 1px solid var(--sim-border);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .header h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .header p {
+      font-size: 0.78rem;
+      color: var(--sim-muted);
+      margin-top: 2px;
+    }
+    .status {
+      border: 1px solid var(--sim-accent-deep);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: var(--sim-accent-soft);
+      color: var(--sim-accent);
+      font-weight: 700;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--sim-bg);
+    }
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .side {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: var(--sim-space-3);
+      padding: var(--sim-space-3);
+      background: var(--sim-surface);
+      border-left: 1px solid var(--sim-border);
+      overflow: hidden;
+    }
+    .readouts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--sim-space-3);
+    }
+    .metric {
+      padding: var(--sim-space-3);
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-md);
+      background: var(--sim-surface-soft);
+    }
+    .metric small {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--sim-muted);
+      font-size: 0.72rem;
+    }
+    .metric strong {
+      font-size: 1.15rem;
+      letter-spacing: -.02em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sim-text);
+    }
+    .insight {
+      padding: var(--sim-space-3);
+      border-left: 3px solid var(--sim-warning);
+      border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+      background: rgba(240, 160, 64, 0.08);
+      color: var(--sim-warning);
+      font-weight: 600;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      overflow: auto;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: var(--sim-space-5);
+      padding: var(--sim-space-3) var(--sim-space-5);
+      background: linear-gradient(to top, rgba(13, 19, 38, 0.96), rgba(13, 19, 38, 0.82));
+      border-top: 1px solid var(--sim-border);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .actions {
+      display: flex;
+      gap: var(--sim-space-2);
+      flex-shrink: 0;
+    }
+    .action-btn {
+      padding: 9px 16px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      background: transparent;
+      color: var(--sim-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .action-btn:hover {
+      border-color: var(--sim-accent-deep);
+      color: var(--sim-text);
+    }
+    .action-btn.primary {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: var(--sim-accent-soft);
+      box-shadow: 0 0 12px rgba(95, 199, 255, 0.2);
+    }
+    .action-btn:focus-visible {
+      outline: 2px solid var(--sim-accent);
+      outline-offset: 2px;
+    }
+    .field-buttons {
+      display: flex;
+      gap: var(--sim-space-2);
+      flex-shrink: 0;
+    }
+    .field-btn {
+      padding: 9px 16px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      background: transparent;
+      color: var(--sim-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .field-btn:hover {
+      border-color: var(--sim-accent-deep);
+      color: var(--sim-text);
+    }
+    .field-btn.active {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: var(--sim-accent-soft);
+      box-shadow: 0 0 12px rgba(95, 199, 255, 0.2);
+    }
+    .field-btn:focus-visible {
+      outline: 2px solid var(--sim-accent);
+      outline-offset: 2px;
+    }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: var(--sim-space-4);
+      flex: 1;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+    .control {
+      display: flex;
+      align-items: center;
+      gap: var(--sim-space-3);
+      min-width: 0;
+    }
+    .control label {
+      font-size: 0.8rem;
+      color: var(--sim-muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .control output {
+      font-size: 0.85rem;
+      color: var(--sim-accent);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      min-width: 3.2em;
+      text-align: right;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 130px;
+      height: 4px;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(95, 199, 255, 0.5);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border: none;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(95, 199, 255, 0.5);
+    }
+    input[type="range"]:focus-visible {
+      outline: 2px solid var(--sim-accent);
+      outline-offset: 4px;
+    }
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+      .side { border-left: none; border-top: 1px solid var(--sim-border); grid-template-rows: auto auto; grid-template-columns: 1fr 1fr; }
+      .insight { grid-column: 1 / -1; }
+    }
+    @media (max-width: 720px) {
+      .controls {
+        flex-direction: column;
+        gap: var(--sim-space-3);
+        padding: var(--sim-space-3);
+      }
+      .field-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .slider-group {
+        flex-direction: column;
+        width: 100%;
+        align-items: stretch;
+      }
+      .control {
+        justify-content: space-between;
+      }
+      input[type="range"] { width: 100%; flex: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>向量场流线可视化</h1>
+        <p>切换场类型，观察粒子如何沿向量场流动并揭示场结构。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    </header>
+
+    <main class="main">
+      <section class="stage-wrap" data-region="stage" aria-label="向量场粒子流可视化舞台">
+        <canvas id="scene" role="img" aria-label="发光粒子沿向量场流动的实时可视化"></canvas>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="readouts" aria-label="实时数值">
+          <div class="metric"><small>场强</small><strong id="strengthReadout">1.2</strong></div>
+          <div class="metric"><small>粒子数</small><strong id="countReadout">2500</strong></div>
+        </section>
+        <section class="insight" data-region="insight" aria-label="观察提示">
+          <p id="insight">粒子轨迹的亮度反映局部速度大小。偶极子场中，粒子从源出发流向汇。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="模拟控件">
+      <div class="actions">
+        <button id="startBtn" class="action-btn primary" type="button">开始</button>
+        <button id="pauseBtn" class="action-btn" type="button">暂停</button>
+        <button id="resetBtn" class="action-btn" type="button">重置</button>
+      </div>
+      <div class="field-buttons" role="group" aria-label="向量场类型切换">
+        <button class="field-btn active" data-field="dipole" type="button" aria-pressed="true">偶极子</button>
+        <button class="field-btn" data-field="vortex" type="button" aria-pressed="false">涡旋</button>
+        <button class="field-btn" data-field="saddle" type="button" aria-pressed="false">鞍点</button>
+        <button class="field-btn" data-field="uniform-vortex" type="button" aria-pressed="false">均匀+涡旋</button>
+      </div>
+      <div class="slider-group">
+        <div class="control">
+          <label for="strengthInput">场强</label>
+          <input id="strengthInput" type="range" min="0.3" max="3" step="0.1" value="1.2" aria-label="场强">
+          <output id="strengthOutput">1.2</output>
+        </div>
+        <div class="control">
+          <label for="countInput">粒子数</label>
+          <input id="countInput" type="range" min="500" max="5000" step="100" value="2500" aria-label="粒子数量">
+          <output id="countOutput">2500</output>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    const state = {
+      running: true,
+      field: "dipole",
+      strength: 1.2,
+      particleCount: 2500,
+      particles: [],
+      lastTimestamp: null,
+      accumulator: 0,
+      width: 0,
+      height: 0,
+      dpr: 1
+    };
+
+    const FIXED_DT = 1 / 120;
+    const MAX_SUBSTEPS = 3;
+
+    const elements = {
+      status: document.getElementById("status"),
+      insight: document.getElementById("insight"),
+      strengthReadout: document.getElementById("strengthReadout"),
+      countReadout: document.getElementById("countReadout"),
+      strengthOutput: document.getElementById("strengthOutput"),
+      countOutput: document.getElementById("countOutput"),
+      strengthInput: document.getElementById("strengthInput"),
+      countInput: document.getElementById("countInput"),
+      startBtn: document.getElementById("startBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn")
+    };
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    // 四种解析向量场：返回归一化方向向量乘以场强
+    function getField(x, y, type, strength) {
+      const cx = state.width / 2;
+      const cy = state.height / 2;
+      const scale = 80;
+      const dx = (x - cx) / scale;
+      const dy = (y - cy) / scale;
+      let vx = 0, vy = 0;
+
+      switch (type) {
+        case "dipole": {
+          // 源在左，汇在右
+          const sx = -1.8, sy = 0;
+          const tx = 1.8, ty = 0;
+          const r1x = dx - sx, r1y = dy - sy;
+          const r2x = dx - tx, r2y = dy - ty;
+          const d1 = Math.sqrt(r1x * r1x + r1y * r1y) + 0.15;
+          const d2 = Math.sqrt(r2x * r2x + r2y * r2y) + 0.15;
+          vx = (r1x / (d1 * d1)) - (r2x / (d2 * d2));
+          vy = (r1y / (d1 * d1)) - (r2y / (d2 * d2));
+          break;
+        }
+        case "vortex": {
+          // 逆时针点涡旋：v = (-dy, dx) / r
+          const r = Math.sqrt(dx * dx + dy * dy) + 0.15;
+          vx = -dy / r;
+          vy = dx / r;
+          break;
+        }
+        case "saddle": {
+          // 鞍点：v = (x, -y)
+          vx = dx;
+          vy = -dy;
+          break;
+        }
+        case "uniform-vortex": {
+          // 均匀流（向右）叠加顺时针涡旋
+          const r = Math.sqrt(dx * dx + dy * dy) + 0.15;
+          vx = 1.0 + (dy / r) * 0.8;
+          vy = -(dx / r) * 0.8;
+          break;
+        }
+      }
+
+      const mag = Math.sqrt(vx * vx + vy * vy);
+      if (mag < 1e-8) return { vx: 0, vy: 0 };
+      // 归一化后乘以场强，保证视觉速度一致
+      const s = strength * 80 / mag;
+      return { vx: vx * s, vy: vy * s };
+    }
+
+    function createParticle() {
+      return {
+        x: Math.random() * state.width,
+        y: Math.random() * state.height,
+        px: 0,
+        py: 0,
+        life: Math.random() * 4,
+        maxLife: 2.5 + Math.random() * 3.5
+      };
+    }
+
+    function initParticles(count) {
+      state.particles = [];
+      for (let i = 0; i < count; i++) {
+        const p = createParticle();
+        p.px = p.x;
+        p.py = p.y;
+        state.particles.push(p);
+      }
+    }
+
+    function resize() {
+      const wrap = canvas.parentElement;
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      state.width = w;
+      state.height = h;
+      state.dpr = dpr;
+      canvas.width = Math.max(1, Math.floor(w * dpr));
+      canvas.height = Math.max(1, Math.floor(h * dpr));
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 用纯背景填充，清空旧画面
+      ctx.fillStyle = "#070b18";
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function init() {
+      resize();
+      initParticles(state.particleCount);
+      bindControls();
+      window.addEventListener("resize", () => {
+        resize();
+      });
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.accumulator = 0;
+      initParticles(state.particleCount);
+      ctx.fillStyle = "#070b18";
+      ctx.fillRect(0, 0, state.width, state.height);
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.accumulator += boundedDt;
+      let steps = 0;
+      while (state.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
+        stepParticles(FIXED_DT);
+        state.accumulator -= FIXED_DT;
+        steps++;
+      }
+      // 防止累积器堆积
+      if (state.accumulator > FIXED_DT * MAX_SUBSTEPS) {
+        state.accumulator = 0;
+      }
+    }
+
+    function stepParticles(dt) {
+      const w = state.width;
+      const h = state.height;
+      const margin = 30;
+      const particles = state.particles;
+      const field = state.field;
+      const strength = state.strength;
+
+      for (let i = 0, len = particles.length; i < len; i++) {
+        const p = particles[i];
+        p.px = p.x;
+        p.py = p.y;
+        const f = getField(p.x, p.y, field, strength);
+        p.x += f.vx * dt;
+        p.y += f.vy * dt;
+        p.life += dt;
+
+        // 越界或寿命到则重生
+        if (p.x < -margin || p.x > w + margin || p.y < -margin || p.y > h + margin || p.life > p.maxLife) {
+          const np = createParticle();
+          p.x = np.x;
+          p.y = np.y;
+          p.px = p.x;
+          p.py = p.y;
+          p.life = 0;
+          p.maxLife = np.maxLife;
+        }
+      }
+    }
+
+    function render() {
+      // 半透明覆盖产生拖尾渐隐
+      ctx.fillStyle = "rgba(7, 11, 24, 0.075)";
+      ctx.fillRect(0, 0, state.width, state.height);
+
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+
+      const particles = state.particles;
+      const field = state.field;
+      const strength = state.strength;
+
+      for (let i = 0, len = particles.length; i < len; i++) {
+        const p = particles[i];
+        const dx = p.x - p.px;
+        const dy = p.y - p.py;
+        const speed = Math.sqrt(dx * dx + dy * dy);
+        if (speed < 0.01) continue;
+
+        // 速度映射到亮度：高速更亮，呈现场强分布
+        const brightness = clamp(speed * 0.04, 0.15, 1);
+        // 青色到白色的双色渐变
+        const r = Math.floor(95 + (255 - 95) * brightness);
+        const g = Math.floor(199 + (255 - 199) * brightness);
+        const b = 255;
+        const alpha = 0.35 + brightness * 0.45;
+
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.lineWidth = 0.9 + brightness * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(p.px, p.py);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+
+      // 更新读数与提示
+      elements.strengthReadout.textContent = state.strength.toFixed(1);
+      elements.countReadout.textContent = String(state.particleCount);
+
+      const fieldNames = {
+        "dipole": "偶极子",
+        "vortex": "涡旋",
+        "saddle": "鞍点",
+        "uniform-vortex": "均匀+涡旋"
+      };
+      const fieldName = fieldNames[state.field] || state.field;
+
+      if (!state.running) {
+        elements.insight.textContent = `已暂停 — 当前场：${fieldName}。点击开始恢复粒子流动。`;
+      } else {
+        switch (state.field) {
+          case "dipole":
+            elements.insight.textContent = "偶极子场：粒子从左侧源出发，沿场线流向右侧汇，中轴线水平。";
+            break;
+          case "vortex":
+            elements.insight.textContent = "涡旋场：粒子绕中心做逆时针旋转，越靠近中心速度越大。";
+            break;
+          case "saddle":
+            elements.insight.textContent = "鞍点场：粒子沿 x 轴远离中心、沿 y 轴靠近中心，形成双曲流线。";
+            break;
+          case "uniform-vortex":
+            elements.insight.textContent = "均匀流+涡旋：远处以水平向右为主，近中心受涡旋扰动而弯曲。";
+            break;
+        }
+      }
+    }
+
+    function setParameters(values) {
+      if (values.field !== undefined) {
+        state.field = values.field;
+      }
+      if (values.strength !== undefined) {
+        state.strength = clamp(finite(Number(values.strength), 1.2), 0.3, 3);
+      }
+      if (values.particleCount !== undefined) {
+        const newCount = Math.round(clamp(finite(Number(values.particleCount), 2500), 500, 5000) / 100) * 100;
+        if (newCount !== state.particleCount) {
+          state.particleCount = newCount;
+          initParticles(newCount);
+        }
+      }
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        field: state.field,
+        strength: state.strength,
+        particleCount: state.particleCount,
+        particleArrayLength: state.particles.length
+      };
+    }
+
+    function getReadouts() {
+      return {
+        field: state.field,
+        strength: state.strength,
+        particleCount: state.particleCount
+      };
+    }
+
+    function runModelChecks() {
+      const oldW = state.width, oldH = state.height;
+      state.width = 800;
+      state.height = 600;
+
+      const cx = 400, cy = 300;
+      const testPoint = (x, y, type, strength) => {
+        const f = getField(x, y, type, strength);
+        return { vx: f.vx, vy: f.vy };
+      };
+
+      // 偶极子：在两极中线上，场应水平
+      const dipMid = testPoint(cx, cy, "dipole", 1);
+      const dipMidHoriz = Math.abs(dipMid.vy) < 0.5 && Math.abs(dipMid.vx) > 0.5;
+
+      // 涡旋：在右侧，场应垂直向上
+      const vortRight = testPoint(cx + 100, cy, "vortex", 1);
+      const vortRightUp = vortRight.vy < -0.5;
+
+      // 鞍点：在右上，场应指向右上
+      const saddleRU = testPoint(cx + 50, cy - 50, "saddle", 1);
+      const saddleRUDiag = saddleRU.vx > 0 && saddleRU.vy > 0;
+
+      // 均匀+涡旋：在远处涡旋衰减后，场应接近水平向右
+      const uniFar = testPoint(cx + 300, cy + 300, "uniform-vortex", 1);
+      const uniFarRight = uniFar.vx > 0.5 && Math.abs(uniFar.vy) < Math.abs(uniFar.vx);
+
+      // 场强缩放：强度加倍，速度应加倍
+      const s1 = testPoint(cx + 50, cy - 50, "saddle", 1);
+      const s2 = testPoint(cx + 50, cy - 50, "saddle", 2);
+      const strengthScaling = Math.abs(s2.vx) > Math.abs(s1.vx) * 1.8;
+
+      state.width = oldW;
+      state.height = oldH;
+
+      return [
+        { name: "dipole field horizontal at midpoint", pass: dipMidHoriz, expected: "|vy|<0.5, |vx|>0.5", actual: `vx=${dipMid.vx.toFixed(2)}, vy=${dipMid.vy.toFixed(2)}`, tolerance: "directional" },
+        { name: "vortex field upward at right", pass: vortRightUp, expected: "vy<0 (upward)", actual: `vy=${vortRight.vy.toFixed(2)}`, tolerance: "directional" },
+        { name: "saddle field up-right at upper-right", pass: saddleRUDiag, expected: "vx>0, vy>0", actual: `vx=${saddleRU.vx.toFixed(2)}, vy=${saddleRU.vy.toFixed(2)}`, tolerance: "directional" },
+        { name: "uniform-vortex horizontal at far point", pass: uniFarRight, expected: "vx>0.5, |vy|<|vx|", actual: `vx=${uniFar.vx.toFixed(2)}, vy=${uniFar.vy.toFixed(2)}`, tolerance: "directional" },
+        { name: "strength scaling doubles velocity", pass: strengthScaling, expected: "|v(2)| > 1.8×|v(1)|", actual: `|v1|=${Math.abs(s1.vx).toFixed(2)}, |v2|=${Math.abs(s2.vx).toFixed(2)}`, tolerance: "ratio" }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+
+      const fieldBtns = document.querySelectorAll(".field-btn");
+      fieldBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+          fieldBtns.forEach(b => {
+            b.classList.remove("active");
+            b.setAttribute("aria-pressed", "false");
+          });
+          btn.classList.add("active");
+          btn.setAttribute("aria-pressed", "true");
+          setParameters({ field: btn.dataset.field });
+        });
+      });
+
+      elements.strengthInput.addEventListener("input", () => {
+        const v = elements.strengthInput.value;
+        elements.strengthOutput.textContent = Number(v).toFixed(1);
+        setParameters({ strength: v });
+      });
+
+      elements.countInput.addEventListener("input", () => {
+        const v = elements.countInput.value;
+        elements.countOutput.textContent = v;
+        setParameters({ particleCount: v });
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init,
+      start,
+      pause,
+      reset,
+      update,
+      render,
+      setParameters,
+      getState,
+      getReadouts,
+      runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

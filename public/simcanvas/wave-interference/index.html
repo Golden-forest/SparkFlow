@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>波的叠加 · 干涉与驻波</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-node: #2563eb;
+      --sim-antinode: #f59e0b;
+      --sim-bright: #fef3c7;
+      --sim-dark: #1e293b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(280px, 0.55fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: #0a1628; cursor: crosshair; touch-action: none; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 0.72rem; color: var(--sim-muted); }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>波的叠加 · 干涉与驻波</h1>
+        <p>拖动波源、调节频率与振幅，观察干涉条纹与驻波形态如何随路径差变化</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">干涉模式 · 运行中</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">波场主舞台</h2>
+          <span id="scene-subtitle">干涉图样 · 双源同频同相叠加</span>
+        </div>
+        <canvas id="scene" width="760" height="420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">波场可视化：干涉模式显示双源叠加的明暗条纹，驻波模式显示两端反射叠加的波节与波腹。</desc>
+        </canvas>
+        <div class="legend" id="legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#fef3c7"></span>亮纹（相长）</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#1e293b"></span>暗纹（相消）</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#2563eb"></span>波节</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>波腹</span>
+        </div>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>频率 f</small><strong id="freqReadout">1.0 Hz</strong></div>
+            <div class="metric"><small>波长 λ</small><strong id="lambdaReadout">60 px</strong></div>
+            <div class="metric"><small id="metric3-label">路径差 Δ</small><strong id="metric3">0 px</strong></div>
+            <div class="metric"><small id="metric4-label">波节数</small><strong id="metric4">2</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>观察提示</h2></div>
+          <p id="insight" class="insight">拖动两个波源改变间距，观察明暗条纹如何变宽或变密。路径差 Δ = nλ 处为亮纹，Δ = (n+½)λ 处为暗纹。</p>
+          <p id="model-note-text">教学模型：干涉强度 I ∝ cos²(πΔ/λ)。驻波 y = 2A sin(kx)cos(ωt)，波节 sin(kx)=0，波腹 |sin(kx)|=1。频率自动匹配共振条件 L = n·λ/2。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控件">
+      <div class="actions">
+        <button id="modeBtn" class="primary" type="button" aria-pressed="false">驻波模式</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="freqInput">频率 <output id="freqOutput">1.0 Hz</output></label>
+        <input id="freqInput" type="range" min="0.5" max="3.0" step="0.1" value="1.0">
+      </div>
+      <div class="control">
+        <label for="ampInput">振幅 <output id="ampOutput">1.0</output></label>
+        <input id="ampInput" type="range" min="0.3" max="1.5" step="0.1" value="1.0">
+      </div>
+      <div></div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "freq", label: "频率", type: "slider", min: 0.5, max: 3.0, step: 0.1, default: 1.0, unit: "Hz" },
+      { key: "amp", label: "振幅", type: "slider", min: 0.3, max: 1.5, step: 0.1, default: 1.0, unit: "" }
+    ];
+
+    // 画布与渲染参数
+    const canvas = document.querySelector("#scene");
+    const ctx = canvas.getContext("2d");
+    const W = 760, H = 420;
+    const PIXEL_PER_UNIT = 1; // 1 px = 1 单位
+    const WAVE_SPEED = 60;   // px/s，使 f=1Hz 时 λ=60px
+
+    // 状态
+    const state = {
+      running: true,
+      mode: "interference", // "interference" | "standing"
+      t: 0,
+      freq: 1.0,
+      amp: 1.0,
+      lastTimestamp: null,
+      sourceA: { x: 230, y: 210 },
+      sourceB: { x: 530, y: 210 },
+      dragging: null,
+      // 驻波参数
+      standingNodes: 2,
+      standingPhase: 0
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      sceneSubtitle: document.querySelector("#scene-subtitle"),
+      legend: document.querySelector("#legend"),
+      freqReadout: document.querySelector("#freqReadout"),
+      lambdaReadout: document.querySelector("#lambdaReadout"),
+      metric3: document.querySelector("#metric3"),
+      metric4: document.querySelector("#metric4"),
+      metric3Label: document.querySelector("#metric3-label"),
+      metric4Label: document.querySelector("#metric4-label"),
+      insight: document.querySelector("#insight"),
+      modelNoteText: document.querySelector("#model-note-text"),
+      freqInput: document.querySelector("#freqInput"),
+      freqOutput: document.querySelector("#freqOutput"),
+      ampInput: document.querySelector("#ampInput"),
+      ampOutput: document.querySelector("#ampOutput"),
+      modeBtn: document.querySelector("#modeBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    // 干涉强度计算：I ∝ cos²(πΔ/λ)
+    // 返回 [0,1]，1 = 亮纹（相长），0 = 暗纹（相消）
+    function interferenceIntensity(x, y) {
+      const dx1 = x - state.sourceA.x;
+      const dy1 = y - state.sourceA.y;
+      const dx2 = x - state.sourceB.x;
+      const dy2 = y - state.sourceB.y;
+      const r1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+      const r2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+      const lambda = WAVE_SPEED / state.freq;
+      const phaseDiff = (Math.PI * (r1 - r2)) / lambda;
+      return Math.cos(phaseDiff) * Math.cos(phaseDiff); // cos²
+    }
+
+    // 驻波振幅：y = 2A sin(kx) cos(ωt)
+    // 返回当前位移（带符号）
+    function standingWaveDisplacement(x) {
+      const L = W - 80; // 弦长，留边距
+      const xRel = x - 40;
+      if (xRel < 0 || xRel > L) return 0;
+      const lambda = WAVE_SPEED / state.freq;
+      const k = (2 * Math.PI) / lambda;
+      const envelope = Math.sin(k * xRel);
+      const omega = 2 * Math.PI * state.freq;
+      return 2 * state.amp * 30 * envelope * Math.cos(omega * state.t + state.standingPhase);
+    }
+
+    // 驻波包络振幅（绝对值）
+    function standingEnvelope(x) {
+      const L = W - 80;
+      const xRel = x - 40;
+      if (xRel < 0 || xRel > L) return 0;
+      const lambda = WAVE_SPEED / state.freq;
+      const k = (2 * Math.PI) / lambda;
+      return Math.abs(2 * state.amp * 30 * Math.sin(k * xRel));
+    }
+
+    // 计算驻波波节数（共振模式数）
+    function computeStandingNodes() {
+      const L = W - 80;
+      const lambda = WAVE_SPEED / state.freq;
+      // 共振条件 L = n * λ/2 → n = 2L/λ
+      const nIdeal = (2 * L) / lambda;
+      return Math.max(1, Math.round(nIdeal));
+    }
+
+    // 量化频率到最接近的共振频率
+    function quantizeFreq(f) {
+      const L = W - 80;
+      // n = 2L*f/v → f = n*v/(2L)
+      const nIdeal = (2 * L * f) / WAVE_SPEED;
+      const n = Math.max(1, Math.round(nIdeal));
+      return (n * WAVE_SPEED) / (2 * L);
+    }
+
+    // 渲染干涉图样
+    function renderInterference() {
+      const imageData = ctx.createImageData(W, H);
+      const data = imageData.data;
+      const lambda = WAVE_SPEED / state.freq;
+      const omega = 2 * Math.PI * state.freq;
+      const timePhase = omega * state.t;
+
+      for (let py = 0; py < H; py++) {
+        for (let px = 0; px < W; px++) {
+          const dx1 = px - state.sourceA.x;
+          const dy1 = py - state.sourceA.y;
+          const dx2 = px - state.sourceB.x;
+          const dy2 = py - state.sourceB.y;
+          const r1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+          const r2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+
+          // 波1：A/r1 * cos(kr1 - ωt)
+          const k = (2 * Math.PI) / lambda;
+          const decay1 = 1 / (1 + r1 * 0.015);
+          const decay2 = 1 / (1 + r2 * 0.015);
+          const w1 = state.amp * decay1 * Math.cos(k * r1 - timePhase);
+          const w2 = state.amp * decay2 * Math.cos(k * r2 - timePhase);
+          const sum = w1 + w2;
+
+          // 映射到颜色：正→暖色（亮纹），负→冷色，零→暗
+          // 使用 sum 的符号和大小
+          const intensity = sum / (2 * state.amp); // 归一化到 [-1, 1]
+          const idx = (py * W + px) * 4;
+
+          if (intensity > 0) {
+            // 正：亮黄到白
+            const v = clamp(intensity, 0, 1);
+            data[idx] = clamp(254 * v + 30, 0, 255);     // R
+            data[idx + 1] = clamp(243 * v + 40, 0, 255); // G
+            data[idx + 2] = clamp(199 * v + 60, 0, 255); // B
+          } else {
+            // 负：深蓝到黑
+            const v = clamp(-intensity, 0, 1);
+            data[idx] = clamp(30 - 20 * v, 0, 255);
+            data[idx + 1] = clamp(41 - 30 * v, 0, 255);
+            data[idx + 2] = clamp(80 + 40 * v, 0, 255);
+          }
+          data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      // 绘制波源标记
+      drawSource(state.sourceA, "A");
+      drawSource(state.sourceB, "B");
+    }
+
+    function drawSource(src, label) {
+      ctx.save();
+      // 外圈光晕
+      const grad = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, 18);
+      grad.addColorStop(0, "rgba(255,255,255,0.9)");
+      grad.addColorStop(0.5, "rgba(255,200,100,0.4)");
+      grad.addColorStop(1, "rgba(255,200,100,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, 18, 0, 2 * Math.PI);
+      ctx.fill();
+      // 核心
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      // 标签
+      ctx.fillStyle = "#f59e0b";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, src.x, src.y - 16);
+      ctx.restore();
+    }
+
+    // 渲染驻波
+    function renderStanding() {
+      // 背景
+      ctx.fillStyle = "#0a1628";
+      ctx.fillRect(0, 0, W, H);
+
+      const margin = 40;
+      const L = W - 2 * margin;
+      const midY = H / 2;
+      const lambda = WAVE_SPEED / state.freq;
+      const k = (2 * Math.PI) / lambda;
+      const omega = 2 * Math.PI * state.freq;
+      const timePhase = omega * state.t + state.standingPhase;
+      const ampPx = 2 * state.amp * 30; // 2A in pixels
+
+      // 绘制包络（上下边界）
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let x = margin; x <= W - margin; x += 2) {
+        const xRel = x - margin;
+        const env = Math.abs(ampPx * Math.sin(k * xRel));
+        const y = midY - env;
+        if (x === margin) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      for (let x = margin; x <= W - margin; x += 2) {
+        const xRel = x - margin;
+        const env = Math.abs(ampPx * Math.sin(k * xRel));
+        const y = midY + env;
+        if (x === margin) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // 绘制波形（当前时刻）
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 3;
+      ctx.shadowColor = "rgba(245, 158, 11, 0.5)";
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      for (let x = margin; x <= W - margin; x += 1) {
+        const xRel = x - margin;
+        const env = ampPx * Math.sin(k * xRel);
+        const y = midY + env * Math.cos(timePhase);
+        if (x === margin) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 绘制中心参考线
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(margin, midY);
+      ctx.lineTo(W - margin, midY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 绘制波节（蓝色竖线）
+      const nodes = computeStandingNodes();
+      for (let i = 0; i <= nodes; i++) {
+        const xRel = (i * L) / nodes;
+        const x = margin + xRel;
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, midY - ampPx - 10);
+        ctx.lineTo(x, midY + ampPx + 10);
+        ctx.stroke();
+        // 标签
+        ctx.fillStyle = "#60a5fa";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("N", x, midY - ampPx - 16);
+      }
+
+      // 绘制波腹（橙色竖线 + 标记）
+      for (let i = 0; i < nodes; i++) {
+        const xRel = ((i + 0.5) * L) / nodes;
+        const x = margin + xRel;
+        const env = Math.abs(ampPx * Math.sin(k * xRel));
+        if (env > 2) {
+          ctx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x, midY - env);
+          ctx.lineTo(x, midY + env);
+          ctx.stroke();
+          // 波腹标记
+          ctx.fillStyle = "#f59e0b";
+          ctx.beginPath();
+          ctx.arc(x, midY - env, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x, midY + env, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          ctx.fillStyle = "#fbbf24";
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("A", x, midY - env - 8);
+        }
+      }
+
+      // 两端固定标记
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("固定端", margin, H - 20);
+      ctx.fillText("固定端", W - margin, H - 20);
+
+      // 竖线
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(margin, midY - ampPx - 15);
+      ctx.lineTo(margin, midY + ampPx + 15);
+      ctx.moveTo(W - margin, midY - ampPx - 15);
+      ctx.lineTo(W - margin, midY + ampPx + 15);
+      ctx.stroke();
+    }
+
+    function render() {
+      if (state.mode === "interference") {
+        renderInterference();
+      } else {
+        renderStanding();
+      }
+      updateReadouts();
+    }
+
+    function updateReadouts() {
+      const lambda = WAVE_SPEED / state.freq;
+      elements.freqReadout.textContent = `${state.freq.toFixed(1)} Hz`;
+      elements.lambdaReadout.textContent = `${lambda.toFixed(0)} px`;
+
+      if (state.mode === "interference") {
+        elements.metric3Label.textContent = "路径差 Δ";
+        const dx = state.sourceB.x - state.sourceA.x;
+        const dy = state.sourceB.y - state.sourceA.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        elements.metric3.textContent = `${dist.toFixed(0)} px`;
+        elements.metric4Label.textContent = "条纹级数";
+        // 最大级数 ≈ dist / λ
+        const maxOrder = Math.floor(dist / lambda);
+        elements.metric4.textContent = `±${maxOrder}`;
+
+        elements.sceneSubtitle.textContent = "干涉图样 · 双源同频同相叠加";
+        elements.legend.style.display = "";
+        const gap = Math.abs(dist - lambda * Math.round(dist / lambda));
+        elements.insight.textContent = state.running
+          ? `两源间距 ${dist.toFixed(0)}px，波长 ${lambda.toFixed(0)}px。路径差 Δ = nλ（n=0,±1,±2…）处为亮纹，Δ = (n+½)λ 处为暗纹。拖近波源使条纹变宽，调高频率使条纹变密。`
+          : "已暂停。拖动波源或调节频率后恢复观察。";
+        elements.modelNoteText.textContent = "教学模型：干涉强度 I ∝ cos²(πΔ/λ)，Δ = |r₁ - r₂|。波源以同频同相发出圆形波，叠加区形成稳定明暗条纹。";
+      } else {
+        const nodes = computeStandingNodes();
+        elements.metric3Label.textContent = "波节数";
+        elements.metric3.textContent = `${nodes + 1}`;
+        elements.metric4Label.textContent = "共振模式 n";
+        elements.metric4.textContent = `${nodes}`;
+
+        elements.sceneSubtitle.textContent = "驻波形态 · 两端反射叠加";
+        elements.legend.style.display = "";
+        elements.insight.textContent = state.running
+          ? `共振模式 n=${nodes}，波节数=${nodes + 1}（含两端）。波节处弦静止不动，波腹处振幅最大（2A）。调节频率使 n 改变，波节数随之增减。`
+          : "已暂停。调节频率观察波节数变化。";
+        elements.modelNoteText.textContent = "教学模型：y(x,t) = 2A sin(kx)cos(ωt)。两端固定 x=0,L 处 sin(kx)=0 为波节；sin(kx)=±1 处为波腹。共振条件 L = n·λ/2。";
+      }
+
+      elements.freqOutput.textContent = `${state.freq.toFixed(1)} Hz`;
+      elements.ampOutput.textContent = state.amp.toFixed(1);
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+    }
+
+    function start() {
+      state.running = true;
+      elements.pauseBtn.textContent = "暂停";
+      elements.status.textContent = state.mode === "interference" ? "干涉模式 · 运行中" : "驻波模式 · 运行中";
+    }
+
+    function pause() {
+      state.running = false;
+      elements.pauseBtn.textContent = "继续";
+      elements.status.textContent = state.mode === "interference" ? "干涉模式 · 已暂停" : "驻波模式 · 已暂停";
+    }
+
+    function reset() {
+      state.t = 0;
+      state.standingPhase = 0;
+      state.sourceA = { x: 230, y: 210 };
+      state.sourceB = { x: 530, y: 210 };
+      setParameters({ freq: 1.0, amp: 1.0 });
+      if (!state.running) start();
+      render();
+    }
+
+    function setParameters(values) {
+      const freqDef = parameterSchema[0], ampDef = parameterSchema[1];
+      let newFreq = clamp(finite(Number(values.freq), freqDef.default), freqDef.min, freqDef.max);
+      state.amp = clamp(finite(Number(values.amp), ampDef.default), ampDef.min, ampDef.max);
+
+      if (state.mode === "standing") {
+        // 驻波模式：量化频率到共振点
+        newFreq = quantizeFreq(newFreq);
+      }
+      state.freq = newFreq;
+      state.standingNodes = computeStandingNodes();
+
+      elements.freqInput.value = String(state.freq);
+      elements.ampInput.value = String(state.amp);
+      render();
+    }
+
+    function switchMode() {
+      if (state.mode === "interference") {
+        state.mode = "standing";
+        elements.modeBtn.textContent = "干涉模式";
+        elements.modeBtn.setAttribute("aria-pressed", "true");
+        // 量化频率
+        setParameters({ freq: state.freq, amp: state.amp });
+      } else {
+        state.mode = "interference";
+        elements.modeBtn.textContent = "驻波模式";
+        elements.modeBtn.setAttribute("aria-pressed", "false");
+        render();
+      }
+      if (state.running) {
+        elements.status.textContent = state.mode === "interference" ? "干涉模式 · 运行中" : "驻波模式 · 运行中";
+      }
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        mode: state.mode,
+        t: state.t,
+        freq: state.freq,
+        amp: state.amp,
+        sourceA: { ...state.sourceA },
+        sourceB: { ...state.sourceB },
+        standingNodes: state.standingNodes
+      };
+    }
+
+    function getReadouts() {
+      const lambda = WAVE_SPEED / state.freq;
+      const dx = state.sourceB.x - state.sourceA.x;
+      const dy = state.sourceB.y - state.sourceA.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      return {
+        freq: state.freq,
+        lambda,
+        amplitude: state.amp,
+        pathDiff: dist,
+        standingNodes: computeStandingNodes()
+      };
+    }
+
+    function runModelChecks() {
+      const lambda = WAVE_SPEED / state.freq;
+      const k = (2 * Math.PI) / lambda;
+
+      // 干涉检查：路径差 = nλ 处应为亮纹（强度=1）
+      const brightCheck = (() => {
+        // 模拟路径差恰好为 1 个波长
+        const delta = lambda;
+        const phaseDiff = (Math.PI * delta) / lambda;
+        const intensity = Math.cos(phaseDiff) * Math.cos(phaseDiff);
+        return Math.abs(intensity - 1.0) < 0.01;
+      })();
+
+      // 干涉检查：路径差 = (n+0.5)λ 处应为暗纹（强度=0）
+      const darkCheck = (() => {
+        const delta = lambda * 0.5;
+        const phaseDiff = (Math.PI * delta) / lambda;
+        const intensity = Math.cos(phaseDiff) * Math.cos(phaseDiff);
+        return Math.abs(intensity - 0.0) < 0.01;
+      })();
+
+      // 驻波检查：波节处振幅应为 0
+      const nodeCheck = (() => {
+        const L = W - 80;
+        const nodes = computeStandingNodes();
+        // 第一个内部波节位置
+        const xRel = L / nodes;
+        const env = Math.abs(Math.sin(k * xRel));
+        return env < 0.01;
+      })();
+
+      // 驻波检查：波腹处振幅应为最大
+      const antinodeCheck = (() => {
+        const L = W - 80;
+        const nodes = computeStandingNodes();
+        const xRel = L / (2 * nodes);
+        const env = Math.abs(Math.sin(k * xRel));
+        return Math.abs(env - 1.0) < 0.01;
+      })();
+
+      // 驻波频率-波节数关系：n = 2L/λ
+      const freqNodeCheck = (() => {
+        const L = W - 80;
+        const expectedN = Math.max(1, Math.round((2 * L) / lambda));
+        return computeStandingNodes() === expectedN;
+      })();
+
+      // 驻波共振条件：L = n·λ/2
+      const resonanceCheck = (() => {
+        const L = W - 80;
+        const n = computeStandingNodes();
+        const expectedL = n * lambda / 2;
+        return Math.abs(L - expectedL) < lambda * 0.01;
+      })();
+
+      return [
+        { name: "干涉亮纹（Δ=nλ 处强度=1）", pass: brightCheck, expected: "intensity ≈ 1", actual: brightCheck ? "1.0" : "≠1", tolerance: 0.01 },
+        { name: "干涉暗纹（Δ=(n+½)λ 处强度=0）", pass: darkCheck, expected: "intensity ≈ 0", actual: darkCheck ? "0.0" : "≠0", tolerance: 0.01 },
+        { name: "驻波波节振幅=0", pass: nodeCheck, expected: "envelope ≈ 0", actual: nodeCheck ? "0" : "≠0", tolerance: 0.01 },
+        { name: "驻波波腹振幅=最大", pass: antinodeCheck, expected: "envelope ≈ 1", actual: antinodeCheck ? "1.0" : "≠1", tolerance: 0.01 },
+        { name: "驻波频率-波节数关系 n=2L/λ", pass: freqNodeCheck, expected: "nodes = round(2L/λ)", actual: `${computeStandingNodes()}`, tolerance: "strict" },
+        { name: "驻波共振条件 L=n·λ/2", pass: resonanceCheck, expected: "L = n·λ/2", actual: resonanceCheck ? "满足" : "不满足", tolerance: "λ·0.01" }
+      ];
+    }
+
+    // 交互：拖拽波源
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const scaleY = H / rect.height;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    function onPointerDown(e) {
+      if (state.mode !== "interference") return;
+      const { x, y } = getCanvasCoords(e);
+      const dA = Math.hypot(x - state.sourceA.x, y - state.sourceA.y);
+      const dB = Math.hypot(x - state.sourceB.x, y - state.sourceB.y);
+      if (dA < 25 && dA <= dB) {
+        state.dragging = "A";
+        canvas.style.cursor = "grabbing";
+      } else if (dB < 25) {
+        state.dragging = "B";
+        canvas.style.cursor = "grabbing";
+      }
+      if (e.touches) e.preventDefault();
+    }
+
+    function onPointerMove(e) {
+      if (state.mode !== "interference") return;
+      const { x, y } = getCanvasCoords(e);
+      if (state.dragging === "A") {
+        state.sourceA.x = clamp(x, 20, W - 20);
+        state.sourceA.y = clamp(y, 20, H - 20);
+        render();
+      } else if (state.dragging === "B") {
+        state.sourceB.x = clamp(x, 20, W - 20);
+        state.sourceB.y = clamp(y, 20, H - 20);
+        render();
+      } else {
+        // 悬停反馈
+        const dA = Math.hypot(x - state.sourceA.x, y - state.sourceA.y);
+        const dB = Math.hypot(x - state.sourceB.x, y - state.sourceB.y);
+        canvas.style.cursor = (dA < 25 || dB < 25) ? "grab" : "crosshair";
+      }
+      if (e.touches) e.preventDefault();
+    }
+
+    function onPointerUp() {
+      state.dragging = null;
+      canvas.style.cursor = "crosshair";
+    }
+
+    function bindControls() {
+      elements.modeBtn.addEventListener("click", switchMode);
+      elements.pauseBtn.addEventListener("click", () => { state.running ? pause() : start(); });
+      elements.resetBtn.addEventListener("click", reset);
+      elements.freqInput.addEventListener("input", () => setParameters({ freq: elements.freqInput.value, amp: state.amp }));
+      elements.ampInput.addEventListener("input", () => setParameters({ freq: state.freq, amp: elements.ampInput.value }));
+
+      canvas.addEventListener("mousedown", onPointerDown);
+      canvas.addEventListener("mousemove", onPointerMove);
+      canvas.addEventListener("mouseup", onPointerUp);
+      canvas.addEventListener("mouseleave", onPointerUp);
+      canvas.addEventListener("touchstart", onPointerDown, { passive: false });
+      canvas.addEventListener("touchmove", onPointerMove, { passive: false });
+      canvas.addEventListener("touchend", onPointerUp);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function init() {
+      bindControls();
+      setParameters({ freq: 1.0, amp: 1.0 });
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

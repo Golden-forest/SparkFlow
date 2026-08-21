@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分形山脉 · 中点位移法</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#020410;
+  --sim-surface:#050816;
+  --sim-surface-soft:#0a1024;
+  --sim-text:#cfe3f5;
+  --sim-muted:#5a6a85;
+  --sim-border:#1a2440;
+  --sim-grid:#0f1830;
+  --sim-accent:#7fdce9;
+  --sim-accent-deep:#3a8b9c;
+  --sim-accent-soft:rgba(127,220,233,0.12);
+  --sim-positive:#7fdce9;
+  --sim-warning:#d9a064;
+  --sim-danger:#e58080;
+  --sim-radius-sm:8px;
+  --sim-radius-md:12px;
+  --sim-radius-lg:16px;
+  --sim-shadow:0 0 0 transparent;
+  --sim-space-1:4px;--sim-space-2:8px;--sim-space-3:12px;
+  --sim-space-4:16px;--sim-space-5:24px;--sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--sim-bg);color:var(--sim-text);font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#stage{position:fixed;inset:0;width:100vw;height:100vh;display:block;background:radial-gradient(ellipse 80% 60% at 50% 38%,rgba(20,40,70,0.55) 0%,rgba(8,16,32,0.7) 45%,#020410 100%);z-index:1}
+.header{position:fixed;top:16px;left:18px;z-index:6;pointer-events:none;max-width:calc(100vw - 36px)}
+.header h1{margin:0 0 4px;font-size:clamp(1.1rem,1.8vw,1.5rem);letter-spacing:-0.02em;line-height:1.1;color:rgba(207,227,245,0.92);text-shadow:0 2px 12px rgba(0,0,0,0.6)}
+.header p{margin:0;font-size:0.72rem;color:rgba(127,220,233,0.55);letter-spacing:0.04em}
+.status{position:fixed;top:16px;right:18px;z-index:6;pointer-events:none;border:1px solid rgba(127,220,233,0.28);border-radius:999px;padding:6px 14px;background:rgba(8,16,32,0.55);color:rgba(190,215,235,0.85);font-size:0.72rem;font-weight:600;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);letter-spacing:0.05em}
+.formula{position:fixed;right:18px;bottom:14px;font-size:10px;letter-spacing:0.02em;color:rgba(190,215,235,0.22);font-variant-numeric:tabular-nums;pointer-events:none;user-select:none;line-height:1.4;z-index:4;text-align:right}
+.formula .name{display:block;font-size:8px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(160,190,215,0.15);margin-bottom:2px}
+.evidence{position:fixed;left:16px;top:16px;z-index:6;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.metric{padding:8px 12px;border:1px solid rgba(127,220,233,0.18);border-radius:10px;background:rgba(8,16,32,0.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);min-width:96px}
+.metric small{display:block;margin-bottom:2px;color:rgba(127,220,233,0.5);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase}
+.metric strong{font-size:0.95rem;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;color:rgba(207,227,245,0.92)}
+.insight{position:fixed;left:16px;bottom:58px;z-index:6;max-width:300px;padding:10px 14px;border-left:2px solid var(--sim-warning);border-radius:0 10px 10px 0;background:rgba(20,30,50,0.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:rgba(217,160,100,0.85);font-size:0.72rem;line-height:1.5;pointer-events:none}
+.controls{pointer-events:auto;position:fixed;left:16px;bottom:14px;display:flex;gap:8px;align-items:center;z-index:5}
+.play-btn{width:30px;height:30px;border-radius:50%;border:1px solid rgba(127,220,233,0.28);background:rgba(8,16,32,0.45);color:rgba(190,215,235,0.7);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .15s ease;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.play-btn:hover{background:rgba(20,40,70,0.6);color:rgba(220,240,250,0.95);border-color:rgba(127,220,233,0.5)}
+.play-btn:active{transform:scale(0.92)}
+.play-btn:focus-visible{outline:2px solid rgba(127,220,233,0.55);outline-offset:3px}
+.play-btn svg{width:12px;height:12px;display:block}
+.reset-btn{border:1px solid rgba(127,220,233,0.28);border-radius:999px;background:rgba(8,16,32,0.45);color:rgba(190,215,235,0.7);cursor:pointer;padding:6px 14px;font-size:0.75rem;font-weight:600;transition:background .25s ease,color .25s ease,border-color .25s ease;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.reset-btn:hover{background:rgba(20,40,70,0.6);color:rgba(220,240,250,0.95);border-color:rgba(127,220,233,0.5)}
+.reset-btn:active{transform:scale(0.96)}
+.reset-btn:focus-visible{outline:2px solid rgba(127,220,233,0.55);outline-offset:3px}
+@media(max-width:560px){.formula{font-size:9px;right:12px;bottom:10px}.play-btn{width:26px;height:26px}.play-btn svg{width:10px;height:10px}.reset-btn{padding:5px 11px;font-size:0.7rem}.controls{left:12px;bottom:10px}.header{left:14px;top:12px}.header h1{font-size:1.05rem}.header p{font-size:0.65rem}.status{right:12px;top:12px;font-size:0.65rem;padding:5px 10px}.evidence{left:12px;top:48px}.metric{padding:6px 10px;min-width:80px}.metric strong{font-size:0.82rem}.insight{left:12px;bottom:52px;max-width:calc(100vw - 24px);font-size:0.65rem;padding:8px 11px}}
+@media(prefers-reduced-motion:reduce){.play-btn,.reset-btn{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="stage" data-region="stage" aria-label="中点位移法生成的分形山脉线框，缓慢自转与视差漂移循环"></canvas>
+
+<header class="header" data-region="header">
+  <h1>分形山脉 · 中点位移法</h1>
+  <p>Midpoint Displacement · 确定性种子 · 实时线框</p>
+</header>
+
+<div id="status" class="status" role="status" aria-live="polite" data-region="status">运行中</div>
+
+<aside class="evidence" data-region="evidence" aria-label="实时数据">
+  <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.0 s</strong></div>
+  <div class="metric"><small>网格规模</small><strong id="gridReadout">49²</strong></div>
+</aside>
+
+<div class="formula" aria-hidden="true">
+  <span class="name">Midpoint Displacement</span>
+  h<sub>中</sub> = (h<sub>1</sub> + h<sub>2</sub>) / 2 + 随机 · 2<sup>−n</sup>
+</div>
+
+<div id="insight" class="insight" data-region="insight" aria-live="polite">山脉由中点位移法递归细分生成：每层在相邻顶点均值上叠加按 2⁻ⁿ 衰减的随机扰动，越细的层级振幅越小，最终形成自相似的崎岖轮廓。</div>
+
+<section class="controls" data-region="controls" aria-label="模拟控制">
+  <button id="resetBtn" class="reset-btn" type="button" aria-label="重置时间" title="重置时间">重置</button>
+  <button id="playBtn" class="play-btn" type="button" aria-label="暂停" title="暂停 / 播放">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+  </button>
+</section>
+
+<script>
+(() => {
+  "use strict";
+  /* ============ 1. 确定性 PRNG（线性同余，固定种子） ============ */
+  function makeRng(seed){
+    let s = (seed >>> 0) || 1;
+    return () => {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  /* ============ 2. 中点位移法生成高度图 ============ */
+  function midpointDisplacement(N, H, roughness, seed){
+    const GSIZE = N + 1;
+    const grid = new Float32Array(GSIZE * GSIZE);
+    const rng = makeRng(seed);
+    grid[0] = (rng() - 0.5) * H;
+    grid[N] = (rng() - 0.5) * H;
+    grid[N * GSIZE] = (rng() - 0.5) * H;
+    grid[N * GSIZE + N] = (rng() - 0.5) * H;
+    let size = N;
+    let h = H;
+    let level = 1;
+    while (size > 1){
+      const half = size >> 1;
+      for (let y = 0; y < N; y += size){
+        for (let x = 0; x < N; x += size){
+          const c = (grid[y*GSIZE+x] + grid[y*GSIZE+x+size] +
+                     grid[(y+size)*GSIZE+x] + grid[(y+size)*GSIZE+x+size]) * 0.25;
+          grid[(y+half)*GSIZE + x+half] = c + (rng() - 0.5) * h;
+        }
+      }
+      for (let y = 0; y <= N; y += half){
+        for (let x = 0; x <= N; x += half){
+          if (((x >> level) & 1) === ((y >> level) & 1)) continue;
+          let sum = 0, cnt = 0;
+          if (x >= half){ sum += grid[y*GSIZE + x-half]; cnt++; }
+          if (x + half <= N){ sum += grid[y*GSIZE + x+half]; cnt++; }
+          if (y >= half){ sum += grid[(y-half)*GSIZE + x]; cnt++; }
+          if (y + half <= N){ sum += grid[(y+half)*GSIZE + x]; cnt++; }
+          grid[y*GSIZE + x] = sum / cnt + (rng() - 0.5) * h;
+        }
+      }
+      size = half;
+      h *= roughness;
+      level++;
+    }
+    return grid;
+  }
+
+  /* ============ 3. 全局参数 ============ */
+  const N = 48;
+  const GSIZE = N + 1;
+  const TERRAIN_W = 3200;   // 大幅加宽，任何视角看不到边界
+  const TERRAIN_D = 2400;
+  const CAM_DIST = 580;
+  const CAM_HEIGHT = 130;
+  const FOV = 480;
+  const H_SCALE = 160;      // 高度对比拉大，尖峭山峰
+  const H_OFFSET = -30;
+  const ROUGHNESS = 0.57;   // 略增粗糙度，山峰更崎岖
+  const H_INIT = 1.2;       // 初始扰动加大
+  const ROT_PERIOD = 95;
+  const DRIFT_AMP = 0.22;
+  const DRIFT_PERIOD = 17;
+  const SEED = 20240914;
+
+  /* 雾化参数：远处淡出，看不到边界 */
+  const FOG_NEAR = 650;
+  const FOG_FAR = 1900;
+
+  const terrainA = midpointDisplacement(N, H_INIT, ROUGHNESS, SEED);
+  const terrainB = midpointDisplacement(N, H_INIT, ROUGHNESS, SEED ^ 0x9e3779b9);
+
+  const worldVertsA = new Float32Array(GSIZE * GSIZE * 3);
+  const worldVertsB = new Float32Array(GSIZE * GSIZE * 3);
+  function fillWorldVerts(arr, heights){
+    let p = 0;
+    for (let r = 0; r < GSIZE; r++){
+      for (let c = 0; c < GSIZE; c++){
+        arr[p++] = (c / N - 0.5) * TERRAIN_W;
+        arr[p++] = heights[r * GSIZE + c] * H_SCALE + H_OFFSET;
+        arr[p++] = (r / N - 0.5) * TERRAIN_D;
+      }
+    }
+  }
+  fillWorldVerts(worldVertsA, terrainA);
+  fillWorldVerts(worldVertsB, terrainB);
+
+  const lineSegs = [];
+  for (let r = 0; r < GSIZE; r++){
+    for (let c = 0; c < GSIZE - 1; c++){
+      lineSegs.push(r * GSIZE + c, r * GSIZE + c + 1);
+    }
+  }
+  for (let c = 0; c < GSIZE; c++){
+    for (let r = 0; r < GSIZE - 1; r++){
+      lineSegs.push(r * GSIZE + c, (r + 1) * GSIZE + c);
+    }
+  }
+  const SEG_COUNT = lineSegs.length / 2;
+
+  /* ============ 4. 颜色映射：低谷深蓝、山脊亮青近白，对比拉大 ============ */
+  function heightColor(hNorm, alpha){
+    const h = Math.max(0, Math.min(1, hNorm));
+    const hc = Math.pow(h, 0.65); // 对比拉伸，中低海拔更偏深蓝
+    let r, g, b;
+    if (hc < 0.4){
+      const t = hc / 0.4;
+      r = 8 + t * 12;
+      g = 22 + t * 55;
+      b = 55 + t * 80;
+    } else if (hc < 0.75){
+      const t = (hc - 0.4) / 0.35;
+      r = 20 + t * 80;
+      g = 77 + t * 120;
+      b = 135 + t * 70;
+    } else {
+      const t = (hc - 0.75) / 0.25;
+      r = 100 + t * 150;
+      g = 197 + t * 55;
+      b = 205 + t * 45;
+    }
+    return `rgba(${r|0},${g|0},${b|0},${alpha})`;
+  }
+
+  /* ============ 5. 雾化因子：远处淡出 ============ */
+  function fogFactor(zc){
+    if (zc <= FOG_NEAR) return 1;
+    if (zc >= FOG_FAR) return 0;
+    const t = (zc - FOG_NEAR) / (FOG_FAR - FOG_NEAR);
+    return 1 - t * t * (3 - 2 * t); // smoothstep 平滑过渡
+  }
+
+  /* ============ 6. 星空 ============ */
+  const stars = [];
+  {
+    const srng = makeRng(SEED ^ 0x12345678);
+    for (let i = 0; i < 90; i++){
+      stars.push({
+        x: srng(),
+        y: srng() * 0.55,
+        r: 0.4 + srng() * 0.9,
+        baseA: 0.35 + srng() * 0.55,
+        twPhase: srng() * Math.PI * 2,
+        twSpeed: 0.4 + srng() * 0.8
+      });
+    }
+  }
+
+  /* ============ 7. Canvas 与渲染状态 ============ */
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  let W = 0, H = 0, DPR = 1;
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = (W * DPR) | 0;
+    canvas.height = (H * DPR) | 0;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ============ 8. 投影 ============ */
+  function project(x, y, z, rot, drift, out){
+    const cs = Math.cos(rot), sn = Math.sin(rot);
+    let xr = x * cs - z * sn;
+    let zr = x * sn + z * cs;
+    xr += drift;
+    const xc = xr;
+    const yc = y - CAM_HEIGHT;
+    const zc = zr + CAM_DIST;
+    if (zc < 1){
+      out[0] = -99999; out[1] = 0; out[2] = zc; return;
+    }
+    const inv = FOV / zc;
+    out[0] = W * 0.5 + xc * inv;
+    out[1] = H * 0.5 - yc * inv;
+    out[2] = zc;
+  }
+
+  /* ============ 9. 绘制天空背景 ============ */
+  function drawSky(t){
+    const g = ctx.createRadialGradient(W * 0.5, H * 0.32, 0, W * 0.5, H * 0.32, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(30,55,90,0.35)');
+    g.addColorStop(0.4, 'rgba(15,30,55,0.18)');
+    g.addColorStop(1, 'rgba(2,4,16,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* ============ 10. 绘制月亮 ============ */
+  function drawMoon(t){
+    const moonX = W * 0.5 + Math.sin(t * 0.03) * 8;
+    const moonY = H * 0.22;
+    const moonR = Math.max(16, Math.min(W, H) * 0.035);
+    const halo = ctx.createRadialGradient(moonX, moonY, moonR * 0.6, moonX, moonY, moonR * 5);
+    halo.addColorStop(0, 'rgba(220,235,250,0.22)');
+    halo.addColorStop(0.3, 'rgba(180,210,235,0.12)');
+    halo.addColorStop(1, 'rgba(180,210,235,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 5, 0, Math.PI * 2);
+    ctx.fill();
+    const body = ctx.createRadialGradient(moonX - moonR * 0.3, moonY - moonR * 0.3, moonR * 0.1, moonX, moonY, moonR);
+    body.addColorStop(0, 'rgba(250,250,245,0.98)');
+    body.addColorStop(0.7, 'rgba(225,230,220,0.92)');
+    body.addColorStop(1, 'rgba(200,210,200,0.75)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ============ 11. 绘制星空 ============ */
+  function drawStars(t){
+    for (let i = 0; i < stars.length; i++){
+      const s = stars[i];
+      const sx = s.x * W;
+      const sy = s.y * H;
+      const tw = 0.5 + 0.5 * Math.sin(t * s.twSpeed + s.twPhase);
+      const a = s.baseA * (0.5 + 0.5 * tw);
+      ctx.fillStyle = `rgba(220,235,255,${a})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* ============ 12. 绘制地形线框（带雾化淡出） ============ */
+  const projA = new Float32Array(3);
+
+  function drawTerrain(t){
+    const rot = (t / ROT_PERIOD) * Math.PI * 2;
+    const drift = Math.sin(t * Math.PI * 2 / DRIFT_PERIOD) * TERRAIN_W * DRIFT_AMP;
+    // 远层：范围更大、更矮，作为背景
+    drawTerrainLayer(worldVertsB, terrainB, rot, drift * 0.4, 1.15, 0.7, 0.55, true);
+    // 近层：主体
+    drawTerrainLayer(worldVertsA, terrainA, rot, drift, 1.0, 1.0, 1.0, false);
+  }
+
+  function drawTerrainLayer(worldVerts, heights, rot, drift, xzScale, yScale, alphaMul, isFar){
+    // 存储每个顶点的投影坐标 (x, y, zc)
+    const proj = new Float32Array(GSIZE * GSIZE * 3);
+    for (let i = 0; i < GSIZE * GSIZE; i++){
+      const wx = worldVerts[i*3] * xzScale;
+      const wy = worldVerts[i*3+1] * yScale;
+      const wz = worldVerts[i*3+2] * xzScale;
+      project(wx, wy, wz, rot, drift, projA);
+      proj[i*3] = projA[0];
+      proj[i*3+1] = projA[1];
+      proj[i*3+2] = projA[2];
+    }
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // 第一层：粗线低透明度（发光底层）
+    ctx.lineWidth = isFar ? 1.8 : 2.6;
+    for (let i = 0; i < SEG_COUNT; i++){
+      const a = lineSegs[i*2], b = lineSegs[i*2+1];
+      const ax = proj[a*3], ay = proj[a*3+1], az = proj[a*3+2];
+      const bx = proj[b*3], by = proj[b*3+1], bz = proj[b*3+2];
+      if (ax < -9999 || bx < -9999) continue;
+      if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50)) continue;
+      if ((ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+      const hNorm = isFar ? (heights[a] + heights[b]) * 0.5 : (heights[a] > heights[b] ? heights[a] : heights[b]);
+      const fog = Math.min(fogFactor(az), fogFactor(bz));
+      if (fog < 0.01) continue;
+      ctx.strokeStyle = heightColor(hNorm, 0.16 * alphaMul * fog);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+    // 第二层：细线高透明度（锐利核心）
+    ctx.lineWidth = isFar ? 0.7 : 1.1;
+    for (let i = 0; i < SEG_COUNT; i++){
+      const a = lineSegs[i*2], b = lineSegs[i*2+1];
+      const ax = proj[a*3], ay = proj[a*3+1], az = proj[a*3+2];
+      const bx = proj[b*3], by = proj[b*3+1], bz = proj[b*3+2];
+      if (ax < -9999 || bx < -9999) continue;
+      if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50)) continue;
+      if ((ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+      const hNorm = isFar ? (heights[a] + heights[b]) * 0.5 : (heights[a] > heights[b] ? heights[a] : heights[b]);
+      const fog = Math.min(fogFactor(az), fogFactor(bz));
+      if (fog < 0.01) continue;
+      ctx.strokeStyle = heightColor(hNorm, 0.85 * alphaMul * fog);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    }
+  }
+
+  /* ============ 13. 状态与主循环 ============ */
+  const state = {
+    running: true,
+    simTime: 0,
+    lastTs: null
+  };
+
+  const elements = {
+    playBtn: document.getElementById('playBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    status: document.getElementById('status'),
+    timeReadout: document.getElementById('timeReadout'),
+    gridReadout: document.getElementById('gridReadout'),
+    insight: document.getElementById('insight')
+  };
+
+  const playIconPause = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>';
+  const playIconPlay = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5 L19 12 L7 19 Z" fill="currentColor"/></svg>';
+
+  function clamp(v, min, max){ return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback){ return Number.isFinite(v) ? v : fallback; }
+
+  function init(){
+    resize();
+    bindControls();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function start(){
+    state.running = true;
+    elements.playBtn.innerHTML = playIconPause;
+    elements.playBtn.setAttribute('aria-label', '暂停');
+    elements.playBtn.title = '暂停';
+    elements.status.textContent = '运行中';
+  }
+
+  function pause(){
+    state.running = false;
+    elements.playBtn.innerHTML = playIconPlay;
+    elements.playBtn.setAttribute('aria-label', '播放');
+    elements.playBtn.title = '播放';
+    elements.status.textContent = '已暂停';
+  }
+
+  function reset(){
+    state.simTime = 0;
+    state.lastTs = null;
+    render();
+  }
+
+  function update(dt){
+    const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+    if (state.running) state.simTime += boundedDt;
+  }
+
+  function render(){
+    ctx.fillStyle = '#020410';
+    ctx.fillRect(0, 0, W, H);
+    drawSky(state.simTime);
+    drawStars(state.simTime);
+    drawMoon(state.simTime);
+    drawTerrain(state.simTime);
+    elements.timeReadout.textContent = state.simTime.toFixed(1) + ' s';
+    elements.gridReadout.textContent = GSIZE + '²';
+  }
+
+  function setParameters(values){
+    void values;
+  }
+
+  function getState(){
+    return { running: state.running, simTime: state.simTime };
+  }
+
+  function getReadouts(){
+    return { time: state.simTime, running: state.running };
+  }
+
+  function runModelChecks(){
+    const h = terrainA;
+    let min = Infinity, max = -Infinity, sum = 0;
+    for (let i = 0; i < h.length; i++){
+      if (h[i] < min) min = h[i];
+      if (h[i] > max) max = h[i];
+      sum += h[i];
+    }
+    const mean = sum / h.length;
+    const range = max - min;
+    const checks = [
+      { name: '高度范围有起伏', pass: range > 0.5, expected: 'range > 0.5', actual: range, tolerance: 0.5 },
+      { name: '高度均值近中点', pass: Math.abs(mean) < 0.3, expected: '|mean| < 0.3', actual: mean, tolerance: 0.3 },
+      { name: '高度有下界', pass: min >= -2.2, expected: 'min >= -2.2', actual: min, tolerance: -2.2 },
+      { name: '高度有上界', pass: max <= 2.2, expected: 'max <= 2.2', actual: max, tolerance: 2.2 },
+      { name: '两份地形种子不同', pass: terrainA[0] !== terrainB[0] || terrainA[GSIZE] !== terrainB[GSIZE], expected: '不同种子产生不同地形', actual: 'A[0]=' + terrainA[0] + ' B[0]=' + terrainB[0], tolerance: 'strict' },
+      { name: '雾化近处不衰减', pass: fogFactor(500) === 1, expected: '1', actual: fogFactor(500), tolerance: 'strict' },
+      { name: '雾化远处完全淡出', pass: fogFactor(2000) === 0, expected: '0', actual: fogFactor(2000), tolerance: 'strict' },
+      { name: '雾化中间平滑过渡', pass: fogFactor(1200) > 0 && fogFactor(1200) < 1, expected: '0<fog<1', actual: fogFactor(1200), tolerance: 'strict' }
+    ];
+    return checks;
+  }
+
+  function bindControls(){
+    elements.playBtn.addEventListener('click', () => {
+      if (state.running) pause(); else start();
+    });
+    elements.resetBtn.addEventListener('click', reset);
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && document.activeElement !== elements.playBtn){
+        e.preventDefault();
+        if (state.running) pause(); else start();
+      }
+    });
+  }
+
+  function frame(ts){
+    if (state.lastTs === null) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

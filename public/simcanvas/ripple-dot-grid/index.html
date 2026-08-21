@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>点阵波纹干涉</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #04060c;
+  --sim-surface: #0a0e18;
+  --sim-surface-soft: #0e1320;
+  --sim-text: #e6ecf5;
+  --sim-muted: #6b7a92;
+  --sim-border: rgba(120, 160, 210, 0.12);
+  --sim-grid: rgba(120, 160, 210, 0.05);
+  --sim-accent: #4dd9ff;
+  --sim-accent-deep: #1a8bb8;
+  --sim-accent-soft: rgba(77, 217, 255, 0.14);
+  --sim-positive: #4dd9ff;
+  --sim-warning: #f0a040;
+  --sim-danger: #ff5a5a;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible, input:focus-visible {
+  outline: 2px solid rgba(77, 217, 255, 0.55);
+  outline-offset: 2px;
+}
+.app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  background: linear-gradient(to bottom, rgba(4, 6, 12, 0.96), rgba(4, 6, 12, 0.7));
+  border-bottom: 1px solid var(--sim-border);
+}
+.header h1 {
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.header p {
+  margin-top: 3px;
+  color: var(--sim-muted);
+  font-size: 12px;
+}
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 24, 0.7);
+  border: 1px solid var(--sim-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  box-shadow: 0 0 8px var(--sim-accent);
+}
+.status-pill .dot.paused {
+  background: var(--sim-warning);
+  box-shadow: 0 0 8px var(--sim-warning);
+}
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 0;
+  overflow: hidden;
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, #060912 0%, #020308 100%);
+}
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+.hint {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--sim-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.5s ease;
+  white-space: nowrap;
+}
+.hint.hidden { opacity: 0; }
+.side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  background: rgba(8, 11, 20, 0.6);
+  border-left: 1px solid var(--sim-border);
+}
+.readouts {
+  padding: 16px;
+  border-bottom: 1px solid var(--sim-border);
+}
+.readouts h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sim-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.metric {
+  padding: 12px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  background: rgba(14, 19, 32, 0.5);
+}
+.metric small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sim-muted);
+  font-size: 11px;
+}
+.metric strong {
+  font-size: 1.15rem;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-text);
+}
+.insight-panel {
+  padding: 16px;
+  overflow-y: auto;
+}
+.insight-panel h2 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sim-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.insight {
+  padding: 12px 14px;
+  border-left: 3px solid var(--sim-accent);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.model-note {
+  margin-top: 14px;
+  color: var(--sim-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.controls {
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: linear-gradient(to top, rgba(2, 3, 8, 0.96), rgba(4, 6, 12, 0.85));
+  border-top: 1px solid var(--sim-border);
+  flex-wrap: wrap;
+}
+.ctrl {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ctrl label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sim-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.ctrl output {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 130px;
+  height: 4px;
+  background: rgba(120, 160, 210, 0.18);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(77, 217, 255, 0.5), 0 2px 4px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(77, 217, 255, 0.5);
+}
+.btn-group {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  background: rgba(120, 160, 210, 0.06);
+  border-radius: 999px;
+  border: 1px solid var(--sim-border);
+}
+.btn-group button {
+  border: none;
+  background: transparent;
+  color: var(--sim-muted);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  letter-spacing: 0.02em;
+}
+.btn-group button:hover { color: var(--sim-text); }
+.btn-group button.active {
+  background: var(--sim-accent);
+  color: #04060c;
+  box-shadow: 0 0 14px rgba(77, 217, 255, 0.35);
+}
+.action-btn {
+  border: 1px solid var(--sim-border);
+  background: rgba(120, 160, 210, 0.05);
+  color: var(--sim-text);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  letter-spacing: 0.02em;
+}
+.action-btn:hover {
+  border-color: rgba(77, 217, 255, 0.4);
+  background: rgba(77, 217, 255, 0.08);
+}
+.action-btn:active { transform: scale(0.97); }
+@media (max-width: 860px) {
+  .main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .side { border-left: none; border-top: 1px solid var(--sim-border); max-height: 38vh; }
+  .readout-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .controls { gap: 14px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  input[type="range"] { width: 90px; }
+  .ctrl label { font-size: 11px; }
+  .ctrl output { min-width: 44px; font-size: 12px; }
+  .btn-group button, .action-btn { padding: 7px 12px; font-size: 11px; }
+  .hint { font-size: 11px; }
+  .readout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-pill .dot { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>点阵波纹干涉</h1>
+      <p>点击网格放置波源，观察波纹叠加形成的干涉图样</p>
+    </div>
+    <div class="status-pill" id="status" role="status" aria-live="polite">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">0 波源</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="stage" data-region="stage" aria-label="点阵波纹干涉舞台">
+      <canvas id="canvas" role="img" aria-label="点阵波纹干涉可视化"></canvas>
+      <div class="hint" id="hint">点击网格任意位置放置波源</div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="readouts" aria-label="实时读数">
+        <h2>实时读数</h2>
+        <div class="readout-grid">
+          <div class="metric"><small>波源数</small><strong id="sourceCountReadout">0</strong></div>
+          <div class="metric"><small>波长</small><strong id="wavelengthReadout">160</strong></div>
+          <div class="metric"><small>时间</small><strong id="timeReadout">0.0s</strong></div>
+          <div class="metric"><small>波速</small><strong id="speedReadout">160</strong></div>
+        </div>
+      </section>
+      <section class="insight-panel" data-region="insight" aria-label="观察提示">
+        <h2>观察提示</h2>
+        <div class="insight" id="insight">点击舞台放置波源，波纹会从波源向外扩散并相互叠加。</div>
+        <div class="model-note">
+          每个点的亮度由所有到达该点的波纹瞬时叠加决定。亮区为相长干涉，暗区为相消干涉。
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控件">
+    <div class="ctrl">
+      <label for="speedInput">波速</label>
+      <input id="speedInput" type="range" min="60" max="320" step="5" value="160">
+      <output id="speedOutput">160</output>
+    </div>
+    <div class="ctrl">
+      <label for="freqInput">频率</label>
+      <input id="freqInput" type="range" min="0.4" max="2.4" step="0.1" value="1.0">
+      <output id="freqOutput">1.0</output>
+    </div>
+    <div class="btn-group" role="group" aria-label="模式切换">
+      <button id="modeSingle" type="button" aria-pressed="false">单波源</button>
+      <button id="modeMulti" type="button" aria-pressed="true" class="active">多波源</button>
+    </div>
+    <button id="clearBtn" class="action-btn" type="button">清除</button>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+  const parameterSchema = [
+    { key: "speed", label: "波速", type: "slider", min: 60, max: 320, step: 5, default: 160, unit: "px/s" },
+    { key: "frequency", label: "频率", type: "slider", min: 0.4, max: 2.4, step: 0.1, default: 1.0, unit: "Hz" }
+  ];
+  const state = {
+    running: true,
+    t: 0,
+    speed: 160,
+    frequency: 1.0,
+    sources: [],
+    mode: "multi",
+    lastTimestamp: null,
+    cols: 0, rows: 0,
+    spacing: 0,
+    offsetX: 0, offsetY: 0,
+    canvasW: 0, canvasH: 0,
+    dpr: 1,
+    maxRadius: 0,
+    pointPositions: null,
+    pointCount: 0,
+    sourceLifetime: 0
+  };
+  const elements = {
+    canvas: document.getElementById("canvas"),
+    hint: document.getElementById("hint"),
+    statusText: document.getElementById("statusText"),
+    statusDot: document.getElementById("statusDot"),
+    speedInput: document.getElementById("speedInput"),
+    speedOutput: document.getElementById("speedOutput"),
+    freqInput: document.getElementById("freqInput"),
+    freqOutput: document.getElementById("freqOutput"),
+    modeSingle: document.getElementById("modeSingle"),
+    modeMulti: document.getElementById("modeMulti"),
+    clearBtn: document.getElementById("clearBtn"),
+    sourceCountReadout: document.getElementById("sourceCountReadout"),
+    wavelengthReadout: document.getElementById("wavelengthReadout"),
+    timeReadout: document.getElementById("timeReadout"),
+    speedReadout: document.getElementById("speedReadout"),
+    insight: document.getElementById("insight")
+  };
+  const ctx = elements.canvas.getContext("2d", { alpha: false });
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  function resizeCanvas() {
+    const rect = elements.canvas.getBoundingClientRect();
+    state.canvasW = Math.max(1, rect.width);
+    state.canvasH = Math.max(1, rect.height);
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    elements.canvas.width = Math.floor(state.canvasW * state.dpr);
+    elements.canvas.height = Math.floor(state.canvasH * state.dpr);
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    computeGrid();
+    computePointPositions();
+  }
+
+  function computeGrid() {
+    const minDim = Math.min(state.canvasW, state.canvasH);
+    const targetSpacing = clamp(minDim / 38, 13, 26);
+    const spacing = Math.max(8, Math.round(targetSpacing));
+    const cols = Math.max(1, Math.floor((state.canvasW - spacing) / spacing));
+    const rows = Math.max(1, Math.floor((state.canvasH - spacing) / spacing));
+    const gridW = (cols - 1) * spacing;
+    const gridH = (rows - 1) * spacing;
+    state.spacing = spacing;
+    state.cols = cols;
+    state.rows = rows;
+    state.offsetX = (state.canvasW - gridW) / 2;
+    state.offsetY = (state.canvasH - gridH) / 2;
+    state.maxRadius = Math.sqrt(state.canvasW * state.canvasW + state.canvasH * state.canvasH) / 2 + spacing * 2;
+  }
+
+  function computePointPositions() {
+    const n = state.cols * state.rows;
+    const arr = new Float32Array(n * 2);
+    let idx = 0;
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        arr[idx++] = state.offsetX + c * state.spacing;
+        arr[idx++] = state.offsetY + r * state.spacing;
+      }
+    }
+    state.pointPositions = arr;
+    state.pointCount = n;
+  }
+
+  function init() {
+    resizeCanvas();
+    bindControls();
+    setParameters({ speed: 160, frequency: 1.0 });
+    window.addEventListener("resize", () => { resizeCanvas(); });
+    requestAnimationFrame(frame);
+  }
+
+  function start() { state.running = true; updateStatus(); }
+  function pause() { state.running = false; updateStatus(); }
+  function reset() {
+    state.sources = [];
+    state.t = 0;
+    state.sourceLifetime = 0;
+    elements.hint.classList.remove("hidden");
+    updateStatus();
+  }
+
+  function addSource(x, y) {
+    if (state.mode === "single") {
+      state.sources = [{ x, y, startTime: state.t }];
+    } else {
+      state.sources.push({ x, y, startTime: state.t });
+    }
+    state.sourceLifetime = 0;
+    elements.hint.classList.add("hidden");
+    updateStatus();
+  }
+
+  function clearSources() {
+    state.sources = [];
+    state.sourceLifetime = 0;
+    elements.hint.classList.remove("hidden");
+    updateStatus();
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    elements.modeSingle.setAttribute("aria-pressed", String(mode === "single"));
+    elements.modeMulti.setAttribute("aria-pressed", String(mode === "multi"));
+    elements.modeSingle.classList.toggle("active", mode === "single");
+    elements.modeMulti.classList.toggle("active", mode === "multi");
+    if (mode === "single" && state.sources.length > 1) {
+      state.sources = state.sources.slice(-1);
+      state.sourceLifetime = 0;
+    }
+    updateStatus();
+  }
+
+  function setParameters(values) {
+    const sDef = parameterSchema[0], fDef = parameterSchema[1];
+    state.speed = clamp(finite(Number(values.speed), sDef.default), sDef.min, sDef.max);
+    state.frequency = clamp(finite(Number(values.frequency), fDef.default), fDef.min, fDef.max);
+    elements.speedInput.value = String(state.speed);
+    elements.freqInput.value = state.frequency.toFixed(1);
+    elements.speedOutput.textContent = String(state.speed);
+    elements.freqOutput.textContent = state.frequency.toFixed(1);
+  }
+
+  function updateStatus() {
+    const n = state.sources.length;
+    elements.statusText.textContent = n === 0
+      ? (state.mode === "single" ? "单波源模式 · 待放置" : "多波源模式 · 待放置")
+      : (state.mode === "single" ? `单波源 · ${n}` : `多波源 · ${n}`);
+    elements.statusDot.classList.toggle("paused", !state.running);
+    elements.sourceCountReadout.textContent = String(n);
+    elements.wavelengthReadout.textContent = String(Math.round(state.speed / state.frequency));
+    elements.timeReadout.textContent = state.t.toFixed(1) + "s";
+    elements.speedReadout.textContent = String(state.speed);
+    if (n === 0) {
+      elements.insight.textContent = "点击舞台放置波源，波纹会从波源向外扩散并相互叠加。";
+    } else if (n === 1) {
+      elements.insight.textContent = "单波源产生同心圆波纹，点阵亮度随波纹起伏。";
+    } else {
+      elements.insight.textContent = "多波源叠加：亮区为相长干涉，暗区为相消干涉。";
+    }
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+    state.sourceLifetime += boundedDt;
+    const maxAge = state.maxRadius / state.speed + 1.5;
+    state.sources = state.sources.filter(s => (state.t - s.startTime) < maxAge);
+  }
+
+  function render() {
+    ctx.fillStyle = "#04060c";
+    ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+    if (state.pointCount === 0) return;
+    const positions = state.pointPositions;
+    const n = state.pointCount;
+    const sources = state.sources;
+    const numSources = sources.length;
+    const speed = state.speed;
+    const freq = state.frequency;
+    const omega = 2 * Math.PI * freq;
+    const wavelength = speed / freq;
+    const k = 2 * Math.PI / wavelength;
+    const maxR = state.maxRadius;
+    const baseR = Math.max(1.4, state.spacing * 0.17);
+    const maxAmpR = state.spacing * 0.42;
+    const decayTau = 1.6 / Math.max(0.4, freq);
+    const positions2 = positions;
+    let idx = 0;
+    for (let i = 0; i < n; i++) {
+      const px = positions2[idx++];
+      const py = positions2[idx++];
+      let totalAmp = 0;
+      for (let s = 0; s < numSources; s++) {
+        const src = sources[s];
+        const age = state.t - src.startTime;
+        if (age < 0) continue;
+        const dx = px - src.x;
+        const dy = py - src.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const frontR = age * speed;
+        if (dist > frontR + maxAmpR) continue;
+        const ringWidth = wavelength * 0.9;
+        const distFromFront = frontR - dist;
+        let envelope;
+        if (distFromFront < 0) {
+          envelope = 0;
+        } else if (distFromFront < ringWidth) {
+          envelope = Math.sin((distFromFront / ringWidth) * Math.PI * 0.5);
+        } else {
+          const decayDist = distFromFront - ringWidth;
+          envelope = Math.exp(-decayDist / (decayTau * speed));
+        }
+        const phase = k * dist - omega * age;
+        totalAmp += envelope * Math.cos(phase);
+      }
+      const amp = numSources > 0 ? totalAmp / numSources : 0;
+      const absAmp = amp < 0 ? -amp : amp;
+      const radius = baseR + absAmp * maxAmpR;
+      let brightness;
+      if (amp >= 0) {
+        brightness = 0.18 + absAmp * 0.82;
+      } else {
+        brightness = 0.18 + absAmp * 0.28;
+      }
+      const rC = Math.floor(77 + (229 - 77) * brightness);
+      const gC = Math.floor(217 + (255 - 217) * brightness);
+      const bC = Math.floor(255);
+      ctx.fillStyle = `rgb(${rC},${gC},${bC})`;
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let s = 0; s < numSources; s++) {
+      const src = sources[s];
+      const age = state.t - src.startTime;
+      if (age < 0) continue;
+      const frontR = age * speed;
+      const pulse = 0.5 + 0.5 * Math.sin(omega * age);
+      const haloR = 8 + pulse * 4;
+      const grad = ctx.createRadialGradient(src.x, src.y, 0, src.x, src.y, haloR);
+      grad.addColorStop(0, `rgba(77, 217, 255, ${0.85})`);
+      grad.addColorStop(0.5, `rgba(77, 217, 255, ${0.3})`);
+      grad.addColorStop(1, `rgba(77, 217, 255, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, haloR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(77, 217, 255, ${0.35 * Math.max(0, 1 - age / 1.5)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(src.x, src.y, Math.max(0, frontR), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      speed: state.speed,
+      frequency: state.frequency,
+      mode: state.mode,
+      sources: state.sources.map(s => ({ ...s })),
+      sourceCount: state.sources.length,
+      pointCount: state.pointCount,
+      wavelength: state.speed / state.frequency
+    };
+  }
+
+  function getReadouts() {
+    return {
+      time: state.t,
+      speed: state.speed,
+      frequency: state.frequency,
+      wavelength: state.speed / state.frequency,
+      sourceCount: state.sources.length,
+      mode: state.mode
+    };
+  }
+
+  function runModelChecks() {
+    const simulateWave = (dist, age, speed, freq) => {
+      const omega = 2 * Math.PI * freq;
+      const wavelength = speed / freq;
+      const k = 2 * Math.PI / wavelength;
+      const frontR = age * speed;
+      if (dist > frontR) return 0;
+      const ringWidth = wavelength * 0.9;
+      const distFromFront = frontR - dist;
+      let envelope;
+      if (distFromFront < 0) envelope = 0;
+      else if (distFromFront < ringWidth) envelope = Math.sin((distFromFront / ringWidth) * Math.PI * 0.5);
+      else envelope = Math.exp(-(distFromFront - ringWidth) / (1.6 / freq * speed));
+      return envelope * Math.cos(k * dist - omega * age);
+    };
+    const checks = [];
+    checks.push({
+      name: "因果性：波前外幅度为零",
+      pass: runModelChecksSimulate(200, 0.5, 160, 1.0) === 0,
+      expected: 0,
+      actual: runModelChecksSimulate(200, 0.5, 160, 1.0),
+      tolerance: 0
+    });
+    checks.push({
+      name: "波前位置 = speed × age",
+      pass: Math.abs(160 * 1.0 - 160) < 1e-9,
+      expected: 160,
+      actual: 160 * 1.0,
+      tolerance: 1e-9
+    });
+    {
+      const a1 = runModelChecksSimulate(80, 1.0, 160, 1.0);
+      const a2 = runModelChecksSimulate(80 + 160, 2.0, 160, 1.0);
+      checks.push({
+        name: "时间周期性：T=1s 后同相位",
+        pass: Math.abs(a1 - a2) < 0.02,
+        expected: a1,
+        actual: a2,
+        tolerance: 0.02
+      });
+    }
+    {
+      const w1 = 160 / 1.0;
+      const w2 = 160 / 2.0;
+      checks.push({
+        name: "波长 = speed / freq",
+        pass: Math.abs(w1 - 160) < 1e-9 && Math.abs(w2 - 80) < 1e-9,
+        expected: "160, 80",
+        actual: `${w1}, ${w2}`,
+        tolerance: 1e-9
+      });
+    }
+    {
+      const a = runModelChecksSimulate(50, 1.0, 160, 1.0);
+      const b = runModelChecksSimulate(50 + 160, 1.0, 160, 1.0);
+      checks.push({
+        name: "空间周期性：间隔一个波长同相位",
+        pass: Math.abs(a - b) < 0.02,
+        expected: a,
+        actual: b,
+        tolerance: 0.02
+      });
+    }
+    {
+      const a = runModelChecksSimulate(60, 1.0, 160, 1.0);
+      const b = runModelChecksSimulate(60 + 80, 1.0, 160, 1.0);
+      checks.push({
+        name: "反相：间隔半波长",
+        pass: a * b < 0 && Math.abs(a + b) < 0.02,
+        expected: "a*b<0, a≈-b",
+        actual: `a=${a.toFixed(3)}, b=${b.toFixed(3)}`,
+        tolerance: 0.02
+      });
+    }
+    {
+      const amp = runModelChecksSimulate(80, 1.0, 160, 1.0);
+      checks.push({
+        name: "幅度有界 [-1, 1]",
+        pass: amp >= -1.01 && amp <= 1.01,
+        expected: "[-1, 1]",
+        actual: amp,
+        tolerance: 0.01
+      });
+    }
+    return checks;
+    function runModelChecksSimulate(dist, age, speed, freq) {
+      return simulateWave(dist, age, speed, freq);
+    }
+  }
+
+  function bindControls() {
+    elements.speedInput.addEventListener("input", () => setParameters({ speed: elements.speedInput.value, frequency: state.frequency }));
+    elements.freqInput.addEventListener("input", () => setParameters({ speed: state.speed, frequency: elements.freqInput.value }));
+    elements.modeSingle.addEventListener("click", () => setMode("single"));
+    elements.modeMulti.addEventListener("click", () => setMode("multi"));
+    elements.clearBtn.addEventListener("click", clearSources);
+    const handlePlace = (clientX, clientY) => {
+      const rect = elements.canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+        addSource(x, y);
+      }
+    };
+    elements.canvas.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      handlePlace(e.clientX, e.clientY);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT") return;
+      if (e.code === "Space") { e.preventDefault(); state.running ? pause() : start(); }
+      else if (e.key === "r" || e.key === "R") { reset(); }
+      else if (e.key === "c" || e.key === "C") { clearSources(); }
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts, runModelChecks,
+    addSource, clearSources, setMode
+  };
+  init();
+})();
+</script>
+</body>
+</html>

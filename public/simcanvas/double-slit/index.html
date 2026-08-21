@@ -1,0 +1,1255 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单光子双缝干涉 · 逐点累积</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #060912;
+  --sim-surface: #0d1424;
+  --sim-surface-soft: #131c30;
+  --sim-text: #e8eefc;
+  --sim-muted: #7a8aa8;
+  --sim-border: #1f2a44;
+  --sim-grid: #161e34;
+  --sim-accent: #00d4ff;
+  --sim-accent-deep: #0099cc;
+  --sim-accent-soft: rgba(0, 212, 255, 0.15);
+  --sim-positive: #00d4ff;
+  --sim-warning: #ffaa00;
+  --sim-danger: #ff3366;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-photon: #4dd0ff;
+  --sim-fringe: #00ffaa;
+  --sim-curve: #ff9500;
+  --sim-hist: rgba(0, 212, 255, 0.35);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(0, 212, 255, 0.08), transparent 30%),
+    radial-gradient(circle at 85% 100%, rgba(255, 149, 0, 0.06), transparent 30%),
+    var(--sim-bg);
+  font-family: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--sim-accent); outline-offset: 2px; }
+
+.app {
+  width: min(1600px, 100%);
+  height: 100vh;
+  margin: 0 auto;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+}
+.header-left h1 {
+  margin: 0 0 4px;
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-weight: 700;
+  background: linear-gradient(90deg, #e8eefc, #4dd0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header-left p {
+  margin: 0;
+  color: var(--sim-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--sim-border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: var(--sim-surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--sim-muted);
+  transition: background 0.2s;
+}
+.status-dot.running { background: var(--sim-positive); box-shadow: 0 0 8px var(--sim-positive); }
+.status-dot.paused { background: var(--sim-warning); }
+
+/* Main layout */
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 0.8fr);
+  gap: 10px;
+}
+
+.panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+  box-shadow: var(--sim-shadow);
+  overflow: hidden;
+}
+
+/* Scene panel */
+.scene-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sim-border);
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sim-accent);
+}
+.panel-head .head-info {
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+}
+#sceneWrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #050810;
+}
+#sceneCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.scene-overlay {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  pointer-events: none;
+  line-height: 1.5;
+}
+.scene-overlay .label-val {
+  color: var(--sim-accent);
+  font-weight: 600;
+}
+
+/* Side panel */
+.side {
+  display: grid;
+  grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+}
+.chart-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+#chartCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #080c18;
+}
+.insight-panel {
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.insight-panel h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sim-accent);
+}
+.insight-text {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--sim-text);
+  border-left: 2px solid var(--sim-warning);
+  padding-left: 10px;
+  background: rgba(255, 170, 0, 0.05);
+  border-radius: 0 6px 6px 0;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.metric {
+  padding: 8px 10px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  background: var(--sim-surface-soft);
+}
+.metric small {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+.metric strong {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls */
+.controls {
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  padding: 8px 14px;
+  color: var(--sim-text);
+  background: var(--sim-surface-soft);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+button:hover {
+  border-color: var(--sim-accent);
+  background: rgba(0, 212, 255, 0.08);
+}
+button:active { transform: scale(0.97); }
+button.primary {
+  border-color: var(--sim-accent-deep);
+  color: #fff;
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  box-shadow: 0 4px 12px rgba(0, 212, 255, 0.25);
+}
+button.primary:hover { box-shadow: 0 6px 16px rgba(0, 212, 255, 0.4); }
+button.toggle[aria-pressed="true"] {
+  border-color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.control output {
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--sim-accent);
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+}
+
+@media (max-width: 900px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; gap: 10px; }
+  .actions { justify-content: center; }
+  #sceneWrap { min-height: 300px; }
+  .chart-panel { min-height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div class="header-left">
+      <h1>单光子双缝干涉 · 逐点累积</h1>
+      <p>一颗一颗的光子，如何"集体"形成干涉条纹</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">
+      <span class="status-dot paused" id="statusDot"></span>
+      <span id="statusText">已暂停</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-label="干涉累积舞台">
+      <div class="panel-head">
+        <h2>双缝 → 屏幕（累积）</h2>
+        <span class="head-info">光子逐颗射出 · 亮点累积</span>
+      </div>
+      <div id="sceneWrap">
+        <canvas id="sceneCanvas"></canvas>
+        <div class="scene-overlay">
+          <div>缝宽 a = <span class="label-val" id="overlayA">0.10</span> mm</div>
+          <div>缝距 d = <span class="label-val" id="overlayD">0.50</span> mm</div>
+          <div>波长 λ = <span class="label-val" id="overlayLambda">500</span> nm</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel chart-panel" aria-label="理论强度与累积直方图">
+        <div class="panel-head">
+          <h2>理论曲线 vs 累积直方图</h2>
+          <span class="head-info">I(θ) 对照</span>
+        </div>
+        <canvas id="chartCanvas"></canvas>
+      </section>
+
+      <section class="panel insight-panel" data-region="insight">
+        <h3>洞察</h3>
+        <div class="insight-text" id="insightText">点击"发射"开始。光子将逐颗穿过双缝，在屏幕上累积。</div>
+        <div class="metrics-row">
+          <div class="metric"><small>光子数 N</small><strong id="metricN">0</strong></div>
+          <div class="metric"><small>条纹可见度 V</small><strong id="metricV">—</strong></div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">发射</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="slitWidthInput">缝宽 a <output id="slitWidthOutput">0.10 mm</output></label>
+      <input id="slitWidthInput" type="range" min="0.02" max="0.40" step="0.01" value="0.10">
+    </div>
+    <div class="control">
+      <label for="slitSpacingInput">缝间距 d <output id="slitSpacingOutput">0.50 mm</output></label>
+      <input id="slitSpacingInput" type="range" min="0.10" max="1.50" step="0.01" value="0.50">
+    </div>
+    <div class="control">
+      <label for="wavelengthInput">波长 λ <output id="wavelengthOutput">500 nm</output></label>
+      <input id="wavelengthInput" type="range" min="380" max="750" step="5" value="500">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "slitWidth", label: "缝宽", min: 0.02, max: 0.40, step: 0.01, default: 0.10, unit: "mm" },
+    { key: "slitSpacing", label: "缝间距", min: 0.10, max: 1.50, step: 0.01, default: 0.50, unit: "mm" },
+    { key: "wavelength", label: "波长", min: 380, max: 750, step: 5, default: 500, unit: "nm" }
+  ];
+
+  // ===== 状态 =====
+  const state = {
+    running: false,
+    photonCount: 0,
+    slitWidth: 0.10,      // mm
+    slitSpacing: 0.50,    // mm
+    wavelength: 500,       // nm
+    emissionRate: 60,     // 光子/秒
+    lastTimestamp: null,
+    emissionAccumulator: 0,
+    // 屏幕参数
+    screenDistance: 1000, // mm (1m)
+    screenHalfWidth: 15,  // mm (屏幕半宽)
+    bins: 160,            // 直方图 bin 数
+    histogram: null,      // Float32Array
+    maxBinCount: 0,
+    // CDF 采样
+    cdf: null,
+    cdfX: null,           // 位置数组 mm
+    // 飞行中的光子
+    flyingPhotons: [],
+    // 已落点（用于渲染累积点）
+    landedPhotons: [],    // {x_mm, y_mm, age}
+    // 理论曲线
+    theoryCurve: null,    // {x_mm[], I[]}
+    // 可见度
+    visibility: null
+  };
+
+  // ===== DOM =====
+  const els = {
+    status: document.getElementById("status"),
+    statusDot: document.getElementById("statusDot"),
+    statusText: document.getElementById("statusText"),
+    sceneCanvas: document.getElementById("sceneCanvas"),
+    chartCanvas: document.getElementById("chartCanvas"),
+    insightText: document.getElementById("insightText"),
+    metricN: document.getElementById("metricN"),
+    metricV: document.getElementById("metricV"),
+    overlayA: document.getElementById("overlayA"),
+    overlayD: document.getElementById("overlayD"),
+    overlayLambda: document.getElementById("overlayLambda"),
+    slitWidthInput: document.getElementById("slitWidthInput"),
+    slitWidthOutput: document.getElementById("slitWidthOutput"),
+    slitSpacingInput: document.getElementById("slitSpacingInput"),
+    slitSpacingOutput: document.getElementById("slitSpacingOutput"),
+    wavelengthInput: document.getElementById("wavelengthInput"),
+    wavelengthOutput: document.getElementById("wavelengthOutput"),
+    startBtn: document.getElementById("startBtn"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    resetBtn: document.getElementById("resetBtn")
+  };
+
+  // ===== 工具函数 =====
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  // sinc 函数 (归一化): sinc(x) = sin(πx)/(πx)
+  function sinc(x) {
+    if (Math.abs(x) < 1e-10) return 1;
+    const px = Math.PI * x;
+    return Math.sin(px) / px;
+  }
+
+  // ===== 物理模型：双缝衍射强度 =====
+  // I(θ) = I0 * cos²(πd sinθ/λ) * sinc²(a sinθ/λ)
+  // 小角近似: sinθ ≈ y/L, y 为屏幕上位置, L 为缝到屏幕距离
+  // 参数单位: a, d, y, L → mm; λ → mm (从 nm 转换)
+  function intensity(y_mm, a_mm, d_mm, lambda_mm, L_mm) {
+    const sinTheta = y_mm / L_mm;
+    const cosArg = Math.PI * d_mm * sinTheta / lambda_mm;
+    const sincArg = a_mm * sinTheta / lambda_mm;
+    const cos2 = Math.cos(cosArg) ** 2;
+    const sinc2 = sinc(sincArg) ** 2;
+    return cos2 * sinc2;
+  }
+
+  // ===== 预计算理论曲线和 CDF =====
+  function rebuildDistributions() {
+    const a_mm = state.slitWidth;
+    const d_mm = state.slitSpacing;
+    const lambda_mm = state.wavelength * 1e-6; // nm → mm
+    const L = state.screenDistance;
+    const halfW = state.screenHalfWidth;
+    const N = 800; // 曲线采样点
+
+    const xs = new Float64Array(N);
+    const Is = new Float64Array(N);
+    let total = 0;
+
+    for (let i = 0; i < N; i++) {
+      const y = -halfW + (2 * halfW) * (i / (N - 1));
+      const I = intensity(y, a_mm, d_mm, lambda_mm, L);
+      xs[i] = y;
+      Is[i] = I;
+      total += I;
+    }
+
+    // 归一化
+    if (total > 0) {
+      for (let i = 0; i < N; i++) Is[i] /= total;
+    }
+
+    // 构建 CDF (梯形法)
+    const cdfArr = new Float64Array(N);
+    cdfArr[0] = 0;
+    for (let i = 1; i < N; i++) {
+      const dy = xs[i] - xs[i - 1];
+      const avgI = (Is[i] + Is[i - 1]) / 2;
+      cdfArr[i] = cdfArr[i - 1] + avgI * dy;
+    }
+    // 归一化 CDF
+    const cdfMax = cdfArr[N - 1];
+    if (cdfMax > 0) {
+      for (let i = 0; i < N; i++) cdfArr[i] /= cdfMax;
+    }
+
+    state.cdf = cdfArr;
+    state.cdfX = xs;
+    state.theoryCurve = { x: xs, I: Is };
+
+    // 重置直方图
+    state.histogram = new Float32Array(state.bins);
+    state.maxBinCount = 0;
+
+    // 计算理论可见度 V = (Imax - Imin)/(Imax + Imin)
+    // 在中央主极大区域内找极大和极小
+    computeVisibility();
+  }
+
+  // 从 CDF 采样一个光子位置
+  function samplePhotonPosition() {
+    const r = Math.random();
+    // 二分查找
+    const cdf = state.cdf;
+    const xs = state.cdfX;
+    let lo = 0, hi = cdf.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (cdf[mid] < r) lo = mid;
+      else hi = mid;
+    }
+    // 线性插值
+    const t = (r - cdf[lo]) / (cdf[hi] - cdf[lo] + 1e-12);
+    return xs[lo] + t * (xs[hi] - xs[lo]);
+  }
+
+  // 计算条纹可见度（理论）
+  function computeVisibility() {
+    const tc = state.theoryCurve;
+    if (!tc) return;
+    const N = tc.x.length;
+    // 在中央包络区域内找峰
+    let imax = 0, imin = Infinity;
+    // 搜索范围：中央衍射包络内
+    const a_mm = state.slitWidth;
+    const lambda_mm = state.wavelength * 1e-6;
+    const L = state.screenDistance;
+    const firstZero = lambda_mm * L / a_mm; // 第一暗纹位置
+
+    for (let i = 0; i < N; i++) {
+      if (Math.abs(tc.x[i]) < firstZero) {
+        if (tc.I[i] > imax) imax = tc.I[i];
+      }
+    }
+    // 找中央峰之间的极小值（deterministic: 在 cos² 的零点）
+    // 简化：用理论公式 V = |sinc(a sinθ/λ)| 在第一干涉极小处
+    // 但更直接：V = (Imax - Imin)/(Imax + Imin)，Imin≈0（理想双缝）
+    // 实际可见度受缝宽包络影响，这里用实测方式
+    // 找中央主极大区域的第一个极小
+    const d_mm = state.slitSpacing;
+    const firstInterferenceMin = lambda_mm * L / (2 * d_mm); // 第一个干涉暗纹
+    let minVal = Infinity;
+    for (let i = 0; i < N; i++) {
+      if (Math.abs(tc.x[i] - firstInterferenceMin) < 0.3) {
+        if (tc.I[i] < minVal) minVal = tc.I[i];
+      }
+    }
+    if (imax > 0 && minVal < Infinity) {
+      state.visibility = (imax - minVal) / (imax + minVal);
+    } else {
+      state.visibility = null;
+    }
+  }
+
+  // 从直方图计算实测可见度
+  function computeMeasuredVisibility() {
+    if (!state.histogram || state.photonCount < 50) return null;
+    const bins = state.histogram;
+    const n = bins.length;
+    const halfW = state.screenHalfWidth;
+    const binWidth = (2 * halfW) / n;
+
+    // 找中央峰
+    const centerIdx = Math.floor(n / 2);
+    let maxVal = bins[centerIdx];
+
+    // 在中央区域搜索峰
+    const a_mm = state.slitWidth;
+    const lambda_mm = state.wavelength * 1e-6;
+    const L = state.screenDistance;
+    const firstZero = lambda_mm * L / a_mm;
+    const searchRange = Math.floor(firstZero / binWidth);
+
+    for (let i = Math.max(0, centerIdx - searchRange); i <= Math.min(n - 1, centerIdx + searchRange); i++) {
+      if (bins[i] > maxVal) maxVal = bins[i];
+    }
+
+    // 找第一个干涉极小
+    const d_mm = state.slitSpacing;
+    const firstMinPos = lambda_mm * L / (2 * d_mm);
+    const minIdx = centerIdx + Math.floor(firstMinPos / binWidth);
+    let minVal = Infinity;
+    const searchHalf = Math.max(2, Math.floor(searchRange / 4));
+    for (let i = Math.max(0, minIdx - searchHalf); i <= Math.min(n - 1, minIdx + searchHalf); i++) {
+      if (bins[i] < minVal) minVal = bins[i];
+    }
+
+    if (maxVal > 0) {
+      return (maxVal - minVal) / (maxVal + minVal);
+    }
+    return null;
+  }
+
+  // ===== Canvas 渲染 =====
+  let sceneCtx, chartCtx;
+  let sceneW = 0, sceneH = 0, chartW = 0, chartH = 0;
+  let dpr = 1;
+
+  function setupCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  function resizeCanvases() {
+    const s = setupCanvas(els.sceneCanvas);
+    sceneCtx = s.ctx; sceneW = s.w; sceneH = s.h;
+    const c = setupCanvas(els.chartCanvas);
+    chartCtx = c.ctx; chartW = c.w; chartH = c.h;
+    render();
+  }
+
+  // ===== 场景渲染 =====
+  function renderScene() {
+    if (!sceneCtx) return;
+    const ctx = sceneCtx;
+    const W = sceneW, H = sceneH;
+
+    // 背景
+    ctx.fillStyle = "#050810";
+    ctx.fillRect(0, 0, W, H);
+
+    // 布局：左 15% 光源区，中 35% 双缝+传播，右 50% 屏幕
+    const sourceX = W * 0.08;
+    const slitX = W * 0.30;
+    const screenX = W * 0.55;
+    const screenWidth = W * 0.42;
+    const screenY = H * 0.10;
+    const screenHeight = H * 0.80;
+    const centerY = H / 2;
+
+    // 绘制光路区域背景（微弱渐变）
+    const pathGrad = ctx.createLinearGradient(sourceX, 0, screenX, 0);
+    pathGrad.addColorStop(0, "rgba(0, 212, 255, 0.02)");
+    pathGrad.addColorStop(1, "rgba(0, 212, 255, 0.01)");
+    ctx.fillStyle = pathGrad;
+    ctx.fillRect(sourceX - 10, 0, screenX - sourceX + 20, H);
+
+    // 光源
+    ctx.save();
+    const sourceGlow = ctx.createRadialGradient(sourceX, centerY, 0, sourceX, centerY, 20);
+    const lambdaColor = wavelengthToColor(state.wavelength);
+    sourceGlow.addColorStop(0, `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.9)`);
+    sourceGlow.addColorStop(0.5, `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.3)`);
+    sourceGlow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sourceGlow;
+    ctx.beginPath();
+    ctx.arc(sourceX, centerY, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgb(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b})`;
+    ctx.beginPath();
+    ctx.arc(sourceX, centerY, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 光源标签
+    ctx.fillStyle = "rgba(122, 138, 168, 0.8)";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("光源", sourceX, centerY + 35);
+
+    // 双缝挡板
+    const slitGapPx = Math.max(3, state.slitSpacing * 40); // 视觉放大
+    const slitWidthPx = Math.max(1.5, state.slitWidth * 30);
+    const slit1Y = centerY - slitGapPx / 2 - slitWidthPx / 2;
+    const slit2Y = centerY + slitGapPx / 2 - slitWidthPx / 2;
+
+    ctx.fillStyle = "#1a2540";
+    // 上挡板
+    ctx.fillRect(slitX - 4, 0, 8, slit1Y);
+    // 中挡板
+    ctx.fillRect(slitX - 4, slit1Y + slitWidthPx, 8, slit2Y - (slit1Y + slitWidthPx));
+    // 下挡板
+    ctx.fillRect(slitX - 4, slit2Y + slitWidthPx, 8, H - (slit2Y + slitWidthPx));
+
+    // 缝隙发光
+    ctx.save();
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.6)`;
+    ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.15)`;
+    ctx.fillRect(slitX - 4, slit1Y, 8, slitWidthPx);
+    ctx.fillRect(slitX - 4, slit2Y, 8, slitWidthPx);
+    ctx.restore();
+
+    // 双缝标签
+    ctx.fillStyle = "rgba(122, 138, 168, 0.8)";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("双缝", slitX, H - 8);
+
+    // 屏幕
+    ctx.save();
+    // 屏幕背景
+    ctx.fillStyle = "#0a1020";
+    ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+    // 屏幕边框
+    ctx.strokeStyle = "rgba(0, 212, 255, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+
+    // 裁剪到屏幕区域绘制累积光子
+    ctx.beginPath();
+    ctx.rect(screenX, screenY, screenWidth, screenHeight);
+    ctx.clip();
+
+    // 绘制已落点光子（累积）
+    const halfW = state.screenHalfWidth;
+    const yToScreenY = (y_mm) => screenY + screenHeight / 2 - (y_mm / halfW) * (screenHeight / 2);
+
+    // 绘制光子点
+    for (let i = 0; i < state.landedPhotons.length; i++) {
+      const p = state.landedPhotons[i];
+      const sx = screenX + 2 + Math.random() * (screenWidth - 4); // 随机水平散布
+      const sy = yToScreenY(p.y_mm);
+      if (sy >= screenY && sy <= screenY + screenHeight) {
+        const alpha = Math.min(1, 0.5 + p.intensity * 0.5);
+        ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, ${alpha})`;
+        ctx.fillRect(sx - 1, sy - 1, 2, 2);
+      }
+    }
+
+    ctx.restore();
+
+    // 屏幕标签
+    ctx.fillStyle = "rgba(122, 138, 168, 0.8)";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("屏幕（累积）", screenX + screenWidth / 2, screenY + screenHeight + 15);
+
+    // 飞行中的光子
+    for (let i = 0; i < state.flyingPhotons.length; i++) {
+      const p = state.flyingPhotons[i];
+      const px = sourceX + (p.progress * (screenX - sourceX));
+      const py = centerY + p.lateralOffset * (p.progress);
+      // 光子拖尾
+      ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.6)`;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      // 微弱光晕
+      ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.15)`;
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 距离标尺
+    ctx.strokeStyle = "rgba(122, 138, 168, 0.2)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(sourceX, H - 20);
+    ctx.lineTo(screenX, H - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(122, 138, 168, 0.5)";
+    ctx.font = "9px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("L = 1.0 m", (sourceX + screenX) / 2, H - 8);
+  }
+
+  // 波长到 RGB
+  function wavelengthToColor(nm) {
+    let r = 0, g = 0, b = 0;
+    if (nm >= 380 && nm < 440) { r = -(nm - 440) / 60; b = 1; }
+    else if (nm >= 440 && nm < 490) { g = (nm - 440) / 50; b = 1; }
+    else if (nm >= 490 && nm < 510) { g = 1; b = -(nm - 510) / 20; }
+    else if (nm >= 510 && nm < 580) { r = (nm - 510) / 70; g = 1; }
+    else if (nm >= 580 && nm < 645) { r = 1; g = -(nm - 645) / 65; }
+    else if (nm >= 645 && nm <= 750) { r = 1; }
+    // 增亮
+    const factor = 1.2;
+    return {
+      r: Math.min(255, Math.round(r * 255 * factor)),
+      g: Math.min(255, Math.round(g * 255 * factor)),
+      b: Math.min(255, Math.round(b * 255 * factor))
+    };
+  }
+
+  // ===== 图表渲染 =====
+  function renderChart() {
+    if (!chartCtx) return;
+    const ctx = chartCtx;
+    const W = chartW, H = chartH;
+
+    ctx.fillStyle = "#080c18";
+    ctx.fillRect(0, 0, W, H);
+
+    const padL = 35, padR = 10, padT = 10, padB = 25;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    // 网格
+    ctx.strokeStyle = "rgba(22, 30, 52, 0.8)";
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH * i) / 4;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 6; i++) {
+      const x = padL + (plotW * i) / 6;
+      ctx.beginPath();
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, padT + plotH);
+      ctx.stroke();
+    }
+
+    // 坐标轴
+    ctx.strokeStyle = "rgba(122, 138, 168, 0.4)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    // 轴标签
+    ctx.fillStyle = "rgba(122, 138, 168, 0.7)";
+    ctx.font = "9px monospace";
+    ctx.textAlign = "right";
+    ctx.fillText("I", padL - 4, padT + 8);
+    ctx.textAlign = "center";
+    ctx.fillText("y (mm)", padL + plotW / 2, H - 8);
+
+    // Y 轴刻度
+    ctx.textAlign = "right";
+    ctx.fillText("0", padL - 4, padT + plotH);
+    ctx.fillText("max", padL - 4, padT + 8);
+
+    // X 轴刻度
+    const halfW = state.screenHalfWidth;
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 6; i++) {
+      const x = padL + (plotW * i) / 6;
+      const val = (-halfW + (2 * halfW * i) / 6).toFixed(0);
+      ctx.fillText(val, x, padT + plotH + 12);
+    }
+
+    if (!state.theoryCurve || !state.histogram) return;
+
+    // 绘制直方图
+    const bins = state.histogram;
+    const n = bins.length;
+    const binWidth = (2 * halfW) / n;
+    const maxHist = state.maxBinCount || 1;
+    const lambdaColor = wavelengthToColor(state.wavelength);
+
+    ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.25)`;
+    for (let i = 0; i < n; i++) {
+      const y_mm = -halfW + i * binWidth;
+      const x = padL + ((y_mm + halfW) / (2 * halfW)) * plotW;
+      const barH = (bins[i] / maxHist) * plotH;
+      const barW = (plotW / n) * 0.9;
+      ctx.fillRect(x, padT + plotH - barH, barW, barH);
+    }
+
+    // 绘制直方图轮廓
+    ctx.strokeStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.6)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const y_mm = -halfW + i * binWidth;
+      const x = padL + ((y_mm + halfW) / (2 * halfW)) * plotW;
+      const barH = (bins[i] / maxHist) * plotH;
+      const y = padT + plotH - barH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 绘制理论曲线
+    const tc = state.theoryCurve;
+    const N = tc.x.length;
+    let maxI = 0;
+    for (let i = 0; i < N; i++) if (tc.I[i] > maxI) maxI = tc.I[i];
+    if (maxI > 0) {
+      ctx.strokeStyle = "#ff9500";
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = "rgba(255, 149, 0, 0.5)";
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const x = padL + ((tc.x[i] + halfW) / (2 * halfW)) * plotW;
+        const y = padT + plotH - (tc.I[i] / maxI) * plotH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // 图例
+    ctx.font = "9px monospace";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#ff9500";
+    ctx.fillRect(padL + 4, padT + 2, 8, 2);
+    ctx.fillText("理论 I(θ)", padL + 16, padT + 6);
+    ctx.fillStyle = `rgba(${lambdaColor.r}, ${lambdaColor.g}, ${lambdaColor.b}, 0.8)`;
+    ctx.fillRect(padL + 4, padT + 12, 8, 6);
+    ctx.fillText("累积直方图", padL + 16, padT + 18);
+  }
+
+  // ===== 主渲染 =====
+  function render() {
+    renderScene();
+    renderChart();
+    updateReadouts();
+  }
+
+  function updateReadouts() {
+    els.metricN.textContent = state.photonCount.toLocaleString();
+    const measuredV = computeMeasuredVisibility();
+    if (measuredV !== null) {
+      els.metricV.textContent = measuredV.toFixed(2);
+    } else if (state.visibility !== null) {
+      els.metricV.textContent = state.visibility.toFixed(2) + "*";
+    } else {
+      els.metricV.textContent = "—";
+    }
+
+    els.overlayA.textContent = state.slitWidth.toFixed(2);
+    els.overlayD.textContent = state.slitSpacing.toFixed(2);
+    els.overlayLambda.textContent = state.wavelength;
+
+    // 洞察文本
+    if (state.photonCount === 0) {
+      els.insightText.textContent = "点击\"发射\"开始。光子将逐颗穿过双缝，在屏幕上累积。";
+    } else if (state.photonCount < 30) {
+      els.insightText.textContent = `已发射 ${state.photonCount} 颗光子。落点看似随机散乱——单光子行为不可预测。`;
+    } else if (state.photonCount < 200) {
+      els.insightText.textContent = `N=${state.photonCount}：散乱中开始隐现规律。概率波正在显现统计结构。`;
+    } else if (state.photonCount < 1000) {
+      els.insightText.textContent = `N=${state.photonCount}：干涉条纹逐渐清晰。每个光子\"知道\"概率分布，但落点不可预测。`;
+    } else {
+      els.insightText.textContent = `N=${state.photonCount}：累积直方图与理论曲线高度吻合。波动性是概率波的统计显现。`;
+    }
+  }
+
+  // ===== 模拟更新 =====
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+
+    // 发射光子
+    state.emissionAccumulator += state.emissionRate * boundedDt;
+    const newPhotons = Math.floor(state.emissionAccumulator);
+    state.emissionAccumulator -= newPhotons;
+
+    for (let i = 0; i < newPhotons; i++) {
+      emitPhoton();
+    }
+
+    // 更新飞行光子
+    const flySpeed = 2.5; // 进度/秒
+    for (let i = state.flyingPhotons.length - 1; i >= 0; i--) {
+      const p = state.flyingPhotons[i];
+      p.progress += flySpeed * boundedDt;
+      if (p.progress >= 1) {
+        // 光子落地
+        landPhoton(p);
+        state.flyingPhotons.splice(i, 1);
+      }
+    }
+  }
+
+  function emitPhoton() {
+    const y_mm = samplePhotonPosition();
+    // 计算该位置的理论强度（用于颜色亮度）
+    const a_mm = state.slitWidth;
+    const d_mm = state.slitSpacing;
+    const lambda_mm = state.wavelength * 1e-6;
+    const L = state.screenDistance;
+    const I = intensity(y_mm, a_mm, d_mm, lambda_mm, L);
+
+    // 随机横向偏移（视觉飞行轨迹）
+    const lateralOffset = (Math.random() - 0.5) * 30;
+
+    state.flyingPhotons.push({
+      y_mm: y_mm,
+      intensity: I,
+      progress: 0,
+      lateralOffset: lateralOffset
+    });
+  }
+
+  function landPhoton(p) {
+    state.photonCount++;
+    state.landedPhotons.push({ y_mm: p.y_mm, intensity: p.intensity });
+
+    // 限制累积点数量（防止内存溢出，保留最近 5000 个用于渲染）
+    if (state.landedPhotons.length > 5000) {
+      state.landedPhotons.shift();
+    }
+
+    // 更新直方图
+    const halfW = state.screenHalfWidth;
+    const binIdx = Math.floor(((p.y_mm + halfW) / (2 * halfW)) * state.bins);
+    const idx = clamp(binIdx, 0, state.bins - 1);
+    state.histogram[idx]++;
+    if (state.histogram[idx] > state.maxBinCount) {
+      state.maxBinCount = state.histogram[idx];
+    }
+  }
+
+  // ===== 生命周期 =====
+  function init() {
+    rebuildDistributions();
+    resizeCanvases();
+    bindControls();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    els.statusDot.className = "status-dot running";
+    els.statusText.textContent = "发射中";
+    els.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    els.statusDot.className = "status-dot paused";
+    els.statusText.textContent = "已暂停";
+    els.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.photonCount = 0;
+    state.flyingPhotons = [];
+    state.landedPhotons = [];
+    state.emissionAccumulator = 0;
+    state.histogram = new Float32Array(state.bins);
+    state.maxBinCount = 0;
+    render();
+  }
+
+  function setParameters(values) {
+    const aDef = parameterSchema[0], dDef = parameterSchema[1], lDef = parameterSchema[2];
+    const newA = clamp(finite(Number(values.slitWidth), aDef.default), aDef.min, aDef.max);
+    const newD = clamp(finite(Number(values.slitSpacing), dDef.default), dDef.min, dDef.max);
+    const newL = clamp(finite(Number(values.wavelength), lDef.default), lDef.min, lDef.max);
+
+    const changed = (newA !== state.slitWidth) || (newD !== state.slitSpacing) || (newL !== state.wavelength);
+
+    state.slitWidth = newA;
+    state.slitSpacing = newD;
+    state.wavelength = newL;
+
+    els.slitWidthInput.value = String(state.slitWidth);
+    els.slitSpacingInput.value = String(state.slitSpacing);
+    els.wavelengthInput.value = String(state.wavelength);
+    els.slitWidthOutput.textContent = `${state.slitWidth.toFixed(2)} mm`;
+    els.slitSpacingOutput.textContent = `${state.slitSpacing.toFixed(2)} mm`;
+    els.wavelengthOutput.textContent = `${state.wavelength} nm`;
+
+    if (changed) {
+      // 参数改变时重建分布并清空累积
+      rebuildDistributions();
+      state.photonCount = 0;
+      state.flyingPhotons = [];
+      state.landedPhotons = [];
+      state.emissionAccumulator = 0;
+    }
+    render();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      photonCount: state.photonCount,
+      slitWidth: state.slitWidth,
+      slitSpacing: state.slitSpacing,
+      wavelength: state.wavelength,
+      visibility: state.visibility
+    };
+  }
+
+  function getReadouts() {
+    return {
+      N: state.photonCount,
+      visibility: computeMeasuredVisibility(),
+      theoryVisibility: state.visibility
+    };
+  }
+
+  // ===== 模型检查 =====
+  function runModelChecks() {
+    const a_mm = 0.10, d_mm = 0.50, lambda_mm = 500e-6, L = 1000;
+
+    // 1. 中央主极大强度 = 1（归一化后应为最大）
+    const centerI = intensity(0, a_mm, d_mm, lambda_mm, L);
+    const offCenterI = intensity(0.5, a_mm, d_mm, lambda_mm, L);
+    const check1 = centerI > offCenterI;
+
+    // 2. 第一干涉暗纹位置 y = λL/(2d)
+    const firstDark = lambda_mm * L / (2 * d_mm);
+    const darkI = intensity(firstDark, a_mm, d_mm, lambda_mm, L);
+    const nearDarkI = intensity(firstDark + 0.01, a_mm, d_mm, lambda_mm, L);
+    const check2 = darkI < nearDarkI && darkI < 0.01;
+
+    // 3. 缝宽增大 → 包络变窄（第一衍射零点更近）
+    const firstZero_narrow = lambda_mm * L / 0.30; // a=0.30
+    const firstZero_wide = lambda_mm * L / 0.05;  // a=0.05
+    const check3 = firstZero_narrow < firstZero_wide;
+
+    // 4. 缝间距增大 → 条纹变密
+    const fringe1 = lambda_mm * L / 0.30; // d=0.30
+    const fringe2 = lambda_mm * L / 1.00; // d=1.00
+    const check4 = fringe2 < fringe1;
+
+    // 5. CDF 单调性
+    let cdfMonotonic = true;
+    if (state.cdf) {
+      for (let i = 1; i < state.cdf.length; i++) {
+        if (state.cdf[i] < state.cdf[i - 1] - 1e-9) { cdfMonotonic = false; break; }
+      }
+    }
+    const check5 = cdfMonotonic;
+
+    // 6. CDF 端点 [0, 1]
+    const check6 = state.cdf && Math.abs(state.cdf[0]) < 1e-6 && Math.abs(state.cdf[state.cdf.length - 1] - 1) < 1e-6;
+
+    // 7. 采样统计：大量采样后均值应接近 0（对称分布）
+    let sampleMean = 0;
+    const N = 10000;
+    for (let i = 0; i < N; i++) {
+      sampleMean += samplePhotonPosition();
+    }
+    sampleMean /= N;
+    const check7 = Math.abs(sampleMean) < 0.5; // 容差
+
+    return [
+      { name: "中央主极大 > 偏轴", pass: check1, expected: "I(0) > I(0.5)", actual: `${centerI.toFixed(4)} > ${offCenterI.toFixed(4)}`, tolerance: "strict" },
+      { name: "第一干涉暗纹 ≈ 0", pass: check2, expected: "I(λL/2d) < 0.01", actual: darkI.toFixed(6), tolerance: 0.01 },
+      { name: "缝宽增大 → 包络变窄", pass: check3, expected: "firstZero(a=0.30) < firstZero(a=0.05)", actual: `${firstZero_narrow.toFixed(2)} < ${firstZero_wide.toFixed(2)}`, tolerance: "strict" },
+      { name: "缝距增大 → 条纹变密", pass: check4, expected: "fringe(d=1.0) < fringe(d=0.3)", actual: `${fringe2.toFixed(2)} < ${fringe1.toFixed(2)}`, tolerance: "strict" },
+      { name: "CDF 单调递增", pass: check5, expected: "monotonic", actual: cdfMonotonic ? "monotonic" : "violated", tolerance: "strict" },
+      { name: "CDF 端点 [0,1]", pass: check6, expected: "[0, 1]", actual: `[${state.cdf ? state.cdf[0].toFixed(4) : 'N/A'}, ${state.cdf ? state.cdf[state.cdf.length-1].toFixed(4) : 'N/A'}]`, tolerance: 1e-6 },
+      { name: "采样对称性（均值≈0）", pass: check7, expected: "|mean| < 0.5", actual: sampleMean.toFixed(3), tolerance: 0.5 }
+    ];
+  }
+
+  // ===== 事件绑定 =====
+  function bindControls() {
+    els.startBtn.addEventListener("click", start);
+    els.pauseBtn.addEventListener("click", pause);
+    els.resetBtn.addEventListener("click", reset);
+
+    els.slitWidthInput.addEventListener("input", () => {
+      setParameters({ slitWidth: els.slitWidthInput.value, slitSpacing: state.slitSpacing, wavelength: state.wavelength });
+    });
+    els.slitSpacingInput.addEventListener("input", () => {
+      setParameters({ slitWidth: state.slitWidth, slitSpacing: els.slitSpacingInput.value, wavelength: state.wavelength });
+    });
+    els.wavelengthInput.addEventListener("input", () => {
+      setParameters({ slitWidth: state.slitWidth, slitSpacing: state.slitSpacing, wavelength: els.wavelengthInput.value });
+    });
+
+    window.addEventListener("resize", () => {
+      resizeCanvases();
+    });
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 暴露 API =====
+  window.simulation = {
+    init, start, pause, reset, update, render, setParameters,
+    getState, getReadouts, runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

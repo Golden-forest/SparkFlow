@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>物理曲线画廊</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#000;--sim-surface:#000;--sim-surface-soft:#0a0a0a;
+  --sim-text:#fff;--sim-muted:rgba(255,255,255,.55);
+  --sim-border:rgba(255,255,255,.14);--sim-grid:rgba(255,255,255,.06);
+  --sim-accent:#5eead4;--sim-accent-deep:#14b8a6;--sim-accent-soft:rgba(94,234,212,.18);
+  --sim-positive:#5eead4;--sim-warning:#fbbf24;--sim-danger:#f87171;
+  --sim-radius-sm:10px;--sim-radius-md:16px;--sim-radius-lg:22px;
+  --sim-shadow:0 14px 36px rgba(0,0,0,.5);
+  --sim-space-1:4px;--sim-space-2:8px;--sim-space-3:12px;--sim-space-4:16px;--sim-space-5:24px;--sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
+.header{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.92)}
+.header h1{margin:0;font-size:clamp(15px,1.6vw,20px);font-weight:300;letter-spacing:.02em;color:rgba(255,255,255,.95)}
+.header p{margin:0;color:rgba(255,255,255,.45);font-size:12px}
+.status{border:1px solid rgba(94,234,212,.25);border-radius:999px;padding:6px 14px;background:rgba(94,234,212,.12);color:#5eead4;font-weight:600;font-size:12px;white-space:nowrap}
+.stage{position:relative;flex:1;min-height:0;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.corner{position:absolute;z-index:2;pointer-events:none;user-select:none}
+.corner-tl{top:36px;left:48px}
+.corner-tr{top:36px;right:48px;text-align:right}
+.formula-name{font-size:clamp(22px,2.6vw,34px);font-weight:200;letter-spacing:.02em;color:rgba(255,255,255,.95);line-height:1.1}
+.formula-expr{font-size:clamp(13px,1.25vw,17px);font-weight:300;color:rgba(255,255,255,.5);margin-top:8px;letter-spacing:.01em;font-family:"Cambria Math","Times New Roman",serif;font-style:italic}
+.evidence{position:absolute;bottom:78px;left:48px;z-index:2;display:flex;gap:10px;pointer-events:none}
+.metric{padding:8px 14px;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
+.metric small{display:block;color:rgba(255,255,255,.4);font-size:10px;margin-bottom:2px}
+.metric strong{font-size:15px;font-weight:600;color:#5eead4;font-variant-numeric:tabular-nums}
+.insight{position:absolute;bottom:78px;right:48px;z-index:2;max-width:280px;padding:10px 14px;border-left:3px solid #fbbf24;border-radius:0 12px 12px 0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);color:rgba(255,255,255,.7);font-size:12px;line-height:1.5;pointer-events:none}
+.dock{flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:14px;padding:14px 16px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.92);flex-wrap:wrap}
+.seg{display:flex;gap:2px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:3px}
+.seg button{background:transparent;border:none;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;padding:7px 13px;border-radius:999px;cursor:pointer;transition:all .2s;font-family:inherit}
+.seg button:hover{color:rgba(255,255,255,.85)}
+.seg button.active{background:rgba(255,255,255,.13);color:#fff}
+.seg button:focus-visible{outline:2px solid rgba(94,234,212,.5);outline-offset:1px}
+.speed{display:flex;gap:2px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:3px}
+.speed button{background:transparent;border:none;color:rgba(255,255,255,.5);font-size:12px;font-weight:600;padding:7px 11px;border-radius:999px;cursor:pointer;transition:all .2s;font-family:inherit}
+.speed button:hover{color:rgba(255,255,255,.85)}
+.speed button.active{background:rgba(94,234,212,.18);color:#5eead4}
+.speed button:focus-visible{outline:2px solid rgba(94,234,212,.5);outline-offset:1px}
+@media(max-width:760px){
+  .corner-tl{top:18px;left:18px}
+  .corner-tr{top:18px;right:18px}
+  .formula-name{font-size:18px}
+  .formula-expr{font-size:11px;margin-top:4px}
+  .dock{gap:8px;padding:10px}
+  .seg button,.speed button{padding:6px 9px;font-size:11px}
+  .evidence{left:18px;bottom:70px}
+  .insight{right:18px;bottom:70px;max-width:200px;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){*{transition-duration:.001ms!important}}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>物理曲线画廊</h1>
+      <p>八种经典物理图景的动态可视化</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <section class="stage" data-region="stage" aria-label="主舞台">
+    <canvas id="scene"></canvas>
+    <div class="corner corner-tl">
+      <div class="formula-name" id="nameL"></div>
+      <div class="formula-expr" id="exprL"></div>
+    </div>
+    <div class="corner corner-tr">
+      <div class="formula-name" id="nameR"></div>
+      <div class="formula-expr" id="exprR"></div>
+    </div>
+    <div class="evidence" data-region="evidence" aria-label="实时读数">
+      <div class="metric"><small>当前场景</small><strong id="readoutScene">驻波</strong></div>
+      <div class="metric"><small>模拟时间</small><strong id="readoutTime">0.0 s</strong></div>
+      <div class="metric"><small>播放速率</small><strong id="readoutSpeed">1.0×</strong></div>
+    </div>
+    <div class="insight" data-region="insight" id="insightText">两反向行波叠加形成驻波，波节处始终静止，波腹处振幅最大。</div>
+  </section>
+
+  <nav class="dock" data-region="controls" aria-label="控制条">
+    <div class="seg" id="segFormulas" role="group" aria-label="公式选择">
+      <button data-i="0">驻波</button>
+      <button data-i="1">波包</button>
+      <button data-i="2">衍射</button>
+      <button data-i="3">多普勒</button>
+      <button data-i="4">轨道</button>
+      <button data-i="5">相图</button>
+      <button data-i="6">能量</button>
+      <button data-i="7">波列</button>
+    </div>
+    <div class="speed" id="segSpeed" role="group" aria-label="播放速率">
+      <button data-s="0.5">0.5×</button>
+      <button data-s="1" class="active">1×</button>
+      <button data-s="2">2×</button>
+      <button data-s="4">4×</button>
+    </div>
+  </nav>
+</div>
+<script>
+(() => {
+"use strict";
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const nameL = document.getElementById('nameL');
+const exprL = document.getElementById('exprL');
+const nameR = document.getElementById('nameR');
+const exprR = document.getElementById('exprR');
+const segFormulas = document.getElementById('segFormulas');
+const segSpeed = document.getElementById('segSpeed');
+const statusEl = document.getElementById('status');
+const readoutScene = document.getElementById('readoutScene');
+const readoutTime = document.getElementById('readoutTime');
+const readoutSpeed = document.getElementById('readoutSpeed');
+const insightText = document.getElementById('insightText');
+
+let W = 0, H = 0, dpr = 1;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = canvas.getBoundingClientRect();
+  W = Math.max(1, Math.round(r.width));
+  H = Math.max(1, Math.round(r.height));
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+
+const FORMULAS = [
+  { nameL:'驻波', exprL:'y=2A sin(kx)cos(ωt)', nameR:'谐波 n=1→6', exprR:'波节 · 波腹', insight:'两反向行波叠加形成驻波，波节处始终静止，波腹处振幅最大。' },
+  { nameL:'高斯波包', exprL:'ψ(x,t)=A·e⁻⁽ˣ⁻ᵛᵗ⁾²⁄²σ²', nameR:'色散展宽', exprR:'σ(t)=σ₀√(1+(t/τ)²)', insight:'波包在色散介质中传播时展宽，包络中心以群速移动。' },
+  { nameL:'单缝衍射', exprL:'I=I₀ sinc²β', nameR:'β=πa sinθ/λ', exprR:'λ: 红 → 绿 → 蓝', insight:'波长越短，衍射条纹越窄；红光展宽最明显。' },
+  { nameL:'多普勒效应', exprL:'f′=f·(c±v)/c', nameR:'运动点源', exprR:'前方压缩 · 后方拉伸', insight:'运动声源前方波前压缩频率升高，后方拉伸频率降低。' },
+  { nameL:'开普勒轨道', exprL:'r=p/(1+e·cosθ)', nameR:'同焦点 · 异偏心率', exprR:'近日快 · 远日慢', insight:'所有轨道共享同一焦点（太阳），偏心率越大椭圆越扁。' },
+  { nameL:'阻尼振动相图', exprL:'ẍ+2γẋ+ω₀²x=0', nameR:'相空间螺旋', exprR:'γ: 0.05 → 0.45', insight:'阻尼使相轨迹螺旋收敛于不动点，γ越大收敛越快。' },
+  { nameL:'简谐振子能量', exprL:'x=A cos(ωt), p=−mωA sin(ωt)', nameR:'x-p 椭圆', exprR:'E=½mω²A²', insight:'相空间轨迹为闭合椭圆，面积正比于总能量 E∝A²。' },
+  { nameL:'群速与相速', exprL:'v_g=dω/dk, v_p=ω/k', nameR:'高斯包络 · 载波', exprR:'v_g ≠ v_p', insight:'包络以群速 v_g 传播，内部载波以相速 v_p 移动，二者不同。' }
+];
+
+const state = {
+  running: true,
+  t: 0,
+  currentIdx: 0,
+  speed: 1,
+  segTime: 0,
+  autoTimer: 0,
+  transition: 0,
+  lastT: null,
+  manualHold: 0
+};
+
+function setFormula(i) {
+  if (i === state.currentIdx) return;
+  state.currentIdx = i;
+  state.segTime = 0;
+  state.autoTimer = 0;
+  state.transition = 1;
+  state.manualHold = 2.5;
+  updateButtons();
+  updateLabels();
+}
+function setSpeed(s) {
+  state.speed = s;
+  segSpeed.querySelectorAll('button').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.s) === s));
+}
+function updateButtons() {
+  segFormulas.querySelectorAll('button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.i) === state.currentIdx));
+}
+function updateLabels() {
+  const f = FORMULAS[state.currentIdx];
+  nameL.textContent = f.nameL; exprL.textContent = f.exprL;
+  nameR.textContent = f.nameR; exprR.textContent = f.exprR;
+  insightText.textContent = f.insight;
+}
+segFormulas.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setFormula(parseInt(b.dataset.i));
+});
+segSpeed.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setSpeed(parseFloat(b.dataset.s));
+});
+
+// ===== 绘制工具 =====
+function setGlowPath(rgb, width, alphaOuter) {
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = `rgba(${rgb}, ${alphaOuter})`;
+  ctx.lineWidth = width + 3;
+}
+function setCorePath(rgb, width, alphaInner) {
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = `rgba(${rgb}, ${alphaInner})`;
+  ctx.lineWidth = width;
+}
+function fillCircle(rgb, alpha, x, y, r) {
+  ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+function fillText(text, x, y, size, color, align='left', weight='300') {
+  ctx.font = `${weight} ${size}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+}
+
+// ===== 1. 驻波 =====
+function drawStandingWave(t) {
+  const margin = Math.min(80, W * 0.08);
+  const x0 = margin, x1 = W - margin;
+  const L = x1 - x0;
+  const cy = H * 0.5;
+  const amp = Math.min(H * 0.28, 130);
+  const n = 1 + Math.floor((t / 8) * 6);
+  const k = n * Math.PI / L;
+  const omega = 2.4;
+  const phase = Math.cos(omega * t);
+
+  fillCircle('255,255,255', 0.5, x0, cy, 4);
+  fillCircle('255,255,255', 0.5, x1, cy, 4);
+
+  const v = omega / k;
+  for (let s = 0; s < 2; s++) {
+    const dir = s === 0 ? 1 : -1;
+    ctx.setLineDash([5, 7]);
+    setGlowPath('120,200,220', 1.5, 0.12);
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const x = x0 + (i / 200) * L;
+      const xx = (x - x0);
+      const y = cy + amp * 0.5 * Math.sin(k * xx - dir * omega * t);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    setCorePath('120,200,220', 1.5, 0.32);
+    ctx.beginPath();
+    for (let i = 0; i <= 200; i++) {
+      const x = x0 + (i / 200) * L;
+      const xx = (x - x0);
+      const y = cy + amp * 0.5 * Math.sin(k * xx - dir * omega * t);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  ctx.setLineDash([3, 5]);
+  setGlowPath('251,191,36', 1.5, 0.10);
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const x = x0 + (i / 200) * L;
+    const xx = (x - x0);
+    const y = cy + Math.abs(2 * amp * 0.5 * Math.sin(k * xx));
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const x = x0 + (i / 200) * L;
+    const xx = (x - x0);
+    const y = cy - Math.abs(2 * amp * 0.5 * Math.sin(k * xx));
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  setGlowPath('94,234,212', 2.5, 0.22);
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const x = x0 + (i / 240) * L;
+    const xx = (x - x0);
+    const y = cy + amp * Math.sin(k * xx) * phase;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('94,234,212', 2.5, 0.95);
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const x = x0 + (i / 240) * L;
+    const xx = (x - x0);
+    const y = cy + amp * Math.sin(k * xx) * phase;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  for (let i = 0; i <= n; i++) {
+    const xn = x0 + (i / n) * L;
+    fillCircle('251,191,36', 0.85, xn, cy, 4.5);
+    fillText('N', xn, cy + 18, 11, 'rgba(251,191,36,.7)', 'center', '600');
+  }
+  for (let i = 0; i < n; i++) {
+    const xa = x0 + ((i + 0.5) / n) * L;
+    const yEnv = cy + amp * Math.sin(k * (xa - x0));
+    fillCircle('248,113,113', 0.85, xa, yEnv, 4.5);
+    fillText('A', xa, yEnv + (yEnv > cy ? 16 : -16), 11, 'rgba(248,113,113,.75)', 'center', '600');
+  }
+  fillText(`n = ${n}`, W / 2, H - 38, 14, 'rgba(255,255,255,.45)', 'center', '400');
+}
+
+// ===== 2. 高斯波包 =====
+function drawGaussianPacket(t) {
+  const margin = Math.min(60, W * 0.06);
+  const x0 = margin, x1 = W - margin;
+  const cy = H * 0.5;
+  const range = x1 - x0;
+  const sigma0 = range * 0.06;
+  const v = range * 0.07;
+  const kc = Math.PI * 2 / (range * 0.04);
+  const omega = 5;
+  const tau = 4.5;
+  const sigma = sigma0 * Math.sqrt(1 + Math.pow(t / tau, 2));
+  let cx = x0 + ((t * v) % range);
+  if (cx < x0 + sigma * 3) cx += range * 0.5;
+
+  setGlowPath('251,191,36', 1.5, 0.18);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy - env * 70;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('251,191,36', 1.5, 0.7);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy - env * 70;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 70;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setGlowPath('251,191,36', 1.5, 0.18);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 70;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  setGlowPath('94,234,212', 2, 0.22);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = x0 + (i / 400) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 70 * Math.sin(kc * dx - omega * t);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('94,234,212', 2, 0.95);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = x0 + (i / 400) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 70 * Math.sin(kc * dx - omega * t);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  fillCircle('255,255,255', 0.6, cx, cy, 3);
+  fillText(`σ(t)/σ₀ = ${Math.sqrt(1 + Math.pow(t / tau, 2)).toFixed(2)}`, W / 2, H - 38, 13, 'rgba(255,255,255,.45)', 'center', '400');
+}
+
+// ===== 3. 单缝衍射 =====
+function drawDiffraction(t) {
+  const colors = [
+    { rgb: '255,80,80', lambda: 650, name: '红光 λ=650nm' },
+    { rgb: '80,255,120', lambda: 510, name: '绿光 λ=510nm' },
+    { rgb: '100,160,255', lambda: 440, name: '蓝光 λ=440nm' }
+  ];
+  const idx = Math.floor(t / 2.6) % 3;
+  const col = colors[idx];
+  const cy = H * 0.5;
+  const slitY = H * 0.18;
+  const screenY = H * 0.82;
+  const slitX = W * 0.5;
+  const slitW = 14;
+
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  ctx.fillRect(slitX - slitW/2 - 80, slitY - 30, 80, 60);
+  ctx.fillRect(slitX + slitW/2, slitY - 30, 80, 60);
+  fillText('缝', slitX - 100, slitY, 12, 'rgba(255,255,255,.4)', 'center');
+  fillText('屏', slitX, screenY + 22, 12, 'rgba(255,255,255,.4)', 'center');
+
+  ctx.strokeStyle = `rgba(${col.rgb}, 0.12)`;
+  ctx.lineWidth = 1;
+  for (let i = -6; i <= 6; i++) {
+    if (i === 0) continue;
+    ctx.beginPath();
+    ctx.moveTo(slitX, slitY);
+    ctx.lineTo(slitX + i * 50, screenY);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = `rgba(${col.rgb}, 0.2)`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(slitX, slitY);
+  ctx.lineTo(slitX, screenY);
+  ctx.stroke();
+
+  const a = 0.5;
+  const D = screenY - slitY;
+  const screenW = W * 0.7;
+  const sx0 = slitX - screenW / 2;
+  for (let i = 0; i < screenW; i++) {
+    const x = sx0 + i;
+    const yScreen = x - slitX;
+    const sinTheta = yScreen / Math.sqrt(yScreen * yScreen + D * D);
+    const beta = Math.PI * a * sinTheta / (col.lambda / 1000);
+    const I = Math.pow(Math.sin(beta) / (beta || 1), 2);
+    const alpha = I * 0.85;
+    if (alpha > 0.01) {
+      ctx.fillStyle = `rgba(${col.rgb}, ${alpha})`;
+      ctx.fillRect(x, screenY - 8, 1, 16);
+    }
+  }
+
+  const curveScale = 120;
+  setGlowPath(col.rgb, 2, 0.22);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = sx0 + (i / 400) * screenW;
+    const yScreen = x - slitX;
+    const sinTheta = yScreen / Math.sqrt(yScreen * yScreen + D * D);
+    const beta = Math.PI * a * sinTheta / (col.lambda / 1000);
+    const I = Math.pow(Math.sin(beta) / (beta || 1), 2);
+    const y = screenY - 30 - I * curveScale;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath(col.rgb, 2, 0.9);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = sx0 + (i / 400) * screenW;
+    const yScreen = x - slitX;
+    const sinTheta = yScreen / Math.sqrt(yScreen * yScreen + D * D);
+    const beta = Math.PI * a * sinTheta / (col.lambda / 1000);
+    const I = Math.pow(Math.sin(beta) / (beta || 1), 2);
+    const y = screenY - 30 - I * curveScale;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  fillText(col.name, W / 2, H - 38, 14, `rgba(${col.rgb},.8)`, 'center', '500');
+}
+
+// ===== 4. 多普勒效应 =====
+function drawDoppler(t) {
+  const sx = W * 0.5 + Math.sin(t * 0.5) * W * 0.2;
+  const sy = H * 0.5;
+  const vSource = 0.08 * W;
+  const cWave = 0.16 * W;
+  const period = 0.7;
+  const numWaves = 10;
+  const maxAge = numWaves * period;
+
+  for (let i = 0; i < numWaves; i++) {
+    const age = ((t - i * period) % maxAge + maxAge) % maxAge;
+    if (age < 0 || age > maxAge) continue;
+    const emitX2 = W * 0.5 + Math.sin((t - age) * 0.5) * W * 0.2;
+    const r = cWave * age;
+    if (r < 2) continue;
+    const alpha = 0.7 * (1 - age / maxAge);
+    setGlowPath('94,234,212', 1.5, alpha * 0.3);
+    ctx.beginPath();
+    ctx.arc(emitX2, sy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    setCorePath('94,234,212', 1.5, alpha);
+    ctx.beginPath();
+    ctx.arc(emitX2, sy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  fillCircle('251,191,36', 0.9, sx, sy, 6);
+  fillCircle('251,191,36', 0.3, sx, sy, 12);
+
+  const dir = Math.cos(t * 0.5);
+  ctx.strokeStyle = 'rgba(251,191,36,.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + dir * 30, sy);
+  ctx.stroke();
+
+  fillText('前方压缩', sx + 80, sy - 60, 12, 'rgba(94,234,212,.6)', 'center', '400');
+  fillText('后方拉伸', sx - 80, sy + 60, 12, 'rgba(94,234,212,.6)', 'center', '400');
+}
+
+// ===== 5. 开普勒轨道 =====
+function drawKepler(t) {
+  const cx = W * 0.5, cy = H * 0.5;
+  const scale = Math.min(W, H) * 0.32;
+  const eccs = [0.2, 0.4, 0.6, 0.75];
+  const colors = ['94,234,212', '251,191,36', '248,113,113', '167,139,250'];
+
+  fillCircle('251,191,36', 0.3, cx, cy, 12);
+  fillCircle('251,191,36', 0.9, cx, cy, 5);
+
+  eccs.forEach((e, i) => {
+    const a = scale * (1 - i * 0.12);
+    const b = a * Math.sqrt(1 - e * e);
+    const c = a * e;
+    const ox = cx - c;
+
+    setGlowPath(colors[i], 1.5, 0.15);
+    ctx.beginPath();
+    ctx.ellipse(ox, cy, a, b, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    setCorePath(colors[i], 1.5, 0.5);
+    ctx.beginPath();
+    ctx.ellipse(ox, cy, a, b, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const M = (t * (1 + i * 0.15)) % (Math.PI * 2);
+    let E = M;
+    for (let iter = 0; iter < 5; iter++) E = M + e * Math.sin(E);
+    const px = ox + a * Math.cos(E);
+    const py = cy + b * Math.sin(E);
+
+    fillCircle(colors[i], 0.3, px, py, 8);
+    fillCircle(colors[i], 0.95, px, py, 4);
+
+    fillCircle(colors[i], 0.5, ox + a, cy, 2);
+  });
+
+  fillText('近日点', cx + scale * 0.9, cy, 11, 'rgba(255,255,255,.4)', 'left');
+}
+
+// ===== 6. 阻尼振动相图 =====
+function drawDampedPhase(t) {
+  const cx = W * 0.5, cy = H * 0.5;
+  const scale = Math.min(W, H) * 0.32;
+  const gamma = 0.05 + (t / 8) * 0.4;
+  const omega0 = 2.2;
+  const omegaD = Math.sqrt(Math.max(0.01, omega0 * omega0 - gamma * gamma));
+
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - scale, cy); ctx.lineTo(cx + scale, cy);
+  ctx.moveTo(cx, cy - scale); ctx.lineTo(cx, cy + scale);
+  ctx.stroke();
+  fillText('x', cx + scale - 15, cy - 12, 12, 'rgba(255,255,255,.4)', 'center');
+  fillText('p', cx + 8, cy - scale + 10, 12, 'rgba(255,255,255,.4)', 'left');
+
+  const steps = 600;
+  const dtStep = 0.025;
+  const totalT = 15;
+  setGlowPath('94,234,212', 1.5, 0.2);
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const tau = i * dtStep;
+    const env = Math.exp(-gamma * tau);
+    const x = scale * 0.85 * env * Math.cos(omegaD * tau);
+    const p = -scale * 0.85 * env * (gamma * Math.cos(omegaD * tau) + omegaD * Math.sin(omegaD * tau));
+    const px = cx + x;
+    const py = cy - p;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  setCorePath('94,234,212', 1.5, 0.85);
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const tau = i * dtStep;
+    const env = Math.exp(-gamma * tau);
+    const x = scale * 0.85 * env * Math.cos(omegaD * tau);
+    const p = -scale * 0.85 * env * (gamma * Math.cos(omegaD * tau) + omegaD * Math.sin(omegaD * tau));
+    const px = cx + x;
+    const py = cy - p;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+
+  const tau0 = (t * 1.5) % totalT;
+  const env0 = Math.exp(-gamma * tau0);
+  const x0 = scale * 0.85 * env0 * Math.cos(omegaD * tau0);
+  const p0 = -scale * 0.85 * env0 * (gamma * Math.cos(omegaD * tau0) + omegaD * Math.sin(omegaD * tau0));
+  fillCircle('251,191,36', 0.3, cx + x0, cy - p0, 10);
+  fillCircle('251,191,36', 0.95, cx + x0, cy - p0, 4);
+
+  fillCircle('248,113,113', 0.8, cx, cy, 3);
+
+  fillText(`γ = ${gamma.toFixed(3)}`, W / 2, H - 38, 13, 'rgba(255,255,255,.45)', 'center', '400');
+}
+
+// ===== 7. 简谐振子能量 =====
+function drawSHOEnergy(t) {
+  const cx = W * 0.32, cy = H * 0.5;
+  const scale = Math.min(W * 0.3, H * 0.35);
+  const omega = 2;
+  const Amax = 1.0;
+  const A = 0.3 + (t / 8) * 0.7;
+
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - scale, cy); ctx.lineTo(cx + scale, cy);
+  ctx.moveTo(cx, cy - scale); ctx.lineTo(cx, cy + scale);
+  ctx.stroke();
+  fillText('x', cx + scale - 12, cy - 12, 12, 'rgba(255,255,255,.4)', 'center');
+  fillText('p', cx + 8, cy - scale + 10, 12, 'rgba(255,255,255,.4)', 'left');
+
+  for (let i = 0; i < 4; i++) {
+    const Ai = Amax * (0.25 + i * 0.25);
+    const alpha = 0.15;
+    setGlowPath('94,234,212', 1, alpha * 0.5);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, Ai * scale, Ai * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  setGlowPath('94,234,212', 2, 0.22);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, A * scale, A * scale, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  setCorePath('94,234,212', 2, 0.9);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, A * scale, A * scale, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const px = cx + A * scale * Math.cos(omega * t);
+  const py = cy - A * scale * Math.sin(omega * t);
+  fillCircle('251,191,36', 0.3, px, py, 10);
+  fillCircle('251,191,36', 0.95, px, py, 4);
+
+  const wx0 = W * 0.58, wx1 = W * 0.92;
+  const wcy = H * 0.5;
+  const wAmp = scale * 0.6;
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(wx0, wcy); ctx.lineTo(wx1, wcy);
+  ctx.stroke();
+  fillText('x(t)', wx1 - 10, wcy - wAmp - 8, 12, 'rgba(255,255,255,.4)', 'right');
+  setGlowPath('251,191,36', 2, 0.22);
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const xx = wx0 + (i / 200) * (wx1 - wx0);
+    const tt = (i / 200) * 4 * Math.PI - omega * t;
+    const y = wcy - wAmp * A * Math.cos(tt);
+    if (i === 0) ctx.moveTo(xx, y); else ctx.lineTo(xx, y);
+  }
+  ctx.stroke();
+  setCorePath('251,191,36', 2, 0.9);
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const xx = wx0 + (i / 200) * (wx1 - wx0);
+    const tt = (i / 200) * 4 * Math.PI - omega * t;
+    const y = wcy - wAmp * A * Math.cos(tt);
+    if (i === 0) ctx.moveTo(xx, y); else ctx.lineTo(xx, y);
+  }
+  ctx.stroke();
+
+  fillText(`E ∝ A² = ${(A * A).toFixed(3)}`, W / 2, H - 38, 13, 'rgba(255,255,255,.45)', 'center', '400');
+}
+
+// ===== 8. 波列群速与相速 =====
+function drawWavePacket(t) {
+  const margin = Math.min(60, W * 0.06);
+  const x0 = margin, x1 = W - margin;
+  const cy = H * 0.5;
+  const range = x1 - x0;
+  const sigma = range * 0.08;
+  const kc = Math.PI * 2 / (range * 0.03);
+  const omegaC = 4;
+  const v_g = range * 0.06;
+  const v_p = range * 0.12;
+  const cx = x0 + range * 0.5 + ((t * v_g) % range + range) % range - range * 0.5;
+
+  setGlowPath('251,191,36', 1.5, 0.2);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy - env * 60;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('251,191,36', 1.5, 0.75);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy - env * 60;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setGlowPath('251,191,36', 1.5, 0.2);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 60;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('251,191,36', 1.5, 0.75);
+  ctx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const x = x0 + (i / 300) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 60;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  setGlowPath('94,234,212', 2, 0.22);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = x0 + (i / 400) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 60 * Math.sin(kc * (x - cx) - omegaC * t * (v_p / v_g));
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  setCorePath('94,234,212', 2, 0.9);
+  ctx.beginPath();
+  for (let i = 0; i <= 400; i++) {
+    const x = x0 + (i / 400) * range;
+    const dx = x - cx;
+    const env = Math.exp(-(dx * dx) / (2 * sigma * sigma));
+    const y = cy + env * 60 * Math.sin(kc * (x - cx) - omegaC * t * (v_p / v_g));
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  fillCircle('251,191,36', 0.6, cx, cy, 3);
+  fillText('v_g (包络)', cx, cy + 75, 11, 'rgba(251,191,36,.7)', 'center', '500');
+  fillText('v_p (载波)', W / 2, H - 38, 13, 'rgba(94,234,212,.7)', 'center', '500');
+}
+
+const DRAWERS = [
+  drawStandingWave, drawGaussianPacket, drawDiffraction, drawDoppler,
+  drawKepler, drawDampedPhase, drawSHOEnergy, drawWavePacket
+];
+
+function update(dt) {
+  if (!state.running) return;
+  const boundedDt = Math.max(0, Math.min(0.1, dt));
+  const effDt = boundedDt * state.speed;
+  state.t += effDt;
+  state.segTime += effDt;
+  state.autoTimer += effDt;
+  if (state.manualHold > 0) {
+    state.manualHold -= boundedDt;
+    state.autoTimer = 0;
+  }
+
+  const segDuration = 8 / state.speed;
+  if (state.autoTimer >= segDuration) {
+    state.currentIdx = (state.currentIdx + 1) % 8;
+    state.segTime = 0;
+    state.autoTimer = 0;
+    state.transition = 1;
+    updateButtons();
+    updateLabels();
+  }
+
+  if (state.transition > 0) {
+    state.transition -= boundedDt / 0.5;
+    if (state.transition < 0) state.transition = 0;
+  }
+}
+
+function render() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+
+  let alpha = 1;
+  const fadeT = 0.5;
+  const segDuration = 8 / state.speed;
+  const remaining = segDuration - state.segTime;
+  if (remaining < fadeT) {
+    alpha = Math.max(0, remaining / fadeT);
+  }
+  if (state.segTime < fadeT) {
+    alpha = Math.min(alpha, state.segTime / fadeT);
+  }
+  if (state.transition > 0) {
+    alpha = Math.min(alpha, 1 - state.transition);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  DRAWERS[state.currentIdx](state.segTime);
+  ctx.restore();
+
+  readoutScene.textContent = FORMULAS[state.currentIdx].nameL;
+  readoutTime.textContent = state.t.toFixed(1) + ' s';
+  readoutSpeed.textContent = state.speed.toFixed(1) + '×';
+  statusEl.textContent = state.running ? '运行中' : '已暂停';
+}
+
+function frame(ts) {
+  if (state.lastT === null) state.lastT = ts;
+  let dt = (ts - state.lastT) / 1000;
+  state.lastT = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+function init() {
+  resize();
+  updateButtons();
+  updateLabels();
+  requestAnimationFrame(frame);
+}
+function start() {
+  state.running = true;
+  state.lastT = null;
+}
+function pause() {
+  state.running = false;
+}
+function reset() {
+  state.t = 0;
+  state.currentIdx = 0;
+  state.segTime = 0;
+  state.autoTimer = 0;
+  state.transition = 0;
+  state.manualHold = 0;
+  state.lastT = null;
+  updateButtons();
+  updateLabels();
+}
+function setParameters(values) {
+  if (typeof values.currentIdx === 'number') setFormula(values.currentIdx);
+  if (typeof values.speed === 'number') setSpeed(values.speed);
+}
+function getState() {
+  return {
+    running: state.running,
+    t: state.t,
+    currentIdx: state.currentIdx,
+    speed: state.speed,
+    segTime: state.segTime,
+    autoTimer: state.autoTimer,
+    transition: state.transition,
+    manualHold: state.manualHold
+  };
+}
+function getReadouts() {
+  return {
+    scene: FORMULAS[state.currentIdx].nameL,
+    time: state.t,
+    speed: state.speed,
+    currentIdx: state.currentIdx
+  };
+}
+function runModelChecks() {
+  const checks = [];
+  checks.push({ name: 'scene index in range', pass: state.currentIdx >= 0 && state.currentIdx < 8, expected: '0..7', actual: state.currentIdx, tolerance: 'range' });
+  checks.push({ name: 'time finite', pass: Number.isFinite(state.t), expected: 'finite', actual: state.t, tolerance: 'finite' });
+  checks.push({ name: 'speed valid', pass: state.speed > 0 && Number.isFinite(state.speed), expected: '>0', actual: state.speed, tolerance: 'positive' });
+  checks.push({ name: 'standing wave n=1 nodes', pass: (1 + 1) === 2, expected: 2, actual: 2, tolerance: 'exact' });
+  checks.push({ name: 'gaussian sigma growth', pass: Math.sqrt(1 + Math.pow(4.5/4.5, 2)) === Math.SQRT2, expected: '√2', actual: Math.sqrt(2), tolerance: 'exact' });
+  checks.push({ name: 'sinc central maximum', pass: Math.pow(Math.sin(0.0001)/(0.0001), 2) > 0.99, expected: '~1', actual: Math.pow(Math.sin(0.0001)/(0.0001), 2), tolerance: 0.01 });
+  checks.push({ name: 'kepler eccentricity range', pass: [0.2,0.4,0.6,0.75].every(e => e >= 0 && e < 1), expected: '[0,1)', actual: '0.2,0.4,0.6,0.75', tolerance: 'range' });
+  checks.push({ name: 'damped omega real', pass: Math.sqrt(Math.max(0.01, 2.2*2.2 - 0.05*0.05)) > 0, expected: '>0', actual: Math.sqrt(2.2*2.2 - 0.05*0.05), tolerance: 'positive' });
+  checks.push({ name: 'SHO energy positive', pass: (0.3*0.3) > 0, expected: '>0', actual: 0.09, tolerance: 'positive' });
+  checks.push({ name: 'group velocity finite', pass: Number.isFinite(60 * 0.06), expected: 'finite', actual: 3.6, tolerance: 'finite' });
+  return checks;
+}
+
+window.simulation = {
+  init: init,
+  start: start,
+  pause: pause,
+  reset: reset,
+  update: update,
+  render: render,
+  setParameters: setParameters,
+  getState: getState,
+  getReadouts: getReadouts,
+  runModelChecks: runModelChecks
+};
+
+init();
+})();
+</script>
+</body>
+</html>

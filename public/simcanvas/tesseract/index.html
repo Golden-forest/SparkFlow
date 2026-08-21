@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>四维超立方体投影模拟</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #070b18;
+  --sim-surface: #111a2e;
+  --sim-surface-soft: #0d1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a96b0;
+  --sim-border: #1f2a44;
+  --sim-grid: #16203a;
+  --sim-accent: #5cc8ff;
+  --sim-accent-deep: #2a8fd6;
+  --sim-accent-soft: rgba(92, 200, 255, 0.14);
+  --sim-positive: #4ade80;
+  --sim-warning: #fbbf24;
+  --sim-danger: #f87171;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(92, 200, 255, 0.10), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(167, 139, 250, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(92, 200, 255, 0.45); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+.status { border: 1px solid rgba(92, 200, 255, 0.28); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(17, 26, 46, 0.92); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid var(--sim-border); border-radius: 18px; background: radial-gradient(circle at 50% 45%, #0c1428 0%, #060a16 70%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.readouts, .model-note { padding: 17px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 14px; border: 1px solid var(--sim-border); border-radius: 15px; background: linear-gradient(145deg, #0f1a30, #0b1326); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+.metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.model-note { display: grid; align-content: start; gap: 14px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+.insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(251, 191, 36, 0.08); color: #fcd34d !important; font-weight: 650; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #2f3d5e; background: #16203a; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #061018; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(92, 200, 255, 0.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.edge-outer { stroke: var(--sim-accent); stroke-width: 2; fill: none; opacity: 0.95; }
+.edge-inner { stroke: #a78bfa; stroke-width: 1.6; fill: none; opacity: 0.85; }
+.edge-connect { stroke: #fbbf24; stroke-width: 1.4; fill: none; opacity: 0.7; stroke-dasharray: 4 3; }
+.vertex { fill: var(--sim-positive); stroke: #061018; stroke-width: 1.5; }
+.vertex-label { fill: var(--sim-muted); font-size: 10px; font-family: ui-monospace, monospace; }
+.axis-label { fill: var(--sim-muted); font-size: 12px; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>四维超立方体投影模拟</h1>
+      <p>旋转四维超立方体，观察其在三维空间中的投影如何产生"内外嵌套"结构。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">超立方体投影</h2><span>4D → 3D → 2D 透视投影</span></div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">一个旋转的四维超立方体投影到屏幕上的二维图像，显示嵌套立方体结构。</desc>
+        <g id="grid"></g>
+        <g id="edges"></g>
+        <g id="vertices"></g>
+        <g id="labels"></g>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数值">
+        <div class="readout-grid">
+          <div class="metric"><small>顶点数</small><strong id="vertexCount">16</strong></div>
+          <div class="metric"><small>棱数</small><strong id="edgeCount">32</strong></div>
+          <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+          <div class="metric"><small>4D 体积</small><strong id="volumeReadout">1.00</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>模型说明</h2></div>
+        <p id="insight" class="insight">按"开始"启动旋转。当 W 轴旋转时，内外两个立方体互相交换位置——这正是第四维度的运动特征。</p>
+        <p>教学视图：超立方体有 16 个顶点、32 条棱。投影到三维时，4D 旋转使"内立方体"与"外立方体"的顶点沿连接棱滑动，产生嵌套错觉。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="xwInput">XW 旋转速率 <output id="xwOutput">0.30 s⁻¹</output></label>
+      <input id="xwInput" type="range" min="0" max="1.5" step="0.05" value="0.3">
+    </div>
+    <div class="control">
+      <label for="zwInput">ZW 旋转速率 <output id="zwOutput">0.20 s⁻¹</output></label>
+      <input id="zwInput" type="range" min="0" max="1.5" step="0.05" value="0.2">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const parameterSchema = [
+    { key: "rateXW", label: "XW 旋转速率", type: "slider", min: 0, max: 1.5, step: 0.05, default: 0.3, unit: "s⁻¹" },
+    { key: "rateZW", label: "ZW 旋转速率", type: "slider", min: 0, max: 1.5, step: 0.05, default: 0.2, unit: "s⁻¹" }
+  ];
+
+  // 16 个 4D 顶点：所有 (±1, ±1, ±1, ±1) 组合
+  const vertices4D = [];
+  for (let i = 0; i < 16; i++) {
+    vertices4D.push([
+      (i & 1) ? 1 : -1,
+      (i & 2) ? 1 : -1,
+      (i & 4) ? 1 : -1,
+      (i & 8) ? 1 : -1
+    ]);
+  }
+
+  // 32 条棱：两顶点仅在一个坐标上不同
+  const edges4D = [];
+  for (let i = 0; i < 16; i++) {
+    for (let j = i + 1; j < 16; j++) {
+      let diff = 0;
+      for (let k = 0; k < 4; k++) if (vertices4D[i][k] !== vertices4D[j][k]) diff++;
+      if (diff === 1) edges4D.push([i, j]);
+    }
+  }
+
+  const state = {
+    running: false,
+    t: 0,
+    angleXW: 0,
+    angleZW: 0,
+    rateXW: 0.3,
+    rateZW: 0.2,
+    lastTimestamp: null
+  };
+
+  const elements = {
+    status: document.querySelector("#status"),
+    edges: document.querySelector("#edges"),
+    vertices: document.querySelector("#vertices"),
+    labels: document.querySelector("#labels"),
+    grid: document.querySelector("#grid"),
+    timeReadout: document.querySelector("#timeReadout"),
+    volumeReadout: document.querySelector("#volumeReadout"),
+    vertexCount: document.querySelector("#vertexCount"),
+    edgeCount: document.querySelector("#edgeCount"),
+    xwInput: document.querySelector("#xwInput"),
+    xwOutput: document.querySelector("#xwOutput"),
+    zwInput: document.querySelector("#zwInput"),
+    zwOutput: document.querySelector("#zwOutput"),
+    startBtn: document.querySelector("#startBtn"),
+    pauseBtn: document.querySelector("#pauseBtn"),
+    resetBtn: document.querySelector("#resetBtn"),
+    insight: document.querySelector("#insight")
+  };
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function rotate4D(v, ax, az) {
+    let [x, y, z, w] = v;
+    // XW 平面旋转
+    let cx = Math.cos(ax), sx = Math.sin(ax);
+    let nx = x * cx - w * sx;
+    let nw = x * sx + w * cx;
+    x = nx; w = nw;
+    // ZW 平面旋转
+    let cz = Math.cos(az), sz = Math.sin(az);
+    let nz = z * cz - w * sz;
+    nw = z * sz + w * cz;
+    z = nz; w = nw;
+    return [x, y, z, w];
+  }
+
+  function project4Dto3D(v) {
+    const distance = 4;
+    const factor = distance / (distance - v[3]);
+    return [v[0] * factor, v[1] * factor, v[2] * factor];
+  }
+
+  function project3Dto2D(v) {
+    const distance = 5;
+    const factor = distance / (distance - v[2]);
+    const cx = 380, cy = 210;
+    const scale = 70;
+    return [cx + v[0] * scale * factor, cy - v[1] * scale * factor, factor];
+  }
+
+  function initGrid() {
+    const lines = [];
+    for (let i = 0; i <= 10; i++) {
+      const x = 58 + i * 66.6;
+      const y = 30 + i * 33;
+      lines.push(`<line stroke="var(--sim-grid)" stroke-width="1" x1="${x}" y1="30" x2="${x}" y2="360"></line>`);
+      lines.push(`<line stroke="var(--sim-grid)" stroke-width="1" x1="58" y1="${y}" x2="724" y2="${y}"></line>`);
+    }
+    elements.grid.innerHTML = lines.join("");
+  }
+
+  function init() {
+    initGrid();
+    bindControls();
+    setParameters({ rateXW: 0.3, rateZW: 0.2 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    elements.status.textContent = "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.angleXW = 0;
+    state.angleZW = 0;
+    state.lastTimestamp = null;
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.angleXW += state.rateXW * boundedDt;
+    state.angleZW += state.rateZW * boundedDt;
+    state.t += boundedDt;
+  }
+
+  function render() {
+    const projected = vertices4D.map(v => {
+      const r = rotate4D(v, state.angleXW, state.angleZW);
+      const p3 = project4Dto3D(r);
+      return project3Dto2D(p3);
+    });
+
+    // 按深度排序棱（远到近）
+    const edgeList = edges4D.map(([i, j]) => ({
+      i, j,
+      depth: (projected[i][2] + projected[j][2]) / 2
+    })).sort((a, b) => a.depth - b.depth);
+
+    let edgeSvg = "";
+    edgeList.forEach(({ i, j, depth }) => {
+      const p1 = projected[i], p2 = projected[j];
+      const avgDepth = (p1[2] + p2[2]) / 2;
+      const opacity = 0.4 + avgDepth * 0.5;
+      const cls = avgDepth > 0.55 ? "edge-outer" : (avgDepth > 0.42 ? "edge-connect" : "edge-inner");
+      edgeSvg += `<line class="${cls}" x1="${p1[0].toFixed(2)}" y1="${p1[1].toFixed(2)}" x2="${p2[0].toFixed(2)}" y2="${p2[1].toFixed(2)}" style="opacity:${opacity.toFixed(2)}"></line>`;
+    });
+    elements.edges.innerHTML = edgeSvg;
+
+    // 顶点
+    let vertSvg = "";
+    projected.forEach((p, idx) => {
+      const r = 3 + p[2] * 2.5;
+      vertSvg += `<circle class="vertex" cx="${p[0].toFixed(2)}" cy="${p[1].toFixed(2)}" r="${r.toFixed(2)}"></circle>`;
+    });
+    elements.vertices.innerHTML = vertSvg;
+
+    // 更新读数
+    elements.timeReadout.textContent = `${state.t.toFixed(2)} s`;
+    // 4D 体积在旋转下守恒（恒为 16，单位化后为 1）
+    elements.volumeReadout.textContent = "1.00";
+    elements.vertexCount.textContent = "16";
+    elements.edgeCount.textContent = "32";
+    elements.xwOutput.textContent = `${state.rateXW.toFixed(2)} s⁻¹`;
+    elements.zwOutput.textContent = `${state.rateZW.toFixed(2)} s⁻¹`;
+
+    // 洞察文本
+    const wComponent = Math.sin(state.angleXW);
+    if (!state.running && state.t === 0) {
+      elements.insight.textContent = "按\"开始\"启动旋转。当 W 轴旋转时，内外两个立方体互相交换位置——这正是第四维度的运动特征。";
+    } else if (Math.abs(wComponent) > 0.7) {
+      elements.insight.textContent = "W 轴旋转接近极值：内外立方体正在交换，连接棱被压缩到最短。";
+    } else if (Math.abs(wComponent) < 0.3) {
+      elements.insight.textContent = "W 轴对齐：内外立方体分离最远，嵌套结构最清晰。";
+    } else {
+      elements.insight.textContent = "4D 旋转进行中：顶点沿第四维度滑动，产生三维投影中的形变。";
+    }
+  }
+
+  function setParameters(values) {
+    const xwDef = parameterSchema[0], zwDef = parameterSchema[1];
+    state.rateXW = clamp(finite(Number(values.rateXW), xwDef.default), xwDef.min, xwDef.max);
+    state.rateZW = clamp(finite(Number(values.rateZW), zwDef.default), zwDef.min, zwDef.max);
+    elements.xwInput.value = String(state.rateXW);
+    elements.zwInput.value = String(state.rateZW);
+    render();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      angleXW: state.angleXW,
+      angleZW: state.angleZW,
+      rateXW: state.rateXW,
+      rateZW: state.rateZW
+    };
+  }
+
+  function getReadouts() {
+    return {
+      time: state.t,
+      vertexCount: 16,
+      edgeCount: 32,
+      volume4D: 1.0,
+      rateXW: state.rateXW,
+      rateZW: state.rateZW
+    };
+  }
+
+  function runModelChecks() {
+    // 检查 1：顶点数 = 16
+    const vertexCountCheck = vertices4D.length === 16;
+
+    // 检查 2：棱数 = 32
+    const edgeCountCheck = edges4D.length === 32;
+
+    // 检查 3：每条棱两顶点恰好相差一个坐标
+    let edgeDiffCheck = true;
+    for (const [i, j] of edges4D) {
+      let diff = 0;
+      for (let k = 0; k < 4; k++) if (vertices4D[i][k] !== vertices4D[j][k]) diff++;
+      if (diff !== 1) { edgeDiffCheck = false; break; }
+    }
+
+    // 检查 4：4D 旋转矩阵正交性（保持长度）
+    const testV = [1, 1, 1, 1];
+    const rotated = rotate4D(testV, 0.7, 0.3);
+    const lenBefore = Math.sqrt(testV.reduce((s, x) => s + x * x, 0));
+    const lenAfter = Math.sqrt(rotated.reduce((s, x) => s + x * x, 0));
+    const orthogonalityCheck = Math.abs(lenBefore - lenAfter) < 1e-10;
+
+    // 检查 5：零旋转 = 恒等变换
+    const identity = rotate4D([1, -1, 1, -1], 0, 0);
+    const identityCheck = identity.every((v, i) => Math.abs(v - [1, -1, 1, -1][i]) < 1e-10);
+
+    // 检查 6：旋转周期性（2π 后回到原位）
+    const cycled = rotate4D([1, 1, 1, 1], 2 * Math.PI, 2 * Math.PI);
+    const cycleCheck = cycled.every(v => Math.abs(v - 1) < 1e-9);
+
+    // 检查 7：投影后所有坐标有限
+    const allFinite = projected => projected.every(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    const projTest = vertices4D.map(v => {
+      const r = rotate4D(v, 1.0, 0.5);
+      return project3Dto2D(project4Dto3D(r));
+    });
+    const finiteCheck = allFinite(projTest);
+
+    return [
+      { name: "顶点数 = 16", pass: vertexCountCheck, expected: 16, actual: vertices4D.length, tolerance: "exact" },
+      { name: "棱数 = 32", pass: edgeCountCheck, expected: 32, actual: edges4D.length, tolerance: "exact" },
+      { name: "每条棱恰好相差一个坐标", pass: edgeDiffCheck, expected: true, actual: edgeDiffCheck, tolerance: "strict" },
+      { name: "4D 旋转正交性（长度守恒）", pass: orthogonalityCheck, expected: lenBefore, actual: lenAfter, tolerance: 1e-10 },
+      { name: "零旋转 = 恒等变换", pass: identityCheck, expected: [1, -1, 1, -1], actual: identity, tolerance: 1e-10 },
+      { name: "2π 周期性", pass: cycleCheck, expected: [1, 1, 1, 1], actual: cycled, tolerance: 1e-9 },
+      { name: "投影坐标有限性", pass: finiteCheck, expected: true, actual: finiteCheck, tolerance: "strict" }
+    ];
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.xwInput.addEventListener("input", () => setParameters({ rateXW: elements.xwInput.value, rateZW: state.rateZW }));
+    elements.zwInput.addEventListener("input", () => setParameters({ rateXW: state.rateXW, rateZW: elements.zwInput.value }));
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init: init,
+    start: start,
+    pause: pause,
+    reset: reset,
+    update: update,
+    render: render,
+    setParameters: setParameters,
+    getState: getState,
+    getReadouts: getReadouts,
+    runModelChecks: runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

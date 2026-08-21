@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>摆线族曲线动画</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a99;
+  --sim-border: #1a2238;
+  --sim-grid: #131a2c;
+  --sim-accent: #00d4ff;
+  --sim-accent-deep: #0099cc;
+  --sim-accent-soft: rgba(0, 212, 255, 0.15);
+  --sim-positive: #00d4ff;
+  --sim-warning: #ff6b9d;
+  --sim-danger: #ff5577;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 2px;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sim-space-4);
+  padding: var(--sim-space-3) var(--sim-space-5);
+  background: linear-gradient(180deg, rgba(10, 15, 28, 0.98), rgba(5, 8, 16, 0.98));
+  border-bottom: 1px solid var(--sim-border);
+  backdrop-filter: blur(12px);
+}
+.header h1 {
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.header p {
+  margin-top: 2px;
+  color: var(--sim-muted);
+  font-size: 0.8rem;
+}
+.status {
+  border: 1px solid rgba(0, 212, 255, 0.25);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 300px);
+  gap: 1px;
+  background: var(--sim-border);
+  overflow: hidden;
+}
+
+.stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at center, #0a1020 0%, #050810 70%, #02040a 100%);
+}
+#canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.hint {
+  position: absolute;
+  bottom: var(--sim-space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  color: var(--sim-muted);
+  opacity: 0.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: var(--sim-surface);
+  overflow: hidden;
+}
+.evidence {
+  padding: var(--sim-space-4);
+  display: grid;
+  gap: var(--sim-space-3);
+  align-content: start;
+}
+.evidence h2 {
+  font-size: 0.85rem;
+  color: var(--sim-muted);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sim-space-2);
+}
+.metric {
+  padding: var(--sim-space-3);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  background: var(--sim-surface-soft);
+}
+.metric small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sim-muted);
+  font-size: 0.7rem;
+}
+.metric strong {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--sim-text);
+}
+.insight {
+  padding: var(--sim-space-3) var(--sim-space-4);
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: rgba(255, 107, 157, 0.08);
+  color: #ffb3cc;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.insight small {
+  display: block;
+  margin-top: 6px;
+  color: var(--sim-muted);
+  font-weight: 400;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sim-space-4);
+  padding: var(--sim-space-3) var(--sim-space-5);
+  background: linear-gradient(180deg, rgba(10, 15, 28, 0.98), rgba(5, 8, 16, 0.98));
+  border-top: 1px solid var(--sim-border);
+  backdrop-filter: blur(12px);
+  flex-wrap: wrap;
+}
+
+.mode-group {
+  display: flex;
+  gap: var(--sim-space-1);
+  padding: var(--sim-space-1);
+  background: var(--sim-surface-soft);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+}
+.mode-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--sim-radius-sm);
+  background: transparent;
+  color: var(--sim-muted);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.mode-btn:hover { color: var(--sim-text); background: rgba(255,255,255,0.04); }
+.mode-btn.active {
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #001020;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
+}
+
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sim-space-2);
+  min-width: 0;
+}
+.slider-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--sim-muted);
+  white-space: nowrap;
+}
+.slider-group .val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--sim-accent);
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 110px;
+  height: 4px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+  transition: transform 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+}
+
+.play-btn {
+  padding: 9px 20px;
+  border: 1px solid var(--sim-accent-deep);
+  border-radius: var(--sim-radius-sm);
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #001020;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
+  white-space: nowrap;
+}
+.play-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0, 212, 255, 0.35); }
+.play-btn:active { transform: translateY(0); }
+.play-btn.paused { background: var(--sim-surface-soft); color: var(--sim-text); border-color: var(--sim-border); box-shadow: none; }
+
+.reset-btn {
+  padding: 9px 14px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  background: var(--sim-surface-soft);
+  color: var(--sim-muted);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.reset-btn:hover { color: var(--sim-text); border-color: var(--sim-accent-deep); }
+
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; }
+  .main { grid-template-columns: 1fr; grid-template-rows: minmax(300px, 1fr) auto; }
+  .controls { gap: var(--sim-space-2); padding: var(--sim-space-2); }
+  .mode-btn { padding: 6px 10px; font-size: 0.75rem; }
+  input[type="range"] { width: 80px; }
+  .slider-group label { font-size: 0.72rem; }
+  .slider-group .val { font-size: 0.75rem; min-width: 2em; }
+  .play-btn, .reset-btn { padding: 7px 12px; font-size: 0.75rem; }
+}
+@media (max-width: 520px) {
+  .controls { flex-direction: column; align-items: stretch; }
+  .mode-group { justify-content: center; }
+  .slider-group { justify-content: space-between; }
+  input[type="range"] { flex: 1; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>摆线族曲线动画</h1>
+      <p>调整 R · r · d 观察曲线在规则花形间平滑变形</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <main class="main">
+    <section class="stage" data-region="stage" aria-label="曲线动画舞台">
+      <canvas id="canvas"></canvas>
+      <div class="hint">调整 R · r · d 观察曲线在规则花形间平滑变形</div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="evidence">
+        <h2>实时读数</h2>
+        <div class="readout-grid">
+          <div class="metric"><small>滚动角 θ</small><strong id="thetaReadout">0.00</strong></div>
+          <div class="metric"><small>模式</small><strong id="modeReadout">普通摆线</strong></div>
+          <div class="metric"><small>R · r · d</small><strong id="paramReadout">5·3·3</strong></div>
+          <div class="metric"><small>轨迹点</small><strong id="trailReadout">0</strong></div>
+        </div>
+      </section>
+      <section class="evidence" data-region="insight">
+        <div class="insight" id="insight">
+          滚动圆上的追踪点随圆滚动描绘出摆线族曲线。
+          <small>当 R/r 为整数比时曲线闭合为规则花形；d 控制长短幅，d=0 退化为圆心轨迹圆。</small>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="mode-group" role="group" aria-label="模式切换">
+      <button class="mode-btn active" data-mode="cycloid" type="button">普通摆线</button>
+      <button class="mode-btn" data-mode="hypo" type="button">内摆线</button>
+      <button class="mode-btn" data-mode="epi" type="button">外摆线</button>
+    </div>
+    <div class="slider-group">
+      <label for="R">R</label>
+      <input id="R" type="range" min="1" max="10" step="0.1" value="5">
+      <span class="val" id="Rval">5.0</span>
+    </div>
+    <div class="slider-group">
+      <label for="r">r</label>
+      <input id="r" type="range" min="0.5" max="10" step="0.1" value="3">
+      <span class="val" id="rval">3.0</span>
+    </div>
+    <div class="slider-group">
+      <label for="d">d</label>
+      <input id="d" type="range" min="0" max="15" step="0.1" value="3">
+      <span class="val" id="dval">3.0</span>
+    </div>
+    <button class="play-btn" id="playBtn" type="button">暂停</button>
+    <button class="reset-btn" id="resetBtn" type="button">重置</button>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // 参数 schema
+  const parameterSchema = [
+    { key: "R", label: "R", min: 1, max: 10, step: 0.1, default: 5, unit: "" },
+    { key: "r", label: "r", min: 0.5, max: 10, step: 0.1, default: 3, unit: "" },
+    { key: "d", label: "d", min: 0, max: 15, step: 0.1, default: 3, unit: "" }
+  ];
+
+  // 状态
+  const state = {
+    running: true,
+    mode: 'cycloid',      // cycloid | hypo | epi
+    R: 5, r: 3, d: 3,
+    theta: 0,             // 滚动角度（弧度）
+    lastTimestamp: null,
+    trail: [],             // [{x, y, alpha}]
+    maxTrail: 1400,
+    width: 0, height: 0,
+    dpr: 1,
+    needsClear: false
+  };
+
+  const els = {
+    R: document.getElementById('R'), r: document.getElementById('r'), d: document.getElementById('d'),
+    Rval: document.getElementById('Rval'), rval: document.getElementById('rval'), dval: document.getElementById('dval'),
+    playBtn: document.getElementById('playBtn'), resetBtn: document.getElementById('resetBtn'),
+    modeBtns: document.querySelectorAll('.mode-btn'),
+    status: document.getElementById('status'),
+    thetaReadout: document.getElementById('thetaReadout'),
+    modeReadout: document.getElementById('modeReadout'),
+    paramReadout: document.getElementById('paramReadout'),
+    trailReadout: document.getElementById('trailReadout'),
+    insight: document.getElementById('insight')
+  };
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // 计算追踪点位置（数学坐标，y 向上）
+  function computePoint(theta, R, r, d, mode) {
+    if (mode === 'cycloid') {
+      // 圆沿 x 轴滚动，圆心在 (r*θ, r)
+      const cx = r * theta;
+      const cy = r;
+      // 追踪点初始在原点下方接触地面处，随圆滚动
+      const px = cx - d * Math.sin(theta);
+      const py = cy - d * Math.cos(theta);
+      return { x: px, y: py, cx, cy };
+    } else if (mode === 'hypo') {
+      // 内摆线：小圆(r)在大圆(R)内滚动
+      // 圆心轨迹半径 = R - r
+      const cx = (R - r) * Math.cos(theta);
+      const cy = (R - r) * Math.sin(theta);
+      // 追踪点相对圆心：初始在 (R, 0) 即大圆与正 x 轴交点
+      // 小圆滚动方向与圆心运动相反
+      const px = cx + d * Math.cos((R - r) / r * theta);
+      const py = cy - d * Math.sin((R - r) / r * theta);
+      return { x: px, y: py, cx, cy };
+    } else { // epi
+      // 外摆线：小圆(r)在大圆(R)外滚动
+      // 圆心轨迹半径 = R + r
+      const cx = (R + r) * Math.cos(theta);
+      const cy = (R + r) * Math.sin(theta);
+      // 追踪点相对圆心：初始在 (R, 0) 即大圆与正 x 轴交点
+      // 小圆滚动方向与圆心运动相同
+      const px = cx + d * Math.cos((R + r) / r * theta);
+      const py = cy + d * Math.sin((R + r) / r * theta);
+      return { x: px, y: py, cx, cy };
+    }
+  }
+
+  // 计算缩放比例，让图形适配画布
+  function computeScale() {
+    const { width, height, mode, R, r, d } = state;
+    const minDim = Math.min(width, height);
+    let extent;
+    if (mode === 'cycloid') {
+      // 摆线横向延伸，纵向高度 2*max(r, d)
+      // 一个周期长度 2πr，高度约 2*max(r,d)
+      extent = Math.max(2 * r, 2 * d, 2 * r * 1.2);
+    } else {
+      // 内外摆线：图形范围约 R + r + d（外）或 R（内）
+      extent = mode === 'epi' ? (R + r + d) * 2.1 : R * 2.1;
+    }
+    return (minDim * 0.42) / Math.max(extent, 0.1);
+  }
+
+  // 世界坐标 -> 屏幕坐标
+  function toScreen(x, y) {
+    const scale = state._scale || 1;
+    return {
+      x: state.width / 2 + x * scale,
+      y: state.height / 2 - y * scale
+    };
+  }
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    state.dpr = window.devicePixelRatio || 1;
+    state.width = rect.width;
+    state.height = rect.height;
+    canvas.width = Math.max(1, Math.floor(rect.width * state.dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * state.dpr));
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    state._scale = computeScale();
+    // 重置画布
+    ctx.fillStyle = '#050810';
+    ctx.fillRect(0, 0, state.width, state.height);
+  }
+
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ R: 5, r: 3, d: 3 });
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    els.playBtn.textContent = '暂停';
+    els.playBtn.classList.remove('paused');
+    els.status.textContent = '运行中';
+  }
+  function pause() {
+    state.running = false;
+    els.playBtn.textContent = '播放';
+    els.playBtn.classList.add('paused');
+    els.status.textContent = '已暂停';
+  }
+  function reset() {
+    state.theta = 0;
+    state.trail = [];
+    state.needsClear = true;
+    state._scale = computeScale();
+    render();
+  }
+
+  function setParameters(values) {
+    const Rdef = parameterSchema[0], rdef = parameterSchema[1], ddef = parameterSchema[2];
+    const prevR = state.R, prevR2 = state.r, prevD = state.d;
+    state.R = clamp(finite(Number(values.R), Rdef.default), Rdef.min, Rdef.max);
+    state.r = clamp(finite(Number(values.r), rdef.default), rdef.min, rdef.max);
+    state.d = clamp(finite(Number(values.d), ddef.default), ddef.min, ddef.max);
+    els.R.value = String(state.R);
+    els.r.value = String(state.r);
+    els.d.value = String(state.d);
+    els.Rval.textContent = state.R.toFixed(1);
+    els.rval.textContent = state.r.toFixed(1);
+    els.dval.textContent = state.d.toFixed(1);
+    state._scale = computeScale();
+    // 参数变化时清空轨迹，避免变形跳跃
+    if (prevR !== state.R || prevR2 !== state.r || prevD !== state.d) {
+      state.trail = [];
+      state.needsClear = true;
+    }
+    render();
+  }
+
+  function setMode(mode) {
+    if (state.mode === mode) return;
+    state.mode = mode;
+    els.modeBtns.forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    state.theta = 0;
+    state.trail = [];
+    state.needsClear = true;
+    state._scale = computeScale();
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    // 滚动速度：约 0.8 弧度/秒，让动画丝滑
+    state.theta += 0.8 * boundedDt;
+    // 限制 theta 防止无限增长（摆线模式横向移动）
+    if (state.mode === 'cycloid' && state.theta > Math.PI * 20) {
+      state.theta = 0;
+      state.trail = [];
+      state.needsClear = true;
+    }
+  }
+
+  function render() {
+    if (state.needsClear) {
+      ctx.fillStyle = '#050810';
+      ctx.fillRect(0, 0, state.width, state.height);
+      state.needsClear = false;
+    } else {
+      // 渐隐：半透明深色覆盖
+      ctx.fillStyle = 'rgba(5, 8, 16, 0.035)';
+      ctx.fillRect(0, 0, state.width, state.height);
+    }
+
+    const { theta, R, r, d, mode } = state;
+    const scale = state._scale;
+
+    // 绘制参考圆（大圆/基线）
+    ctx.lineWidth = 1;
+    if (mode === 'cycloid') {
+      // 基线
+      const y0 = state.height / 2 + r * scale;
+      ctx.strokeStyle = 'rgba(107, 122, 153, 0.25)';
+      ctx.beginPath();
+      ctx.moveTo(0, y0);
+      ctx.lineTo(state.width, y0);
+      ctx.stroke();
+    } else {
+      // 大圆
+      const cx = state.width / 2;
+      const cy = state.height / 2;
+      const radius = Math.max(1, R * scale);
+      ctx.strokeStyle = 'rgba(107, 122, 153, 0.3)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 计算当前点
+    const pt = computePoint(theta, R, r, d, mode);
+    const screen = toScreen(pt.x, pt.y);
+    const centerScreen = toScreen(pt.cx, pt.cy);
+
+    // 绘制滚动圆
+    const rollRadius = Math.max(0.5, r * scale);
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(centerScreen.x, centerScreen.y, rollRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 圆心到追踪点的连线
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(centerScreen.x, centerScreen.y);
+    ctx.lineTo(screen.x, screen.y);
+    ctx.stroke();
+
+    // 添加新轨迹点
+    state.trail.push({ x: screen.x, y: screen.y, alpha: 1 });
+    if (state.trail.length > state.maxTrail) state.trail.shift();
+
+    // 绘制轨迹（渐隐 + 双色渐变）
+    // 青色 -> 紫粉色
+    if (state.trail.length > 1) {
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const len = state.trail.length;
+      for (let i = 1; i < len; i++) {
+        const p0 = state.trail[i - 1];
+        const p1 = state.trail[i];
+        const t = i / len; // 0 旧 -> 1 新
+        const alpha = t * 0.85;
+        // 颜色从紫粉(hue 320)渐变到青(hue 190)
+        const hue = 320 - t * 130;
+        ctx.strokeStyle = `hsla(${hue}, 90%, 65%, ${alpha})`;
+        ctx.lineWidth = 1.5 + t * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+      }
+    }
+
+    // 绘制追踪点（发光）
+    const glow = ctx.createRadialGradient(screen.x, screen.y, 0, screen.x, screen.y, 18);
+    glow.addColorStop(0, 'rgba(0, 212, 255, 0.8)');
+    glow.addColorStop(0.4, 'rgba(0, 212, 255, 0.3)');
+    glow.addColorStop(1, 'rgba(0, 212, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 18, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#00d4ff';
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 更新读数
+    els.thetaReadout.textContent = state.theta.toFixed(2);
+    const modeNames = { cycloid: '普通摆线', hypo: '内摆线', epi: '外摆线' };
+    els.modeReadout.textContent = modeNames[state.mode] || state.mode;
+    els.paramReadout.textContent = `${state.R.toFixed(1)}·${state.r.toFixed(1)}·${state.d.toFixed(1)}`;
+    els.trailReadout.textContent = String(state.trail.length);
+
+    // 更新洞察文本
+    const ratio = state.R / state.r;
+    const isInteger = Math.abs(ratio - Math.round(ratio)) < 0.01;
+    let mainText, subText;
+    if (state.d === 0) {
+      mainText = 'd=0：追踪点位于圆心，轨迹退化为圆心轨迹圆。';
+      subText = '此时无摆线特征，仅展示滚动圆心的运动路径。';
+    } else if (isInteger && state.mode !== 'cycloid') {
+      mainText = `R/r ≈ ${ratio.toFixed(2)} 为整数比，曲线闭合为规则花形。`;
+      subText = `共 ${Math.round(ratio)} 个尖点（外摆）或 ${Math.round(ratio)} 段弧（内摆）。`;
+    } else if (state.mode === 'cycloid') {
+      mainText = state.d === state.r ? 'd=r：标准摆线，尖点接触基线。' : (state.d < state.r ? 'd<r：短幅摆线，无尖点，轨迹平滑。' : 'd>r：长幅摆线，轨迹出现环状回折。');
+      subText = '一个周期对应滚动圆自转一周（θ 增加 2π）。';
+    } else {
+      mainText = 'R/r 非整数比，曲线不闭合，形成密集缠绕图案。';
+      subText = '调整 R 或 r 使比值接近整数可观察闭合花形。';
+    }
+    els.insight.innerHTML = mainText + '<small>' + subText + '</small>';
+  }
+
+  function getState() {
+    return { ...state, trail: state.trail.map(p => ({ ...p })) };
+  }
+  function getReadouts() {
+    return { mode: state.mode, R: state.R, r: state.r, d: state.d, theta: state.theta };
+  }
+
+  // 模型检查
+  function runModelChecks() {
+    // 1. 普通摆线：θ=2π 时，点应回到地面 y=0
+    const cyc = computePoint(2 * Math.PI, 5, 3, 3, 'cycloid');
+    const cycCheck = Math.abs(cyc.y - 0) < 1e-9 && Math.abs(cyc.x - 6 * Math.PI) < 1e-9;
+
+    // 2. 内摆线 k=4 星形线：R=4, r=1, d=1，θ=2π 时应闭合回原点
+    const hypoStart = computePoint(0, 4, 1, 1, 'hypo');
+    const hypoEnd = computePoint(2 * Math.PI, 4, 1, 1, 'hypo');
+    const hypoCheck = Math.abs(hypoEnd.x - hypoStart.x) < 1e-9 && Math.abs(hypoEnd.y - hypoStart.y) < 1e-9;
+
+    // 3. 外摆线 k=5：R=5, r=1, d=1，θ=2π 时应闭合
+    const epiStart = computePoint(0, 5, 1, 1, 'epi');
+    const epiEnd = computePoint(2 * Math.PI, 5, 1, 1, 'epi');
+    const epiCheck = Math.abs(epiEnd.x - epiStart.x) < 1e-9 && Math.abs(epiEnd.y - epiStart.y) < 1e-9;
+
+    // 4. 短幅/长幅：d=0 时轨迹退化为圆心轨迹圆
+    const hypoD0 = computePoint(1.5, 5, 2, 0, 'hypo');
+    const hypoD0r = Math.sqrt(hypoD0.x ** 2 + hypoD0.y ** 2);
+    const hypoD0Check = Math.abs(hypoD0r - (5 - 2)) < 1e-9;
+
+    // 5. 普通摆线 d=r 时为标准摆线（尖点在地面）
+    const cycTip = computePoint(Math.PI, 5, 3, 3, 'cycloid');
+    const cycTipCheck = Math.abs(cycTip.y - 0) < 1e-9;
+
+    // 6. 外摆线圆心轨迹半径 = R + r
+    const epiCenter = computePoint(0.7, 5, 2, 1, 'epi');
+    const epiCenterR = Math.sqrt(epiCenter.cx ** 2 + epiCenter.cy ** 2);
+    const epiCenterCheck = Math.abs(epiCenterR - (5 + 2)) < 1e-9;
+
+    return [
+      { name: "cycloid period closes at y=0, x=2πr", pass: cycCheck, expected: "y=0, x=6π", actual: `y=${cyc.y}, x=${cyc.x}`, tolerance: 1e-9 },
+      { name: "hypocloid k=4 closes after 2π", pass: hypoCheck, expected: "returns to origin", actual: `Δx=${hypoEnd.x}, Δy=${hypoEnd.y}`, tolerance: 1e-9 },
+      { name: "epicycloid k=5 closes after 2π", pass: epiCheck, expected: "returns to origin", actual: `Δx=${epiEnd.x}, Δy=${epiEnd.y}`, tolerance: 1e-9 },
+      { name: "d=0 degenerates to center circle (hypo)", pass: hypoD0Check, expected: "radius = R-r = 3", actual: `radius=${hypoD0r}`, tolerance: 1e-9 },
+      { name: "cycloid d=r has cusp at θ=π", pass: cycTipCheck, expected: "y=0", actual: `y=${cycTip.y}`, tolerance: 1e-9 },
+      { name: "epicycloid center radius = R+r", pass: epiCenterCheck, expected: "7", actual: `${epiCenterR}`, tolerance: 1e-9 }
+    ];
+  }
+
+  function bindControls() {
+    els.modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    });
+    els.R.addEventListener('input', () => setParameters({ R: els.R.value, r: state.r, d: state.d }));
+    els.r.addEventListener('input', () => setParameters({ R: state.R, r: els.r.value, d: state.d }));
+    els.d.addEventListener('input', () => setParameters({ R: state.R, r: state.r, d: els.d.value }));
+    els.playBtn.addEventListener('click', () => state.running ? pause() : start());
+    els.resetBtn.addEventListener('click', reset);
+    window.addEventListener('resize', () => { resize(); state.needsClear = true; });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, setMode, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

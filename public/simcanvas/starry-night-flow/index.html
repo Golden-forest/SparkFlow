@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Starry Night · Velocity Field</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050818;
+  --sim-surface: #0a1024;
+  --sim-surface-soft: #0d1430;
+  --sim-text: #e8eefc;
+  --sim-muted: #6a7a9a;
+  --sim-border: rgba(120,140,180,0.12);
+  --sim-grid: rgba(120,140,180,0.08);
+  --sim-accent: #f5c542;
+  --sim-accent-deep: #c99828;
+  --sim-accent-soft: rgba(245,197,66,0.12);
+  --sim-positive: #f5c542;
+  --sim-warning: #e8a040;
+  --sim-danger: #e85040;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--sim-bg);
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--sim-text);
+  -webkit-font-smoothing: antialiased;
+}
+.app {
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  height: 100dvh;
+  background: #050818;
+  overflow: hidden;
+}
+#scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+.header {
+  position: absolute;
+  top: 16px; left: 20px;
+  z-index: 20;
+  pointer-events: none;
+  max-width: 60%;
+}
+.header h1 {
+  font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: rgba(232,238,252,0.92);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+}
+.header p {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: rgba(180,195,225,0.6);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.status {
+  position: absolute;
+  top: 18px; right: 20px;
+  z-index: 20;
+  border: 1px solid rgba(245,197,66,0.28);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(245,197,66,0.10);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  letter-spacing: 0.04em;
+}
+.evidence {
+  position: absolute;
+  left: 20px; bottom: 18px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 300px;
+  pointer-events: none;
+}
+.readouts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.metric {
+  padding: 8px 12px;
+  border: 1px solid rgba(120,140,180,0.16);
+  border-radius: var(--sim-radius-sm);
+  background: rgba(10,16,36,0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  min-width: 78px;
+}
+.metric small {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.metric strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(232,238,252,0.95);
+  font-weight: 700;
+}
+.formula {
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgba(200,215,245,0.32);
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  user-select: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.formula .name {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-style: normal;
+  opacity: 0.55;
+  margin-bottom: 4px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.formula .eq {
+  display: block;
+  font-size: 12px;
+  opacity: 0.42;
+}
+.formula .note {
+  display: block;
+  font-size: 9.5px;
+  opacity: 0.3;
+  margin-top: 3px;
+  font-style: normal;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.controls {
+  position: absolute;
+  right: 20px; bottom: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.wind-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 1px solid rgba(120,140,180,0.16);
+  border-radius: var(--sim-radius-sm);
+  background: rgba(10,16,36,0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  min-width: 130px;
+}
+.wind-control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(200,215,245,0.7);
+  letter-spacing: 0.04em;
+}
+.wind-control output {
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+}
+.wind-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--sim-accent);
+  height: 4px;
+}
+.play-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: rgba(15,22,48,0.55);
+  border: 1px solid rgba(180,200,240,0.18);
+  color: rgba(220,230,250,0.75);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background .25s ease, border-color .25s ease, color .25s ease, transform .15s ease;
+}
+.play-btn:hover {
+  background: rgba(30,40,80,0.7);
+  border-color: rgba(200,215,245,0.35);
+  color: rgba(240,245,255,0.95);
+}
+.play-btn:active { transform: scale(0.94); }
+.play-btn:focus-visible {
+  outline: 2px solid rgba(245,197,66,0.5);
+  outline-offset: 3px;
+}
+.play-btn svg { width: 14px; height: 14px; }
+@media (max-width: 600px) {
+  .header { left: 14px; top: 12px; max-width: 52%; }
+  .header h1 { font-size: 1rem; }
+  .header p { font-size: 0.68rem; }
+  .status { right: 14px; top: 14px; padding: 5px 10px; font-size: 0.68rem; }
+  .evidence { left: 14px; bottom: 72px; max-width: 220px; }
+  .formula { font-size: 10px; }
+  .formula .eq { font-size: 11px; }
+  .controls { right: 14px; bottom: 14px; gap: 10px; }
+  .wind-control { min-width: 100px; padding: 6px 10px; }
+  .play-btn { width: 34px; height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-btn, .wind-control { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <canvas id="scene" data-region="stage" aria-label="星夜速度场流动笔触动画"></canvas>
+
+  <header class="header" data-region="header">
+    <h1>Starry Night · Velocity Field</h1>
+    <p>高斯涡旋叠加风场驱动的笔触流动 · 空格或右下按钮控制</p>
+    <div id="status" class="status" role="status" aria-live="polite">Running</div>
+  </header>
+
+  <aside class="evidence" data-region="evidence">
+    <div class="readouts" aria-label="Live values">
+      <div class="metric"><small>Sim time</small><strong id="timeReadout">0.0 s</strong></div>
+      <div class="metric"><small>Strokes</small><strong id="strokeReadout">520</strong></div>
+      <div class="metric"><small>Wind</small><strong id="windReadout">0.35</strong></div>
+    </div>
+    <div class="formula" data-region="insight" aria-hidden="true">
+      <span class="name">Velocity Field Model</span>
+      <span class="eq">v(x,y) = Σ ωᵢ · ẑ × (r − rᵢ) · exp(−|r−rᵢ|²/2σᵢ²) + w</span>
+      <span class="eq">d r / d t = v(r)</span>
+      <span class="note">two gaussian vortices + gentle wind · brush strokes evolve along the field</span>
+    </div>
+  </aside>
+
+  <section class="controls" data-region="controls" aria-label="Simulation controls">
+    <div class="wind-control">
+      <label for="windInput">Wind <output id="windOutput">0.35</output></label>
+      <input id="windInput" type="range" min="0" max="1" step="0.05" value="0.35">
+    </div>
+    <button id="playBtn" class="play-btn" type="button" aria-label="暂停" title="播放 / 暂停">
+      <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <rect x="6" y="5" width="4" height="14" rx="1"/>
+        <rect x="14" y="5" width="4" height="14" rx="1"/>
+      </svg>
+    </button>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  // ===== 确定性伪随机（固定种子，运行期无随机闪烁） =====
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ===== 速度场参数（致敬《星夜》构图） =====
+  const VORTICES = [
+    { x: 0.30, y: 0.30, strength:  2.4, sigma: 0.16 },
+    { x: 0.72, y: 0.52, strength: -1.7, sigma: 0.13 },
+    { x: 0.50, y: 0.20, strength:  0.9, sigma: 0.10 },
+  ];
+  const WIND_BASE = { x: 0.35, y: 0.04 };
+
+  const STARS = [
+    { x: 0.30, y: 0.30, r: 0.045, color: [255, 224, 130] },
+    { x: 0.72, y: 0.52, r: 0.035, color: [255, 210, 110] },
+    { x: 0.50, y: 0.20, r: 0.025, color: [255, 235, 160] },
+    { x: 0.15, y: 0.45, r: 0.022, color: [255, 200, 100] },
+    { x: 0.85, y: 0.25, r: 0.020, color: [255, 220, 140] },
+    { x: 0.60, y: 0.62, r: 0.018, color: [255, 195, 95]  },
+  ];
+
+  // ===== 笔触系统 =====
+  const NUM_STROKES = 520;
+  const strokes = [];
+  const rng = mulberry32(20240607);
+
+  function initStrokes(W, H) {
+    strokes.length = 0;
+    for (let i = 0; i < NUM_STROKES; i++) {
+      strokes.push({
+        x: rng() * W,
+        y: rng() * H * 0.78,
+        life: rng() * 6,
+        maxLife: 4 + rng() * 5,
+        speedJitter: 0.85 + rng() * 0.3,
+        widthBase: 0.8 + rng() * 1.6,
+      });
+    }
+  }
+
+  // ===== 速度场 v(x,y) =====
+  function velocity(nx, ny, W, H, windScale) {
+    const ws = (windScale === undefined ? state.windScale : windScale);
+    let vx = WIND_BASE.x * ws * W;
+    let vy = WIND_BASE.y * ws * H;
+    for (let i = 0; i < VORTICES.length; i++) {
+      const v = VORTICES[i];
+      const dx = (nx - v.x) * W;
+      const dy = (ny - v.y) * H;
+      const sigmaPx = v.sigma * Math.max(W, H);
+      const r2 = dx*dx + dy*dy;
+      const sigma2 = sigmaPx * sigmaPx;
+      const falloff = Math.exp(-r2 / (2 * sigma2));
+      vx += -v.strength * dy * falloff;
+      vy +=  v.strength * dx * falloff;
+    }
+    return { vx, vy };
+  }
+
+  // ===== 色彩：深蓝 → 亮黄 =====
+  function strokeColor(nx, ny, W, H) {
+    let bestD = Infinity;
+    let bestStar = STARS[0];
+    for (let i = 0; i < STARS.length; i++) {
+      const s = STARS[i];
+      const dx = (nx - s.x) * W;
+      const dy = (ny - s.y) * H;
+      const d = Math.sqrt(dx*dx + dy*dy);
+      if (d < bestD) { bestD = d; bestStar = s; }
+    }
+    const maxD = Math.max(W, H) * 0.28;
+    const t = Math.min(1, bestD / maxD);
+    const deep = [18, 32, 78];
+    const mid = [48, 88, 168];
+    const bright = bestStar.color;
+    let r, g, b;
+    if (t < 0.5) {
+      const u = t / 0.5;
+      r = mid[0] + (bright[0] - mid[0]) * (1 - u);
+      g = mid[1] + (bright[1] - mid[1]) * (1 - u);
+      b = mid[2] + (bright[2] - mid[2]) * (1 - u);
+    } else {
+      const u = (t - 0.5) / 0.5;
+      r = deep[0] + (mid[0] - deep[0]) * (1 - u);
+      g = deep[1] + (mid[1] - deep[1]) * (1 - u);
+      b = deep[2] + (mid[2] - deep[2]) * (1 - u);
+    }
+    return { r: r|0, g: g|0, b: b|0, t };
+  }
+
+  // ===== Canvas 与状态 =====
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const playBtn = document.getElementById('playBtn');
+  const playIcon = document.getElementById('playIcon');
+  const statusEl = document.getElementById('status');
+  const timeReadout = document.getElementById('timeReadout');
+  const strokeReadout = document.getElementById('strokeReadout');
+  const windReadout = document.getElementById('windReadout');
+  const windInput = document.getElementById('windInput');
+  const windOutput = document.getElementById('windOutput');
+
+  let W = 0, H = 0, DPR = 1;
+  let villagePath = null, cypressPath = null, hillsPath = null;
+
+  const state = {
+    running: false,
+    simTime: 0,
+    lastTs: null,
+    windScale: 0.35,
+  };
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    initStrokes(W, H);
+    buildSilhouettes();
+    ctx.fillStyle = '#050818';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function buildSilhouettes() {
+    const hills = new Path2D();
+    hills.moveTo(0, H * 0.82);
+    const hillRng = mulberry32(11);
+    for (let x = 0; x <= W; x += 8) {
+      const y = H * 0.82
+        + Math.sin(x * 0.008) * H * 0.018
+        + Math.sin(x * 0.021 + 1.3) * H * 0.012
+        + (hillRng() - 0.5) * H * 0.008;
+      hills.lineTo(x, y);
+    }
+    hills.lineTo(W, H);
+    hills.lineTo(0, H);
+    hills.closePath();
+    hillsPath = hills;
+
+    const village = new Path2D();
+    const vRng = mulberry32(42);
+    let x = W * 0.05;
+    while (x < W * 0.92) {
+      const w = W * (0.025 + vRng() * 0.035);
+      const h = H * (0.025 + vRng() * 0.035);
+      const baseY = H * 0.88 + Math.sin(x * 0.008) * H * 0.018;
+      village.moveTo(x, baseY);
+      village.lineTo(x, baseY - h);
+      village.lineTo(x + w, baseY - h);
+      village.lineTo(x + w, baseY);
+      const roofH = h * 0.5;
+      village.moveTo(x - w * 0.08, baseY - h);
+      village.lineTo(x + w * 0.5, baseY - h - roofH);
+      village.lineTo(x + w * 1.08, baseY - h);
+      if (vRng() > 0.4) {
+        const winW = w * 0.18;
+        const winH = h * 0.22;
+        const winX = x + w * 0.4;
+        const winY = baseY - h * 0.6;
+        village.moveTo(winX, winY);
+        village.lineTo(winX + winW, winY);
+        village.lineTo(winX + winW, winY + winH);
+        village.lineTo(winX, winY + winH);
+        village.closePath();
+      }
+      x += w + W * 0.008;
+    }
+    villagePath = village;
+
+    const cyp = new Path2D();
+    const cx = W * 0.13;
+    const cBase = H * 0.92;
+    const cTop = H * 0.18;
+    const cWidth = W * 0.045;
+    const cRng = mulberry32(7);
+    const segments = 24;
+    cyp.moveTo(cx - cWidth * 0.3, cBase);
+    for (let i = 1; i <= segments; i++) {
+      const t = i / segments;
+      const y = cBase - (cBase - cTop) * t;
+      const wobble = Math.sin(t * Math.PI * 3.5) * cWidth * 0.4 * (1 - t * 0.5);
+      const taper = Math.sin(t * Math.PI) * cWidth + cWidth * 0.15;
+      cyp.lineTo(cx - taper * 0.5 + wobble, y);
+    }
+    cyp.lineTo(cx + cWidth * 0.1, cTop - H * 0.02);
+    for (let i = segments; i >= 1; i--) {
+      const t = i / segments;
+      const y = cBase - (cBase - cTop) * t;
+      const wobble = Math.sin(t * Math.PI * 3.5 + 0.7) * cWidth * 0.4 * (1 - t * 0.5);
+      const taper = Math.sin(t * Math.PI) * cWidth + cWidth * 0.15;
+      cyp.lineTo(cx + taper * 0.5 + wobble, y);
+    }
+    cyp.lineTo(cx + cWidth * 0.3, cBase);
+    cyp.closePath();
+    cypressPath = cyp;
+  }
+
+  function drawBackground() {
+    const grad = ctx.createRadialGradient(
+      W * 0.5, H * 0.35, 0,
+      W * 0.5, H * 0.35, Math.max(W, H) * 0.75
+    );
+    grad.addColorStop(0, '#0c1838');
+    grad.addColorStop(0.4, '#070d22');
+    grad.addColorStop(1, '#03050f');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawStars() {
+    for (let i = 0; i < STARS.length; i++) {
+      const s = STARS[i];
+      const cx = s.x * W;
+      const cy = s.y * H;
+      const r = s.r * Math.max(W, H);
+      const [cr, cg, cb] = s.color;
+      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 4.5);
+      halo.addColorStop(0, `rgba(${cr},${cg},${cb},0.55)`);
+      halo.addColorStop(0.3, `rgba(${cr},${cg},${cb},0.22)`);
+      halo.addColorStop(0.7, `rgba(${cr},${cg},${cb},0.06)`);
+      halo.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.4);
+      core.addColorStop(0, `rgba(255,250,220,0.95)`);
+      core.addColorStop(0.5, `rgba(${cr},${cg},${cb},0.7)`);
+      core.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawStrokes(dt) {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < strokes.length; i++) {
+      const s = strokes[i];
+      const nx = s.x / W;
+      const ny = s.y / H;
+      if (ny > 0.80) {
+        s.life = s.maxLife;
+        s.x = rng() * W;
+        s.y = rng() * H * 0.7;
+        continue;
+      }
+      const { vx, vy } = velocity(nx, ny, W, H);
+      const sp = Math.sqrt(vx * vx + vy * vy);
+      if (sp < 0.01) continue;
+      const strokeLen = Math.min(sp * 0.18, 26) * s.speedJitter;
+      const ux = vx / sp;
+      const uy = vy / sp;
+      const curveAmt = 3.5;
+      const px = -uy;
+      const py = ux;
+      const bend = Math.sin(state.simTime * 0.7 + s.life * 1.3) * curveAmt;
+      const x1 = s.x;
+      const y1 = s.y;
+      const x2 = s.x + ux * strokeLen;
+      const y2 = s.y + uy * strokeLen;
+      const cx = (x1 + x2) / 2 + px * bend;
+      const cy = (y1 + y2) / 2 + py * bend;
+      const lifeT = s.life / s.maxLife;
+      let alpha;
+      if (lifeT < 0.15) alpha = lifeT / 0.15;
+      else if (lifeT > 0.85) alpha = (1 - lifeT) / 0.15;
+      else alpha = 1;
+      alpha = Math.max(0, Math.min(1, alpha));
+      const col = strokeColor(nx, ny, W, H);
+      const baseAlpha = 0.55 * alpha;
+      ctx.strokeStyle = `rgba(${col.r},${col.g},${col.b},${baseAlpha * 0.32})`;
+      ctx.lineWidth = s.widthBase * 2.6;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(cx, cy, x2, y2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(${Math.min(255, col.r + 40)},${Math.min(255, col.g + 35)},${Math.min(255, col.b + 20)},${baseAlpha})`;
+      ctx.lineWidth = s.widthBase;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(cx, cy, x2, y2);
+      ctx.stroke();
+      s.x += vx * dt * 0.55;
+      s.y += vy * dt * 0.55;
+      s.life += dt;
+      if (s.life > s.maxLife || s.x < -30 || s.x > W + 30 || s.y < -30 || s.y > H * 0.82) {
+        s.life = 0;
+        s.maxLife = 4 + rng() * 5;
+        s.x = rng() * W;
+        s.y = rng() * H * 0.72;
+        s.widthBase = 0.8 + rng() * 1.6;
+        s.speedJitter = 0.85 + rng() * 0.3;
+      }
+    }
+  }
+
+  function drawSilhouettes() {
+    ctx.fillStyle = '#070b1c';
+    ctx.fill(hillsPath);
+    ctx.fillStyle = '#04060f';
+    ctx.fill(villagePath);
+    ctx.fillStyle = '#02040a';
+    ctx.fill(cypressPath);
+    ctx.strokeStyle = 'rgba(120,100,40,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke(cypressPath);
+  }
+
+  // ===== 生命周期钩子 =====
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ windScale: 0.35 });
+    start();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    statusEl.textContent = 'Running';
+    playBtn.setAttribute('aria-label', '暂停');
+    playIcon.innerHTML = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+  }
+
+  function pause() {
+    state.running = false;
+    statusEl.textContent = 'Paused';
+    playBtn.setAttribute('aria-label', '播放');
+    playIcon.innerHTML = '<path d="M7 5 L19 12 L7 19 Z"/>';
+  }
+
+  function reset() {
+    pause();
+    state.simTime = 0;
+    state.lastTs = null;
+    initStrokes(W, H);
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 0.05));
+    state.simTime += boundedDt;
+    drawStrokes(boundedDt);
+  }
+
+  function render() {
+    drawBackground();
+    drawStars();
+    drawStrokes(0);
+    drawSilhouettes();
+    timeReadout.textContent = state.simTime.toFixed(1) + ' s';
+    strokeReadout.textContent = String(NUM_STROKES);
+    windReadout.textContent = state.windScale.toFixed(2);
+    windOutput.textContent = state.windScale.toFixed(2);
+    windInput.value = String(state.windScale);
+  }
+
+  function setParameters(values) {
+    if (values && typeof values.windScale === 'number') {
+      state.windScale = Math.max(0, Math.min(1, Number.isFinite(values.windScale) ? values.windScale : 0.35));
+    }
+    windInput.value = String(state.windScale);
+    windOutput.textContent = state.windScale.toFixed(2);
+    windReadout.textContent = state.windScale.toFixed(2);
+  }
+
+  function getState() {
+    return { running: state.running, simTime: state.simTime, windScale: state.windScale };
+  }
+
+  function getReadouts() {
+    return { simTime: state.simTime, strokes: NUM_STROKES, wind: state.windScale };
+  }
+
+  function runModelChecks() {
+    const v = VORTICES[0];
+    const testW = 1000, testH = 800;
+    const { vx, vy } = velocity(v.x + 0.05, v.y, testW, testH, 0.35);
+    const dx = 0.05 * testW;
+    const dy = 0;
+    const radial = Math.sqrt(dx*dx + dy*dy);
+    const dot = (vx * dx + vy * dy) / radial;
+    const tangent = Math.sqrt(vx*vx + vy*vy);
+    const tangentialOk = Math.abs(dot) < tangent * 0.15;
+
+    const far = velocity(0.5, 0.5, testW, testH, 0.35);
+    const windOk = Math.abs(far.vx - WIND_BASE.x * 0.35 * testW) < 1 && Math.abs(far.vy - WIND_BASE.y * 0.35 * testH) < 1;
+
+    let finiteOk = true;
+    const testRng = mulberry32(99);
+    for (let i = 0; i < 100; i++) {
+      const r = velocity(testRng(), testRng(), testW, testH, 0.35);
+      if (!Number.isFinite(r.vx) || !Number.isFinite(r.vy)) { finiteOk = false; break; }
+    }
+
+    const center = VORTICES[0];
+    const probe = velocity(center.x + 0.05, center.y, 1, 1, 0.35);
+    const directionOk = center.strength > 0 ? probe.vy > 0 : probe.vy < 0;
+
+    return [
+      { name: 'tangential flow near vortex', pass: tangentialOk, expected: 'radial dot << tangent', actual: `dot=${dot.toFixed(3)}, tan=${tangent.toFixed(3)}`, tolerance: 'strict' },
+      { name: 'wind dominates far from vortices', pass: windOk, expected: `vx=${(WIND_BASE.x*0.35*testW).toFixed(2)}, vy=${(WIND_BASE.y*0.35*testH).toFixed(2)}`, actual: `vx=${far.vx.toFixed(2)}, vy=${far.vy.toFixed(2)}`, tolerance: 1 },
+      { name: 'velocity field finite everywhere', pass: finiteOk, expected: 'all finite', actual: finiteOk ? 'finite' : 'non-finite found', tolerance: 'finite' },
+      { name: 'vortex rotation direction matches strength sign', pass: directionOk, expected: 'strength>0 → CCW', actual: `vy=${probe.vy.toFixed(4)}`, tolerance: 'strict' },
+    ];
+  }
+
+  function bindControls() {
+    playBtn.addEventListener('click', () => { state.running ? pause() : start(); });
+    windInput.addEventListener('input', () => setParameters({ windScale: parseFloat(windInput.value) }));
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && document.activeElement !== playBtn && document.activeElement !== windInput) {
+        e.preventDefault();
+        state.running ? pause() : start();
+      }
+    });
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 120);
+    });
+  }
+
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    dt = Math.max(0, Math.min(dt, 0.05));
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts, runModelChecks
+  };
+  init();
+})();
+</script>
+</body>
+</html>

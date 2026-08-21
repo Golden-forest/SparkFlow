@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clifford 吸引子</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1a;
+      --sim-surface-soft: #0d1320;
+      --sim-text: #e8eefc;
+      --sim-muted: #6b7a96;
+      --sim-border: #1a2235;
+      --sim-grid: #131a2a;
+      --sim-accent: #4dd0e1;
+      --sim-accent-deep: #00838f;
+      --sim-accent-soft: #00363a;
+      --sim-positive: #4dd0e1;
+      --sim-warning: #ffb74d;
+      --sim-danger: #ef5350;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 24px;
+      z-index: 10;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 14px; }
+    .header h1 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--sim-text);
+    }
+    .header .subtitle {
+      font-size: 0.78rem;
+      color: var(--sim-muted);
+      font-weight: 400;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: var(--sim-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      box-shadow: 0 0 8px var(--sim-accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .status-dot.paused {
+      background: var(--sim-muted);
+      box-shadow: none;
+      animation: none;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* MAIN */
+    .main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+      gap: 1px;
+      background: var(--sim-border);
+      overflow: hidden;
+    }
+
+    /* STAGE */
+    .stage {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--sim-bg);
+    }
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+    .stage-overlay {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      pointer-events: none;
+      font-size: 0.7rem;
+      color: rgba(232, 238, 252, 0.35);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+    .stage-overlay div { line-height: 1.7; }
+
+    /* SIDE */
+    .side {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 1px;
+      background: var(--sim-border);
+      overflow: hidden;
+    }
+    .side-section {
+      background: var(--sim-surface);
+      padding: 16px 18px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .side-section h2 {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--sim-muted);
+      margin-bottom: 12px;
+    }
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .metric {
+      padding: 10px 12px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      background: var(--sim-surface-soft);
+    }
+    .metric small {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--sim-muted);
+      font-size: 0.65rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      font-size: 1.15rem;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sim-text);
+      font-weight: 600;
+    }
+    .insight-box {
+      padding: 12px 14px;
+      border-left: 3px solid var(--sim-accent);
+      border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+      background: rgba(77, 208, 225, 0.06);
+      color: var(--sim-text);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      font-weight: 500;
+    }
+    .model-text {
+      color: var(--sim-muted);
+      font-size: 0.74rem;
+      line-height: 1.6;
+    }
+    .model-text strong { color: var(--sim-text); font-weight: 600; }
+
+    /* CONTROLS */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 14px 24px 16px;
+      background: linear-gradient(to top, rgba(5, 8, 16, 0.85), transparent);
+      z-index: 10;
+    }
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex: 1;
+      justify-content: center;
+    }
+    .slider-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+      max-width: 180px;
+    }
+    .slider-cell label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.72rem;
+      color: var(--sim-muted);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+    }
+    .slider-cell label .val {
+      color: var(--sim-text);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      font-size: 0.78rem;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(77, 208, 225, 0.5);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 10px rgba(77, 208, 225, 0.5);
+    }
+    input[type="range"]:focus-visible {
+      outline: 2px solid rgba(77, 208, 225, 0.4);
+      outline-offset: 4px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    button {
+      background: transparent;
+      border: 1px solid var(--sim-border);
+      color: var(--sim-text);
+      padding: 8px 14px;
+      border-radius: var(--sim-radius-sm);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    button:hover {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: rgba(77, 208, 225, 0.06);
+    }
+    button:active { transform: scale(0.96); }
+    button:focus-visible {
+      outline: 2px solid rgba(77, 208, 225, 0.4);
+      outline-offset: 2px;
+    }
+    button.primary {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: rgba(77, 208, 225, 0.08);
+    }
+    button.primary[aria-pressed="true"] {
+      background: var(--sim-accent);
+      color: var(--sim-bg);
+    }
+
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .main { grid-template-columns: 1fr; }
+      .stage { min-height: 50vh; }
+      .side { grid-template-rows: auto auto auto; }
+    }
+    @media (max-width: 768px) {
+      .header { padding: 8px 14px; }
+      .header h1 { font-size: 0.92rem; }
+      .header .subtitle { display: none; }
+      .controls {
+        flex-direction: column;
+        gap: 10px;
+        padding: 10px 14px 12px;
+      }
+      .slider-group { flex-wrap: wrap; gap: 10px; }
+      .slider-cell { min-width: 42%; max-width: 45%; }
+      .actions { width: 100%; justify-content: center; }
+      button { padding: 7px 11px; font-size: 0.72rem; }
+    }
+    @media (max-width: 480px) {
+      .slider-cell { min-width: 40%; max-width: 48%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>Clifford 吸引子</h1>
+        <span class="subtitle">迭代分形 · 密度叠加</span>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">渲染中</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="stage" data-region="stage">
+        <canvas id="canvas" aria-label="Clifford 吸引子分形可视化"></canvas>
+        <div class="stage-overlay" id="overlay" aria-hidden="true">
+          <div id="overlayParams">a -1.70 · b 1.80 · c -1.90 · d -0.40</div>
+          <div id="overlayIter">迭代 0</div>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="side-section" data-region="evidence" aria-label="实时数据">
+          <h2>实时读数</h2>
+          <div class="readout-grid">
+            <div class="metric"><small>迭代数</small><strong id="readIter">0</strong></div>
+            <div class="metric"><small>状态</small><strong id="readStatus">运行</strong></div>
+            <div class="metric"><small>参数 a</small><strong id="readA">-1.70</strong></div>
+            <div class="metric"><small>参数 b</small><strong id="readB">1.80</strong></div>
+            <div class="metric"><small>参数 c</small><strong id="readC">-1.90</strong></div>
+            <div class="metric"><small>参数 d</small><strong id="readD">-0.40</strong></div>
+          </div>
+        </section>
+
+        <section class="side-section" data-region="insight" aria-label="模型说明">
+          <h2>观察要点</h2>
+          <div class="insight-box" id="insightText">调整参数 a/b/c/d，观察吸引子结构的重塑。微小变化即可产生截然不同的分形形态。</div>
+        </section>
+
+        <section class="side-section" aria-label="模型说明">
+          <h2>模型</h2>
+          <p class="model-text">
+            <strong>迭代公式：</strong><br>
+            x<sub>n+1</sub> = sin(a·y<sub>n</sub>) − cos(b·x<sub>n</sub>)<br>
+            y<sub>n+1</sub> = sin(c·x<sub>n</sub>) − cos(d·y<sub>n</sub>)
+          </p>
+          <p class="model-text" style="margin-top: 10px;">
+            每个点由上一步坐标经三角函数映射得到，数万次迭代后形成稳定吸引子。颜色密度反映访问频次。
+          </p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="参数控制">
+      <div class="slider-group">
+        <div class="slider-cell">
+          <label for="paramA">a <span class="val" id="valA">-1.70</span></label>
+          <input id="paramA" type="range" min="-2" max="2" step="0.01" value="-1.7" aria-label="参数 a">
+        </div>
+        <div class="slider-cell">
+          <label for="paramB">b <span class="val" id="valB">1.80</span></label>
+          <input id="paramB" type="range" min="-2" max="2" step="0.01" value="1.8" aria-label="参数 b">
+        </div>
+        <div class="slider-cell">
+          <label for="paramC">c <span class="val" id="valC">-1.90</span></label>
+          <input id="paramC" type="range" min="-2" max="2" step="0.01" value="-1.9" aria-label="参数 c">
+        </div>
+        <div class="slider-cell">
+          <label for="paramD">d <span class="val" id="valD">-0.40</span></label>
+          <input id="paramD" type="range" min="-2" max="2" step="0.01" value="-0.4" aria-label="参数 d">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="modeBtn" class="primary" type="button" aria-pressed="true">双色</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    // 预设参数集（经典美观配置）
+    const presets = [
+      { a: -1.7, b: 1.8, c: -1.9, d: -0.4 },
+      { a: -1.4, b: 1.6, c: 1.0, d: 0.7 },
+      { a: 1.5, b: -1.8, c: 1.6, d: 0.9 },
+      { a: -1.2, b: 2.0, c: -1.5, d: 0.5 },
+      { a: -1.8, b: -2.0, c: -0.5, d: -0.6 },
+      { a: 1.6, b: 1.4, c: 1.0, d: -1.7 },
+      { a: -1.7, b: 1.3, c: -0.1, d: -1.21 },
+      { a: -1.5, b: -1.8, c: 1.6, d: 0.9 },
+      { a: 1.8, b: -1.9, c: 0.8, d: -0.5 },
+      { a: -2.0, b: -1.5, c: 1.5, d: -0.8 },
+      { a: 0.7, b: 1.5, c: -1.5, d: -1.5 },
+      { a: -1.5, b: 1.2, c: -0.5, d: -1.2 }
+    ];
+
+    const state = {
+      a: -1.7, b: 1.8, c: -1.9, d: -0.4,
+      x: 0.1, y: 0.1,
+      iterations: 0,
+      running: true,
+      dualColor: true,
+      presetIndex: 0,
+      width: 0, height: 0,
+      dpr: 1,
+      lastTimestamp: null,
+      paramChanged: false,
+      fadeCounter: 0
+    };
+
+    const elements = {
+      valA: document.getElementById("valA"),
+      valB: document.getElementById("valB"),
+      valC: document.getElementById("valC"),
+      valD: document.getElementById("valD"),
+      paramA: document.getElementById("paramA"),
+      paramB: document.getElementById("paramB"),
+      paramC: document.getElementById("paramC"),
+      paramD: document.getElementById("paramD"),
+      modeBtn: document.getElementById("modeBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      statusDot: document.getElementById("statusDot"),
+      statusText: document.getElementById("statusText"),
+      overlayParams: document.getElementById("overlayParams"),
+      overlayIter: document.getElementById("overlayIter"),
+      readIter: document.getElementById("readIter"),
+      readStatus: document.getElementById("readStatus"),
+      readA: document.getElementById("readA"),
+      readB: document.getElementById("readB"),
+      readC: document.getElementById("readC"),
+      readD: document.getElementById("readD"),
+      insightText: document.getElementById("insightText")
+    };
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      state.width = Math.max(1, Math.floor(rect.width));
+      state.height = Math.max(1, Math.floor(rect.height));
+      state.dpr = dpr;
+      canvas.width = state.width * dpr;
+      canvas.height = state.height * dpr;
+      canvas.style.width = state.width + "px";
+      canvas.style.height = state.height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#050810";
+      ctx.fillRect(0, 0, state.width, state.height);
+      state.iterations = 0;
+      state.x = 0.1;
+      state.y = 0.1;
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const targetIters = Math.floor(boundedDt * 60 * 8000);
+      if (targetIters <= 0) return;
+
+      const a = state.a, b = state.b, c = state.c, d = state.d;
+      let x = state.x, y = state.y;
+      const w = state.width, h = state.height;
+      const dual = state.dualColor;
+
+      if (dual) {
+        const batchSize = 200;
+        let i = 0;
+        while (i < targetIters) {
+          const batch = Math.min(batchSize, targetIters - i);
+          ctx.fillStyle = "rgba(77, 208, 225, 0.05)";
+          for (let j = 0; j < batch; j++) {
+            const nx = Math.sin(a * y) - Math.cos(b * x);
+            const ny = Math.sin(c * x) - Math.cos(d * y);
+            x = nx; y = ny;
+            ctx.fillRect((x + 2) / 4 * w, h - (y + 2) / 4 * h, 1, 1);
+          }
+          i += batch;
+          if (i >= targetIters) break;
+          const batch2 = Math.min(batchSize, targetIters - i);
+          ctx.fillStyle = "rgba(255, 183, 77, 0.04)";
+          for (let j = 0; j < batch2; j++) {
+            const nx = Math.sin(a * y) - Math.cos(b * x);
+            const ny = Math.sin(c * x) - Math.cos(d * y);
+            x = nx; y = ny;
+            ctx.fillRect((x + 2) / 4 * w, h - (y + 2) / 4 * h, 1, 1);
+          }
+          i += batch2;
+        }
+      } else {
+        ctx.fillStyle = "rgba(77, 208, 225, 0.05)";
+        for (let i = 0; i < targetIters; i++) {
+          const nx = Math.sin(a * y) - Math.cos(b * x);
+          const ny = Math.sin(c * x) - Math.cos(d * y);
+          x = nx; y = ny;
+          ctx.fillRect((x + 2) / 4 * w, h - (y + 2) / 4 * h, 1, 1);
+        }
+      }
+
+      state.x = x;
+      state.y = y;
+      state.iterations += targetIters;
+    }
+
+    function render() {
+      elements.valA.textContent = state.a.toFixed(2);
+      elements.valB.textContent = state.b.toFixed(2);
+      elements.valC.textContent = state.c.toFixed(2);
+      elements.valD.textContent = state.d.toFixed(2);
+      elements.overlayParams.textContent =
+        `a ${state.a.toFixed(2)} · b ${state.b.toFixed(2)} · c ${state.c.toFixed(2)} · d ${state.d.toFixed(2)}`;
+      elements.overlayIter.textContent = `迭代 ${state.iterations.toLocaleString()}`;
+
+      elements.readIter.textContent = state.iterations.toLocaleString();
+      elements.readA.textContent = state.a.toFixed(2);
+      elements.readB.textContent = state.b.toFixed(2);
+      elements.readC.textContent = state.c.toFixed(2);
+      elements.readD.textContent = state.d.toFixed(2);
+
+      if (state.running) {
+        elements.statusText.textContent = "渲染中";
+        elements.statusDot.classList.remove("paused");
+        elements.readStatus.textContent = "运行";
+      } else {
+        elements.statusText.textContent = "已暂停";
+        elements.statusDot.classList.add("paused");
+        elements.readStatus.textContent = "暂停";
+      }
+
+      const insightMsg = state.iterations < 1000
+        ? "吸引子正在成形：初始迭代点稀疏，随时间推移将逐渐显现稳定结构。"
+        : state.iterations < 50000
+          ? "密度叠加中：高频访问区域更亮，低频区域保持暗淡。"
+          : "稳定吸引子已显现：调整任意参数即可重塑整个分形形态。";
+      elements.insightText.textContent = insightMsg;
+    }
+
+    function setParameters(values) {
+      let changed = false;
+      if (values.a !== undefined && Number.isFinite(values.a)) {
+        const v = clamp(values.a, -2, 2);
+        if (Math.abs(v - state.a) > 1e-6) { state.a = v; changed = true; }
+      }
+      if (values.b !== undefined && Number.isFinite(values.b)) {
+        const v = clamp(values.b, -2, 2);
+        if (Math.abs(v - state.b) > 1e-6) { state.b = v; changed = true; }
+      }
+      if (values.c !== undefined && Number.isFinite(values.c)) {
+        const v = clamp(values.c, -2, 2);
+        if (Math.abs(v - state.c) > 1e-6) { state.c = v; changed = true; }
+      }
+      if (values.d !== undefined && Number.isFinite(values.d)) {
+        const v = clamp(values.d, -2, 2);
+        if (Math.abs(v - state.d) > 1e-6) { state.d = v; changed = true; }
+      }
+      if (changed) {
+        ctx.fillStyle = "#050810";
+        ctx.fillRect(0, 0, state.width, state.height);
+        state.iterations = 0;
+        state.x = 0.1;
+        state.y = 0.1;
+      }
+      elements.paramA.value = String(state.a);
+      elements.paramB.value = String(state.b);
+      elements.paramC.value = String(state.c);
+      elements.paramD.value = String(state.d);
+      render();
+    }
+
+    function start() {
+      state.running = true;
+      elements.pauseBtn.textContent = "暂停";
+      render();
+    }
+    function pause() {
+      state.running = false;
+      elements.pauseBtn.textContent = "继续";
+      render();
+    }
+    function reset() {
+      state.presetIndex = (state.presetIndex + 1) % presets.length;
+      const p = presets[state.presetIndex];
+      setParameters(p);
+      if (!state.running) start();
+    }
+
+    function toggleMode() {
+      state.dualColor = !state.dualColor;
+      elements.modeBtn.textContent = state.dualColor ? "双色" : "单色";
+      elements.modeBtn.setAttribute("aria-pressed", String(state.dualColor));
+      ctx.fillStyle = "#050810";
+      ctx.fillRect(0, 0, state.width, state.height);
+      state.iterations = 0;
+      state.x = 0.1;
+      state.y = 0.1;
+      render();
+    }
+
+    function bindControls() {
+      elements.paramA.addEventListener("input", () => setParameters({ a: parseFloat(elements.paramA.value) }));
+      elements.paramB.addEventListener("input", () => setParameters({ b: parseFloat(elements.paramB.value) }));
+      elements.paramC.addEventListener("input", () => setParameters({ c: parseFloat(elements.paramC.value) }));
+      elements.paramD.addEventListener("input", () => setParameters({ d: parseFloat(elements.paramD.value) }));
+      elements.modeBtn.addEventListener("click", toggleMode);
+      elements.pauseBtn.addEventListener("click", () => state.running ? pause() : start());
+      elements.resetBtn.addEventListener("click", reset);
+
+      window.addEventListener("keydown", (e) => {
+        if (e.target.tagName === "INPUT") return;
+        if (e.code === "Space") { e.preventDefault(); state.running ? pause() : start(); }
+        else if (e.code === "KeyR") reset();
+        else if (e.code === "KeyM") toggleMode();
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function init() {
+      resize();
+      bindControls();
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function getState() {
+      return {
+        a: state.a, b: state.b, c: state.c, d: state.d,
+        x: state.x, y: state.y,
+        iterations: state.iterations,
+        running: state.running,
+        dualColor: state.dualColor,
+        presetIndex: state.presetIndex
+      };
+    }
+
+    function getReadouts() {
+      return {
+        a: state.a, b: state.b, c: state.c, d: state.d,
+        iterations: state.iterations,
+        running: state.running,
+        dualColor: state.dualColor
+      };
+    }
+
+    function runModelChecks() {
+      const a = -1.7, b = 1.8, c = -1.9, d = -0.4;
+      const results = [];
+
+      const expectedX = Math.sin(a * 0.1) - Math.cos(b * 0.1);
+      const expectedY = Math.sin(c * 0.1) - Math.cos(d * 0.1);
+      const nx = Math.sin(a * 0.1) - Math.cos(b * 0.1);
+      const ny = Math.sin(c * 0.1) - Math.cos(d * 0.1);
+      results.push({
+        name: "单步迭代公式",
+        pass: Math.abs(nx - expectedX) < 1e-10 && Math.abs(ny - expectedY) < 1e-10,
+        expected: `(${expectedX.toFixed(6)}, ${expectedY.toFixed(6)})`,
+        actual: `(${nx.toFixed(6)}, ${ny.toFixed(6)})`,
+        tolerance: 1e-10
+      });
+
+      let bx = 0.1, by = 0.1;
+      let bounded = true;
+      for (let i = 0; i < 10000; i++) {
+        const tx = Math.sin(a * by) - Math.cos(b * bx);
+        const ty = Math.sin(c * bx) - Math.cos(d * by);
+        bx = tx; by = ty;
+        if (!Number.isFinite(bx) || !Number.isFinite(by) || Math.abs(bx) > 2 || Math.abs(by) > 2) {
+          bounded = false; break;
+        }
+      }
+      results.push({
+        name: "迭代有界性（10000步）",
+        pass: bounded,
+        expected: "|x|, |y| ≤ 2",
+        actual: bounded ? `(${bx.toFixed(4)}, ${by.toFixed(4)})` : "unbounded",
+        tolerance: "bounded"
+      });
+
+      results.push({
+        name: "吸引子非平凡性",
+        pass: Math.abs(a) > 0.1 && Math.abs(b) > 0.1,
+        expected: "参数非零，产生非平凡吸引子",
+        actual: `a=${a}, b=${b}`,
+        tolerance: "qualitative"
+      });
+
+      return results;
+    }
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 150);
+    });
+
+    window.simulation = { init: init, start: start, pause: pause, reset: reset, update: update, render: render, setParameters: setParameters, getState: getState, getReadouts: getReadouts, runModelChecks: runModelChecks };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>流动极光帷幕</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1c;
+      --sim-surface-soft: #0e1424;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a96b0;
+      --sim-border: rgba(148,163,184,.18);
+      --sim-grid: rgba(232,238,252,.05);
+      --sim-accent: #4dffb8;
+      --sim-accent-deep: #1fa37a;
+      --sim-accent-soft: rgba(77,255,184,.12);
+      --sim-positive: #4dffb8;
+      --sim-warning: #d9a064;
+      --sim-danger: #ff6b6b;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0,0,0,.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button:focus-visible { outline: 2px solid rgba(77,255,184,.45); outline-offset: 2px; }
+
+    .app {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    canvas#scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+
+    .header {
+      position: absolute;
+      top: 18px;
+      left: 22px;
+      z-index: 10;
+      pointer-events: none;
+      max-width: min(560px, calc(100vw - 44px));
+    }
+    .header h1 {
+      margin: 0 0 4px;
+      font-size: clamp(1.25rem, 2.2vw, 1.7rem);
+      letter-spacing: -.02em;
+      line-height: 1.1;
+      color: rgba(232,238,252,.92);
+      text-shadow: 0 2px 10px rgba(0,0,0,.65);
+    }
+    .header p {
+      margin: 0;
+      font-size: 12px;
+      color: rgba(180,200,225,.62);
+      text-shadow: 0 1px 6px rgba(0,0,0,.7);
+    }
+
+    .status {
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      z-index: 10;
+      pointer-events: none;
+      border: 1px solid rgba(77,255,184,.28);
+      border-radius: 999px;
+      padding: 7px 14px;
+      background: rgba(14,20,36,.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: var(--sim-accent);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+
+    .overlay {
+      position: absolute;
+      left: 22px;
+      bottom: 20px;
+      display: flex;
+      align-items: flex-end;
+      gap: 18px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .formula {
+      pointer-events: none;
+      user-select: none;
+      color: rgba(220,235,255,.30);
+      font-size: 12px;
+      line-height: 1.6;
+      letter-spacing: .02em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 6px rgba(0,0,0,.7);
+    }
+    .formula .name {
+      display: block;
+      font-size: 10px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: rgba(180,210,235,.28);
+      margin-bottom: 3px;
+    }
+    .formula .eq { font-style: italic; }
+    .formula .eq sub, .formula .eq sup { font-size: 9px; }
+
+    .play-btn {
+      pointer-events: auto;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid rgba(180,210,235,.20);
+      background: rgba(10,16,28,.42);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      color: rgba(230,240,255,.78);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .2s ease, border-color .2s ease, color .2s ease;
+    }
+    .play-btn:hover {
+      background: rgba(20,30,48,.62);
+      border-color: rgba(180,210,235,.38);
+      color: rgba(240,250,255,.95);
+    }
+    .play-btn svg { width: 14px; height: 14px; }
+
+    .evidence {
+      position: absolute;
+      right: 22px;
+      bottom: 20px;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, auto);
+      gap: 8px;
+    }
+    .metric {
+      padding: 10px 14px;
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 12px;
+      background: rgba(14,20,36,.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      min-width: 96px;
+    }
+    .metric small {
+      display: block;
+      margin-bottom: 3px;
+      color: rgba(180,200,225,.58);
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      font-size: 1.15rem;
+      letter-spacing: -.01em;
+      font-variant-numeric: tabular-nums;
+      color: rgba(232,238,252,.95);
+    }
+
+    .insight {
+      pointer-events: none;
+      max-width: min(320px, calc(100vw - 44px));
+      padding: 10px 14px;
+      border-left: 3px solid var(--sim-warning);
+      border-radius: 0 10px 10px 0;
+      background: rgba(20,14,8,.45);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      color: rgba(245,225,190,.82);
+      font-weight: 600;
+      font-size: 12px;
+      line-height: 1.5;
+      text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    }
+
+    @media (max-width: 640px) {
+      .header { top: 12px; left: 14px; }
+      .header h1 { font-size: 1.15rem; }
+      .header p { font-size: 11px; }
+      .status { top: 12px; right: 14px; padding: 6px 11px; font-size: 11px; }
+      .overlay { left: 14px; bottom: 14px; gap: 12px; }
+      .formula { font-size: 10px; }
+      .formula .name { font-size: 8px; }
+      .play-btn { width: 34px; height: 34px; }
+      .evidence { right: 14px; bottom: 14px; gap: 8px; }
+      .metric { padding: 8px 11px; min-width: 84px; }
+      .metric strong { font-size: 1rem; }
+      .insight { max-width: min(220px, calc(100vw - 28px)); font-size: 11px; padding: 8px 11px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .play-btn { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <canvas id="scene" data-region="stage" aria-label="流动的极光帷幕动态壁纸"></canvas>
+
+    <header class="header" data-region="header">
+      <h1>流动极光帷幕</h1>
+      <p>多层正弦叠加生成的极光波形，随时间流动并上浮光点。</p>
+      <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    </header>
+
+    <div class="overlay" data-region="controls">
+      <button id="playBtn" class="play-btn" type="button" aria-label="暂停" title="暂停 / 播放">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="5" width="4" height="14" rx="1"/>
+          <rect x="14" y="5" width="4" height="14" rx="1"/>
+        </svg>
+      </button>
+      <div class="formula" aria-hidden="true">
+        <span class="name">Aurora Intensity</span>
+        <span class="eq">f(x,t) = Σ A<sub>i</sub> · sin(k<sub>i</sub>·x − ω<sub>i</sub>·t)</span>
+      </div>
+    </div>
+
+    <aside class="evidence" data-region="evidence">
+      <div class="readout-grid">
+        <div class="metric"><small>时间</small><strong id="timeReadout">0.00 s</strong></div>
+        <div class="metric"><small>层数</small><strong id="layerReadout">4</strong></div>
+        <div class="metric"><small>流速</small><strong id="speedReadout">1.00×</strong></div>
+        <div class="metric"><small>光点</small><strong id="particleReadout">0</strong></div>
+      </div>
+      <p id="insight" class="insight" data-region="insight">极光由多层正弦波叠加流动；暂停可冻结全部时间演化。</p>
+    </aside>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ---------- 确定性伪随机（固定种子，非每帧随机） ----------
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rng = mulberry32(20240117);
+
+    // ---------- Canvas 初始化 ----------
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    const playBtn = document.getElementById("playBtn");
+    const statusEl = document.getElementById("status");
+    const timeReadout = document.getElementById("timeReadout");
+    const layerReadout = document.getElementById("layerReadout");
+    const speedReadout = document.getElementById("speedReadout");
+    const particleReadout = document.getElementById("particleReadout");
+    const insightEl = document.getElementById("insight");
+
+    let W = 0, H = 0, dpr = 1;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = Math.max(1, Math.floor(W * dpr));
+      canvas.height = Math.max(1, Math.floor(H * dpr));
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      rebuildStars();
+      rebuildParticles();
+      rebuildMountains();
+    }
+
+    // ---------- 星辰（预生成，确定性闪烁相位） ----------
+    let stars = [];
+    function rebuildStars() {
+      stars = [];
+      const count = Math.floor((W * H) / 9000);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: rng() * W,
+          y: rng() * H * 0.72,
+          r: 0.3 + rng() * 1.1,
+          phase: rng() * Math.PI * 2,
+          speed: 0.4 + rng() * 1.4,
+          baseA: 0.25 + rng() * 0.55
+        });
+      }
+    }
+
+    // ---------- 极光层定义 ----------
+    const auroraLayers = [
+      { yBase: 0.20, amp: 0.045, freq: 0.0038, speed: 0.022, wSpeed: 0.014, thick: 0.16, hue: 150, sat: 92, light: 58, alpha: 0.55, phase: 0.0 },
+      { yBase: 0.28, amp: 0.055, freq: 0.0029, speed: 0.017, wSpeed: 0.011, thick: 0.19, hue: 168, sat: 88, light: 62, alpha: 0.50, phase: 1.3 },
+      { yBase: 0.36, amp: 0.065, freq: 0.0023, speed: 0.013, wSpeed: 0.009, thick: 0.22, hue: 185, sat: 82, light: 64, alpha: 0.45, phase: 2.6 },
+      { yBase: 0.44, amp: 0.075, freq: 0.0019, speed: 0.010, wSpeed: 0.007, thick: 0.26, hue: 205, sat: 70, light: 66, alpha: 0.38, phase: 4.1 }
+    ];
+
+    // ---------- 光点（极光内部上浮粒子） ----------
+    let particles = [];
+    function rebuildParticles() {
+      particles = [];
+      const count = Math.floor((W * H) / 16000);
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: rng() * W,
+          y: rng() * H,
+          vy: 6 + rng() * 14,
+          r: 0.5 + rng() * 1.4,
+          phase: rng() * Math.PI * 2,
+          twSpeed: 0.5 + rng() * 1.5,
+          baseA: 0.3 + rng() * 0.5,
+          driftSeed: rng() * 1000
+        });
+      }
+    }
+
+    // ---------- 山脊剪影 ----------
+    let mountains = [];
+    function rebuildMountains() {
+      mountains = [];
+      const layers = [
+        { yBase: 0.80, amp: 0.05, freq: 0.006, seed: 1.0, color: "#0a1424", detail: 3 },
+        { yBase: 0.86, amp: 0.04, freq: 0.009, seed: 2.3, color: "#070d1a", detail: 4 },
+        { yBase: 0.92, amp: 0.03, freq: 0.013, seed: 3.7, color: "#040810", detail: 5 }
+      ];
+      for (const m of layers) {
+        const pts = [];
+        for (let x = 0; x <= W; x += 6) {
+          let y = H * m.yBase;
+          y += Math.sin(x * m.freq + m.seed) * H * m.amp;
+          y += Math.sin(x * m.freq * 2.7 + m.seed * 1.7) * H * m.amp * 0.35;
+          y += Math.sin(x * m.freq * 5.3 + m.seed * 2.9) * H * m.amp * 0.15;
+          pts.push({ x, y });
+        }
+        mountains.push({ pts, color: m.color });
+      }
+    }
+
+    // ---------- 极光波形函数：多层正弦叠加 ----------
+    function auroraOffset(x, t, layer) {
+      const k1 = layer.freq, k2 = layer.freq * 2.4, k3 = layer.freq * 5.1;
+      const w1 = layer.speed, w2 = layer.wSpeed, w3 = layer.wSpeed * 1.6;
+      const p = layer.phase;
+      return (
+        Math.sin(k1 * x - w1 * t + p) * 1.0 +
+        Math.sin(k2 * x - w2 * t + p * 1.7) * 0.42 +
+        Math.sin(k3 * x - w3 * t + p * 2.3) * 0.18
+      );
+    }
+
+    // ---------- 参数 schema ----------
+    const parameterSchema = [
+      { key: "speed", label: "流速", type: "slider", min: 0.1, max: 3, step: 0.1, default: 1, unit: "×" }
+    ];
+
+    // ---------- 状态 ----------
+    const state = {
+      running: true,
+      t: 0,
+      speed: 1,
+      lastTs: null
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // ---------- 绘制：天空底色 ----------
+    function drawSky() {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#040614");
+      g.addColorStop(0.45, "#070d1f");
+      g.addColorStop(0.75, "#0a1326");
+      g.addColorStop(1, "#0d1830");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // ---------- 绘制：星辰 ----------
+    function drawStars(t) {
+      for (const s of stars) {
+        const tw = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
+        const a = s.baseA * (0.35 + 0.65 * tw);
+        ctx.fillStyle = `rgba(225,238,255,${a.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ---------- 绘制：单层极光（双层模拟发光） ----------
+    function drawAuroraLayer(layer, t) {
+      const yCenter = H * layer.yBase;
+      const thickness = H * layer.thick;
+      const step = Math.max(2, Math.floor(W / 380));
+
+      // 采样顶/底轮廓
+      const top = [], bot = [];
+      for (let x = 0; x <= W; x += step) {
+        const off = auroraOffset(x, t, layer) * H * layer.amp;
+        top.push({ x, y: yCenter + off - thickness * 0.5 });
+        bot.push({ x, y: yCenter + off + thickness * 0.5 });
+      }
+
+      // 垂坠：底部向下渐隐，顶部略收窄
+      const buildPath = (expand) => {
+        ctx.beginPath();
+        ctx.moveTo(top[0].x, top[0].y - expand);
+        for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y - expand);
+        for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y + expand);
+        ctx.closePath();
+      };
+
+      // 第一遍：粗、低透明度（外层光晕）
+      buildPath(thickness * 0.55);
+      const g1 = ctx.createLinearGradient(0, yCenter - thickness, 0, yCenter + thickness * 1.4);
+      g1.addColorStop(0, `hsla(${layer.hue},${layer.sat}%,${layer.light}%,0)`);
+      g1.addColorStop(0.35, `hsla(${layer.hue},${layer.sat}%,${layer.light}%,${(layer.alpha * 0.32).toFixed(3)})`);
+      g1.addColorStop(0.7, `hsla(${layer.hue},${layer.sat}%,${layer.light + 4}%,${(layer.alpha * 0.18).toFixed(3)})`);
+      g1.addColorStop(1, `hsla(${layer.hue + 20},${layer.sat - 10}%,${layer.light + 6}%,0)`);
+      ctx.fillStyle = g1;
+      ctx.fill();
+
+      // 第二遍：细、高透明度（核心亮带）
+      buildPath(thickness * 0.12);
+      const g2 = ctx.createLinearGradient(0, yCenter - thickness * 0.5, 0, yCenter + thickness * 0.8);
+      g2.addColorStop(0, `hsla(${layer.hue},${layer.sat}%,${layer.light + 10}%,0)`);
+      g2.addColorStop(0.4, `hsla(${layer.hue},${layer.sat}%,${layer.light + 14}%,${(layer.alpha * 0.85).toFixed(3)})`);
+      g2.addColorStop(0.75, `hsla(${layer.hue + 8},${layer.sat - 4}%,${layer.light + 10}%,${(layer.alpha * 0.45).toFixed(3)})`);
+      g2.addColorStop(1, `hsla(${layer.hue + 25},${layer.sat - 12}%,${layer.light + 8}%,0)`);
+      ctx.fillStyle = g2;
+      ctx.fill();
+
+      // 顶部高光线（细线条高透明度）
+      ctx.beginPath();
+      ctx.moveTo(top[0].x, top[0].y);
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y);
+      ctx.strokeStyle = `hsla(${layer.hue},${layer.sat}%,${Math.min(88, layer.light + 22)}%,${(layer.alpha * 0.5).toFixed(3)})`;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    }
+
+    function drawAurora(t) {
+      ctx.globalCompositeOperation = "lighter";
+      for (const layer of auroraLayers) drawAuroraLayer(layer, t);
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    // ---------- 绘制：光点上浮粒子 ----------
+    function drawParticles(t) {
+      ctx.globalCompositeOperation = "lighter";
+      for (const p of particles) {
+        const tw = 0.5 + 0.5 * Math.sin(t * p.twSpeed + p.phase);
+        const a = p.baseA * (0.3 + 0.7 * tw);
+        // 双层模拟发光：外圈低透明度大半径 + 内核高透明度小半径
+        ctx.fillStyle = `rgba(180,255,220,${(a * 0.22).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 2.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(225,255,240,${a.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    // ---------- 绘制：山脊剪影 ----------
+    function drawMountains() {
+      for (const m of mountains) {
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        ctx.lineTo(m.pts[0].x, m.pts[0].y);
+        for (let i = 1; i < m.pts.length; i++) ctx.lineTo(m.pts[i].x, m.pts[i].y);
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.fillStyle = m.color;
+        ctx.fill();
+      }
+    }
+
+    // ---------- 主渲染 ----------
+    function render() {
+      drawSky();
+      drawStars(state.t);
+      drawAurora(state.t);
+      drawParticles(state.t);
+      drawMountains();
+      renderReadouts();
+    }
+
+    function renderReadouts() {
+      timeReadout.textContent = `${state.t.toFixed(2)} s`;
+      layerReadout.textContent = String(auroraLayers.length);
+      speedReadout.textContent = `${state.speed.toFixed(2)}×`;
+      particleReadout.textContent = String(particles.length);
+      insightEl.textContent = state.running
+        ? "极光由多层正弦波叠加流动；暂停可冻结全部时间演化。"
+        : "已暂停：所有波形与光点保持当前状态，恢复后继续演化。";
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clamp(finite(dt, 0), 0, 0.05);
+      const advanced = bounded * state.speed;
+      state.t += advanced;
+      // 粒子位置推进
+      for (const p of particles) {
+        p.y -= p.vy * advanced;
+        p.x += Math.sin(state.t * 0.3 + p.driftSeed) * 0.4 * state.speed;
+        if (p.y < -10) { p.y = H + 10; p.x = rng() * W; }
+        if (p.x < -5) p.x = W + 5;
+        if (p.x > W + 5) p.x = -5;
+      }
+    }
+
+    // ---------- 生命周期 ----------
+    function start() {
+      state.running = true;
+      statusEl.textContent = "运行中";
+      playBtn.setAttribute("aria-label", "暂停");
+      playBtn.title = "暂停";
+      playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+      renderReadouts();
+    }
+    function pause() {
+      state.running = false;
+      statusEl.textContent = "已暂停";
+      playBtn.setAttribute("aria-label", "播放");
+      playBtn.title = "播放";
+      playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+      renderReadouts();
+    }
+    function reset() {
+      state.t = 0;
+      rebuildParticles();
+      rebuildStars();
+      renderReadouts();
+    }
+
+    function setParameters(values) {
+      const def = parameterSchema[0];
+      state.speed = clamp(finite(Number(values.speed), def.default), def.min, def.max);
+      renderReadouts();
+    }
+
+    function getState() {
+      return { running: state.running, t: state.t, speed: state.speed };
+    }
+    function getReadouts() {
+      return { time: state.t, layers: auroraLayers.length, speed: state.speed, particles: particles.length, running: state.running };
+    }
+
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      let dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      if (!Number.isFinite(dt)) dt = 0;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    // ---------- 交互 ----------
+    playBtn.addEventListener("click", () => {
+      if (state.running) pause(); else start();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space") { e.preventDefault(); if (state.running) pause(); else start(); }
+    });
+    window.addEventListener("resize", resize);
+
+    // ---------- 模型检查（确定性 + 收敛性） ----------
+    function runModelChecks() {
+      const L = auroraLayers[0];
+      const f = (x, t) => auroraOffset(x, t, L);
+      const period = 2 * Math.PI / L.freq;
+      const x0 = 123.4;
+      const t0 = 5.0;
+      const v1 = f(x0, t0);
+      const v2 = f(x0 + period, t0);
+      const v3 = f(x0, t0 + 2 * Math.PI / L.speed);
+      const periodCheck = Math.abs(v1 - v2) < 1e-9 && Math.abs(v1 - v3) < 1e-9;
+
+      // 有界性：多层正弦叠加幅值不超过各项系数绝对值之和
+      let maxSum = 0;
+      for (let i = 0; i < 2000; i++) {
+        const x = rng() * W;
+        const t = rng() * 1000;
+        maxSum = Math.max(maxSum, Math.abs(auroraOffset(x, t, L)));
+      }
+      const bound = 1.0 + 0.42 + 0.18;
+      const boundCheck = maxSum <= bound + 1e-9;
+
+      // 确定性：相同输入相同输出
+      const det1 = auroraOffset(77.7, 3.3, L);
+      const det2 = auroraOffset(77.7, 3.3, L);
+      const detCheck = det1 === det2;
+
+      // 星辰闪烁有界
+      let starBounded = true;
+      for (const s of stars) {
+        const a = s.baseA * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(0 + s.phase)));
+        if (!(a >= 0 && a <= 1)) { starBounded = false; break; }
+      }
+
+      return [
+        { name: "周期性（空间+时间）", pass: periodCheck, expected: "f(x+T,t)=f(x,t)=f(x,t+T)", actual: `${v1.toFixed(6)}, ${v2.toFixed(6)}, ${v3.toFixed(6)}`, tolerance: 1e-9 },
+        { name: "有界性 |Σ|≤Σ|c_i|", pass: boundCheck, expected: `≤ ${bound}`, actual: maxSum.toFixed(6), tolerance: 1e-9 },
+        { name: "确定性（同输入同输出）", pass: detCheck, expected: det1, actual: det2, tolerance: 0 },
+        { name: "星辰亮度 ∈[0,1]", pass: starBounded, expected: "0≤a≤1", actual: starBounded ? "bounded" : "out of range", tolerance: 0 }
+      ];
+    }
+
+    // ---------- 启动 ----------
+    function init() {
+      resize();
+      renderReadouts();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

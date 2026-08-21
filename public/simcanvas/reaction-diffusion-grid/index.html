@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gray-Scott 反应扩散壁纸</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#02060f;
+  --sim-surface:#02060f;
+  --sim-surface-soft:#070d1a;
+  --sim-text:#c8e6f0;
+  --sim-muted:#5a7a8a;
+  --sim-border:transparent;
+  --sim-grid:transparent;
+  --sim-accent:#00e0d0;
+  --sim-accent-deep:#00b8a8;
+  --sim-accent-soft:rgba(0,224,208,0.08);
+  --sim-positive:#00e0d0;
+  --sim-warning:#f59e0b;
+  --sim-danger:#dc2626;
+  --sim-radius-sm:8px;
+  --sim-radius-md:12px;
+  --sim-radius-lg:16px;
+  --sim-shadow:none;
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--sim-bg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+body{color:var(--sim-text)}
+
+.app{
+  position:fixed;inset:0;
+  width:100vw;height:100vh;
+  display:block;
+  background:var(--sim-bg);
+}
+
+#stage{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  display:block;
+}
+
+#scene{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  display:block;
+  image-rendering:auto;
+}
+
+.header{
+  position:absolute;
+  left:20px;top:18px;
+  z-index:10;
+  pointer-events:none;
+  user-select:none;
+}
+.header h1{
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color:rgba(0,224,208,0.55);
+  margin:0;
+}
+.header p{
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:rgba(200,230,240,0.28);
+  margin-top:4px;
+}
+
+.evidence{
+  position:absolute;
+  left:20px;bottom:18px;
+  z-index:10;
+  pointer-events:none;
+  user-select:none;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.evidence .readout{
+  font-size:10px;
+  letter-spacing:0.1em;
+  color:rgba(200,230,240,0.3);
+  font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;
+}
+.evidence .readout strong{
+  color:rgba(0,224,208,0.5);
+  font-weight:600;
+  margin-left:6px;
+}
+
+.formula{
+  font-size:11px;
+  line-height:1.7;
+  color:rgba(200,230,240,0.28);
+  font-family:ui-monospace,"SF Mono","Cascadia Code",monospace;
+  letter-spacing:0.02em;
+}
+.formula .title{
+  font-size:10px;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  color:rgba(0,224,208,0.22);
+  margin-bottom:6px;
+  font-weight:600;
+}
+.formula .eq{display:block;white-space:nowrap}
+
+.play-btn{
+  position:absolute;
+  right:20px;bottom:18px;
+  width:36px;height:36px;
+  border:1px solid rgba(0,224,208,0.18);
+  border-radius:50%;
+  background:rgba(2,6,15,0.55);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  color:rgba(0,224,208,0.7);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  z-index:10;
+  transition:opacity .4s ease,border-color .3s ease,color .3s ease;
+  opacity:0.3;
+}
+.play-btn:hover{
+  opacity:1;
+  border-color:rgba(0,224,208,0.4);
+  color:rgba(0,224,208,0.95);
+}
+.play-btn:focus-visible{
+  outline:2px solid rgba(0,224,208,0.5);
+  outline-offset:3px;
+  opacity:1;
+}
+.play-btn svg{width:14px;height:14px;fill:currentColor}
+
+.cycle-indicator{
+  position:absolute;
+  right:20px;top:18px;
+  width:50px;height:2px;
+  background:rgba(0,224,208,0.08);
+  border-radius:1px;
+  overflow:hidden;
+  z-index:10;
+  opacity:0.4;
+}
+.cycle-indicator-fill{
+  height:100%;
+  background:rgba(0,224,208,0.5);
+  border-radius:1px;
+  width:0%;
+  transition:width .1s linear;
+}
+
+@media(max-width:600px){
+  .header{left:12px;top:12px}
+  .header h1{font-size:11px}
+  .header p{font-size:9px}
+  .evidence{left:12px;bottom:12px}
+  .evidence .readout{font-size:9px}
+  .formula{font-size:9px}
+  .play-btn{right:12px;bottom:12px;width:32px;height:32px}
+  .cycle-indicator{right:12px;top:12px;width:40px}
+}
+@media(prefers-reduced-motion:reduce){
+  .play-btn{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="quantitative">
+  <header class="header" data-region="header">
+    <h1>Gray-Scott Wallpaper</h1>
+    <p>Reaction-diffusion · autonomous cycle</p>
+  </header>
+
+  <section id="stage" data-region="stage" aria-label="Gray-Scott 反应扩散动态壁纸">
+    <canvas id="scene" role="img" aria-label="反应扩散花纹画面"></canvas>
+  </section>
+
+  <aside class="evidence" data-region="evidence" aria-label="实时读数">
+    <div class="readout">cycle <strong id="cycleReadout">0%</strong></div>
+    <div class="readout">time <strong id="timeReadout">0.0s</strong></div>
+    <div class="formula" data-region="insight" aria-hidden="true">
+      <div class="title">Gray-Scott Reaction-Diffusion</div>
+      <span class="eq">∂u/∂t = D∇²u − uv² + F(1−u)</span>
+      <span class="eq">∂v/∂t = ∇²v + uv² − (F+k)v</span>
+    </div>
+  </aside>
+
+  <div class="cycle-indicator" aria-hidden="true">
+    <div class="cycle-indicator-fill" id="cycleFill"></div>
+  </div>
+
+  <button class="play-btn" id="playBtn" type="button" aria-label="播放或暂停" data-region="controls">
+    <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+  </button>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key:"F", label:"Feed rate", type:"slider", min:0.01, max:0.09, step:0.005, default:0.0367, unit:"" },
+    { key:"k", label:"Kill rate", type:"slider", min:0.03, max:0.075, step:0.002, default:0.0649, unit:"" },
+    { key:"Du",label:"Diffusion u", type:"slider", min:0.08, max:0.24, step:0.01, default:0.16, unit:"" },
+    { key:"Dv",label:"Diffusion v", type:"slider", min:0.04, max:0.12, step:0.01, default:0.08, unit:"" }
+  ];
+
+  // ===== 网格配置 =====
+  const GRID_W = 220;
+  const GRID_H = 220;
+  const TOTAL = GRID_W * GRID_H;
+  const CYCLE_RESET_SECONDS = 90; // 周期性重置
+
+  // ===== 状态 =====
+  const state = {
+    running: true,
+    t: 0,
+    cycleT: 0,
+    F: 0.0367,
+    k: 0.0649,
+    Du: 0.16,
+    Dv: 0.08,
+    seed: 42,
+    lastTimestamp: null,
+    u: null,
+    v: null,
+    uNext: null,
+    vNext: null,
+    lapBuf: null,
+    imageData: null,
+    offCanvas: null,
+    offCtx: null,
+    sceneCanvas: null,
+    sceneCtx: null,
+    dpr: 1,
+    cssW: 0,
+    cssH: 0
+  };
+
+  const elements = {
+    sceneCanvas: document.querySelector("#scene"),
+    playBtn: document.querySelector("#playBtn"),
+    playIcon: document.querySelector("#playIcon"),
+    cycleFill: document.querySelector("#cycleFill"),
+    cycleReadout: document.querySelector("#cycleReadout"),
+    timeReadout: document.querySelector("#timeReadout")
+  };
+
+  // ===== 工具函数 =====
+  function clamp(v,min,max){return v<min?min:v>max?max:v;}
+  function finite(v,fallback){return Number.isFinite(v)?v:fallback;}
+
+  // 确定性伪随机（线性同余）
+  function makeRng(seed){
+    let s = (seed|0) || 1;
+    return function(){
+      s = (s * 1664525 + 1013904223) | 0;
+      return ((s >>> 16) & 0xFFFF) / 0x10000;
+    };
+  }
+
+  // ===== 初始化网格 =====
+  function initGrid(){
+    state.u = new Float32Array(TOTAL);
+    state.v = new Float32Array(TOTAL);
+    state.uNext = new Float32Array(TOTAL);
+    state.vNext = new Float32Array(TOTAL);
+    state.lapBuf = new Float32Array(TOTAL);
+    resetGrid();
+  }
+
+  function resetGrid(){
+    const rng = makeRng(state.seed);
+    const u = state.u, v = state.v;
+    // 均匀背景：u=1, v=0
+    for(let i=0;i<TOTAL;i++){ u[i]=1; v[i]=0; }
+
+    // 撒多个确定性种子点，形成有机花纹
+    const numSeeds = 14;
+    for(let s=0;s<numSeeds;s++){
+      const cx = Math.floor(rng()*(GRID_W-40))+20;
+      const cy = Math.floor(rng()*(GRID_H-40))+20;
+      const shapeType = Math.floor(rng()*3);
+      const r = 3 + Math.floor(rng()*8);
+
+      for(let dy=-r;dy<=r;dy++){
+        for(let dx=-r;dx<=r;dx++){
+          const x = cx+dx, y = cy+dy;
+          if(x<2||x>=GRID_W-2||y<2||y>=GRID_H-2) continue;
+          const idx = y*GRID_W+x;
+          const dist = Math.sqrt(dx*dx+dy*dy);
+          if(dist>r) continue;
+
+          if(shapeType===0){
+            // 圆形扰动
+            if(dist < r*0.7){
+              u[idx] = 0.5;
+              v[idx] = 0.25;
+            }
+          } else if(shapeType===1){
+            // 条纹扰动
+            if(Math.abs(dx) < 2 && dist < r){
+              u[idx] = 0.5;
+              v[idx] = 0.25;
+            }
+          } else {
+            // 环形扰动
+            if(dist > r*0.5 && dist < r*0.8){
+              u[idx] = 0.5;
+              v[idx] = 0.25;
+            }
+          }
+        }
+      }
+    }
+
+    // 加一点低幅确定性噪声让花纹更有机
+    for(let i=0;i<TOTAL;i++){
+      const n = rng()*0.02;
+      u[i] = clamp(u[i] - n, 0, 1);
+      v[i] = clamp(v[i] + n, 0, 1);
+    }
+  }
+
+  // ===== 拉普拉斯算子（9点模板）=====
+  function computeLaplacian(arr, out){
+    const w = GRID_W, h = GRID_H;
+    for(let y=1;y<h-1;y++){
+      const row = y*w;
+      const rowUp = (y-1)*w;
+      const rowDn = (y+1)*w;
+      for(let x=1;x<w-1;x++){
+        const i = row+x;
+        out[i] = arr[i-1]+arr[i+1]+arr[rowUp+x]+arr[rowDn+x]
+               + 0.5*(arr[rowUp+x-1]+arr[rowUp+x+1]+arr[rowDn+x-1]+arr[rowDn+x+1])
+               - 5*arr[i];
+      }
+    }
+  }
+
+  // ===== 模型步进 =====
+  function step(dt){
+    const u = state.u, v = state.v, uN = state.uNext, vN = state.vNext;
+    const lap = state.lapBuf;
+    const F = state.F, k = state.k, Du = state.Du, Dv = state.Dv;
+
+    computeLaplacian(u, lap);
+    for(let i=0;i<TOTAL;i++){
+      const ui = u[i], vi = v[i];
+      const uvv = ui*vi*vi;
+      uN[i] = ui + (Du*lap[i] - uvv + F*(1-ui)) * dt;
+    }
+
+    computeLaplacian(v, lap);
+    for(let i=0;i<TOTAL;i++){
+      const ui = u[i], vi = v[i];
+      const uvv = ui*vi*vi;
+      vN[i] = vi + (Dv*lap[i] + uvv - (F+k)*vi) * dt;
+    }
+
+    // 交换缓冲区
+    state.u = uN; state.v = vN;
+    state.uNext = u; state.vNext = v;
+
+    // 钳制防止发散
+    const uArr = state.u, vArr = state.v;
+    for(let i=0;i<TOTAL;i++){
+      if(!Number.isFinite(uArr[i])) uArr[i] = 0;
+      if(!Number.isFinite(vArr[i])) vArr[i] = 0;
+      if(uArr[i]<0) uArr[i]=0; else if(uArr[i]>1) uArr[i]=1;
+      if(vArr[i]<0) vArr[i]=0; else if(vArr[i]>1) vArr[i]=1;
+    }
+  }
+
+  // ===== 渲染 =====
+  function setupOffscreen(){
+    state.offCanvas = document.createElement("canvas");
+    state.offCanvas.width = GRID_W;
+    state.offCanvas.height = GRID_H;
+    state.offCtx = state.offCanvas.getContext("2d");
+    state.imageData = state.offCtx.createImageData(GRID_W, GRID_H);
+  }
+
+  function setupSceneCanvas(){
+    state.sceneCanvas = elements.sceneCanvas;
+    state.sceneCtx = state.sceneCanvas.getContext("2d");
+    resizeCanvas();
+  }
+
+  function resizeCanvas(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    state.dpr = dpr;
+    state.cssW = cssW;
+    state.cssH = cssH;
+    state.sceneCanvas.width = Math.floor(cssW * dpr);
+    state.sceneCanvas.height = Math.floor(cssH * dpr);
+    state.sceneCanvas.style.width = cssW + "px";
+    state.sceneCanvas.style.height = cssH + "px";
+  }
+
+  function renderToImageData(){
+    const data = state.imageData.data;
+    const u = state.u, v = state.v;
+    for(let i=0;i<TOTAL;i++){
+      const vi = v[i];
+      const ui = u[i];
+      // v 浓度 -> 亮度；u 作为辅助调制
+      const intensity = vi;
+      // 青色发光：低浓度暗蓝黑，高浓度亮青
+      // 双层模拟发光：基础层 + 高光层
+      const base = Math.pow(intensity, 0.7);
+      const glow = Math.pow(intensity, 2.2);
+
+      // 深蓝黑底 -> 青色
+      const r = Math.floor(2 + base * 10 + glow * 40);
+      const g = Math.floor(6 + base * 60 + glow * 180);
+      const b = Math.floor(15 + base * 80 + glow * 200);
+
+      const o = i << 2;
+      data[o]   = r > 255 ? 255 : r;
+      data[o+1] = g > 255 ? 255 : g;
+      data[o+2] = b > 255 ? 255 : b;
+      data[o+3] = 255;
+    }
+  }
+
+  function render(){
+    // 1. 将模型渲染到低分辨率 ImageData
+    renderToImageData();
+    state.offCtx.putImageData(state.imageData, 0, 0);
+
+    // 2. 将低分辨率画布放大到全屏，启用平滑插值
+    const ctx = state.sceneCtx;
+    const cw = state.sceneCanvas.width;
+    const ch = state.sceneCanvas.height;
+
+    ctx.save();
+    // 清屏
+    ctx.fillStyle = "#02060f";
+    ctx.fillRect(0, 0, cw, ch);
+
+    // 底层：粗粒度模糊光晕（模拟发光外层）
+    ctx.globalAlpha = 0.35;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    // 稍微放大一点形成光晕
+    const haloPad = 0.02;
+    ctx.drawImage(
+      state.offCanvas,
+      -cw * haloPad * 0.5, -ch * haloPad * 0.5,
+      cw * (1 + haloPad), ch * (1 + haloPad)
+    );
+
+    // 中层：正常绘制
+    ctx.globalAlpha = 0.75;
+    ctx.drawImage(state.offCanvas, 0, 0, cw, ch);
+
+    // 高光层：锐利核心
+    ctx.globalAlpha = 0.5;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(state.offCanvas, 0, 0, cw, ch);
+
+    ctx.restore();
+
+    // 3. 周期指示器与读数
+    const cycleProgress = state.cycleT / CYCLE_RESET_SECONDS;
+    elements.cycleFill.style.width = (cycleProgress * 100) + "%";
+    elements.cycleReadout.textContent = (cycleProgress * 100).toFixed(0) + "%";
+    elements.timeReadout.textContent = state.t.toFixed(1) + "s";
+  }
+
+  // ===== 生命周期 =====
+  function init(){
+    initGrid();
+    setupOffscreen();
+    setupSceneCanvas();
+    bindControls();
+    window.addEventListener("resize", onResize);
+    requestAnimationFrame(frame);
+  }
+
+  function start(){
+    state.running = true;
+    elements.playIcon.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+    elements.playBtn.setAttribute("aria-label","暂停");
+  }
+
+  function pause(){
+    state.running = false;
+    elements.playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    elements.playBtn.setAttribute("aria-label","播放");
+  }
+
+  function togglePlay(){
+    if(state.running) pause(); else start();
+  }
+
+  function reset(){
+    state.t = 0;
+    state.cycleT = 0;
+    state.lastTimestamp = null;
+    resetGrid();
+    render();
+  }
+
+  function onResize(){
+    resizeCanvas();
+    render();
+  }
+
+  function update(dt){
+    if(!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    if(boundedDt <= 0) return;
+
+    // 每帧 2 个子步，dt/2 每步，保证稳定性
+    const subSteps = 2;
+    const subDt = boundedDt / subSteps;
+    for(let s=0;s<subSteps;s++){
+      step(subDt);
+    }
+
+    state.t += boundedDt;
+    state.cycleT += boundedDt;
+
+    // 周期性重置
+    if(state.cycleT >= CYCLE_RESET_SECONDS){
+      state.cycleT = 0;
+      state.seed = (state.seed * 31337 + 7919) | 0; // 确定性种子演进
+      resetGrid();
+    }
+  }
+
+  function frame(timestamp){
+    if(state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function setParameters(values){
+    const defs = {};
+    parameterSchema.forEach(d => defs[d.key] = d);
+    if(values.F !== undefined) state.F = clamp(finite(Number(values.F), defs.F.default), defs.F.min, defs.F.max);
+    if(values.k !== undefined) state.k = clamp(finite(Number(values.k), defs.k.default), defs.k.min, defs.k.max);
+    if(values.Du !== undefined) state.Du = clamp(finite(Number(values.Du), defs.Du.default), defs.Du.min, defs.Du.max);
+    if(values.Dv !== undefined) state.Dv = clamp(finite(Number(values.Dv), defs.Dv.default), defs.Dv.min, defs.Dv.max);
+  }
+
+  function getState(){
+    return { running: state.running, t: state.t, cycleT: state.cycleT, F: state.F, k: state.k, Du: state.Du, Dv: state.Dv, seed: state.seed };
+  }
+
+  function getReadouts(){
+    return { time: state.t, cycleTime: state.cycleT, cycleProgress: state.cycleT / CYCLE_RESET_SECONDS };
+  }
+
+  // ===== 模型校验 =====
+  function runModelChecks(){
+    // 测试1：零浓度边界（v=0 处不应自发产生 v）
+    const testU = new Float32Array(TOTAL);
+    const testV = new Float32Array(TOTAL);
+    for(let i=0;i<TOTAL;i++){ testU[i]=1; testV[i]=0; }
+    const savedU = state.u, savedV = state.v, savedUN = state.uNext, savedVN = state.vNext;
+    state.u = testU; state.v = testV; state.uNext = new Float32Array(TOTAL); state.vNext = new Float32Array(TOTAL);
+    step(0.01);
+    let maxV = 0;
+    for(let i=0;i<TOTAL;i++) maxV = Math.max(maxV, state.v[i]);
+    state.u = savedU; state.v = savedV; state.uNext = savedUN; state.vNext = savedVN;
+
+    // 测试2：浓度守恒趋势（u+v 在无扩散极限下应趋向 1）
+    // 用小网格验证：均匀 u=0.5, v=0.5, 无梯度 -> 拉普拉斯为零
+    const testU2 = new Float32Array(TOTAL);
+    const testV2 = new Float32Array(TOTAL);
+    for(let i=0;i<TOTAL;i++){ testU2[i]=0.5; testV2[i]=0.5; }
+    state.u = testU2; state.v = testV2; state.uNext = new Float32Array(TOTAL); state.vNext = new Float32Array(TOTAL);
+    const beforeSum = 0.5 + 0.5;
+    step(0.01);
+    let afterSum = 0;
+    for(let i=0;i<TOTAL;i++) afterSum += state.u[i] + state.v[i];
+    const avgAfter = afterSum / TOTAL;
+    state.u = savedU; state.v = savedV; state.uNext = savedUN; state.vNext = savedVN;
+
+    // 测试3：数值稳定性（运行多步后无非有限值）
+    let stable = true;
+    const testU3 = new Float32Array(TOTAL);
+    const testV3 = new Float32Array(TOTAL);
+    for(let i=0;i<TOTAL;i++){ testU3[i]=1; testV3[i]=0; }
+    // 注入扰动
+    const rng = makeRng(123);
+    for(let s=0;s<5;s++){
+      const cx = Math.floor(rng()*GRID_W);
+      const cy = Math.floor(rng()*GRID_H);
+      if(cx>2&&cx<GRID_W-2&&cy>2&&cy<GRID_H-2){
+        testU3[cy*GRID_W+cx]=0.5; testV3[cy*GRID_W+cx]=0.25;
+      }
+    }
+    state.u = testU3; state.v = testV3; state.uNext = new Float32Array(TOTAL); state.vNext = new Float32Array(TOTAL);
+    for(let i=0;i<200;i++) step(0.01);
+    for(let i=0;i<TOTAL;i++){
+      if(!Number.isFinite(state.u[i])||!Number.isFinite(state.v[i])){ stable=false; break; }
+      if(state.u[i]<-0.01||state.u[i]>1.01||state.v[i]<-0.01||state.v[i]>1.01){ stable=false; break; }
+    }
+    state.u = savedU; state.v = savedV; state.uNext = savedUN; state.vNext = savedVN;
+
+    return [
+      { name:"zero-v no spontaneous growth", pass: maxV < 1e-6, expected:"maxV ≈ 0", actual: maxV, tolerance: 1e-6 },
+      { name:"uniform field laplacian zero", pass: Math.abs(avgAfter - beforeSum) < 0.01, expected: beforeSum, actual: avgAfter, tolerance: 0.01 },
+      { name:"numerical stability 200 steps", pass: stable, expected:"all finite and bounded [0,1]", actual: stable ? "stable" : "unstable", tolerance: "boolean" }
+    ];
+  }
+
+  // ===== 控件绑定 =====
+  function bindControls(){
+    elements.playBtn.addEventListener("click", togglePlay);
+    // 键盘支持：空格切换播放
+    document.addEventListener("keydown", (e) => {
+      if(e.code === "Space" && e.target === document.body){
+        e.preventDefault();
+        togglePlay();
+      }
+    });
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

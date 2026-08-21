@@ -6,6 +6,7 @@ export interface ManifestItem {
   id: string;
   title: string;
   path: string;
+  category?: string;
 }
 
 export interface ResourceManifest {
@@ -115,12 +116,28 @@ function createSubdirectoryIndexItems(
     const indexPath = path.join(baseDirectory, entry.name, 'index.html');
     if (!fs.existsSync(indexPath)) continue;
 
+    // Optional sidecar metadata (e.g. public/simcanvas/<slug>/meta.json written
+    // by the sync script) overrides the filename-derived title.
+    let title = toTitleFromFilename(entry.name);
+    let category: string | undefined;
+    const metaPath = path.join(baseDirectory, entry.name, 'meta.json');
+    if (fs.existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        if (typeof meta.title === 'string' && meta.title.trim()) title = meta.title.trim();
+        if (typeof meta.category === 'string' && meta.category.trim()) category = meta.category.trim();
+      } catch {
+        // malformed meta.json: fall back to filename-derived title
+      }
+    }
+
     const publicDirPath = `/${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}`;
     const relative = `${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}/index.html`;
     items.push({
       id: toIdFromRelativePath(relative, prefix),
-      title: toTitleFromFilename(entry.name),
+      title,
       path: `${publicDirPath}/`,
+      ...(category ? { category } : {}),
     });
   }
 
