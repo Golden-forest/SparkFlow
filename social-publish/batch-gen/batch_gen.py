@@ -92,7 +92,58 @@ def worker(topic: dict) -> tuple[str, dict]:
         return topic["id"], {"ok": False, "stage": "exception", "detail": repr(e)[:500]}
 
 
+def pull_featured() -> None:
+    """Sync featured animations into the project's public/simcanvas/ gallery.
+
+    Maps conversation ids (from state.json) against the gallery API, takes each
+    conversation's selected (latest) generation, downloads its preview HTML and
+    writes public/simcanvas/<topic-id>/{index.html,meta.json}.
+    """
+    topics = json.loads((HERE / "topics.json").read_text())
+    featured = {t["id"]: t for t in topics if t.get("featured")}
+    state = load_state()
+    conv2topic = {
+        entry["conversation_id"]: t
+        for tid, t in featured.items()
+        if (entry := state["done"].get(tid))
+    }
+    out_root = HERE.parent.parent / "public" / "simcanvas"
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    with httpx.Client(headers={"Cookie": f"simcanvas_session={COOKIE}"}) as c:
+        gallery = api(c, "GET", "/api/gallery")
+        pulled, skipped = 0, 0
+        for conv in gallery:
+            topic = conv2topic.get(conv["conversation_id"])
+            if topic is None:
+                skipped += 1
+                continue
+            gen_id = conv.get("selected_generation_id") or (conv["generations"] or [{}])[0].get("id")
+            if not gen_id:
+                log(f"⚠️ {topic['title']}: no generation in gallery, skipped")
+                continue
+            r = c.get(f"{BASE}/api/generations/{gen_id}/preview", timeout=60)
+            r.raise_for_status()
+            target = out_root / topic["id"]
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "index.html").write_text(r.text, encoding="utf-8")
+            gens = conv.get("generations") or [{}]
+            (target / "meta.json").write_text(json.dumps({
+                "title": topic["title"],
+                "category": topic.get("category", ""),
+                "generation_id": gen_id,
+                "version": max(g.get("version", 1) for g in gens),
+                "updated_at": conv.get("conversation_updated_at", ""),
+            }, ensure_ascii=False, indent=1), encoding="utf-8")
+            pulled += 1
+            log(f"⬇️ {topic['title']} -> public/simcanvas/{topic['id']}/ (gen={gen_id[:8]})")
+    log(f"pull finish: {pulled} synced, {skipped} gallery items not featured")
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "--pull":
+        pull_featured()
+        return
     topics = json.loads((HERE / "topics.json").read_text())
     state = load_state()
     queue = [t for t in topics if t["id"] not in state["done"] and t["id"] not in state["failed"]]
