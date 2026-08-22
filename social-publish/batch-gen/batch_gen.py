@@ -6,6 +6,7 @@ send 采纳 (blocks while animation generates, minutes) -> log result.
 State persisted to state.json so the run is resumable.
 """
 import json
+import shutil
 import sys
 import time
 import uuid
@@ -92,8 +93,29 @@ def worker(topic: dict) -> tuple[str, dict]:
         return topic["id"], {"ok": False, "stage": "exception", "detail": repr(e)[:500]}
 
 
+# Injected right after <head>: when the page is loaded as a gallery thumbnail
+# (?preview=1, src/pages/Home.tsx LazyPreview), pin devicePixelRatio to 1 so the
+# 1280x800 preview iframe doesn't render a 2560x1600 Retina canvas per card.
+PREVIEW_FLAG = (
+    '<script>if(location.search.indexOf("preview=1")!==-1)'
+    'Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>'
+)
+
+
+def inject_preview_flag(html: str) -> str:
+    if PREVIEW_FLAG in html:
+        return html
+    if "<head>" in html:
+        return html.replace("<head>", "<head>" + PREVIEW_FLAG, 1)
+    return PREVIEW_FLAG + html
+
+
 def pull_featured() -> None:
     """Sync featured animations into the project's public/simcanvas/ gallery.
+
+    NOTE: the platform's /share/<id> route looks public (200) but its content
+    requires a 智教耘 login client-side, so animations cannot be hotlinked —
+    we download the preview HTML (with our session cookie) and serve it locally.
 
     Maps conversation ids (from state.json) against the gallery API, takes each
     conversation's selected (latest) generation, downloads its preview HTML and
@@ -112,7 +134,7 @@ def pull_featured() -> None:
 
     with httpx.Client(headers={"Cookie": f"simcanvas_session={COOKIE}"}) as c:
         gallery = api(c, "GET", "/api/gallery")
-        pulled, skipped = 0, 0
+        pulled, skipped, done_ids = 0, 0, set()
         for conv in gallery:
             topic = conv2topic.get(conv["conversation_id"])
             if topic is None:
@@ -126,7 +148,7 @@ def pull_featured() -> None:
             r.raise_for_status()
             target = out_root / topic["id"]
             target.mkdir(parents=True, exist_ok=True)
-            (target / "index.html").write_text(r.text, encoding="utf-8")
+            (target / "index.html").write_text(inject_preview_flag(r.text), encoding="utf-8")
             gens = conv.get("generations") or [{}]
             (target / "meta.json").write_text(json.dumps({
                 "title": topic["title"],
@@ -136,7 +158,11 @@ def pull_featured() -> None:
                 "updated_at": conv.get("conversation_updated_at", ""),
             }, ensure_ascii=False, indent=1), encoding="utf-8")
             pulled += 1
+            done_ids.add(topic["id"])
             log(f"⬇️ {topic['title']} -> public/simcanvas/{topic['id']}/ (gen={gen_id[:8]})")
+        missing = [t["title"] for t in featured.values() if t["id"] not in done_ids]
+        if missing:
+            log(f"⚠️ {len(missing)} featured topics not found in gallery: {', '.join(missing)}")
     log(f"pull finish: {pulled} synced, {skipped} gallery items not featured")
 
 
@@ -163,5 +189,81 @@ def main() -> None:
     log(f"finish: {len(state['done'])} done, {len(state['failed'])} failed")
 
 
+def featured_list() -> list[dict]:
+    """Featured topics in a stable order (sorted by id) — the gallery order.
+
+    Both --list and --remove resolve numbers against THIS order, so "delete
+    #34" means the same thing no matter who runs it or when.
+    """
+    topics = json.loads((HERE / "topics.json").read_text())
+    return sorted((t for t in topics if t.get("featured")), key=lambda t: t["id"])
+
+
+def print_list() -> None:
+    for i, t in enumerate(featured_list(), start=1):
+        print(f"{i:3d}. {t['id']}  {t['title']}")
+
+
+def resolve_ids(args: list[str]) -> list[str]:
+    """Accept topic ids directly, or gallery numbers from --list (e.g. '34')."""
+    by_number = {str(i): t["id"] for i, t in enumerate(featured_list(), start=1)}
+    ids, unknown = [], []
+    for arg in args:
+        if arg in by_number:
+            ids.append(by_number[arg])
+        else:
+            unknown.append(arg)
+    # pass through anything that looks like a real topic id; error on the rest
+    all_ids = {t["id"] for t in json.loads((HERE / "topics.json").read_text())}
+    resolved = [a for a in unknown if a in all_ids]
+    bad = [a for a in unknown if a not in all_ids]
+    if bad:
+        raise SystemExit(f"❌ unknown ids/numbers: {bad} — run --list to see valid numbers")
+    return ids + resolved
+
+
+def remove_topics(ids: list[str]) -> None:
+    """Delete animations everywhere so a later --pull can't resurrect them.
+
+    For each topic id: drop the entry from topics.json (that's what --pull
+    reads to decide what to sync), delete public/simcanvas/<id>/ (gallery
+    files + meta.json), and prune state.json so the topic is fully forgotten.
+    """
+    topics_file = HERE / "topics.json"
+    topics = json.loads(topics_file.read_text())
+    remaining = [t for t in topics if t["id"] not in ids]
+    removed = [t for t in topics if t["id"] in ids]
+    if not removed:
+        log(f"⚠️ nothing removed: no topic ids matched {ids}")
+        return
+    # indent=1 matches the file's existing style (see save_state) so a removal
+    # doesn't show up as a whole-file reformat in git diff.
+    topics_file.write_text(json.dumps(remaining, ensure_ascii=False, indent=1))
+
+    state = load_state()
+    for tid in ids:
+        state["done"].pop(tid, None)
+        state["failed"].pop(tid, None)
+        state["running"] = [r for r in state.get("running", []) if r != tid]
+    save_state(state)
+
+    out_root = HERE.parent.parent / "public" / "simcanvas"
+    for t in removed:
+        target = out_root / t["id"]
+        if target.exists():
+            shutil.rmtree(target)
+            files = "local files + meta.json"
+        else:
+            files = "no local files (never pulled)"
+        log(f"🗑️ {t['title']} ({t['id']}): topics.json entry, state.json entry, {files} removed")
+    log(f"remove finish: {len(removed)} removed, {len(remaining)} topics left "
+        f"({sum(1 for t in remaining if t.get('featured'))} still featured)")
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--list":
+        print_list()
+    elif len(sys.argv) > 2 and sys.argv[1] == "--remove":
+        remove_topics(resolve_ids(sys.argv[2:]))
+    else:
+        main()

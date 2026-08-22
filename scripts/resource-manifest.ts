@@ -113,19 +113,25 @@ function createSubdirectoryIndexItems(
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    // Local page (index.html) or remote link (meta.json with external path) —
+    // either one makes a gallery entry.
     const indexPath = path.join(baseDirectory, entry.name, 'index.html');
-    if (!fs.existsSync(indexPath)) continue;
+    const metaPath = path.join(baseDirectory, entry.name, 'meta.json');
+    if (!fs.existsSync(indexPath) && !fs.existsSync(metaPath)) continue;
 
     // Optional sidecar metadata (e.g. public/simcanvas/<slug>/meta.json written
-    // by the sync script) overrides the filename-derived title.
+    // by the sync script) overrides the filename-derived title, and may carry a
+    // `path` pointing at an external URL (animations are embedded from the
+    // SimCanvas server's public share route instead of local files).
     let title = toTitleFromFilename(entry.name);
     let category: string | undefined;
-    const metaPath = path.join(baseDirectory, entry.name, 'meta.json');
+    let externalPath: string | undefined;
     if (fs.existsSync(metaPath)) {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
         if (typeof meta.title === 'string' && meta.title.trim()) title = meta.title.trim();
         if (typeof meta.category === 'string' && meta.category.trim()) category = meta.category.trim();
+        if (typeof meta.path === 'string' && /^https?:\/\//.test(meta.path)) externalPath = meta.path;
       } catch {
         // malformed meta.json: fall back to filename-derived title
       }
@@ -136,7 +142,7 @@ function createSubdirectoryIndexItems(
     items.push({
       id: toIdFromRelativePath(relative, prefix),
       title,
-      path: `${publicDirPath}/`,
+      path: externalPath ?? `${publicDirPath}/`,
       ...(category ? { category } : {}),
     });
   }
