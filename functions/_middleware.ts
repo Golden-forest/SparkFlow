@@ -117,9 +117,13 @@ export const onRequest = async (context: { request: Request; env: Record<string,
 
     const codeHash = env.AUTH_CODE_HASH ?? '';
     const secret = env.AUTH_SECRET ?? '';
-    // Unconfigured gate fails closed: serve the site normally only when secrets
-    // are absent (fresh deploys before setup); with partial config, deny.
-    if (!codeHash || !secret) return next();
+    // No secrets configured at all (e.g. local dev): bypass the gate.
+    // Partial configuration is a deploy mistake: deny everything so the
+    // misconfiguration is noticed instead of silently serving the site.
+    if (!codeHash && !secret) return next();
+    if (!codeHash || !secret) {
+        return new Response('auth gate misconfigured: set both AUTH_CODE_HASH and AUTH_SECRET', { status: 500 });
+    }
 
     const expectedToken = await hmacHex(secret, 'grant');
 
