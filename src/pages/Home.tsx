@@ -720,8 +720,12 @@ const experiments: ExperimentCard[] = [
 const PREVIEW_W = 1280;
 const PREVIEW_H = 800;
 
-const LazyPreview = ({ src }: { src: string }) => {
+const LazyPreview = ({ src, paused }: { src: string; paused: boolean }) => {
     const ref = useRef<HTMLDivElement>(null);
+    // preview=1 makes the page pin devicePixelRatio to 1 (flag injected by the
+    // pull script): a thumbnail doesn't need Retina resolution, and that alone
+    // cuts each card's pixel workload by 75%.
+    const previewSrc = `${src}${src.includes('?') ? '&' : '?'}preview=1`;
     const [visible, setVisible] = useState(false);
     const [scale, setScale] = useState(0);
 
@@ -749,9 +753,9 @@ const LazyPreview = ({ src }: { src: string }) => {
 
     return (
         <div ref={ref} className="relative w-full overflow-hidden bg-black/60" style={{ aspectRatio: `${PREVIEW_W} / ${PREVIEW_H}` }}>
-            {visible ? (
+            {visible && !paused ? (
                 <iframe
-                    src={src}
+                    src={previewSrc}
                     title=""
                     aria-hidden="true"
                     tabIndex={-1}
@@ -767,6 +771,16 @@ const LazyPreview = ({ src }: { src: string }) => {
 const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
     const { t } = useTranslation();
     const [active, setActive] = useState<SimCanvasCard | null>(null);
+    // Gallery numbers, matching `batch_gen.py --list` (both sort by the
+    // directory slug — the href's last path segment), so "delete #34" means
+    // the same card here and in the sync script.
+    const slugOf = (href: string) => href.replace(/\/+$/, '').split('/').pop() ?? href;
+    const numberById = new Map(
+        [...cards].sort((a, b) => {
+            const [sa, sb] = [slugOf(a.href ?? ''), slugOf(b.href ?? '')];
+            return sa < sb ? -1 : sa > sb ? 1 : 0;
+        }).map((card, index) => [card.id, index + 1]),
+    );
     const dialogRef = useRef<HTMLDivElement>(null);
     const activeRef = useRef<SimCanvasCard | null>(null);
     activeRef.current = active;
@@ -811,7 +825,10 @@ const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
                         className="group cursor-pointer overflow-hidden rounded-[16px] border border-[#30363D] bg-[#111827]/80 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0.0,0.2,1)] hover:-translate-y-1.5 hover:border-cyan-400/45 hover:shadow-[0_20px_46px_rgba(34,211,238,0.14)]"
                     >
                         <div className="relative">
-                            <LazyPreview src={card.href ?? '#'} />
+                            <LazyPreview src={card.href ?? '#'} paused={active !== null} />
+                            <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-cyan-300/40 bg-black/60 px-2 py-0.5 font-mono text-xs font-semibold text-cyan-200 opacity-0 backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-100">
+                                {numberById.get(card.id)}
+                            </div>
                             <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-300 group-hover:bg-black/35 group-hover:opacity-100">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-full border border-cyan-300/60 bg-black/55 backdrop-blur-sm">
                                     <svg width="20" height="20" viewBox="0 0 16 16" fill="none" aria-hidden="true">
