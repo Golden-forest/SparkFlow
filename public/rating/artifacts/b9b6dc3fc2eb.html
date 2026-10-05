@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>打点计时器纸带分析 · 逐差法求加速度（模拟实验）</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#eceff3;color:#222;margin:0;padding:18px;line-height:1.65}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:#667;font-size:14px;margin-bottom:16px}
+  .card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.07);padding:16px 18px;margin-bottom:16px}
+  h2{font-size:17px;margin:0 0 10px;color:#1a5fb4}
+  h2 .tag{font-size:12px;background:#1a5fb4;color:#fff;border-radius:99px;padding:2px 10px;margin-right:6px;vertical-align:2px}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+  button{border:0;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;background:#e2e8f0;font-family:inherit}
+  button:hover{filter:brightness(.96)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.pri{background:#1a5fb4;color:#fff}
+  button.warn{background:#c01c28;color:#fff}
+  .pw{padding:9px 16px;border:2px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:14px}
+  .pw.on{border-color:#1a5fb4;background:#e7f0fb;font-weight:700}
+  .pw.on.dc{border-color:#c01c28;background:#fdeaea}
+  label.sl{font-size:13px}
+  input[type=range]{vertical-align:middle}
+  .val{display:inline-block;min-width:64px;font-weight:600;color:#1a5fb4}
+  #msg{margin-top:10px;padding:10px 12px;border-radius:8px;background:#f1f5f9;font-size:14px;display:none}
+  #msg.ok{background:#e7f6ec;color:#14532d;display:block}
+  #msg.bad{background:#fdeaea;color:#7f1d1d;display:block}
+  #msg.info{background:#e7f0fb;color:#0c2d63;display:block}
+  canvas{width:100%;height:auto;background:#fafafa;border:1px solid #dde3ea;border-radius:8px;margin-top:8px;cursor:crosshair}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1.5px dashed #94a3b8;background:#f8fafc;border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer}
+  .chip.done{border-style:solid;border-color:#16a34a;background:#e7f6ec;font-weight:700;color:#14532d}
+  table{border-collapse:collapse;font-size:14px;margin-top:8px}
+  th,td{border:1px solid #cbd5e1;padding:6px 14px;text-align:center}
+  th{background:#f1f5f9}
+  .note{font-size:13.5px;color:#556;background:#fff8e6;border-left:4px solid #e6a700;padding:8px 12px;border-radius:0 8px 8px 0;margin-top:10px}
+  .res{background:#eef7ff;border-radius:8px;padding:12px 14px;margin-top:10px;font-size:14.5px}
+  .formula{font-family:"Times New Roman",serif;font-size:17px;background:#f8fafc;padding:8px 12px;border-radius:6px;display:block;margin:6px 0}
+  .small{font-size:13px;color:#667}
+  code{background:#f1f5f9;padding:1px 6px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>打点计时器纸带分析：逐差法求加速度</h1>
+  <div class="sub">模拟电磁打点计时器（交流 4~6 V，50 Hz）打出匀加速直线运动纸带 → 标计数点 → 量间距 → 逐差法处理数据</div>
+
+  <!-- 步骤1：电源与打点 -->
+  <div class="card">
+    <h2><span class="tag">步骤 1</span>选择电源，打出纸带</h2>
+    <div class="row">
+      <button class="pw" id="pwAC">交流电源 4~6 V（50 Hz）✔ 正确选择</button>
+      <button class="pw" id="pwDC">直流电源（干电池组）</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="sl">初速度 v₀ <input type="range" id="sv0" min="0.10" max="0.60" step="0.01" value="0.25"><span class="val" id="lv0"></span></label>
+      <label class="sl">加速度 a <input type="range" id="sa" min="0.5" max="3.0" step="0.1" value="1.2"><span class="val" id="la"></span></label>
+      <label class="sl">纸带抖动/噪声 <input type="range" id="sg" min="0.2" max="1.2" step="0.1" value="0.6"><span class="val" id="lg"></span></label>
+      <button class="pri" id="btnRun">接通电源并打点</button>
+      <button id="btnNew">随机换一条纸带</button>
+    </div>
+    <div id="msg"></div>
+    <canvas id="cv" width="1500" height="300"></canvas>
+    <div class="small" style="margin-top:6px">打点周期 = 1/50 s = <b>0.02 s</b>；每 5 个间隔取一个计数点，计数周期 <b>T = 0.1 s</b>。真实操作顺序：<b>先接通电源、待振针振动稳定后再释放纸带</b>，开头过密的点要舍去。</div>
+  </div>
+
+  <!-- 步骤2：标计数点 -->
+  <div class="card">
+    <h2><span class="tag">步骤 2</span>标注计数点</h2>
+    <button class="pri" id="btnMark" disabled>每 5 个间隔取一个计数点（0、1、2…6）</button>
+    <div class="note">相邻计数点之间的 4 个点不用量——它们只是证明振针每 0.02 s 打一个点。我们要用的是<b>相邻计数点间的间距 x₁~x₆</b>，对应时间均为 T = 0.1 s。</div>
+  </div>
+
+  <!-- 步骤3：测量 -->
+  <div class="card">
+    <h2><span class="tag">步骤 3</span>用卡尺量出相邻计数点的间距</h2>
+    <div class="small">在纸带上<b>依次点击两个计数点</b>，模拟卡尺卡住两点读数（读数带 ±0.5 mm 以内的估读误差，很正常）。量好后点下面对应的 xₙ 记入表格。xₙ 必须是<b>相邻</b>计数点间的距离。</div>
+    <div class="row" style="margin:10px 0">
+      <div class="res" id="caliperReadout" style="margin:0">卡尺：未卡点（先点一点为 A，再点相邻一点为 B）</div>
+    </div>
+    <div class="chips">
+      <button class="chip" data-n="1">记入 x₁</button><button class="chip" data-n="2">记入 x₂</button>
+      <button class="chip" data-n="3">记入 x₃</button><button class="chip" data-n="4">记入 x₄</button>
+      <button class="chip" data-n="5">记入 x₅</button><button class="chip" data-n="6">记入 x₆</button>
+      <button id="btnClearCal">清除卡尺</button>
+      <button id="btnClearX">清空记录</button>
+    </div>
+    <table id="tbl">
+      <tr><th>间隔序号 n</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+      <tr><td>间距 xₙ /cm</td><td id="c1">—</td><td id="c2">—</td><td id="c3">—</td><td id="c4">—</td><td id="c5">—</td><td id="c6">—</td></tr>
+      <tr><td>逐段 aₙ=(xₙ₊₁−xₙ)/T²</td><td id="p1">—</td><td id="p2">—</td><td id="p3">—</td><td id="p4">—</td><td id="p5">—</td><td>—</td></tr>
+    </table>
+    <div class="note" id="worryNote" style="display:none">发现间距不相等就慌了？<b>别慌，也别挑数据、改数据。</b>间距本就不会严格相等（纸带抖动 + 估读误差都是偶然误差）。逐段算出的 aₙ 上下波动也完全正常——正因如此，才要<b>用逐差法把 6 段数据全部用上、统计平均</b>，让正负偏差互相抵消。</div>
+    <div class="row" style="margin-top:10px"><button class="pri" id="btnCalc" disabled>用逐差法求加速度</button></div>
+    <div id="result"></div>
+  </div>
+
+  <!-- 说明 -->
+  <div class="card">
+    <h2><span class="tag">要点</span>为什么必须用交流电源？逐差法好在哪？</h2>
+    <p><b>① 电源必须用 4~6 V 交流电。</b>电磁打点计时器的线圈通入交流后，磁场周期性变化，振片带动振针每秒上下振动 50 次，于是纸带上每 0.02 s 留下一个点——点迹本身就是“时钟”。若接直流电，磁场恒定不变，振片只会被<b>一直吸住不放</b>，纸带被拖出去也只能留下一道划痕（步骤 1 里可以试接直流看看后果）。它不使用低压交流以上、也不不能接 220 V：那是电火花计时器之外的危险做法，本仪器限 4~6 V 安全交流。</p>
+    <p><b>② 逐差法为什么比“逐项相减再平均”好。</b>对匀加速纸带，若把相邻间距逐个相减再取平均：(x₂−x₁)+(x₃−x₂)+…+(x₆−x₅) 后中间各项全部抵消，结果 = (x₆−x₁)/5——中间四个数据白测了，偶然误差全部压在首尾两段上。逐差法分组相减（x₄−x₁、x₅−x₂、x₆−x₃），<b>每个测量值都被用到</b>，等效于多次测量取平均，偶然误差显著减小：</p>
+    <span class="formula">a = [(x₄−x₁)+(x₅−x₂)+(x₆−x₃)] / 3T² = [(x₄+x₅+x₆)−(x₁+x₂+x₃)] / 9T²</span>
+    <p class="small">判定匀加速的依据：相邻计数点间距之差近似为恒量 Δx ≈ aT²。求某计数点瞬时速度可用“中间时刻速度”法，如 v₃ = (x₃+x₄)/2T。</p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var T=0.1, ND=30;                     // 计数周期 / 打点间隔数(30个0.02s)
+var CV=document.getElementById('cv'), CT=CV.getContext('2d');
+var st={phase:'idle',power:null,dots:[],pts:[],x:[null,null,null,null,null,null,null],
+        selA:null,selB:null,read:null,reveal:0,timer:null};
+var $=function(id){return document.getElementById(id);};
+function cfg(){return {v0:+$('sv0').value, a:+$('sa').value, sig:+$('sg').value};}
+function gauss(){var u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function fmt(n,d){return n.toFixed(d!==undefined?d:3);}
+function say(html,cls){var m=$('msg');m.innerHTML=html;m.className=cls||'';}
+
+function genTape(){
+  var c=cfg(),k,t;st.dots=[];st.pts=[];
+  for(k=0;k<=ND;k++){t=k*0.02;st.dots.push(c.v0*t+0.5*c.a*t*t+gauss()*c.sig/1000);}
+  for(k=0;k<=6;k++)st.pts.push(st.dots[5*k]);
+  st.x=[null,null,null,null,null,null,null];st.selA=st.selB=null;st.read=null;st.reveal=0;
+  refreshTable();$('result').innerHTML='';$('caliperReadout').innerHTML='卡尺：未卡点（先点一点为 A，再点相邻一点为 B）';
+  document.querySelectorAll('.chip').forEach(function(ch){ch.classList.remove('done');});
+}
+
+// ---------- 布局 ----------
+function scale(){
+  var usable=CV.width-180, lenM=(st.pts[6]-st.pts[0]);
+  return Math.min(5, usable/(lenM*1000));
+}
+function xOf(posM){return 90+(posM-st.pts[0])*1000*scale();}
+
+function draw(){
+  CT.clearRect(0,0,CV.width,CV.height);
+  if(!st.dots.length){CT.fillStyle='#98a';CT.font='15px sans-serif';
+    CT.fillText('请先在步骤 1 选择电源并“接通电源并打点”',40,150);return;}
+  var s=scale(),x0=xOf(st.pts[0]),x1=xOf(st.pts[6]);
+  var top=60,bot=170;                                  // 纸带上下沿
+  // 纸带
+  CT.fillStyle='#f6efdc';CT.strokeStyle='#c9bfa5';
+  CT.fillRect(x0-70,top,(x1-x0)+140,bot-top);CT.strokeRect(x0-70,top,(x1-x0)+140,bot-top);
+  CT.fillStyle='#e5dcc4';                               // 两侧导孔
+  for(var px=x0-60;px<x1+70;px+=26){CT.beginPath();CT.arc(px,top+9,2.6,0,7);CT.fill();
+    CT.beginPath();CT.arc(px,bot-9,2.6,0,7);CT.fill();}
+  if(st.phase==='dcfail'){                              // 直流失败：一个凹痕+划痕
+    CT.strokeStyle='#333';CT.lineWidth=2.5;
+    CT.beginPath();CT.moveTo(x0,top+22);CT.lineTo(x1+70,top+22);CT.stroke();CT.lineWidth=1;
+    CT.fillStyle='#333';CT.beginPath();CT.arc(x0,top+22,4,0,7);CT.fill();
+    CT.font='13px sans-serif';CT.fillText('振针被吸住 → 只留下一道划痕',x0+30,top+50);
+  }else{
+    var nShow=(st.phase==='running')?st.reveal:st.dots.length;
+    CT.fillStyle='#222';
+    for(var k=0;k<nShow;k++){CT.beginPath();CT.arc(xOf(st.dots[k]),(top+bot)/2,2.4,0,7);CT.fill();}
+  }
+  // 计数点标记
+  if(st.phase==='marked'){
+    for(var n=0;n<=6;n++){var cx=xOf(st.pts[n]);
+      CT.strokeStyle='#c01c28';CT.beginPath();CT.moveTo(cx,top-2);CT.lineTo(cx,bot+2);CT.stroke();
+      CT.fillStyle='#c01c28';CT.beginPath();CT.arc(cx,(top+bot)/2,6,0,7);CT.stroke();
+      CT.font='bold 14px sans-serif';CT.fillText(String(n),cx-4,top-8);}
+  }
+  // 卡尺（A、B）
+  if(st.selA!==null){
+    var ax=xOf(st.pts[st.selA]);
+    CT.strokeStyle='#1a5fb4';CT.lineWidth=2;
+    CT.beginPath();CT.moveTo(ax,top-4);CT.lineTo(ax,bot+4);CT.stroke();
+    CT.fillStyle='#1a5fb4';CT.font='bold 14px sans-serif';CT.fillText('A',ax-4,bot+22);
+    if(st.selB!==null){
+      var bx=xOf(st.pts[st.selB]), y=top-20;
+      CT.beginPath();CT.moveTo(bx,top-4);CT.lineTo(bx,bot+4);CT.stroke();
+      CT.fillText('B',bx-4,bot+22);
+      CT.beginPath();CT.moveTo(ax,y);CT.lineTo(bx,y);CT.stroke();       // 尺身
+      [[ax,1],[bx,-1]].forEach(function(p){CT.beginPath();CT.moveTo(p[0],y);
+        CT.lineTo(p[0]+7*p[1],y-4);CT.lineTo(p[0]+7*p[1],y+4);CT.closePath();CT.fill();});
+      var label=fmt(st.read,1)+' mm';CT.font='bold 15px sans-serif';
+      var w=CT.measureText(label).width,mx=(ax+bx)/2;
+      CT.fillStyle='#fff';CT.fillRect(mx-w/2-6,y-24,w+12,20);
+      CT.fillStyle='#1a5fb4';CT.fillText(label,mx-w/2,y-9);
+    }
+  }
+  CT.lineWidth=1;
+  // 毫米刻度尺
+  var ry=205;CT.strokeStyle=#888;CT.beginPath();CT.moveTo(x0-70,ry);CT.lineTo(x1+70,ry);CT.stroke();
+  CT.fillStyle='#555';CT.font='12px sans-serif';
+  var stepMm=(s>=2)?1:5;
+  for(var mm=0;mm<=(st.pts[6]-st.pts[0])*1000+140;mm+=stepMm){
+    var tx=x0-70+mm*s, isCm=(mm%10===0);
+    CT.beginPath();CT.moveTo(tx,ry);CT.lineTo(tx,ry-(isCm?16:7));CT.stroke();
+    if(isCm&&tx>x0-70+4)CT.fillText(String(mm/10),tx-6,ry+16);
+  }
+}
+
+// ---------- 流程 ----------
+$('lv0').textContent=fmt(cfg().v0,2)+' m/s';
+$('la').textContent=fmt(cfg().a,1)+' m/s²';
+$('lg').textContent=fmt(cfg().sig,1)+' mm';
+['sv0','sa','sg'].forEach(function(id){$(id).addEventListener('input',function(){
+  $('lv0').textContent=fmt(cfg().v0,2)+' m/s';$('la').textContent=fmt(cfg().a,1)+' m/s²';
+  $('lg').textContent=fmt(cfg().sig,1)+' mm';});});
+
+$('pwAC').onclick=function(){st.power='ac';$('pwAC').classList.add('on');$('pwDC').classList.remove('on','dc');
+  say('已选<b>交流 4~6 V（50 Hz）</b>——正确！电磁打点计时器只能用低压交流。点“接通电源并打点”。','info');};
+$('pwDC').onclick=function(){st.power='dc';$('pwDC').classList.add('on','dc');$('pwAC').classList.remove('on');
+  say('你选了<b>直流</b>……先试试打点，看看会发生什么。','bad');};
+
+$('btnRun').onclick=function(){
+  if(!st.power){say('请先在上方选择电源类型！','bad');return;}
+  if(st.timer)clearInterval(st.timer);
+  $('btnMark').disabled=true;$('btnCalc').disabled=true;
+  genTape();
+  if(st.power==='dc'){
+    st.phase='dcfail';draw();
+    say('❌ <b>打不出点！</b>通直流时线圈磁场恒定，振片被电磁铁牢牢吸住，振针不能上下振动，纸带只能被拖出一道划痕。<b>请改选交流 4~6 V</b>再打点。','bad');
+    return;
+  }
+  st.phase='running';st.reveal=0;draw();
+  say('🔌 电源接通，振针以 50 Hz 振动，释放纸带……','info');
+  var i=0;
+  st.timer=setInterval(function(){
+    i++;st.reveal=i;draw();
+    if(i>=st.dots.length){clearInterval(st.timer);st.timer=null;st.phase='ready';
+      $('btnMark').disabled=false;
+      say('✅ 打点完成：共 '+st.dots.length+' 个点，相邻点时间间隔 0.02 s。开头密度合适（本模拟已保证）。下一步：标计数点。','ok');}
+  },25);
+};
+
+$('btnNew').onclick=function(){
+  $('sv0').value=(0.10+Math.random()*0.45).toFixed(2);
+  $('sa').value=(0.6+Math.random()*2.2).toFixed(1);
+  $('lv0').textContent=fmt(cfg().v0,2)+' m/s';$('la').textContent=fmt(cfg().a,1)+' m/s²';
+  st.phase='idle';genTape();$('btnMark').disabled=true;$('btnCalc').disabled=true;
+  say('已随机生成新参数（真值隐藏在设置里）。选择电源后重新打点。','info');draw();
+};
+
+$('btnMark').onclick=function(){
+  if(st.phase!=='ready')return;
+  st.phase='marked';draw();
+  say('已标出计数点 0~6：每 5 个打点间隔取一个，相邻计数点间时间 T = 5×0.02 s = <b>0.1 s</b>。到步骤 3 测间距。','ok');
+};
+
+// ---------- 测量 ----------
+CV.addEventListener('click',function(e){
+  if(st.phase!=='marked')return;
+  var r=CV.getBoundingClientRect(), px=(e.clientX-r.left)*(CV.width/r.width);
+  var best=-1,bd=20;
+  for(var n=0;n<=6;n++){var d=Math.abs(px-xOf(st.pts[n]));if(d<bd){bd=d;best=n;}}
+  if(best<0){$('caliperReadout').innerHTML='请点在<b>计数点</b>附近（红色标记处）。';return;}
+  if(st.selA!==null&&st.selB!==null){st.selA=best;st.selB=null;st.read=null;}
+  else if(st.selA===null)st.selA=best;
+  else if(best===st.selA){$('caliperReadout').innerHTML='A、B 不能是同一个点。';return;}
+  else st.selB=best;
+  if(st.selA!==null&&st.selB!==null){
+    var trueMm=(st.pts[st.selB]-st.pts[st.selA])*1000;
+    st.read=Math.round((trueMm+gauss()*0.25)*10)/10;
+    $('caliperReadout').innerHTML='卡尺卡住：计数点 <b>'+st.selA+'</b> → <b>'+st.selB+
+      '</b>，读数 <b>'+fmt(st.read,1)+' mm</b>（= '+fmt(st.read/10,3)+' cm）。这是相邻点吗？是就点右侧对应按钮记入。';
+  }else $('caliperReadout').innerHTML='已卡 A = 计数点 '+st.selA+'，再点相邻的计数点作为 B。';
+  draw();
+});
+$('btnClearCal').onclick=function(){st.selA=st.selB=null;st.read=null;
+  $('caliperReadout').innerHTML='卡尺：未卡点';draw();};
+
+document.querySelectorAll('.chip').forEach(function(ch){
+  ch.onclick=function(){
+    var n=+ch.dataset.n;
+    if(st.selA===null||st.selB===null||st.read===null){say('先用卡尺量出一段间距再记入！','bad');return;}
+    var pair=[st.selA,st.selB].sort(function(a,b){return a-b;});
+    if(pair[0]!==n-1||pair[1]!==n){say('x'+n+' 应是计数点 '+(n-1)+' 与 '+n+' 之间的间距，当前卡的是 '+pair[0]+' 与 '+pair[1]+'。','bad');return;}
+    st.x[n]=st.read;ch.classList.add('done');
+    $('caliperReadout').innerHTML='已记入 x'+n+' = '+fmt(st.read/10,3)+' cm。继续量下一段。';
+    refreshTable();
+    var full=true;for(var i=1;i<=6;i++)if(st.x[i]===null)full=false;
+    if(full){$('btnCalc').disabled=false;$('worryNote').style.display='block';
+      say('6 段间距测完。注意它们<b>并不严格相等</b>（见表中逐段 aₙ 的波动）——这正是要用逐差法统计平均的原因。点“用逐差法求加速度”。','info');}
+  };
+});
+$('btnClearX').onclick=function(){for(var i=1;i<=6;i++)st.x[i]=null;refreshTable();
+  document.querySelectorAll('.chip').forEach(function(c){c.classList.remove('done');});
+  $('btnCalc').disabled=true;};
+
+function refreshTable(){
+  var any=false,i;
+  for(i=1;i<=6;i++){$('c'+i).textContent=(st.x[i]===null)?'—':fmt(st.x[i]/10,3);}
+  for(i=1;i<=5;i++){var v='—';
+    if(st.x[i]!==null&&st.x[i+1]!==null){v=fmt((st.x[i+1]-st.x[i])/10/(T*T),2)+' m/s²';any=true;}
+    $('p'+i).textContent=v;}
+  $('worryNote').style.display=(any&&st.x[6]!==null)?'block':(any?$('worryNote').style.display:'none');
+}
+
+// ---------- 逐差法 ----------
+$('btnCalc').onclick=function(){
+  var xs=[],i;for(i=1;i<=6;i++)xs.push(st.x[i]/1000/10*100/100); // mm→m: /1000
+  xs=[];for(i=1;i<=6;i++)xs.push(st.x[i]/1000);
+  var d=[xs[3]-xs[0],xs[4]-xs[1],xs[5]-xs[2]];
+  var a=(d[0]+d[1]+d[2])/(9*T*T);
+  var v3=(xs[2]+xs[3])/(2*T);
+  var trueA=cfg().a, err=Math.abs(a-trueA)/trueA*100;
+  var naive=(xs[5]-xs[0])/(5*T*T); // 逐项相减再平均的等效结果
+  $('result').innerHTML=
+   '<div class="res">'+
+   '<b>逐差法：</b>x₄−x₁ = '+fmt(d[0]*100,2)+' cm，x₅−x₂ = '+fmt(d[1]*100,2)+' cm，x₆−x₃ = '+fmt(d[2]*100,2)+' cm（每段 = 3aT²）<br>'+
+   '<span class="formula">a = ['+fmt(d[0],4)+'+'+fmt(d[1],4)+'+'+fmt(d[2],4)+'] / (9×0.1²) = <b>'+fmt(a,3)+' m/s²</b></span>'+
+   '计数点 3 的瞬时速度：v₃ = (x₃+x₄)/2T = <b>'+fmt(v3,3)+' m/s²</b>'.replace('m/s²','m/s')+'<br>'+
+   '纸带真值 a = '+fmt(trueA,2)+' m/s²（v₀ = '+fmt(cfg().v0,2)+' m/s）→ 相对误差 <b>'+fmt(err,1)+'%</b> '+
+   (err<8?'✅ 很好，统计平均起作用了。':'⚠️ 偏大，可换纸带多测几次。')+'<br>'+
+   '<span class="small">对照：若逐项相减再平均，结果 = (x₆−x₁)/5T² = '+fmt(naive,3)+' m/s²，看似接近，但 x₂~x₅ 全部抵消、等于只用了首尾两段数据；逐差法六段全用上，对偶然误差的抑制好得多。</span></div>';
+};
+
+genTape();draw();
+})();
+</script>
+</body>
+</html>

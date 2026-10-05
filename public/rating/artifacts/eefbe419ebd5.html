@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RC 放电法测电容 · 交互式仿真实验</title>
+<style>
+:root{--bg:#0b1220;--panel:#121b2e;--line:#24334f;--txt:#dbe6f5;--dim:#8fa3c0;
+--acc:#39d6c0;--org:#ffb454;--pnk:#ff7d9c;--blu:#7aa2ff;--led:#54ff9f;--grn:#6ee7b7;--warn:#ff6b81}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:14px/1.65 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:16px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:12px}
+h1{font-size:20px}h1 small{color:var(--dim);font-weight:400;font-size:13px;margin-left:10px}
+#statusBar{color:var(--acc);font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 12px}
+.wrap{display:grid;grid-template-columns:500px 1fr;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:15px;color:var(--acc);margin-bottom:10px;border-left:3px solid var(--acc);padding-left:8px}
+.c2{grid-column:1/3}
+.ledbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.led{background:#060b14;border:1px solid #1d2b45;border-radius:8px;padding:6px 10px;text-align:center}
+.led label{font-size:11px;color:var(--dim);display:block}
+.led b{font-family:"Courier New",monospace;font-size:24px;color:var(--led)}
+.led i{font-style:normal;color:var(--dim);font-size:12px;margin-left:3px}
+svg{width:100%;display:block}
+.wire{stroke:#9db4d8;stroke-width:2;fill:none}
+.plate{stroke:#cfe0f5;stroke-width:4;stroke-linecap:round}
+.arm{stroke:#ffd166;stroke-width:4;stroke-linecap:round}
+.node{fill:#9db4d8}
+.rbox{fill:#1a2740;stroke:var(--acc);stroke-width:1.5;cursor:pointer}
+.meter{fill:#101b2f;stroke:#8fa3c0;stroke-width:2}
+.flow{fill:none;stroke:var(--acc);stroke-width:2.5;stroke-dasharray:5 11;opacity:0;pointer-events:none}
+.flow.on{opacity:.85;animation:fl .55s linear infinite}
+@keyframes fl{to{stroke-dashoffset:-16}}
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+button{background:#1a2740;color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer;font-size:13px}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.pri{background:#0e3a34;border-color:var(--acc);color:var(--acc)}
+.seg{display:flex} .seg button{border-radius:0;margin-left:-1px}.seg button:first-child{border-radius:7px 0 0 7px;margin-left:0}
+.seg button:last-child{border-radius:0 7px 7px 0}.seg button.on{background:var(--acc);color:#06251f;font-weight:700}
+canvas{width:100%;display:block;background:#0a1120;border:1px solid var(--line);border-radius:8px}
+#cvMain{height:360px}#cvLn{height:230px}#cvProp{height:210px;margin-top:10px}
+.hint{color:var(--dim);font-size:12px;margin-top:8px}
+.rgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.rgrid .card{padding:12px}
+.rgrid b.hl{color:var(--org);font-size:16px}
+.ok{color:var(--grn)}.warn{color:var(--warn)}.dim{color:var(--dim);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:center}
+th{color:var(--acc);position:sticky;top:0;background:var(--panel)}
+.tbox{max-height:260px;overflow:auto}
+.mk{color:var(--pnk);font-size:11px}
+#toast{position:fixed;right:18px;bottom:18px;background:#0e3a34;border:1px solid var(--acc);color:var(--acc);
+padding:10px 16px;border-radius:9px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:340px;z-index:9}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.tgrid b{color:var(--org)} .tgrid p{font-size:12.8px;color:var(--txt);margin-top:4px}
+@media(max-width:1100px){.wrap{grid-template-columns:1fr}.c2{grid-column:1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>RC 放电法测电容<small>ODE 连续仿真 dU/dt = −U/(RC) · 半衰期法 × 直线化法</small></h1>
+  <div id="statusBar">初始化…</div>
+</header>
+
+<div class="wrap">
+  <!-- 电路面板 -->
+  <section class="card">
+    <h2>① 电路与操作（点击开关 / 电阻箱可直接交互）</h2>
+    <div class="ledbar">
+      <div class="led"><label>电压表读数 / V</label><b id="ledU">0.00</b></div>
+      <div class="led"><label>放电计时 t / s</label><b id="ledT">0.00</b></div>
+      <div class="led"><label>初始电压 U₀ / V</label><b id="ledU0">—</b></div>
+    </div>
+    <svg id="cir" viewBox="0 0 520 360">
+      <!-- 地线与接地符号 -->
+      <line x1="70" y1="320" x2="430" y2="320" class="wire"/>
+      <line x1="238" y1="328" x2="282" y2="328" class="wire"/>
+      <line x1="246" y1="334" x2="274" y2="334" class="wire"/>
+      <line x1="254" y1="340" x2="266" y2="340" class="wire"/>
+      <!-- 直流电源（正极朝上） -->
+      <path class="wire" d="M110,100 V150"/>
+      <line x1="88" y1="152" x2="132" y2="152" class="plate"/>
+      <line x1="99" y1="166" x2="121" y2="166" class="plate" style="stroke-width:3"/>
+      <path class="wire" d="M110,166 V320"/>
+      <text x="8" y="150" font-size="11" fill="#8fa3c0">直流电源</text>
+      <text x="8" y="164" font-size="11" fill="#8fa3c0">6 V</text>
+      <text x="140" y="146" font-size="12" fill="#ffb454">+</text>
+      <text x="140" y="172" font-size="12" fill="#8fa3c0">−</text>
+      <!-- 顶部导线与静触点 -->
+      <path class="wire" d="M110,100 H150"/>
+      <path class="wire" d="M370,100 H380 V150"/>
+      <circle cx="150" cy="100" r="4" class="node"/>
+      <circle cx="370" cy="100" r="4" class="node"/>
+      <text x="128" y="126" font-size="11" fill="#ffb454">1 充电</text>
+      <text x="356" y="126" font-size="11" fill="#39d6c0">2 放电</text>
+      <!-- 公共端 a 与开关动臂 -->
+      <circle cx="260" cy="70" r="4.5" class="node"/>
+      <text x="270" y="60" font-size="11" fill="#8fa3c0">a（公共端）</text>
+      <g id="arm" style="transform-origin:260px 70px;transition:transform .3s">
+        <line x1="260" y1="70" x2="378" y2="70" class="arm"/>
+        <circle cx="378" cy="70" r="4" fill="#ffd166"/>
+      </g>
+      <!-- 待测电容 -->
+      <path class="wire" d="M260,70 V168 M260,184 V320"/>
+      <line x1="242" y1="169" x2="278" y2="169" class="plate"/>
+      <line x1="249" y1="184" x2="271" y2="184" class="plate"/>
+      <text x="290" y="166" font-size="11" fill="#8fa3c0">Cₓ 待测电容</text>
+      <text x="290" y="180" font-size="11" fill="#8fa3c0">（真值隐藏）</text>
+      <!-- 电压表（并联于 C） -->
+      <path class="wire" d="M260,140 H180 V209 M180,261 V320"/>
+      <circle cx="180" cy="235" r="26" class="meter"/>
+      <text x="180" y="242" font-size="17" font-weight="bold" fill="#54ff9f" text-anchor="middle">V</text>
+      <text id="svgV" x="180" y="286" font-size="12" fill="#54ff9f" text-anchor="middle">0.00 V</text>
+      <!-- 电阻箱（点击换档） -->
+      <path class="wire" d="M380,218 V320"/>
+      <rect id="rbox" x="358" y="150" width="44" height="68" rx="6" class="rbox"/>
+      <text id="svgR" transform="rotate(90 380 184)" x="380" y="184" font-size="12" fill="#39d6c0" text-anchor="middle">R = 10 kΩ</text>
+      <line x1="402" y1="160" x2="424" y2="160" class="wire"/><circle id="tap0" cx="424" cy="160" r="3.5" fill="#9db4d8"/><text x="430" y="164" font-size="10" fill="#8fa3c0">5k</text>
+      <line x1="402" y1="184" x2="424" y2="184" class="wire"/><circle id="tap1" cx="424" cy="184" r="3.5" fill="#39d6c0"/><text x="430" y="188" font-size="10" fill="#8fa3c0">10k</text>
+      <line x1="402" y1="208" x2="424" y2="208" class="wire"/><circle id="tap2" cx="424" cy="208" r="3.5" fill="#9db4d8"/><text x="430" y="212" font-size="10" fill="#8fa3c0">20k</text>
+      <!-- 电流流动动画 -->
+      <path id="flowChg" class="flow" d="M110,100 H260 V318 H110 Z"/>
+      <path id="flowDis" class="flow" d="M262,100 H380 V318 H262 Z"/>
+      <!-- 开关点击热区 -->
+      <rect id="swHit" x="120" y="40" width="290" height="92" fill="transparent" style="cursor:pointer">
+        <title>点击拨动双掷开关（1 充电 / 2 放电）</title>
+      </rect>
+    </svg>
+    <div class="ctrl">
+      <button id="btnChg" class="pri">掷 1 · 充电</button>
+      <button id="btnDis">掷 2 · 放电计时</button>
+      <span class="dim">速度</span>
+      <div class="seg" id="segSpd">
+        <button data-v="1">1×</button><button data-v="2" class="on">2×</button>
+        <button data-v="4">4×</button><button data-v="8">8×</button>
+      </div>
+      <button id="btnAbandon">放弃本组</button>
+      <button id="btnNewC">更换电容 Cₓ</button>
+    </div>
+    <p class="hint">步骤：① 开关置掷 1，充电至电压表读数 6.00 V（U₀ 显示于上方）；② 拨到掷 2 开始放电计时，曲线与数据表同步记录；③ 放电至约 5τ 自动记录本组；④ 换 R 档重复，即得 t½–R 对比表。</p>
+  </section>
+
+  <!-- U-t 曲线 -->
+  <section class="card">
+    <h2>② U–t 放电曲线（实时描绘，鼠标悬停可读数）</h2>
+    <canvas id="cvMain"></canvas>
+  </section>
+
+  <!-- 数据处理结果 -->
+  <section class="card c2">
+    <h2>③ 数据处理：两法并列比对</h2>
+    <div class="rgrid">
+      <div class="card"><h2 style="color:var(--pnk);border-color:var(--pnk)">半衰期法</h2><div id="resA" class="dim">放电穿过 U₀/2 后自动给出…</div></div>
+      <div class="card"><h2 style="border-color:var(--org)">直线化法 lnU–t 拟合</h2><div id="resB" class="dim">数据点 ≥ 5 后自动拟合…</div></div>
+      <div class="card"><h2 style="border-color:var(--grn)">两法比对</h2><div id="resC" class="dim">两种方法都完成后并列比对…</div></div>
+      <div class="card"><h2 style="border-color:var(--blu)">3τ / 5τ 量化说明</h2><div id="resD" class="dim">测得 C 后给出"基本放完"的量化说明…</div></div>
+    </div>
+  </section>
+
+  <!-- lnU-t -->
+  <section class="card">
+    <h2>④ 直线化：lnU–t 描点与线性拟合</h2>
+    <canvas id="cvLn"></canvas>
+    <p class="hint" id="lnNote">描点将随放电实时出现…</p>
+  </section>
+
+  <!-- 数据表 -->
+  <section class="card">
+    <h2>⑤ 计时–电压同步记录表（每 0.5 s）</h2>
+    <div class="tbox"><table>
+      <thead><tr><th>t /s</th><th>U /V</th><th>U/U₀ %</th><th>lnU</th><th>备注</th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="5" class="dim">开始放电后自动记录</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <!-- 对比实验 -->
+  <section class="card c2">
+    <h2>⑥ 对比实验：同一 Cₓ 配不同 R（t½ 与 R 成正比）</h2>
+    <table>
+      <thead><tr><th>组</th><th>R /kΩ</th><th>t½ /s</th><th>C(半衰期法) /μF</th><th>C(直线化法) /μF</th><th>t½/R /(s/kΩ)</th></tr></thead>
+      <tbody id="tbodyRuns"></tbody>
+    </table>
+    <canvas id="cvProp"></canvas>
+    <p class="hint" id="cmpNote">完成一次放电后自动记录一组；切换电阻箱档位（5/10/20 kΩ）再测，观察 t½ 随 R 等比增大。</p>
+  </section>
+
+  <!-- 教学要点 -->
+  <section class="card c2">
+    <h2>⑦ 教学要点</h2>
+    <div class="tgrid">
+      <div><b>放电规律</b><p>U(t) = U₀·e<sup>−t/RC</sup>。取对数：lnU = lnU₀ − t/(RC)，即 lnU–t 为直线，斜率 k = −1/RC，故 C = −1/(kR)。</p></div>
+      <div><b>半衰期法</b><p>t½ = RC·ln2 ≈ 0.693·RC。R 增大时 t½ 等比增大（正比），对比实验正是验证这一点；由 C = t½/(R·ln2) 反解电容。</p></div>
+      <div><b>时间常数 τ = RC</b><p>τ 是电压衰减到 36.8%·U₀ 的时刻，<u>不是"放完"的时间</u>：3τ 时剩 5.0%、5τ 时剩 0.67%，工程上 3τ~5τ 即认为"基本放完"。</p></div>
+      <div><b>为什么必须直线化</b><p>指数曲线弯曲，无法直接用线性最小二乘可靠拟合；变换为 lnU–t 直线后全部数据等权参与拟合，r² 检验线性度。低电压段相对噪声大，本实验只取 U ≥ 25%·U₀ 段拟合。</p></div>
+    </div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const LN2=Math.log(2),Usrc=6.0,rIn=300,Rs=[5000,10000,20000],RLab=["5","10","20"];
+function pickC(){const c=[330e-6,470e-6,680e-6,1000e-6];return c[Math.floor(Math.random()*c.length)];}
+let Ctrue=pickC();
+let mode='charge',R=Rs[1],speed=2,U=0,U0=6.0,tSim=0,recs=[],tHalf=null,fit=null,
+    archived=true,abandon=false,runN=0,runs=[],nextSamp=0.1,acc=0,lastT=performance.now(),
+    lastLed=0,hover=null,tMaxV=15;
+
+// ---------- 电压表读数（含小噪声：±0.5% ± 2 mV） ----------
+function readout(u){return u*(1+(Math.random()-.5)*0.01)+(Math.random()-.5)*0.004;}
+
+// ---------- ODE：充电 dU/dt=(Us−U)/(r·C)；放电 dU/dt=−U/(RC)。RK4 连续积分 ----------
+function f(u){return mode==='discharge'?-u/(R*Ctrue):(Usrc-u)/(rIn*Ctrue);}
+function rk4(u,h){const k1=f(u),k2=f(u+h/2*k1),k3=f(u+h/2*k2),k4=f(u+h*k3);return u+h/6*(k1+2*k2+2*k3+k4);}
+
+function advance(h){
+  U=rk4(U,h);
+  if(mode==='discharge'){
+    tSim+=h;
+    if(tSim>=nextSamp-1e-9){const p={t:tSim,u:readout(U)};recs.push(p);nextSamp+=0.1;onSample(p);}
+    if((tHalf&&tSim>8*tHalf)||U<U0*0.004&&tHalf)autoEnd();
+    if(tSim>150)autoEnd();
+  }else if(U>Usrc-0.001)U=Usrc; // 充满后钳制，表显稳定在 6.00 V 附近
+}
+function onSample(p){
+  const n=recs.length;
+  if(tHalf===null&&n>=2){const a=recs[n-2],h2=U0/2;
+    if(a.u>=h2&&p.u<h2)tHalf=a.t+(a.u-h2)*(p.t-a.t)/(a.u-p.u);}
+  if(n>=5)refit();
+  appendRow(p);
+  updateResults();
+}
+function refit(){
+  const pts=recs.filter(r=>r.u>=U0*0.25&&r.t>0.05);
+  if(pts.length<5){fit=null;return;}
+  let st=0,su=0,stt=0,stu=0,n=pts.length;
+  for(const p of pts){const y=Math.log(p.u);st+=p.t;su+=y;stt+=p.t*p.t;stu+=p.t*y;}
+  const k=(n*stu-st*su)/(n*stt-st*st),b=(su-k*st)/n;
+  let sse=0,sst=0;const ym=su/n;
+  for(const p of pts){const y=Math.log(p.u),yk=k*p.t+b;sse+=(y-yk)**2;sst+=(y-ym)**2;}
+  fit={k,b,C:-1/(k*R),n,r2:sst>0?1-sse/sst:1};
+}
+function baseC(){return fit&&fit.C>0?fit.C:(tHalf?tHalf/(R*LN2):null);}
+
+// ---------- 流程控制 ----------
+function setMode(m){
+  if(m===mode)return;
+  if(mode==='discharge')finalizeRun();
+  abandon=false;
+  if(m==='discharge'){
+    U0=readout(U);
+    recs=[];tSim=0;tHalf=null;fit=null;nextSamp=0.1;archived=false;
+    $('tbody').innerHTML='';
+    appendRow({t:0,u:U0});
+    toast(`开始放电计时：R = ${R/1000} kΩ，U₀ = ${U0.toFixed(2)} V`);
+  }
+  mode=m;uiSwitch();updateResults();
+}
+function finalizeRun(){
+  if(archived)return;archived=true;
+  if(!abandon&&tHalf&&recs.length>=10){
+    const ch=tHalf/(R*LN2),cf=fit&&fit.C>0?fit.C:null;
+    runs.push({R,t:tHalf,ch,cf});runN++;
+    toast(`第 ${runN} 组已记录：R = ${R/1000} kΩ，t½ = ${tHalf.toFixed(2)} s，C = ${(ch*1e6).toFixed(0)} μF（半衰期法）`);
+    updateCompare();
+  }else if(!abandon)toast('数据不足，本组未记录');
+}
+function autoEnd(){
+  if(mode!=='discharge')return;
+  toast('电压已低于 1%·U₀（≈5τ），视为基本放完，本组自动记录');
+  setMode('charge');
+}
+function uiSwitch(){
+  $('arm').style.transform=`rotate(${mode==='charge'?165:15}deg)`;
+  $('flowChg').classList.toggle('on',mode==='charge');
+  $('flowDis').classList.toggle('on',mode==='discharge');
+  $('btnChg').disabled=(mode==='charge');
+  $('btnDis').disabled=(mode==='discharge');
+}
+function setR(i){
+  if(mode==='discharge'){toast('放电计时中不能换档，请先把开关拨回掷 1');return;}
+  R=Rs[i];$('svgR').textContent=`R = ${RLab[i]} kΩ`;
+  for(let j=0;j<3;j++)$('tap'+j).setAttribute('fill',j===i?'#39d6c0':'#9db4d8');
+  if(fit)refit();updateResults();
+}
+let rIdx=1;
+function cycleR(){rIdx=(rIdx+1)%3;setR(rIdx);}
+
+// ---------- 主循环 ----------
+function frame(now){
+  const dtR=Math.min((now-lastT)/1000,0.06);lastT=now;
+  acc+=dtR*speed;const h=0.002;let guard=0;
+  while(acc>=h&&guard++<20000){advance(h);acc-=h;}
+  if(now-lastLed>120){
+    const ro=readout(U);
+    $('ledU').textContent=ro.toFixed(2);$('svgV').textContent=ro.toFixed(2)+' V';
+    $('ledT').textContent=tSim.toFixed(2);
+    $('statusBar').textContent=mode==='charge'
+      ?(U>Usrc-0.01?'✔ 充电完成：U₀ ≈ 6.00 V —— 可拨到掷 2 开始放电计时':'正在充电… U = '+ro.toFixed(2)+' V（经电源支路内阻）')
+      :`放电计时中 t = ${tSim.toFixed(1)} s，已采样 ${recs.length} 点${tHalf?'，t½ = '+tHalf.toFixed(2)+' s':''}`;
+    lastLed=now;
+  }
+  drawMain();drawLn();
+  requestAnimationFrame(frame);
+}
+
+// ---------- 绘图 ----------
+function fit2d(cv){const d=devicePixelRatio||1,w=cv.clientWidth,hh=cv.clientHeight;
+  if(cv.width!==Math.round(w*d)||cv.height!==Math.round(hh*d)){cv.width=w*d;cv.height=hh*d;}
+  const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);return c;}
+function ticksArr(mx,n){const raw=mx/n,p=Math.pow(10,Math.floor(Math.log10(raw))),q=raw/p,
+  s=(q<1.5?1:q<3.5?2:q<7.5?5:10)*p,a=[];for(let v=0;v<=mx+1e-9;v+=s)a.push(v);return a;}
+function dline(c,x1,y1,x2,y2,col,pat){c.save();c.strokeStyle=col;c.setLineDash(pat||[5,4]);
+  c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.restore();}
+
+function drawMain(){
+  const cv=$('cvMain'),c=fit2d(cv),W=cv.clientWidth,H=cv.clientHeight;
+  c.clearRect(0,0,W,H);
+  const cb=baseC();
+  const tgt=Math.max(15,tHalf?8*tHalf:0,mode==='discharge'?tSim*1.1:0,cb?6.3*cb*R:0);
+  tMaxV+=(tgt-tMaxV)*0.12;const tM=tMaxV;
+  const L=46,Rp=14,T=16,B=32,pw=W-L-Rp,ph=H-T-B;
+  const X=t=>L+pw*t/tM,Y=u=>T+ph*(1-u/7);
+  // 网格与轴
+  c.strokeStyle='#1b2740';c.lineWidth=1;c.beginPath();
+  for(let u=1;u<7;u++){c.moveTo(L,Y(u)+.5);c.lineTo(W-Rp,Y(u)+.5);}
+  const ts=ticksArr(tM,7);
+  for(const t of ts){c.moveTo(X(t)+.5,T);c.lineTo(X(t)+.5,H-B);}
+  c.stroke();
+  c.fillStyle='#8fa3c0';c.font='11px system-ui';
+  for(let u=0;u<=7;u++)c.fillText(u,L-14,Y(u)+4);
+  for(const t of ts)c.fillText(t<10?t.toFixed(1):t.toFixed(0),X(t)-8,H-B+15);
+  c.fillText('U/V',6,T+2);c.fillText('t/s',W-32,H-4);
+  // U0 / U0/2 / 36.8% 参考线
+  dline(c,L,Y(U0),W-Rp,Y(U0),'#ffb454');c.fillStyle='#ffb454';c.fillText('U₀='+U0.toFixed(2),W-Rp-62,Y(U0)-4);
+  dline(c,L,Y(U0/2),W-Rp,Y(U0/2),'#ff7d9c');c.fillStyle='#ff7d9c';c.fillText('U₀/2='+ (U0/2).toFixed(2),W-Rp-66,Y(U0/2)-4);
+  if(cb){const tau=cb*R;
+    if(tau<tM){dline(c,X(tau),T,X(tau),H-B,'#6ee7b7',[2,3]);c.fillStyle='#6ee7b7';
+      c.fillText('τ:36.8%',X(tau)+3,T+22);}
+    [[3,'3τ·剩5.0%'],[5,'5τ·剩0.67%']].forEach(([m,lab])=>{const t=tau*m;
+      if(t<tM){dline(c,X(t),T,X(t),H-B,'#7aa2ff',[3,4]);c.fillStyle='#7aa2ff';c.fillText(lab,X(t)+3,T+10);}});
+  }
+  // 曲线（从 t=0,U0 起）
+  c.strokeStyle='#39d6c0';c.lineWidth=2;c.beginPath();
+  c.moveTo(X(0),Y(U0));
+  for(const p of recs)c.lineTo(X(Math.min(p.t,tM)),Y(p.u));
+  c.stroke();
+  // t½ 标记
+  if(tHalf){const x=X(tHalf),y=Y(U0/2);
+    dline(c,x,y,x,H-B,'#ff7d9c',[4,4]);
+    c.save();c.fillStyle='#ff7d9c';c.translate(x,y);c.rotate(Math.PI/4);c.fillRect(-4,-4,8,8);c.restore();
+    c.fillStyle='#ff7d9c';c.font='bold 12px system-ui';
+    c.fillText('t½ = '+tHalf.toFixed(2)+' s',Math.min(x+8,W-110),y-8);}
+  // 悬停读数
+  if(hover){const t=(hover.x-L)/pw*tM,u=(1-(hover.y-T)/ph)*7;
+    if(t>=0&&t<=tM&&u>=0&&u<=7){
+      dline(c,hover.x,T,hover.x,H-B,'#55688a',[2,4]);dline(c,L,hover.y,W-Rp,hover.y,'#55688a',[2,4]);
+      let best=null,bd=1e9;for(const p of recs){const d=Math.abs(p.t-t);if(d<bd){bd=d;best=p;}}
+      const s=best?('最近点  t='+best.t.toFixed(2)+' s  U='+best.u.toFixed(3)+' V'):('t='+t.toFixed(2)+' s  U='+u.toFixed(2)+' V');
+      c.fillStyle='#dbe6f5';c.font='12px system-ui';c.fillText(s,Math.min(hover.x+10,W-240),Math.max(hover.y-10,T+14));}}
+}
+
+function drawLn(){
+  const cv=$('cvLn'),c=fit2d(cv),W=cv.clientWidth,H=cv.clientHeight;
+  c.clearRect(0,0,W,H);
+  const L=46,Rp=14,T=14,B=30,pw=W-L-Rp,ph=H-T-B;
+  const lastT=recs.length?recs[recs.length-1].t:5;
+  const tM=Math.max(5,tHalf?8*tHalf:0,lastT*1.05);
+  const y1=Math.log(U0)+0.3,y0=Math.log(Math.max(0.12,U0*0.1));
+  const X=t=>L+pw*t/tM,Y=v=>T+ph*(1-(v-y0)/(y1-y0));
+  c.strokeStyle='#1b2740';c.beginPath();
+  for(const v of[6,4,3,2,1,0.5,0.25]){const lv=Math.log(v);if(lv>y0&&lv<y1){c.moveTo(L,Y(lv)+.5);c.lineTo(W-Rp,Y(lv)+.5);}}
+  for(const t of ticksArr(tM,5)){c.moveTo(X(t)+.5,T);c.lineTo(X(t)+.5,H-B);}
+  c.stroke();
+  c.fillStyle='#8fa3c0';c.font='11px system-ui';
+  for(const v of[6,4,3,2,1,0.5,0.25]){const lv=Math.log(v);if(lv>y0&&lv<y1)c.fillText(''+v,L-14,Y(lv)+4);}
+  for(const t of ticksArr(tM,5))c.fillText(t<10?t.toFixed(1):t.toFixed(0),X(t)-8,H-B+14);
+  c.fillText('U/V',6,T+2);c.fillText('t/s',W-32,H-2);
+  c.fillText('（纵轴为线性刻度的 U 值，位置按 lnU 线性排列）',L+6,T+12);
+  // 拟合直线
+  if(fit&&fit.C>0){c.strokeStyle='#ffb454';c.lineWidth=2;c.beginPath();
+    c.moveTo(X(0),Y(fit.b));c.lineTo(X(tM),Y(fit.b+fit.k*tM));c.stroke();}
+  // 散点：灰=截断段，青=参与拟合
+  for(const p of recs){if(p.u<0.15)continue;const inFit=p.u>=U0*0.25&&p.t>0.05;
+    c.beginPath();c.arc(X(p.t),Y(Math.log(p.u)),2.2,0,7);
+    if(inFit){c.fillStyle='#39d6c0';c.fill();}
+    else{c.strokeStyle='#5b6d8f';c.stroke();}}
+}
+
+function drawProp(){
+  const cv=$('cvProp'),c=fit2d(cv),W=cv.clientWidth,H=cv.clientHeight;
+  c.clearRect(0,0,W,H);
+  if(runs.length<1)return;
+  const L=44,Rp=16,T=14,B=30,pw=W-L-Rp,ph=H-T-B;
+  const xs=runs.map(r=>r.R/1000),ys=runs.map(r=>r.t);
+  const xM=Math.max(25,Math.max(...xs)*1.2),yM=Math.max(...ys)*1.3;
+  const X=x=>L+pw*x/xM,Y=y=>T+ph*(1-y/yM);
+  c.strokeStyle='#1b2740';c.beginPath();
+  for(let x=0;x<=xM;x+=5){c.moveTo(X(x)+.5,T);c.lineTo(X(x)+.5,H-B);}
+  for(let y=0;y<=yM;y+=yM/5){c.moveTo(L,Y(y)+.5);c.lineTo(W-Rp,Y(y)+.5);}
+  c.stroke();
+  c.fillStyle='#8fa3c0';c.font='11px system-ui';
+  for(let x=0;x<=xM;x+=5)c.fillText(''+x,X(x)-4,H-B+15);
+  c.fillText('R/kΩ',W-40,H-2);c.fillText('t½/s',6,T+2);
+  // 过原点拟合 t½ = kR
+  let sx=0,sxy=0;for(let i=0;i<runs.length;i++){sx+=xs[i]*xs[i];sxy+=xs[i]*ys[i];}
+  const k=sxy/sx;
+  c.strokeStyle='#39d6c0';c.lineWidth=2;c.beginPath();c.moveTo(X(0),Y(0));c.lineTo(X(xM),Y(k*xM));c.stroke();
+  c.fillStyle='#ffb454';
+  for(let i=0;i<runs.length;i++){c.beginPath();c.arc(X(xs[i]),Y(ys[i]),4,0,7);c.fill();}
+  c.fillStyle='#39d6c0';
+  c.fillText(`t½ ≈ ${k.toFixed(3)}·R  →  正比关系 ✓  由 k = C·ln2 得 C = ${(k/(1000*LN2)*1e6).toFixed(0)} μF`,L+8,T+14);
+}
+
+// ---------- 数据表 / 结果 / 对比 ----------
+const tb=$('tbody');
+function appendRow(p){
+  if(tb.firstChild&&tb.firstChild.textContent==='开始放电后自动记录')tb.innerHTML='';
+  if(Math.round(p.t*10)%5)return;
+  const tr=document.createElement('tr');
+  const mark=(tHalf&&Math.abs(p.t-tHalf)<=0.26)?'← t½':'';
+  tr.innerHTML=`<td>${p.t.toFixed(1)}</td><td>${p.u.toFixed(3)}</td><td>${(p.u/U0*100).toFixed(1)}</td><td>${Math.log(p.u).toFixed(3)}</td><td class="mk">${mark}</td>`;
+  tb.appendChild(tr);tb.parentElement.parentElement.scrollTop=1e6;
+}
+function updateResults(){
+  const ch=tHalf?tHalf/(R*LN2):null,cf=fit&&fit.C>0?fit.C:null;
+  if(tHalf)$('resA').innerHTML=
+    `U₀ = ${U0.toFixed(2)} V → U₀/2 = ${(U0/2).toFixed(2)} V<br>R = ${R/1000} kΩ，t½ = <b>${tHalf.toFixed(2)} s</b><br>C = t½/(R·ln2) = <b class="hl">${(ch*1e6).toFixed(0)} μF</b>`;
+  if(fit&&fit.C>0)$('resB').innerHTML=
+    `有效点 n = ${fit.n}（取 U ≥ 25%·U₀ 段）<br>斜率 k = <b>${fit.k.toFixed(4)} s⁻¹</b>，截距 b = ${fit.b.toFixed(3)}（理论 lnU₀ = ${Math.log(U0).toFixed(3)}）<br>C = −1/(kR) = <b class="hl">${(cf*1e6).toFixed(0)} μF</b>，r² = ${fit.r2.toFixed(4)}`;
+  if(ch&&cf){const d=Math.abs(cf-ch)/((cf+ch)/2)*100;
+    $('resC').innerHTML=`半衰期法 C = <b>${(ch*1e6).toFixed(0)} μF</b><br>直线化法 C = <b>${(cf*1e6).toFixed(0)} μF</b><br>相对差 <b class="${d<5?'ok':'warn'}">${d.toFixed(1)}%</b> ${d<5?'—— 两法相互印证 ✓':'—— 偏差略大，检查数据段'}`;}
+  const cb=cf||ch;
+  if(cb){const tau=cb*R;
+    $('resD').innerHTML=`τ = RC ≈ <b>${tau.toFixed(2)} s</b>（按所测 C）<br>3τ = ${(3*tau).toFixed(1)} s → 剩 5.0%（≈${(0.05*U0).toFixed(2)} V）<br>5τ = ${(5*tau).toFixed(1)} s → 剩 0.67%（≈${(0.0067*U0).toFixed(3)} V）<br><span class="dim">τ 时刻剩 36.8%；3τ~5τ 即"基本放完"——τ 本身并不是放完时间</span>`;}
+  $('lnNote').innerHTML=fit?'橙线 = 最小二乘拟合直线（斜率 k = −1/RC）；灰点 = 已截去的低电压段（U &lt; 25%·U₀，相对噪声大）；青点 = 参与拟合的点。':'描点将随放电实时出现…';
+}
+function updateCompare(){
+  $('tbodyRuns').innerHTML=runs.map((r,i)=>
+    `<tr><td>${i+1}</td><td>${r.R/1000}</td><td>${r.t.toFixed(2)}</td><td>${(r.ch*1e6).toFixed(0)}</td><td>${r.cf?(r.cf*1e6).toFixed(0):'—'}</td><td>${(r.t/r.R*1000).toFixed(3)}</td></tr>`).join('')
+    ||'<tr><td colspan="6" class="dim">暂无 —— 完成一次放电后自动记录</td></tr>';
+  if(runs.length>=2){
+    const ks=runs.map(r=>r.t/(r.R/1000));
+    const avg=ks.reduce((a,b)=>a+b)/ks.length;
+    const dev=Math.max(...ks.map(v=>Math.abs(v-avg)))/avg*100;
+    $('cmpNote').innerHTML=`t½/R ≈ ${avg.toFixed(3)} s/kΩ（各组偏差 &lt; ${dev.toFixed(1)}%，近似常数）→ t½ 与 R 成正比 ✓；比例系数 = C·ln2，由此得 C ≈ ${(avg/(1000*LN2)*1e6).toFixed(0)} μF。`;
+  }
+  drawProp();
+}
+
+// ---------- 交互绑定 ----------
+$('btnChg').onclick=()=>setMode('charge');
+$('btnDis').onclick=()=>{
+  if(U<Usrc-0.05){toast('请先在掷 1 充电至 6.00 V，再拨到掷 2 放电');return;}
+  setMode('discharge');};
+$('swHit').onclick=()=>{if(mode==='charge')$('btnDis').onclick();else setMode('charge');};
+$('rbox').onclick=cycleR;
+$('segSpd').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  speed=+b.dataset.v;
+  $('segSpd').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));});
+$('btnAbandon').onclick=()=>{
+  if(mode!=='discharge'){toast('当前没有进行中的放电组');return;}
+  abandon=true;setMode('charge');toast('本组数据已放弃，请重新充电测量');};
+$('btnNewC').onclick=()=>{
+  if(mode==='discharge'){archived=true;abandon=false;mode='charge';}
+  Ctrue=pickC();U=0;runs=[];runN=0;recs=[];tHalf=null;fit=null;archived=true;tMaxV=15;
+  tb.innerHTML='<tr><td colspan="5" class="dim">开始放电后自动记录</td></tr>';
+  uiSwitch();updateResults();updateCompare();
+  toast('已更换待测电容 Cₓ（真值隐藏）。先掷 1 充电，再开始新一轮测量。');};
+
+let toastTimer=null;
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity=1;
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.style.opacity=0,3200);}
+
+$('cvMain').addEventListener('mousemove',e=>{const r=e.target.getBoundingClientRect();
+  hover={x:e.clientX-r.left,y:e.clientY-r.top};});
+$('cvMain').addEventListener('mouseleave',()=>hover=null);
+window.addEventListener('resize',()=>{drawMain();drawLn();drawProp();});
+
+// ---------- 启动 ----------
+uiSwitch();updateResults();updateCompare();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

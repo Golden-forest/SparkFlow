@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>气垫导轨上验证动量守恒</title>
+<style>
+  :root {
+    color-scheme: light;
+    --sim-bg: #eef3f8;
+    --sim-surface: #ffffff;
+    --sim-surface-soft: #f8fafc;
+    --sim-text: #172033;
+    --sim-muted: #657188;
+    --sim-border: #dfe6ef;
+    --sim-grid: #e8edf4;
+    --sim-accent: #0f9fba;
+    --sim-accent-deep: #08758a;
+    --sim-accent-soft: #d9f4f7;
+    --sim-positive: #0f9fba;
+    --sim-warning: #f59e0b;
+    --sim-danger: #dc2626;
+    --sim-radius-sm: 10px;
+    --sim-radius-md: 16px;
+    --sim-radius-lg: 22px;
+    --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+    --sim-glider1: #08758a;
+    --sim-glider1-soft: #d9f4f7;
+    --sim-glider2: #c2600a;
+    --sim-glider2-soft: #fdeedd;
+    --sim-metal: #8fa3b8;
+    --sim-metal-deep: #5c7089;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-width: 320px; color: var(--sim-text);
+    background:
+      radial-gradient(circle at 14% 0%, rgba(15, 159, 186, 0.10), transparent 30%),
+      radial-gradient(circle at 90% 6%, rgba(245, 158, 11, 0.08), transparent 26%),
+      var(--sim-bg);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; }
+  button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.35); outline-offset: 2px; }
+  .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+  .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+  .header h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 2.2vw, 1.9rem); font-weight: 760; letter-spacing: -0.03em; line-height: 1.05; }
+  .header p { margin: 0; color: var(--sim-muted); font-size: 0.82rem; }
+  .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+  .status.warn { border-color: rgba(217,119,6,.3); background: #fdf1df; color: #9a5a06; }
+  .status.ok { border-color: rgba(15,159,186,.3); background: #d9f4f7; color: #065f70; }
+  .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(330px, 0.85fr); gap: 12px; }
+  .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.2); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .panel-head h2 { margin: 0; font-size: 1rem; font-weight: 750; }
+  .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+  .scene-panel { min-height: 420px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+  .scene-wrap { position: relative; min-height: 0; }
+  #scene { width: 100%; height: 100%; min-height: 360px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f7fa 55%, #fbf6ec 100%); }
+  .phase-banner {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(23, 32, 51, 0.88); color: #fff; border-radius: 999px;
+    padding: 9px 18px; font-size: 0.85rem; font-weight: 650; white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(23,32,51,.25); pointer-events: none;
+  }
+  .phase-banner .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sim-warning); box-shadow: 0 0 0 4px rgba(245,158,11,.25); }
+  .phase-banner.done .dot { background: var(--sim-positive); box-shadow: 0 0 0 4px rgba(15,159,186,.3); }
+  .side { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(120px, 1fr); gap: 12px; overflow-y: auto; padding-right: 2px; }
+  .gates-panel { padding: 13px 15px; }
+  .gate-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gate-card { border: 1px solid var(--sim-border); border-radius: 14px; background: linear-gradient(150deg, #f8fcfd, #f4f8fb); padding: 10px 12px; }
+  .gate-card h3 { margin: 0 0 2px; font-size: 0.86rem; display: flex; align-items: center; gap: 7px; }
+  .led { width: 10px; height: 10px; border-radius: 50%; background: #c4d0dc; border: 1px solid #aab8c7; flex: none; }
+  .led.on { background: var(--sim-danger); border-color: #b01d1d; box-shadow: 0 0 8px rgba(220,38,38,.55); }
+  .gate-card small { color: var(--sim-muted); font-size: 0.72rem; }
+  .gate-log { margin-top: 7px; max-height: 92px; overflow-y: auto; font-variant-numeric: tabular-nums; font-size: 0.78rem; display: grid; gap: 3px; }
+  .gate-log .row { display: flex; justify-content: space-between; gap: 6px; color: var(--sim-text); }
+  .gate-log .row b { font-weight: 700; }
+  .gate-log .empty { color: var(--sim-muted); }
+  .data-panel { padding: 13px 15px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 5px 6px; text-align: right; border-bottom: 1px solid var(--sim-grid); white-space: nowrap; }
+  table.data th:first-child, table.data td:first-child { text-align: left; font-weight: 650; color: var(--sim-text); }
+  table.data thead th { color: var(--sim-muted); font-size: 0.74rem; font-weight: 700; }
+  table.data td.sum { font-weight: 800; background: #f4f9fb; }
+  .compare { margin-top: 11px; display: grid; gap: 8px; }
+  .bar-row { display: grid; grid-template-columns: 74px minmax(0, 1fr) 92px; align-items: center; gap: 8px; font-size: 0.78rem; }
+  .bar-row .lbl { color: var(--sim-muted); font-weight: 650; }
+  .bar-track { height: 16px; border-radius: 8px; background: var(--sim-grid); overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--sim-accent-deep), var(--sim-accent)); transition: width .3s ease; }
+  .bar-fill.after { background: linear-gradient(90deg, #0b5c6e, #12b3cc); }
+  .bar-fill.ke { background: linear-gradient(90deg, #b45309, var(--sim-warning)); }
+  .bar-fill.ke.after { background: linear-gradient(90deg, #ca8a2d, #f7b84a); }
+  .bar-row .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .verdict { margin-top: 10px; border-radius: 12px; padding: 9px 12px; font-size: 0.84rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px dashed transparent; }
+  .verdict.pending { background: #f2f5f9; color: var(--sim-muted); border-color: var(--sim-border); }
+  .verdict.pass { background: #e2f6f1; color: #06715f; border-color: rgba(6,113,95,.25); }
+  .verdict.fail { background: #fdecec; color: #b01d1d; border-color: rgba(176,29,29,.25); }
+  .verdict .delta { font-variant-numeric: tabular-nums; font-weight: 800; }
+  .model-note { padding: 13px 15px; display: grid; align-content: start; gap: 10px; }
+  .insight { padding: 11px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.85rem; line-height: 1.5; margin: 0; }
+  .insight.fail { border-left-color: var(--sim-danger); background: #fdecec; color: #9b1c1c; }
+  .insight.ok { border-left-color: var(--sim-positive); background: #e2f6f1; color: #06715f; }
+  .model-note p.note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.76rem; }
+  .history-panel { padding: 13px 15px; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 150px; }
+  .history-scroll { min-height: 0; overflow-y: auto; }
+  table.history { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+  table.history th { position: sticky; top: 0; background: #fff; color: var(--sim-muted); font-weight: 700; padding: 4px 5px; text-align: right; border-bottom: 1px solid var(--sim-border); white-space: nowrap; }
+  table.history th:first-child, table.history td:first-child { text-align: left; }
+  table.history td { padding: 4px 5px; text-align: right; border-bottom: 1px solid var(--sim-grid); white-space: nowrap; }
+  table.history td.bad { color: var(--sim-danger); font-weight: 700; }
+  table.history td.good { color: #06715f; font-weight: 700; }
+  .history-empty { color: var(--sim-muted); font-size: 0.78rem; padding: 6px 2px; }
+  .controls { padding: 10px 14px; border-radius: 17px; }
+  .dock { display: grid; gap: 14px; align-items: center; }
+  .dock-level { grid-template-columns: auto auto auto minmax(10px, 1fr) auto; }
+  .dock-run { grid-template-columns: auto auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 1fr) auto; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    border: 1px solid var(--sim-border); border-radius: 12px; padding: 9px 14px;
+    color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.86rem;
+    transition: transform .16s ease, background .16s ease, border-color .16s ease;
+  }
+  button:hover { border-color: #c7d2e2; background: #eef3f9; }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.22); }
+  button.linklike { border: none; background: none; color: var(--sim-muted); text-decoration: underline; padding: 6px 4px; font-weight: 600; font-size: 0.78rem; }
+  button.linklike:hover { color: var(--sim-danger); background: none; }
+  .seg { display: inline-flex; border: 1px solid var(--sim-border); border-radius: 12px; overflow: hidden; background: var(--sim-surface-soft); }
+  .seg button { border: none; border-radius: 0; padding: 8px 12px; font-size: 0.8rem; background: transparent; }
+  .seg button + button { border-left: 1px solid var(--sim-border); }
+  .seg button[aria-pressed="true"] { background: #d9f0f4; color: var(--sim-accent-deep); box-shadow: inset 0 0 0 2px rgba(15,159,186,.35); }
+  .seg.mini button { padding: 7px 10px; font-size: 0.76rem; }
+  .control { min-width: 0; }
+  .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 0.76rem; font-weight: 700; }
+  .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+  .dock-label { font-size: 0.74rem; font-weight: 700; color: var(--sim-muted); white-space: nowrap; }
+  .svg-text { fill: var(--sim-text); font-size: 13px; font-weight: 650; }
+  .svg-sub { fill: var(--sim-muted); font-size: 11px; font-weight: 550; }
+  .svg-num { font-variant-numeric: tabular-nums; }
+  .rail-top { fill: #cfd9e4; }
+  .rail-body { fill: url(#railGrad); }
+  .airhole { fill: #b9c6d4; }
+  .gate-post { fill: #334155; }
+  .gate-beam { stroke: #7c8899; stroke-width: 2; stroke-dasharray: 4 4; }
+  .gate-beam.blocked { stroke: var(--sim-danger); stroke-width: 3; stroke-dasharray: none; }
+  .flag { fill: #1f2937; }
+  .glider1-body { fill: url(#g1Grad); stroke: #065f70; stroke-width: 1.5; }
+  .glider2-body { fill: url(#g2Grad); stroke: #8a4404; stroke-width: 1.5; }
+  .glider-tag { font-size: 12.5px; font-weight: 800; }
+  .airjet { stroke: rgba(15,159,186,.55); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 3 9; animation: jetflow 1.1s linear infinite; }
+  body.running .airjet { animation-play-state: running; }
+  body.paused .airjet, body.done .airjet { animation-play-state: paused; }
+  @keyframes jetflow { to { stroke-dashoffset: -24; } }
+  @media (prefers-reduced-motion: reduce) { .airjet { animation: none !important; } .bar-fill { transition: none !important; } }
+  .parrow { stroke-width: 5; stroke-linecap: round; marker-end: url(#arrowHead); }
+  .parrow.p1 { stroke: var(--sim-glider1); }
+  .parrow.p2 { stroke: var(--sim-glider2); }
+  .plevel { font-size: 11.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .bubble-tube { fill: #eef4f3; stroke: #9db4ae; stroke-width: 1.5; }
+  .bubble-zone { fill: rgba(15,159,186,.16); stroke: rgba(15,159,186,.45); stroke-width: 1; }
+  .bubble { fill: rgba(224,242,239,.95); stroke: #6fa097; stroke-width: 1.5; }
+  .level-card { fill: rgba(255,255,255,.92); stroke: var(--sim-border); }
+  @media (max-width: 900px) {
+    .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+    .main { grid-template-columns: 1fr; }
+    .scene-panel { min-height: 0; }
+    #scene { min-height: 0; height: auto; aspect-ratio: 980 / 470; }
+    .side { overflow: visible; }
+    .dock-run, .dock-level { grid-template-columns: 1fr 1fr; }
+    .header { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="experiment" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>气垫导轨上验证动量守恒</h1>
+        <p>先调平导轨，再让滑块①撞击滑块②：光电门记下遮光时间 Δt，由 v = d/Δt 算出速度，对照碰撞前后系统总动量。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">第 1 步 · 调平导轨</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">气垫导轨 · 实验台</h2><span>挡光片宽度 d = 1.00 cm · 计时器分辨率 0.1 ms</span></div>
+        <div class="scene-wrap">
+          <svg id="scene" viewBox="0 0 980 470" role="img" aria-labelledby="scene-title scene-desc">
+            <desc id="scene-desc">气垫导轨俯视场景：导轨、两只滑块、两座光电门与水平仪。滑块运动与动量箭头随仿真更新。</desc>
+            <defs>
+              <linearGradient id="railGrad" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#9fb2c4"/><stop offset="1" stop-color="#6d8299"/></linearGradient>
+              <linearGradient id="g1Grad" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#2ab8d4"/><stop offset="1" stop-color="#08758a"/></linearGradient>
+              <linearGradient id="g2Grad" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f6a54c"/><stop offset="1" stop-color="#c2600a"/></linearGradient>
+              <marker id="arrowP1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#08758a"/></marker>
+              <marker id="arrowP2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c2600a"/></marker>
+            </defs>
+
+            <!-- 台面 -->
+            <line x1="30" y1="452" x2="950" y2="452" stroke="#c9d4e0" stroke-width="3" stroke-linecap="round"/>
+
+            <g id="trackGroup">
+              <!-- 支脚（左端为可调底脚螺丝） -->
+              <g id="legLeft">
+                <rect x="163" y="335" width="14" height="98" rx="3" fill="#7b8ea2"/>
+                <circle id="screwHead" cx="170" cy="443" r="11" fill="#43536a" stroke="#2c3a4e" stroke-width="2"/>
+                <line id="screwSlot" x1="163" y1="443" x2="177" y2="443" stroke="#dfe8f2" stroke-width="2.5" stroke-linecap="round"/>
+              </g>
+              <rect x="483" y="335" width="14" height="107" rx="3" fill="#93a5b8"/>
+              <rect x="803" y="335" width="14" height="98" rx="3" fill="#93a5b8"/>
+
+              <!-- 导轨 -->
+              <rect class="rail-top" x="90" y="307" width="800" height="7" rx="2"/>
+              <rect class="rail-body" x="90" y="313" width="800" height="22" rx="4"/>
+              <g id="holes"></g>
+              <g id="ruler"></g>
+
+              <!-- 端部缓冲座 -->
+              <rect x="80" y="282" width="10" height="32" rx="3" fill="#3d4c61"/>
+              <rect x="890" y="282" width="10" height="32" rx="3" fill="#3d4c61"/>
+
+              <!-- 光电门 A / B -->
+              <g id="gateA" transform="translate(356.67,0)">
+                <rect class="gate-post" x="-18" y="246" width="6" height="72" rx="2"/>
+                <rect class="gate-post" x="12" y="246" width="6" height="72" rx="2"/>
+                <rect x="-18" y="238" width="36" height="9" rx="4" fill="#334155"/>
+                <circle id="ledA" cx="0" cy="242.5" r="4.5" fill="#c4d0dc" stroke="#94a3b4" stroke-width="1"/>
+                <line id="beamA" class="gate-beam" x1="-12" y1="258" x2="12" y2="258"/>
+                <text class="svg-text" x="0" y="230" text-anchor="middle">A</text>
+                <text id="dtA" class="svg-sub svg-num" x="0" y="216" text-anchor="middle"></text>
+              </g>
+              <g id="gateB" transform="translate(623.33,0)">
+                <rect class="gate-post" x="-18" y="246" width="6" height="72" rx="2"/>
+                <rect class="gate-post" x="12" y="246" width="6" height="72" rx="2"/>
+                <rect x="-18" y="238" width="36" height="9" rx="4" fill="#334155"/>
+                <circle id="ledB" cx="0" cy="242.5" r="4.5" fill="#c4d0dc" stroke="#94a3b4" stroke-width="1"/>
+                <line id="beamB" class="gate-beam" x1="-12" y1="258" x2="12" y2="258"/>
+                <text class="svg-text" x="0" y="230" text-anchor="middle">B</text>
+                <text id="dtB" class="svg-sub svg-num" x="0" y="216" text-anchor="middle"></text>
+              </g>
+
+              <!-- 滑块① -->
+              <g id="glider1">
+                <line class="airjet" x1="-24" y1="306" x2="-16" y2="306"/>
+                <line class="airjet" x1="-4" y1="306" x2="4" y2="306"/>
+                <line class="airjet" x1="16" y1="306" x2="24" y2="306"/>
+                <rect class="flag" x="-2.5" y="244" width="5" height="34" rx="1"/>
+                <rect class="glider1-body" x="-32" y="278" width="64" height="27" rx="6"/>
+                <g id="g1ridges"></g>
+                <text class="glider-tag" x="0" y="296" text-anchor="middle" fill="#eafcff">①</text>
+                <text id="g1m" class="svg-sub svg-num" x="0" y="330" text-anchor="middle"></text>
+                <line id="pArrow1" class="parrow p1" x1="0" y1="228" x2="0" y2="228" marker-end="url(#arrowP1)" visibility="hidden"/>
+                <text id="pLbl1" class="plevel" x="0" y="202" text-anchor="middle" fill="#08758a" visibility="hidden"></text>
+              </g>
+
+              <!-- 滑块② -->
+              <g id="glider2">
+                <line class="airjet" x1="-24" y1="306" x2="-16" y2="306"/>
+                <line class="airjet" x1="-4" y1="306" x2="4" y2="306"/>
+                <line class="airjet" x1="16" y1="306" x2="24" y2="306"/>
+                <rect class="flag" x="-2.5" y="244" width="5" height="34" rx="1"/>
+                <rect class="glider2-body" x="-32" y="278" width="64" height="27" rx="6"/>
+                <g id="g2ridges"></g>
+                <text class="glider-tag" x="0" y="296" text-anchor="middle" fill="#fff7ec">②</text>
+                <text id="g2m" class="svg-sub svg-num" x="0" y="330" text-anchor="middle"></text>
+                <line id="pArrow2" class="parrow p2" x1="0" y1="228" x2="0" y2="228" marker-end="url(#arrowP2)" visibility="hidden"/>
+                <text id="pLbl2" class="plevel" x="0" y="202" text-anchor="middle" fill="#c2600a" visibility="hidden"></text>
+              </g>
+            </g>
+
+            <!-- 水平仪（测量倾斜，不随导轨组旋转） -->
+            <g id="spiritLevel">
+              <rect class="level-card" x="16" y="12" width="200" height="70" rx="12"/>
+              <text class="svg-sub" x="30" y="34">水平仪（沿导轨方向）</text>
+              <rect class="bubble-tube" x="36" y="44" width="156" height="16" rx="8"/>
+              <rect class="bubble-zone" x="106" y="45.5" width="16" height="13" rx="6.5"/>
+              <line x1="114" y1="44" x2="114" y2="60" stroke="#08758a" stroke-width="1.5"/>
+              <circle id="bubble" class="bubble" cx="114" cy="52" r="6"/>
+              <text id="tiltReadout" class="svg-sub svg-num" x="200" y="34" text-anchor="end">α = +0.180°</text>
+            </g>
+            <text id="tiltNote" class="svg-sub" x="964" y="30" text-anchor="end" fill="#9a5a06">导轨倾斜已放大显示</text>
+          </svg>
+          <div id="phaseBanner" class="phase-banner"><span class="dot"></span><span id="phaseText">第一步 · 调平导轨：旋转底脚螺丝，让气泡回到中心区间</span></div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel gates-panel" aria-label="光电门计时">
+          <div class="panel-head"><h2>光电门计时</h2><span>遮光时间 Δt → v = d / Δt</span></div>
+          <div class="gate-cards">
+            <div class="gate-card">
+              <h3><span id="ledA2" class="led"></span>光电门 A</h3>
+              <small>x = 0.50 m</small>
+              <div class="gate-log" id="logA"><div class="empty">等待遮光…</div></div>
+            </div>
+            <div class="gate-card">
+              <h3><span id="ledB2" class="led"></span>光电门 B</h3>
+              <small>x = 1.00 m</small>
+              <div class="gate-log" id="logB"><div class="empty">等待遮光…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel data-panel" aria-label="数据记录与动量对比">
+          <div class="panel-head"><h2>数据与动量对比</h2><span>测量值来自光电门</span></div>
+          <table class="data">
+            <thead><tr><th>物理量</th><th>滑块①</th><th>滑块②</th><th>系统合计</th></tr></thead>
+            <tbody>
+              <tr><td>质量 m / kg</td><td id="dm1">0.200</td><td id="dm2">0.200</td><td id="dmSum">0.400</td></tr>
+              <tr><td>碰前速度 v / (m/s)</td><td id="dv1">—</td><td id="dv2">0.000</td><td class="sum"></td></tr>
+              <tr><td>碰前动量 p / (kg·m/s)</td><td id="dp1">—</td><td id="dp2">0.000</td><td class="sum" id="dpSum">—</td></tr>
+              <tr><td>碰后速度 v′ / (m/s)</td><td id="dw1">—</td><td id="dw2">—</td><td class="sum"></td></tr>
+              <tr><td>碰后动量 p′ / (kg·m/s)</td><td id="dq1">—</td><td id="dq2">—</td><td class="sum" id="dqSum">—</td></tr>
+            </tbody>
+          </table>
+          <div class="compare">
+            <div class="bar-row"><span class="lbl">总动量 碰前</span><div class="bar-track"><div class="bar-fill" id="barPb" style="width:0%"></div></div><span class="val" id="valPb">—</span></div>
+            <div class="bar-row"><span class="lbl">总动量 碰后</span><div class="bar-track"><div class="bar-fill after" id="barPa" style="width:0%"></div></div><span class="val" id="valPa">—</span></div>
+            <div class="bar-row"><span class="lbl">总动能 碰前</span><div class="bar-track"><div class="bar-fill ke" id="barEb" style="width:0%"></div></div><span class="val" id="valEb">—</span></div>
+            <div class="bar-row"><span class="lbl">总动能 碰后</span><div class="bar-track"><div class="bar-fill ke after" id="barEa" style="width:0%"></div></div><span class="val" id="valEa">—</span></div>
+          </div>
+          <div id="verdict" class="verdict pending"><span id="verdictText">释放滑块后开始测量</span><span class="delta" id="verdictDelta"></span></div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="观察结论">
+          <p id="insight" class="insight">先把导轨调平：气垫导轨近似无摩擦，只有导轨水平时，滑块系统受到的合外力才近似为零，总动量才守恒。</p>
+          <p class="note">教学视图：导轨视为无摩擦；倾角在场景中放大显示；计时器按 0.1 ms 量化，因此测量动量与理论值存在微小差异（判据 ±2%）。粘合碰撞后两滑块作为整体遮光。</p>
+        </section>
+
+        <section class="panel history-panel" aria-label="试验历史">
+          <div class="panel-head"><h2>试验历史</h2><span id="historyCount">共 0 次</span></div>
+          <div class="history-scroll">
+            <table class="history">
+              <thead><tr><th>#</th><th>类型</th><th>m₁/g</th><th>m₂/g</th><th>v₁</th><th>Σp 前</th><th>Σp 后</th><th>Δp%</th><th>结论</th></tr></thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+            <div class="history-empty" id="historyEmpty">完成一次碰撞后自动记录。</div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验控制">
+      <div id="dockLevel" class="dock dock-level">
+        <span class="dock-label">底脚螺丝微调（每格 0.005°）</span>
+        <div class="actions">
+          <button id="screwCcw" type="button">↺ 逆时针 · 左端降低</button>
+          <button id="screwCw" type="button">↻ 顺时针 · 左端升高</button>
+        </div>
+        <button id="lockBtn" class="primary" type="button" disabled>锁定导轨，进入实验</button>
+        <span class="dock-label" id="levelHint">气泡未居中</span>
+        <button id="skipLevelBtn" class="linklike" type="button">跳过调平，直接演示（观察不调平的后果）</button>
+      </div>
+      <div id="dockRun" class="dock dock-run" hidden>
+        <div class="actions">
+          <button id="startBtn" class="primary" type="button">释放滑块</button>
+          <button id="pauseBtn" type="button" disabled>暂停</button>
+          <button id="resetBtn" type="button">复位</button>
+        </div>
+        <div>
+          <span class="dock-label">碰撞类型</span>
+          <div class="seg" role="group" aria-label="碰撞类型">
+            <button id="modeElastic" type="button" aria-pressed="true">弹性碰撞</button>
+            <button id="modeSticky" type="button" aria-pressed="false">完全非弹性（粘合）</button>
+          </div>
+        </div>
+        <div class="control">
+          <label for="m1Input">滑块①质量 m₁ <output id="m1Output">200 g</output></label>
+          <input id="m1Input" type="range" min="0.10" max="0.40" step="0.01" value="0.20">
+        </div>
+        <div class="control">
+          <label for="m2Input">滑块②质量 m₂ <output id="m2Output">200 g</output></label>
+          <input id="m2Input" type="range" min="0.10" max="0.40" step="0.01" value="0.20">
+        </div>
+        <div class="control">
+          <label for="u1Input">初速度 v₁（碰前） <output id="u1Output">0.50 m/s</output></label>
+          <input id="u1Input" type="range" min="0.20" max="0.80" step="0.01" value="0.50">
+        </div>
+        <div>
+          <span class="dock-label">时间流速</span>
+          <div class="seg mini" role="group" aria-label="时间流速">
+            <button id="spd05" type="button" aria-pressed="false">0.5×</button>
+            <button id="spd1" type="button" aria-pressed="true">1×</button>
+            <button id="spd2" type="button" aria-pressed="false">2×</button>
+          </div>
+          <button id="relevelBtn" class="linklike" type="button">重新调平</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+  /* PHYSICS-KERNEL-START */
+  /* DOM-free event-driven 1D collision engine for the air-track experiment.
+     Frame: x in meters along the rail, 0 at the left end, +x to the right.
+     Tilt alpha (rad): alpha > 0 means the left end is raised, so both gliders
+     gain acceleration a = +g*sin(alpha) along +x (external force, breaks
+     momentum conservation of the system when the rail is not leveled). */
+  const PHYS = (function () {
+    "use strict";
+    const g = 9.8;
+    const L = 1.5;
+    const d = 0.010;
+    const gl = 0.12;
+    const xA = 0.50, xB = 1.00;
+    const qres = 1e-4;
+    const fixedDt = 1 / 240;
+    const startX1 = 0.25, startX2 = 0.75;
+    const stopL = 0.08, stopR = L - 0.08;
+    const EPS = 1e-9;
+    const TIMEOUT = 12;
+
+    function createWorld(p) {
+      return {
+        params: { m1: +p.m1, m2: +p.m2, u1: +p.u1, mode: p.mode === "sticky" ? "sticky" : "elastic", alpha: +p.alpha },
+        t: 0, lock: false, launched: false, done: false, doneReason: "",
+        b1: { who: 1, x: startX1, v: 0, m: +p.m1, blockedA: false, blockedB: false, pendA: null, pendB: null, postGate: false, hitEnd: false, resolved: false, stopped: false },
+        b2: { who: 2, x: startX2, v: 0, m: +p.m2, blockedA: false, blockedB: false, pendA: null, pendB: null, postGate: false, hitEnd: false, resolved: false, stopped: false },
+        gateEvents: [], collision: null, collisions: 0, measured: null
+      };
+    }
+
+    function launch(w) {
+      if (w.launched || w.done) return;
+      w.b1.v = w.params.u1;
+      w.launched = true;
+    }
+
+    function accelOf(w) { return g * Math.sin(w.params.alpha); }
+
+    function crossTime(x0, v0, a, target) {
+      const c = x0 - target;
+      if (Math.abs(a) < 1e-12) {
+        if (Math.abs(v0) < 1e-12) return Infinity;
+        const t = -c / v0;
+        return t > EPS ? t : Infinity;
+      }
+      const disc = v0 * v0 - 2 * a * c;
+      if (disc < 0) return Infinity;
+      const s = Math.sqrt(disc);
+      let best = Infinity;
+      const t1 = (-v0 - s) / a, t2 = (-v0 + s) / a;
+      if (t1 > EPS && t1 < best) best = t1;
+      if (t2 > EPS && t2 < best) best = t2;
+      return best;
+    }
+
+    function integrate(w, tau, a) {
+      w.t += tau;
+      const list = [w.b1, w.b2];
+      for (let i = 0; i < 2; i += 1) {
+        const b = list[i];
+        b.x += b.v * tau + 0.5 * a * tau * tau;
+        b.v += a * tau;
+        if (!Number.isFinite(b.x) || !Number.isFinite(b.v)) { b.x = Math.min(Math.max(b.x || 0, stopL), stopR); b.v = 0; }
+      }
+    }
+
+    function applyGateEdge(w, b, gate, side) {
+      const xG = gate === "A" ? xA : xB;
+      const key = gate === "A" ? "A" : "B";
+      const v = b.v;
+      let entering;
+      if (side === "left") entering = v > 0; else entering = v < 0;
+      if (entering) {
+        b["blocked" + key] = true;
+        b["pend" + key] = { t: w.t };
+      } else {
+        b["blocked" + key] = false;
+        const pend = b["pend" + key];
+        b["pend" + key] = null;
+        if (pend) {
+          const dir = v >= 0 ? 1 : -1;
+          const dtRaw = w.t - pend.t;
+          const dtQ = Math.max(qres, Math.round(dtRaw / qres) * qres);
+          w.gateEvents.push({ gate, who: b.who, dir, tStart: pend.t, tEnd: w.t, dtQ, dtMs: dtQ * 1000, v: (d * dir) / dtQ });
+          if (w.collisions > 0) b.postGate = true;
+        }
+      }
+    }
+
+    function applyCollision(w) {
+      const { m1, m2 } = w.params;
+      const b1 = w.b1, b2 = w.b2;
+      const u1 = b1.v, u2 = b2.v;
+      let w1, w2;
+      if (w.params.mode === "sticky") {
+        w1 = w2 = (m1 * u1 + m2 * u2) / (m1 + m2);
+      } else {
+        w1 = ((m1 - m2) * u1 + 2 * m2 * u2) / (m1 + m2);
+        w2 = ((m2 - m1) * u2 + 2 * m1 * u1) / (m1 + m2);
+      }
+      const pB = m1 * u1 + m2 * u2, pA = m1 * w1 + m2 * w2;
+      const keB = 0.5 * m1 * u1 * u1 + 0.5 * m2 * u2 * u2;
+      const keA = 0.5 * m1 * w1 * w1 + 0.5 * m2 * w2 * w2;
+      b1.v = w1; b2.v = w2;
+      if (w.params.mode === "sticky") {
+        w.lock = true;
+        b2.blockedA = false; b2.blockedB = false; b2.pendA = null; b2.pendB = null;
+      }
+      w.collision = { t: w.t, u1, u2, w1, w2, pB, pA, keB, keA, mode: w.params.mode };
+      w.collisions += 1;
+    }
+
+    function applyEnd(w, b, stopX) {
+      b.x = stopX;
+      b.v = 0;
+      b.hitEnd = true;
+      b.blockedA = false; b.blockedB = false; b.pendA = null; b.pendB = null;
+    }
+
+    function stepOnce(w, h) {
+      let remaining = h, guard = 0;
+      while (remaining > EPS && guard < 24) {
+        guard += 1;
+        const a = accelOf(w);
+        const b1 = w.b1, b2 = w.b2;
+        let best = Infinity, ev = null;
+        const consider = (tau, e) => { if (tau > EPS && tau < best - 1e-15) { best = tau; ev = e; } };
+        const bodies = w.lock ? [b1] : [b1, b2];
+        for (let bi = 0; bi < bodies.length; bi += 1) {
+          const b = bodies[bi];
+          consider(crossTime(b.x, b.v, a, stopL), { type: "end", b, stopX: stopL });
+          consider(crossTime(b.x, b.v, a, stopR), { type: "end", b, stopX: stopR });
+          const gates = [["A", xA], ["B", xB]];
+          for (let gi = 0; gi < 2; gi += 1) {
+            consider(crossTime(b.x, b.v, a, gates[gi][1] - d / 2), { type: "gate", b, gate: gates[gi][0], side: "left" });
+            consider(crossTime(b.x, b.v, a, gates[gi][1] + d / 2), { type: "gate", b, gate: gates[gi][0], side: "right" });
+          }
+        }
+        if (!w.lock) {
+          const s0 = (b2.x - b1.x) - gl;
+          const rv = b1.v - b2.v;
+          if (rv > 1e-12 && s0 > -1e-9) consider(s0 / rv, { type: "contact", b: b1 });
+        }
+        const tau = Math.min(best, remaining);
+        integrate(w, tau, a);
+        remaining -= tau;
+        if (ev && tau >= best - 1e-15) {
+          if (ev.type === "gate") applyGateEdge(w, ev.b, ev.gate, ev.side);
+          else if (ev.type === "contact") applyCollision(w);
+          else applyEnd(w, ev.b, ev.stopX);
+        }
+        if (best >= remaining) break;
+      }
+      checkTerminal(w);
+    }
+
+    function resolvedBody(w, b) {
+      if (w.lock && b.who === 2) return true;
+      if (b.resolved) return true;
+      if (b.postGate || b.hitEnd || Math.abs(b.v) < 1e-3) {
+        b.resolved = true;
+        if (Math.abs(b.v) < 1e-3 && !b.hitEnd && !b.postGate) b.stopped = true;
+        return true;
+      }
+      return false;
+    }
+
+    function checkTerminal(w) {
+      if (w.done || !w.launched || w.collisions === 0) {
+        if (w.launched && w.t > TIMEOUT) finish(w, "timeout");
+        return;
+      }
+      if (resolvedBody(w, w.b1) && resolvedBody(w, w.b2)) { finish(w, "complete"); return; }
+      if (w.t > TIMEOUT) finish(w, "timeout");
+    }
+
+    function computeMeasured(w) {
+      const { m1, m2 } = w.params;
+      const c = w.collision;
+      const notes = [];
+      let before = null;
+      for (let i = 0; i < w.gateEvents.length; i += 1) {
+        const e = w.gateEvents[i];
+        if (e.who === 1 && e.gate === "A" && e.dir > 0 && (!c || e.tEnd <= c.t + EPS)) { before = e; break; }
+      }
+      let after1 = null, after2 = null;
+      for (let i = w.gateEvents.length - 1; i >= 0; i -= 1) {
+        const e = w.gateEvents[i];
+        if (!c || e.tEnd <= c.t + EPS) continue;
+        if (e.who === 1 && after1 === null) after1 = e;
+        if (e.who === 2 && after2 === null && !w.lock) after2 = e;
+        if (after1 !== null && (after2 !== null || w.lock)) break;
+      }
+      const v1m = before ? before.v : null;
+      const still1 = w.b1.stopped, still2 = w.b2.stopped;
+      let v1p, v2p;
+      if (w.lock) {
+        const vp = after1 ? after1.v : (still1 ? 0 : null);
+        v1p = vp; v2p = vp;
+        if (after1 === null && vp === null) notes.push("粘合体未通过光电门，碰后速度未测得");
+      } else {
+        v1p = after1 ? after1.v : (still1 ? 0 : null);
+        v2p = after2 ? after2.v : (still2 ? 0 : null);
+        if (after1 === null && v1p === 0) notes.push("滑块①碰后静止（未再遮光，v₁′ = 0）");
+        if (after2 === null && v2p === 0) notes.push("滑块②碰后静止（未再遮光，v₂′ = 0）");
+        if (v1p === null) notes.push("滑块①碰后速度未测得");
+        if (v2p === null) notes.push("滑块②碰后速度未测得");
+      }
+      const pB = v1m === null ? null : m1 * v1m;
+      const p1q = v1p === null ? null : m1 * v1p;
+      const p2q = v2p === null ? null : m2 * v2p;
+      const pA = p1q === null || p2q === null ? null : p1q + p2q;
+      const eB = v1m === null ? null : 0.5 * m1 * v1m * v1m;
+      const eA = v1p === null || v2p === null ? null : 0.5 * m1 * v1p * v1p + 0.5 * m2 * v2p * v2p;
+      const dpPct = pA === null || pB === null ? null : ((pA - pB) / Math.abs(pB)) * 100;
+      const dEPct = eA === null || eB === null ? null : ((eA - eB) / Math.abs(eB)) * 100;
+      let verdict = "partial";
+      if (dpPct !== null) verdict = Math.abs(dpPct) <= 2 ? "pass" : "fail";
+      return { v1m, v1p, v2p, pB, pA, p1q, p2q, eB, eA, dpPct, dEPct, verdict, notes, before, after1, after2, sticky: !!w.lock };
+    }
+
+    function finish(w, reason) {
+      if (w.done) return;
+      w.done = true;
+      w.doneReason = reason;
+      w.measured = computeMeasured(w);
+    }
+
+    function advance(w, simSeconds, dtOverride) {
+      const dt = Math.min(1 / 30, Math.max(1 / 2000, dtOverride || fixedDt));
+      let remaining = Math.max(0, +simSeconds || 0);
+      let guard = 0;
+      while (remaining > EPS && !w.done && guard < 20000) {
+        const h = Math.min(dt, remaining);
+        stepOnce(w, h);
+        remaining -= h;
+        guard += 1;
+      }
+      return w;
+    }
+
+    function runModelChecks() {
+      const near = (a, b, tol) => Math.abs(a - b) <= tol;
+      const sim = (p, T, dt) => { const w = createWorld(p); launch(w); advance(w, T, dt); return w; };
+      const base = { m1: 0.2, m2: 0.2, u1: 0.5, alpha: 0 };
+      const out = [];
+      const push = (name, pass, expected, actual, tolerance) => out.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      let w = sim({ ...base }, 4);
+      const c1 = w.collision;
+      push("弹性 · 等质量交换速度", c1 && near(c1.w1, 0, 1e-9) && near(c1.w2, 0.5, 1e-9), "w1′=0, w2′=0.500", c1 ? `w1′=${c1.w1.toFixed(12)}, w2′=${c1.w2.toFixed(12)}` : "no collision", 1e-9);
+
+      w = sim({ ...base, m1: 0.3, m2: 0.2 }, 4);
+      const c2 = w.collision, e1 = ((0.3 - 0.2) * 0.5) / 0.5, e2 = (2 * 0.3 * 0.5) / 0.5;
+      push("弹性 · 不等质量解析解", c2 && near(c2.w1, e1, 1e-9) && near(c2.w2, e2, 1e-9), `w1′=${e1}, w2′=${e2}`, c2 ? `w1′=${c2.w1.toFixed(12)}, w2′=${c2.w2.toFixed(12)}` : "no collision", 1e-9);
+
+      w = sim({ ...base, m1: 0.3, m2: 0.2, mode: "sticky" }, 4);
+      const c3 = w.collision, ev = (0.3 * 0.5) / 0.5;
+      push("粘合 · 合速度与动量守恒", c3 && near(c3.w1, ev, 1e-9) && near(c3.pA, c3.pB, 1e-12), `v′=${ev}, Δp=0`, c3 ? `v′=${c3.w1.toFixed(12)}, Δp=${(c3.pA - c3.pB).toExponential(2)}` : "no collision", 1e-9);
+
+      const combos = [[0.1, 0.1], [0.1, 0.4], [0.2, 0.2], [0.3, 0.15], [0.4, 0.25]];
+      let worstP = 0, worstE = 0;
+      for (const [ma, mb] of combos) for (const mode of ["elastic", "sticky"]) {
+        const ww = sim({ m1: ma, m2: mb, u1: 0.35 + 0.1 * (ma + mb), mode, alpha: 0 }, 6);
+        if (!ww.collision) { worstP = Infinity; continue; }
+        worstP = Math.max(worstP, Math.abs(ww.collision.pA - ww.collision.pB));
+        if (mode === "elastic") worstE = Math.max(worstE, Math.abs(ww.collision.keA - ww.collision.keB));
+      }
+      push("动量守恒不变量（5 组 × 2 模式）", worstP < 1e-9, "max|Σp′−Σp| < 1e-9", worstP.toExponential(2), 1e-9);
+      push("弹性碰撞动能守恒", worstE < 1e-9, "max|ΣEk′−ΣEk| < 1e-9", worstE.toExponential(2), 1e-9);
+
+      const c3r = w.collision ? 0.3 / 0.5 : null;
+      push("粘合 · 动能损失比 = m₁/(m₁+m₂)", c3 && near(c3.keA / c3.keB, c3r, 1e-9), "0.600", c3 ? (c3.keA / c3.keB).toFixed(12) : "—", 1e-9);
+
+      w = sim({ ...base, m1: 0.1, m2: 0.3 }, 4);
+      const c4 = w.collision;
+      push("弹性 · 轻撞重必反弹（方向）", c4 && c4.w1 < -1e-6 && c4.w2 > 1e-6, "w1′<0, w2′>0", c4 ? `w1′=${c4.w1.toFixed(6)}, w2′=${c4.w2.toFixed(6)}` : "no collision", "sign");
+
+      const wL = sim({ ...base, alpha: 0.3 * Math.PI / 180 }, 5);
+      const mL = wL.measured;
+      push("未调平 · 测量动量明显不守恒", mL && mL.dpPct !== null && mL.dpPct > 2, "Δp% > +2（合力沿 +x）", mL && mL.dpPct !== null ? `${mL.dpPct.toFixed(2)}%` : "—", "2%");
+
+      const wT = sim({ ...base }, 3);
+      const bEv = wT.gateEvents.find((e) => e.who === 1 && e.gate === "A" && e.dir > 0);
+      push("光电门计时量化正确", bEv && Math.abs(bEv.dtQ - 0.01 / 0.5) <= 5e-5 && Math.abs(bEv.v - 0.5) <= 0.002, "Δt=20.0 ms ±0.05, v=0.500±0.002", bEv ? `Δt=${bEv.dtMs.toFixed(1)} ms, v=${bEv.v.toFixed(4)}` : "no event", "0.05 ms");
+
+      const wA = sim({ ...base }, 4), wB = sim({ ...base }, 4, 1 / 480);
+      push("步长减半收敛（1/240 → 1/480）", wA.collision && near(wA.collision.w2, wB.collision.w2, 1e-9) && near(wA.collision.pA, wB.collision.pA, 1e-9), "相同碰撞结果", `Δw2′=${Math.abs(wA.collision.w2 - wB.collision.w2).toExponential(2)}`, 1e-9);
+
+      const wC = createWorld({ ...base }); launch(wC); advance(wC, 1.0);
+      const wD = createWorld({ ...base }); launch(wD);
+      for (let i = 0; i < 60; i += 1) advance(wD, 1 / 60);
+      push("时间流速不变性（整段 vs 分帧推进）", near(wC.b1.x, wD.b1.x, 1e-9) && near(wC.b1.v, wD.b1.v, 1e-9), "同时刻状态一致", `Δx=${Math.abs(wC.b1.x - wD.b1.x).toExponential(2)}`, 1e-9);
+
+      const wS = sim({ ...base, mode: "sticky" }, 4);
+      const mS = wS.measured;
+      push("粘合 · 碰后有整体遮光测量", mS && mS.v1p !== null && mS.v2p !== null && near(mS.v1p, mS.v2p, 1e-12) && Math.abs(mS.dpPct) <= 2, "v₁′=v₂′, |Δp%| ≤ 2", mS && mS.dpPct !== null ? `v′=${mS.v1p.toFixed(4)}, Δp%=${mS.dpPct.toFixed(2)}` : "—", "2%");
+
+      const allPass = out.every((r) => r.pass);
+      out.push({ name: "全部模型检查", pass: allPass, expected: "全部通过", actual: `${out.filter((r) => r.pass).length}/${out.length} 通过`, tolerance: "—" });
+      return out;
+    }
+
+    return { g, L, d, gl, xA, xB, qres, fixedDt, startX1, startX2, stopL, stopR, createWorld, launch, advance, finish, computeMeasured, runModelChecks };
+  })();
+  /* PHYSICS-KERNEL-END */
+  </script>
+  <script>
+  (() => {
+    "use strict";
+    const P = PHYS;
+    const SX = (x) => 90 + x * (800 / P.L);
+    const LEVEL_TOL = 0.02 * Math.PI / 180;
+    const ALPHA_MAX = 0.4 * Math.PI / 180;
+    const SCREW_STEP = 0.02 * Math.PI / 180;
+    const parameterSchema = [
+      { key: "m1", label: "滑块①质量 m₁", type: "slider", min: 0.10, max: 0.40, step: 0.01, default: 0.20, unit: "kg" },
+      { key: "m2", label: "滑块②质量 m₂", type: "slider", min: 0.10, max: 0.40, step: 0.01, default: 0.20, unit: "kg" },
+      { key: "u1", label: "初速度 v₁", type: "slider", min: 0.20, max: 0.80, step: 0.01, default: 0.50, unit: "m/s" }
+    ];
+    const state = {
+      phase: "level", alpha: 0.18 * Math.PI / 180, leveledLocked: false, skippedLevel: false,
+      params: { m1: 0.2, m2: 0.2, u1: 0.5, mode: "elastic" }, timeScale: 1,
+      world: null, running: false, lastTs: null, trials: [], gateCount: 0, screwDeg: 0
+    };
+    const $ = (id) => document.getElementById(id);
+    const el = {};
+    [
+      "status", "phaseBanner", "phaseText", "trackGroup", "holes", "ruler", "bubble", "tiltReadout", "tiltNote", "screwSlot",
+      "glider1", "glider2", "g1ridges", "g2ridges", "g1m", "g2m", "pArrow1", "pLbl1", "pArrow2", "pLbl2",
+      "ledA", "ledB", "ledA2", "ledB2", "beamA", "beamB", "dtA", "dtB", "logA", "logB",
+      "dm1", "dm2", "dmSum", "dv1", "dv2", "dp1", "dp2", "dpSum", "dw1", "dw2", "dq1", "dq2", "dqSum",
+      "barPb", "barPa", "barEb", "barEa", "valPb", "valPa", "valEb", "valEa", "verdict", "verdictText", "verdictDelta",
+      "insight", "historyBody", "historyEmpty", "historyCount",
+      "dockLevel", "dockRun", "screwCw", "screwCcw", "lockBtn", "skipLevelBtn", "levelHint",
+      "startBtn", "pauseBtn", "resetBtn", "modeElastic", "modeSticky",
+      "m1Input", "m1Output", "m2Input", "m2Output", "u1Input", "u1Output",
+      "spd05", "spd1", "spd2", "relevelBtn"
+    ].forEach((id) => { el[id] = $(id); });
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const fix = (v, n) => (v === null || v === undefined || !Number.isFinite(v) ? "—" : v.toFixed(n));
+    const g = (kg) => `${Math.round(kg * 1000)} g`;
+    const isLeveled = () => Math.abs(state.alpha) <= LEVEL_TOL + 1e-12;
+
+    function svgEl(name, attrs) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const k in attrs) node.setAttribute(k, attrs[k]);
+      return node;
+    }
+    function buildStatic() {
+      while (el.holes.firstChild) el.holes.removeChild(el.holes.firstChild);
+      for (let px = 104; px <= 876; px += 18) el.holes.appendChild(svgEl("circle", { cx: px, cy: 310.5, r: 1.6, class: "airhole" }));
+      while (el.ruler.firstChild) el.ruler.removeChild(el.ruler.firstChild);
+      for (let i = 0; i <= 15; i += 1) {
+        const x = 90 + i * (800 / 15);
+        const major = i % 5 === 0;
+        el.ruler.appendChild(svgEl("line", { x1: x, y1: 336, x2: x, y2: major ? 346 : 342, stroke: "#9fb0c2", "stroke-width": major ? 2 : 1 }));
+        if (major) {
+          const t = svgEl("text", { x, y: 360, "text-anchor": "middle", class: "svg-sub svg-num" });
+          t.textContent = `${(i / 10).toFixed(1)} m`;
+          el.ruler.appendChild(t);
+        }
+      }
+    }
+    function buildRidges() {
+      [["g1ridges"], ["g2ridges"]].forEach(([rid], i) => {
+        const node = el[rid], m = i === 0 ? state.params.m1 : state.params.m2;
+        while (node.firstChild) node.removeChild(node.firstChild);
+        const n = clamp(Math.round(m / 0.05), 1, 8);
+        for (let k = 0; k < n; k += 1) {
+          node.appendChild(svgEl("line", { x1: -26, y1: 283 + k * 3.2, x2: 26, y2: 283 + k * 3.2, stroke: "rgba(255,255,255,.4)", "stroke-width": 1.5 }));
+        }
+      });
+      el.g1m.textContent = `m₁=${g(state.params.m1)}`;
+      el.g2m.textContent = `m₂=${g(state.params.m2)}`;
+    }
+
+    function setStatus(text, cls) {
+      el.status.textContent = text;
+      el.status.className = "status" + (cls ? " " + cls : "");
+    }
+    function setPhase(phase) {
+      state.phase = phase;
+      const leveling = phase === "level";
+      el.dockLevel.hidden = !leveling;
+      el.dockRun.hidden = leveling;
+      el.phaseBanner.style.display = leveling ? "flex" : "none";
+      setControlsEnabled();
+    }
+    function setControlsEnabled() {
+      const busy = state.phase === "running" || state.phase === "paused";
+      el.startBtn.disabled = state.phase === "running";
+      el.pauseBtn.disabled = state.phase !== "running";
+      el.startBtn.textContent = state.phase === "paused" ? "继续" : (state.world && state.world.done ? "重新释放" : "释放滑块");
+      [el.m1Input, el.m2Input, el.u1Input, el.modeElastic, el.modeSticky].forEach((n) => { n.disabled = busy; });
+      el.resetBtn.disabled = state.phase === "level";
+    }
+
+    function newWorld() {
+      state.world = P.createWorld({ m1: state.params.m1, m2: state.params.m2, u1: state.params.u1, mode: state.params.mode, alpha: state.alpha });
+      state.gateCount = 0;
+      el.logA.innerHTML = '<div class="empty">等待遮光…</div>';
+      el.logB.innerHTML = '<div class="empty">等待遮光…</div>';
+      el.dtA.textContent = ""; el.dtB.textContent = "";
+      ["dv1", "dp1", "dpSum", "dw1", "dw2", "dq1", "dq2", "dqSum", "valPb", "valPa", "valEb", "valEa"].forEach((id) => { el[id].textContent = "—"; });
+      el.dv2.textContent = "0.000"; el.dp2.textContent = "0.000";
+      ["barPb", "barPa", "barEb", "barEa"].forEach((id) => { el[id].style.width = "0%"; });
+      el.verdict.className = "verdict pending";
+      el.verdictText.textContent = "释放滑块后开始测量";
+      el.verdictDelta.textContent = "";
+    }
+
+    function start() {
+      if (state.phase === "level") return;
+      if (state.phase === "paused" && state.world && !state.world.done) {
+        state.running = true;
+        state.lastTs = null;
+        setPhase("running");
+        setStatus("运行中 · 碰撞实验", "");
+        document.body.className = "running";
+        return;
+      }
+      if (!state.world || state.world.done || state.world.t > 0) newWorld();
+      el.startBtn.textContent = "释放滑块";
+      P.launch(state.world);
+      state.running = true;
+      state.lastTs = null;
+      setPhase("running");
+      setStatus("运行中 · 碰撞实验", "");
+      document.body.className = "running";
+    }
+    function pause() {
+      if (state.phase !== "running") return;
+      state.running = false;
+      setPhase("paused");
+      setStatus("已暂停", "warn");
+      document.body.className = "paused";
+    }
+    function reset() {
+      state.running = false;
+      document.body.className = "";
+      if (state.phase === "level") { render(); return; }
+      newWorld();
+      setPhase("ready");
+      setStatus(state.leveledLocked && !state.skippedLevel ? "第 2 步 · 就绪" : "第 2 步 · 就绪（导轨未调平）", state.leveledLocked && !state.skippedLevel ? "ok" : "warn");
+    }
+    function update(dt) {
+      if (!state.running || !state.world || state.world.done) return;
+      const bounded = clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
+      P.advance(state.world, bounded * state.timeScale);
+      if (state.world.done) onTrialComplete();
+    }
+    function onTrialComplete() {
+      state.running = false;
+      document.body.className = "done";
+      setPhase("done");
+      const m = state.world.measured;
+      state.trials.push({
+        n: state.trials.length + 1, mode: state.params.mode, m1: state.params.m1, m2: state.params.m2, u1: state.params.u1,
+        pB: m.pB, pA: m.pA, dpPct: m.dpPct, verdict: m.verdict, leveled: isLeveled()
+      });
+      renderHistory();
+      if (m.verdict === "pass") setStatus("已完成 · 动量守恒得到验证", "ok");
+      else if (m.verdict === "fail") setStatus("已完成 · 总动量明显改变", "warn");
+      else setStatus("已完成 · 测量不完整", "warn");
+    }
+
+    function adjustScrew(deltaRad) {
+      if (state.phase !== "level") return;
+      state.alpha = clamp(state.alpha + deltaRad, -ALPHA_MAX, ALPHA_MAX);
+      state.screwDeg += deltaRad >= 0 ? 24 : -24;
+      renderLevel();
+    }
+    function lockRail(skip) {
+      state.leveledLocked = true;
+      state.skippedLevel = !!skip;
+      newWorld();
+      setPhase("ready");
+      setStatus(skip ? "第 2 步 · 就绪（跳过了调平）" : "第 2 步 · 导轨已锁定，开始实验", skip ? "warn" : "ok");
+    }
+    function relevel() {
+      state.running = false;
+      state.leveledLocked = false; state.skippedLevel = false;
+      state.world = null;
+      document.body.className = "";
+      setPhase("level");
+      setStatus("第 1 步 · 调平导轨", "");
+      newWorld(); state.world = null;
+      renderLevel();
+    }
+
+    function renderLevel() {
+      const deg = state.alpha * 180 / Math.PI;
+      el.bubble.setAttribute("cx", (114 + clamp(deg / 0.4, -1, 1) * 50).toFixed(1));
+      el.tiltReadout.textContent = `α = ${deg >= 0 ? "+" : "−"}${Math.abs(deg).toFixed(3)}°`;
+      el.trackGroup.setAttribute("transform", `rotate(${(state.alpha * 180 / Math.PI * 8).toFixed(3)} 490 330)`);
+      el.tiltNote.style.display = isLeveled() ? "none" : "block";
+      el.screwSlot.setAttribute("transform", `rotate(${state.screwDeg} 170 443)`);
+      const ok = isLeveled();
+      el.lockBtn.disabled = !ok;
+      el.levelHint.textContent = ok ? "已调平 ✓ 可锁定导轨" : `气泡未居中（α=${deg >= 0 ? "+" : "−"}${Math.abs(deg).toFixed(3)}°）`;
+      el.levelHint.style.color = ok ? "#06715f" : "#9a5a06";
+      if (state.phase === "level") {
+        el.phaseText.textContent = ok
+          ? "导轨已水平 · 点击「锁定导轨，进入实验」"
+          : "第一步 · 调平导轨：旋转底脚螺丝，让水平仪气泡回到中心区间";
+        updateInsight();
+      }
+    }
+
+    function lastGateEvent(gate) {
+      const evs = state.world ? state.world.gateEvents : [];
+      for (let i = evs.length - 1; i >= 0; i -= 1) if (evs[i].gate === gate) return evs[i];
+      return null;
+    }
+    function renderGates() {
+      const w = state.world;
+      const ledFor = (gate, ledSvg, ledHtml, beam, dtText, log) => {
+        let on = false;
+        if (w) {
+          const active = w.b1["blocked" + gate] || (!w.lock && w.b2["blocked" + gate]);
+          const last = lastGateEvent(gate);
+          on = active || (last && w.t - last.tEnd < 0.35);
+          if (last) dtText.textContent = `${last.dir > 0 ? "→" : "←"} ${last.dtMs.toFixed(1)} ms`;
+        } else dtText.textContent = "";
+        ledSvg.style.fill = on ? "#dc2626" : "#c4d0dc";
+        ledSvg.style.filter = on ? "drop-shadow(0 0 4px rgba(220,38,38,.8))" : "none";
+        ledHtml.className = "led" + (on ? " on" : "");
+        beam.setAttribute("class", "gate-beam" + (on ? " blocked" : ""));
+      };
+      ledFor("A", el.ledA, el.ledA2, el.beamA, el.dtA, el.logA);
+      ledFor("B", el.ledB, el.ledB2, el.beamB, el.dtB, el.logB);
+      const count = w ? w.gateEvents.length : 0;
+      if (count !== state.gateCount) {
+        state.gateCount = count;
+        const fill = (node, gate) => {
+          const rows = (w ? w.gateEvents.filter((e) => e.gate === gate) : [])
+            .map((e) => `<div class="row"><span>滑块${e.who === 1 ? "①" : "②"} ${e.dir > 0 ? "→" : "←"}</span><b>${e.dtMs.toFixed(1)} ms</b><span>v=${e.v >= 0 ? "+" : "−"}${Math.abs(e.v).toFixed(3)}</span></div>`);
+          node.innerHTML = rows.length ? rows.join("") : '<div class="empty">等待遮光…</div>';
+          node.scrollTop = node.scrollHeight;
+        };
+        fill(el.logA, "A");
+        fill(el.logB, "B");
+        updateDataLive();
+      }
+    }
+
+    function updateDataLive() {
+      const w = state.world;
+      if (!w) return;
+      let before = null;
+      for (const e of w.gateEvents) if (e.who === 1 && e.gate === "A" && e.dir > 0 && (!w.collision || e.tEnd <= w.collision.t + 1e-9)) { before = e; break; }
+      if (before) {
+        el.dv1.textContent = `${before.v >= 0 ? "+" : "−"}${Math.abs(before.v).toFixed(3)}`;
+        el.dp1.textContent = (state.params.m1 * before.v).toFixed(4);
+        el.dpSum.textContent = (state.params.m1 * before.v).toFixed(4);
+        el.valPb.textContent = `${(state.params.m1 * before.v).toFixed(4)}`;
+        el.barPb.style.width = "100%";
+        el.valEb.textContent = (0.5 * state.params.m1 * before.v * before.v).toFixed(4);
+        el.barEb.style.width = "100%";
+      }
+      const m = w.done ? w.measured : null;
+      if (m) {
+        el.dw1.textContent = m.v1p === null ? "未测得" : `${m.v1p >= 0 ? "+" : "−"}${Math.abs(m.v1p).toFixed(3)}`;
+        el.dw2.textContent = m.v2p === null ? "未测得" : `${m.v2p >= 0 ? "+" : "−"}${Math.abs(m.v2p).toFixed(3)}`;
+        el.dq1.textContent = m.p1q === null ? "—" : m.p1q.toFixed(4);
+        el.dq2.textContent = m.p2q === null ? "—" : m.p2q.toFixed(4);
+        el.dqSum.textContent = m.pA === null ? "—" : m.pA.toFixed(4);
+        if (m.pA !== null && m.pB !== null) {
+          const mx = Math.max(Math.abs(m.pB), Math.abs(m.pA), 1e-9);
+          el.barPa.style.width = `${(Math.abs(m.pA) / mx) * 100}%`;
+          el.valPa.textContent = m.pA.toFixed(4);
+        }
+        if (m.eA !== null && m.eB !== null) {
+          const mx = Math.max(Math.abs(m.eB), Math.abs(m.eA), 1e-9);
+          el.barEa.style.width = `${(Math.abs(m.eA) / mx) * 100}%`;
+          el.valEa.textContent = m.eA.toFixed(4);
+        }
+        if (m.verdict === "pass") {
+          el.verdict.className = "verdict pass";
+          el.verdictText.textContent = "总动量守恒 ✓（|Δp| 在 ±2% 误差带内）";
+        } else if (m.verdict === "fail") {
+          el.verdict.className = "verdict fail";
+          el.verdictText.textContent = "总动量不守恒 ✗ · 检查导轨是否调平";
+        } else {
+          el.verdict.className = "verdict pending";
+          el.verdictText.textContent = "测量不完整（部分速度未测得）";
+        }
+        el.verdictDelta.textContent = m.dpPct === null ? "" : `Δp = ${m.dpPct >= 0 ? "+" : "−"}${Math.abs(m.dpPct).toFixed(2)}%`;
+      }
+      el.dm1.textContent = state.params.m1.toFixed(3);
+      el.dm2.textContent = state.params.m2.toFixed(3);
+      el.dmSum.textContent = (state.params.m1 + state.params.m2).toFixed(3);
+    }
+
+    function updateInsight() {
+      const t = el.insight;
+      const w = state.world;
+      if (state.phase === "level") {
+        t.className = "insight";
+        t.textContent = isLeveled()
+          ? "气泡已回到中心：导轨近似水平，滑块系统所受合力≈0。锁定导轨，进入碰撞实验。"
+          : "导轨不水平时，重力沿导轨方向的分量是系统外的合力，会改变总动量。先把气泡调回中心区间。";
+        return;
+      }
+      if (state.phase === "ready") {
+        t.className = "insight";
+        t.textContent = state.skippedLevel
+          ? "故意未调平：释放后观察总动量是否还能保持不变。"
+          : "设定质量与初速度后点「释放滑块」。预测一下：两滑块碰后的速度各是多少？";
+        return;
+      }
+      const m = w && w.done ? w.measured : null;
+      if (!m) {
+        t.className = "insight";
+        t.textContent = w && w.collisions > 0
+          ? "已碰撞！观察两滑块的运动，等光电门记下碰后遮光时间。"
+          : "滑块①正沿气垫接近滑块②，注意光电门 A 的遮光时间。";
+        return;
+      }
+      if (m.verdict === "fail") {
+        t.className = "insight fail";
+        t.textContent = `碰前 Σp=${m.pB.toFixed(4)}，碰后 Σp′=${m.pA.toFixed(4)}：总动量改变了 ${Math.abs(m.dpPct).toFixed(2)}%。导轨未调平，重力分量提供了外力——这正是实验前必须调平导轨的原因。`;
+        return;
+      }
+      t.className = "insight ok";
+      const ke = m.dEPct !== null ? ` 动能变化 ${m.dEPct >= 0 ? "+" : "−"}${Math.abs(m.dEPct).toFixed(1)}%。` : "";
+      t.textContent = `碰前 Σp=${m.pB.toFixed(4)} kg·m/s，碰后 Σp′=${m.pA.toFixed(4)} kg·m/s，|Δp|=${Math.abs(m.dpPct).toFixed(2)}% < 2%：总动量保持不变，动量守恒得到验证。${state.params.mode === "sticky" ? ke + "粘合碰撞损失动能，但动量依然守恒。" : ke}`;
+    }
+
+    function renderHistory() {
+      el.historyCount.textContent = `共 ${state.trials.length} 次`;
+      el.historyEmpty.style.display = state.trials.length ? "none" : "block";
+      el.historyBody.innerHTML = state.trials.map((t) => {
+        const mode = t.mode === "sticky" ? "粘合" : "弹性";
+        const dp = t.dpPct === null ? "—" : `${t.dpPct >= 0 ? "+" : "−"}${Math.abs(t.dpPct).toFixed(2)}%`;
+        const cls = t.verdict === "pass" ? "good" : t.verdict === "fail" ? "bad" : "";
+        const res = t.verdict === "pass" ? "守恒" : t.verdict === "fail" ? "不守恒" : "不完整";
+        return `<tr><td>${t.n}</td><td>${mode}</td><td>${Math.round(t.m1 * 1000)}</td><td>${Math.round(t.m2 * 1000)}</td><td>${t.u1.toFixed(2)}</td><td>${t.pB === null ? "—" : t.pB.toFixed(4)}</td><td>${t.pA === null ? "—" : t.pA.toFixed(4)}</td><td class="${cls}">${dp}</td><td class="${cls}">${res}</td></tr>`;
+      }).join("");
+    }
+
+    function renderScene() {
+      const w = state.world;
+      if (w) {
+        el.glider1.setAttribute("transform", `translate(${SX(w.b1.x).toFixed(2)},0)`);
+        el.glider2.setAttribute("transform", `translate(${SX(w.b2.x).toFixed(2)},0)`);
+        const arrows = [[w.b1, el.pArrow1, el.pLbl1, "p₁"], [w.b2, el.pArrow2, el.pLbl2, "p₂"]];
+        for (const [b, arrow, lbl, name] of arrows) {
+          const p = b.m * b.v;
+          if (state.phase !== "level" && Math.abs(b.v) > 1e-4) {
+            const len = clamp(14 + Math.abs(p) * 520, 14, 165) * (b.v > 0 ? 1 : -1);
+            arrow.setAttribute("x1", "0"); arrow.setAttribute("x2", len.toFixed(1));
+            arrow.setAttribute("visibility", "visible");
+            lbl.setAttribute("visibility", "visible");
+            lbl.setAttribute("x", (len + (b.v > 0 ? 26 : -26)).toFixed(1));
+            lbl.textContent = `${name}=${p >= 0 ? "+" : "−"}${Math.abs(p).toFixed(3)}`;
+          } else {
+            arrow.setAttribute("visibility", "hidden");
+            lbl.setAttribute("visibility", "hidden");
+          }
+        }
+      } else {
+        el.glider1.setAttribute("transform", `translate(${SX(P.startX1)},0)`);
+        el.glider2.setAttribute("transform", `translate(${SX(P.startX2)},0)`);
+        el.pArrow1.setAttribute("visibility", "hidden"); el.pArrow2.setAttribute("visibility", "hidden");
+        el.pLbl1.setAttribute("visibility", "hidden"); el.pLbl2.setAttribute("visibility", "hidden");
+      }
+      renderLevel();
+    }
+
+    function render() {
+      renderScene();
+      renderGates();
+      updateDataLive();
+      updateInsight();
+      el.m1Output.textContent = g(state.params.m1);
+      el.m2Output.textContent = g(state.params.m2);
+      el.u1Output.textContent = `${state.params.u1.toFixed(2)} m/s`;
+    }
+
+    function setParameters(values) {
+      const map = { m1: 0, m2: 1, u1: 2 };
+      for (const key in map) {
+        const def = parameterSchema[map[key]];
+        if (key in values) state.params[key] = clamp(Number(values[key]) || def.default, def.min, def.max);
+      }
+      el.m1Input.value = String(state.params.m1);
+      el.m2Input.value = String(state.params.m2);
+      el.u1Input.value = String(state.params.u1);
+      if (values.mode === "elastic" || values.mode === "sticky") state.params.mode = values.mode;
+      el.modeElastic.setAttribute("aria-pressed", String(state.params.mode === "elastic"));
+      el.modeSticky.setAttribute("aria-pressed", String(state.params.mode === "sticky"));
+      buildRidges();
+      if (state.world && state.world.t === 0 && !state.world.launched) newWorld();
+      render();
+    }
+    function getState() {
+      const w = state.world;
+      return {
+        phase: state.phase, running: state.running, alpha: state.alpha, params: { ...state.params },
+        t: w ? w.t : 0, x1: w ? w.b1.x : P.startX1, v1: w ? w.b1.v : 0, x2: w ? w.b2.x : P.startX2, v2: w ? w.b2.v : 0,
+        lock: w ? w.lock : false, done: w ? w.done : false, trialCount: state.trials.length
+      };
+    }
+    function getReadouts() {
+      const w = state.world;
+      return {
+        alphaDeg: state.alpha * 180 / Math.PI, mode: state.params.mode,
+        m1: state.params.m1, m2: state.params.m2, u1: state.params.u1,
+        t: w ? w.t : 0, v1: w ? w.b1.v : 0, v2: w ? w.b2.v : 0,
+        pTotal: w ? state.params.m1 * w.b1.v + state.params.m2 * w.b2.v : 0,
+        verdict: w && w.done && w.measured ? w.measured.verdict : "pending"
+      };
+    }
+
+    function bindControls() {
+      el.screwCw.addEventListener("click", () => adjustScrew(SCREW_STEP));
+      el.screwCcw.addEventListener("click", () => adjustScrew(-SCREW_STEP));
+      el.lockBtn.addEventListener("click", () => lockRail(false));
+      el.skipLevelBtn.addEventListener("click", () => lockRail(true));
+      el.startBtn.addEventListener("click", () => { if (state.phase === "running") return; start(); });
+      el.pauseBtn.addEventListener("click", pause);
+      el.resetBtn.addEventListener("click", reset);
+      el.relevelBtn.addEventListener("click", relevel);
+      el.modeElastic.addEventListener("click", () => setParameters({ mode: "elastic" }));
+      el.modeSticky.addEventListener("click", () => setParameters({ mode: "sticky" }));
+      el.m1Input.addEventListener("input", () => setParameters({ m1: el.m1Input.value }));
+      el.m2Input.addEventListener("input", () => setParameters({ m2: el.m2Input.value }));
+      el.u1Input.addEventListener("input", () => setParameters({ u1: el.u1Input.value }));
+      const setSpeed = (v, btn) => {
+        state.timeScale = v;
+        [el.spd05, el.spd1, el.spd2].forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      };
+      el.spd05.addEventListener("click", () => setSpeed(0.5, el.spd05));
+      el.spd1.addEventListener("click", () => setSpeed(1, el.spd1));
+      el.spd2.addEventListener("click", () => setSpeed(2, el.spd2));
+    }
+
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+    function init() {
+      buildStatic();
+      buildRidges();
+      bindControls();
+      setParameters({ m1: 0.2, m2: 0.2, u1: 0.5, mode: "elastic" });
+      setPhase("level");
+      setStatus("第 1 步 · 调平导轨", "");
+      renderLevel();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: P.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

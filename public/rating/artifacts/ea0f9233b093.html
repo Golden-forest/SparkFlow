@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>平抛运动演示 · 平抛 vs 自由落体</title>
+<style>
+:root{
+  --bg:#0b1020; --line:#2a3a5c; --txt:#e8edf7; --muted:#8fa3c8;
+  --orange:#ffb454; --cyan:#57d4ff; --green:#7ee787; --red:#ff7b72;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:radial-gradient(1100px 700px at 75% -10%,#20305a 0%,#0b1020 60%);
+  color:var(--txt);padding:18px 16px 34px;min-height:100vh;
+}
+.app{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font-size:21px;letter-spacing:.5px}
+.sub{color:var(--muted);font-size:13px}
+.layout{display:flex;gap:16px;margin-top:14px;align-items:flex-start;flex-wrap:wrap}
+
+/* ---------- 舞台 ---------- */
+.stage{position:relative;flex:1 1 620px;min-width:320px;background:linear-gradient(180deg,#0d1628,#0a1120);
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+canvas{display:block;width:100%;aspect-ratio:16/10;min-height:250px}
+.hud{position:absolute;top:10px;left:12px;pointer-events:none;
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  background:rgba(8,13,26,.68);border:1px solid #26365a;border-radius:10px;padding:8px 12px;backdrop-filter:blur(4px)}
+.hud .t{font-size:22px;font-weight:700;color:var(--orange)}
+.hud .y{font-size:12px;color:var(--cyan);margin-top:2px}
+.hud .k{font-size:10px;color:var(--muted);margin-top:4px}
+.legend{position:absolute;top:10px;right:12px;display:flex;gap:10px;pointer-events:none;
+  background:rgba(8,13,26,.68);border:1px solid #26365a;border-radius:10px;padding:6px 10px;font-size:11px;color:#c6d4ee;backdrop-filter:blur(4px)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.banner{position:absolute;left:50%;bottom:12px;transform:translateX(-50%) translateY(20px);
+  background:rgba(19,46,30,.94);border:1px solid #2f7a45;color:#c9f2d4;padding:9px 18px;border-radius:10px;
+  font-size:14px;font-weight:600;opacity:0;transition:.35s;pointer-events:none;white-space:nowrap;max-width:95%;overflow:hidden;text-overflow:ellipsis}
+.banner.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- 控制面板 ---------- */
+.panel{flex:0 0 330px;background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:14px;
+  padding:16px;display:flex;flex-direction:column;gap:13px}
+.card{background:#0b1322;border:1px solid #223252;border-radius:10px;padding:11px 12px}
+.card .k{font-size:11px;color:var(--muted);margin-bottom:7px;letter-spacing:1px}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.ctl b{font-family:ui-monospace,Consolas,monospace;color:var(--orange);font-size:14px}
+input[type=range]{width:100%;accent-color:#ffb454;height:22px;cursor:pointer}
+select{width:100%;background:#0b1322;color:var(--txt);border:1px solid #2a3a5c;border-radius:8px;padding:7px 8px;font-size:13px}
+.btnrow{display:flex;gap:8px}
+button{cursor:pointer;border:none;border-radius:9px;font-size:14px;font-weight:600;font-family:inherit;transition:.15s}
+.btn{flex:1;padding:10px 0;background:linear-gradient(135deg,#ffb454,#ff8a3d);color:#221505}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{flex:0 0 92px;background:#1a2742;color:#c6d4ee;border:1px solid #2a3a5c}
+.btn.ghost:hover{background:#24345a}
+.seg{display:flex;background:#0b1322;border:1px solid #223252;border-radius:9px;padding:3px;gap:3px}
+.seg button{flex:1;padding:6px 0;background:transparent;color:var(--muted);font-size:12.5px;border-radius:7px}
+.seg button.active{background:#2b3f6b;color:#fff}
+.checks{display:flex;flex-direction:column;gap:7px;font-size:13.5px}
+.checks label{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.checks input{accent-color:#57d4ff;width:15px;height:15px;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.box{background:#0b1322;border:1px solid #223252;border-radius:8px;padding:7px 9px}
+.box .k{font-size:10.5px;color:var(--muted)}
+.box .v{font-family:ui-monospace,Consolas,monospace;font-size:15px;margin-top:2px}
+.box .v.o{color:var(--orange)} .box .v.c{color:var(--cyan)} .box .v.g{color:var(--green)}
+.formula div{font-size:12.5px;line-height:1.9;font-family:ui-monospace,Consolas,monospace;color:#c6d4ee}
+.formula .hl{color:var(--green);font-weight:700}
+.foot{font-size:11.5px;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🎯 平抛运动演示</h1>
+    <div class="sub">水平抛出的小球 vs 同高度自由下落的小球 —— 到底谁先落地？</div>
+  </header>
+
+  <div class="layout">
+    <!-- 舞台 -->
+    <div class="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud">
+        <div class="t" id="hudT">t = 0.00 s</div>
+        <div class="y" id="hudY">两球高度 y = 10.00 m</div>
+        <div class="k">空格：开始/暂停 &nbsp;·&nbsp; R：重置</div>
+      </div>
+      <div class="legend">
+        <span><i style="background:#ff7b72"></i>vx</span>
+        <span><i style="background:#57d4ff"></i>vy</span>
+        <span><i style="background:#7ee787"></i>v合</span>
+      </div>
+      <div class="banner" id="banner"></div>
+    </div>
+
+    <!-- 控制面板 -->
+    <aside class="panel">
+      <div class="ctl card">
+        <div class="k">参数设置（改动后自动复位）</div>
+        <label>初速度 v₀ <b id="v0val">6.0 m/s</b></label>
+        <input type="range" id="inV0" min="1" max="15" step="0.5" value="6">
+        <label style="margin-top:10px">抛出高度 h <b id="hval">10.0 m</b></label>
+        <input type="range" id="inH" min="1" max="20" step="0.5" value="10">
+        <label style="margin-top:10px">重力加速度 g</label>
+        <select id="inG">
+          <option value="9.8" selected>地球 🌍 9.80 m/s²</option>
+          <option value="1.62">月球 🌙 1.62 m/s²</option>
+          <option value="3.71">火星 🔴 3.71 m/s²</option>
+          <option value="24.79">木星 🪐 24.79 m/s²</option>
+        </select>
+      </div>
+
+      <div>
+        <div class="btnrow">
+          <button class="btn" id="btnRun">▶ 开始</button>
+          <button class="ghost" id="btnReset">↺ 重置</button>
+        </div>
+        <div class="seg" id="spd" style="margin-top:8px">
+          <button data-s="0.25">0.25×</button>
+          <button data-s="0.5">0.5×</button>
+          <button data-s="1" class="active">1×</button>
+          <button data-s="2">2×</button>
+        </div>
+      </div>
+
+      <div class="card checks">
+        <div class="k">显示选项</div>
+        <label><input type="checkbox" id="ckVec" checked>分速度矢量 vx、vy（自由落体球也显示 vy）</label>
+        <label><input type="checkbox" id="ckV" checked>合速度矢量 v</label>
+        <label><input type="checkbox" id="ckStrobe" checked>频闪照片（等时间隔记录位置）</label>
+        <label><input type="checkbox" id="ckPred" checked>预测轨迹（虚线抛物线）</label>
+        <label><input type="checkbox" id="ckCmp" checked>对比：同高度自由下落的小球</label>
+      </div>
+
+      <div class="card">
+        <div class="k">实时数据</div>
+        <div class="grid2">
+          <div class="box"><div class="k">时间 t</div><div class="v o" id="oT">0.00 s</div></div>
+          <div class="box"><div class="k">水平位移 x</div><div class="v o" id="oX">0.00 m</div></div>
+          <div class="box"><div class="k">高度 y</div><div class="v c" id="oY">10.00 m</div></div>
+          <div class="box"><div class="k">两球高度差</div><div class="v g" id="oD">0.00 m ✓</div></div>
+          <div class="box"><div class="k">vx（不变）</div><div class="v" style="color:#ff9d94" id="oVx">6.0 m/s</div></div>
+          <div class="box"><div class="k">vy（增大）</div><div class="v" style="color:#57d4ff" id="oVy">0.0 m/s</div></div>
+          <div class="box"><div class="k">落地时间 √(2h/g)</div><div class="v g" id="oTf">1.43 s</div></div>
+          <div class="box"><div class="k">射程 v₀√(2h/g)</div><div class="v o" id="oR">8.57 m</div></div>
+        </div>
+      </div>
+
+      <div class="card formula">
+        <div class="k">物理规律</div>
+        <div>水平方向：x = v₀t （匀速直线）</div>
+        <div>竖直方向：y = h − ½gt² （自由落体）</div>
+        <div class="hl">落地时间 t = √(2h/g)，与 v₀ 无关！</div>
+        <div>射程 R = v₀ · √(2h/g)</div>
+      </div>
+
+      <div class="foot">💡 试试：只改初速度 v₀，观察落地时间是否变化；开启频闪照片，可看到每个相等时间间隔内两球高度始终相同、平抛球水平间距均匀。</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const inV0=$('inV0'), inH=$('inH'), inG=$('inG'),
+      ckVec=$('ckVec'), ckV=$('ckV'), ckStrobe=$('ckStrobe'), ckPred=$('ckPred'), ckCmp=$('ckCmp'),
+      btnRun=$('btnRun'), btnReset=$('btnReset'), spd=$('spd'), banner=$('banner'),
+      hudT=$('hudT'), hudY=$('hudY'),
+      oT=$('oT'),oX=$('oX'),oY=$('oY'),oD=$('oD'),oVx=$('oVx'),oVy=$('oVy'),oTf=$('oTf'),oR=$('oR');
+
+/* ---------- 世界常量（米） ---------- */
+const LX=2.2;   // 平抛球抛出点（平台右缘）的横坐标
+const FX=0.62;  // 自由落体小球的横坐标
+const POLE=0.28;// 悬挂立柱横坐标
+
+/* ---------- 状态 ---------- */
+const S={v0:6,h0:10,g:9.8,speed:1,t:0,running:false,finished:false,flash:0};
+
+function tf(){ return Math.sqrt(2*S.h0/S.g); }              // 落地时间
+function posP(t){ return {x:LX+S.v0*t, y:Math.max(0,S.h0-0.5*S.g*t*t)}; } // 平抛球
+function posY(t){ return Math.max(0,S.h0-0.5*S.g*t*t); }    // 自由落体球高度（与平抛球相同）
+
+/* ---------- 控制 ---------- */
+function updateBtn(){
+  btnRun.textContent = S.running ? '⏸ 暂停' : (S.finished ? '↺ 重新开始' : (S.t>0?'▶ 继续':'▶ 开始'));
+}
+function reset(){ S.t=0;S.running=false;S.finished=false;S.flash=0;banner.classList.remove('show');updateBtn(); }
+function onRun(){
+  if(S.finished){ reset(); S.running=true; }
+  else S.running=!S.running;
+  updateBtn();
+}
+btnRun.addEventListener('click',onRun);
+btnReset.addEventListener('click',reset);
+spd.addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  S.speed=parseFloat(b.dataset.s);
+  spd.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
+});
+function readParams(){
+  S.v0=parseFloat(inV0.value); S.h0=parseFloat(inH.value); S.g=parseFloat(inG.value);
+  $('v0val').textContent=S.v0.toFixed(1)+' m/s';
+  $('hval').textContent=S.h0.toFixed(1)+' m';
+  reset();
+}
+[inV0,inH,inG].forEach(el=>el.addEventListener('input',readParams));
+window.addEventListener('keydown',e=>{
+  if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;
+  if(e.code==='Space'){e.preventDefault();onRun();}
+  else if(e.key==='r'||e.key==='R'){reset();}
+});
+
+/* ---------- 画布尺寸 ---------- */
+function fit(){
+  const r=cv.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  const w=Math.max(300,Math.round(r.width)), h=Math.max(220,Math.round(r.height));
+  if(cv.width!==Math.round(w*d)||cv.height!==Math.round(h*d)){cv.width=Math.round(w*d);cv.height=Math.round(h*d);}
+  ctx.setTransform(d,0,0,d,0,0);
+  return {W:w,H:h};
+}
+
+/* ---------- 绘图工具 ---------- */
+function arrow(x1,y1,x2,y2,color,label,lw){
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+  if(len<3)return;
+  const a=Math.atan2(dy,dx), head=Math.min(10,len*0.45);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw||2.5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*head*0.5,y2-Math.sin(a)*head*0.5);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-Math.cos(a-0.42)*head,y2-Math.sin(a-0.42)*head);
+  ctx.lineTo(x2-Math.cos(a+0.42)*head,y2-Math.sin(a+0.42)*head);
+  ctx.closePath();ctx.fill();
+  if(label){ctx.font='700 12px ui-monospace,Consolas,monospace';ctx.fillText(label,x2+Math.cos(a)*7-3,y2+Math.sin(a)*7+4);}
+}
+function ball(x,y,r,c1,c2){
+  const g=ctx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+  g.addColorStop(0,c1);g.addColorStop(1,c2);
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=1;ctx.stroke();
+}
+
+/* ---------- 主绘制 ---------- */
+function draw(){
+  const {W,H}=fit();
+  ctx.clearRect(0,0,W,H);
+  const v0=S.v0,h0=S.h0,g=S.g, T=tf(), t=Math.min(S.t,T);
+  const cmp=ckCmp.checked;
+
+  /* 版面：地面、缩放 */
+  const padL=34,padR=16,top=14,gBottom=34;
+  const groundY=H-gBottom, R=v0*T;
+  const worldW=Math.max(R+1.2,5.5), worldH=h0+1.1;
+  const s=Math.min((groundY-top)/worldH,(W-padL-padR)/worldW);
+  const X=x=>padL+x*s, Y=y=>groundY-y*s;
+  const rB=Math.max(6,Math.min(13,0.17*s));      // 小球半径(像素)
+  const PY=y=>Y(y)-rB;                            // 球心(视觉上不陷入地面)
+
+  /* 网格与刻度 */
+  const gs=[0.5,1,2,5,10,20].find(v=>v*s>=44)||20;
+  ctx.font='10px ui-monospace,Consolas,monospace';
+  ctx.strokeStyle='rgba(255,255,255,.055)';ctx.lineWidth=1;
+  for(let y=gs;y<=worldH;y+=gs){
+    const yy=Y(y); ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(W-padR,yy);ctx.stroke();
+    ctx.fillStyle='rgba(160,180,215,.75)';ctx.textAlign='left';ctx.fillText(y+'m',4,yy+3);
+  }
+  for(let x=gs;x<=worldW;x+=gs){
+    const xx=X(x); ctx.beginPath();ctx.moveTo(xx,top);ctx.lineTo(xx,groundY);ctx.stroke();
+    ctx.fillStyle='rgba(160,180,215,.75)';ctx.textAlign='center';ctx.fillText(x+'m',xx,groundY+16);
+  }
+
+  /* 地面 */
+  ctx.fillStyle='#141d33';ctx.fillRect(0,groundY,W,gBottom);
+  ctx.strokeStyle='#3d5384';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,groundY);ctx.lineTo(W,groundY);ctx.stroke();
+  ctx.strokeStyle='rgba(120,150,205,.35)';ctx.lineWidth=1;
+  for(let x=6;x<W;x+=15){ctx.beginPath();ctx.moveTo(x,groundY+3);ctx.lineTo(x-7,groundY+11);ctx.stroke();}
+
+  /* 立柱 + 悬挂（自由落体球） */
+  if(cmp){
+    ctx.strokeStyle='#4d6290';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(X(POLE),groundY);ctx.lineTo(X(POLE),Y(h0+0.55));ctx.stroke();  // 立柱
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(X(POLE),Y(h0+0.55));ctx.lineTo(X(FX),Y(h0+0.55));ctx.stroke(); // 横臂
+    ctx.beginPath();ctx.moveTo(X(FX),Y(h0+0.55));ctx.lineTo(X(FX),PY(h0)+rB*0.4);ctx.stroke();// 悬线
+  }
+
+  /* 平台 */
+  const pl=X(1.15), pr=X(LX), pt=Y(h0);
+  ctx.fillStyle='#5a6f9c';ctx.fillRect(pl,pt,pr-pl,7);
+  ctx.fillStyle='#44587f';
+  ctx.fillRect(pl+3,pt+7,4,groundY-pt-7);
+  ctx.fillRect(pr-7,pt+7,4,groundY-pt-7);
+
+  /* 预测轨迹（虚线抛物线） */
+  if(ckPred.checked){
+    ctx.strokeStyle='rgba(255,180,84,.32)';ctx.lineWidth=1.5;ctx.setLineDash([5,6]);
+    ctx.beginPath();
+    for(let i=0;i<=64;i++){const ti=T*i/64, p=posP(ti);
+      i?ctx.lineTo(X(p.x),PY(p.y)):ctx.moveTo(X(p.x),PY(p.y));}
+    ctx.stroke();ctx.setLineDash([]);
+  }
+
+  /* 频闪照片：等时间隔的“照片”记录 */
+  const dtS=Math.min(0.4,Math.max(0.08,T/6));
+  const nMax=Math.floor(T/dtS), showLbl=nMax<=8?()=>true:k=>k%2===0;
+  if(ckStrobe.checked){
+    ctx.font='10px ui-monospace,Consolas,monospace';
+    for(let k=1;k*dtS<=t+1e-9;k++){
+      const tt=k*dtS; if(tt>=T-1e-4)break;
+      const p=posP(tt), fy=posY(tt), y1=PY(p.y), y2=PY(fy);
+      ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1;ctx.setLineDash([2,4]);
+      ctx.beginPath();ctx.moveTo(X(FX),y2);ctx.lineTo(X(p.x),y1);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='rgba(255,180,84,.18)';ctx.strokeStyle='rgba(255,180,84,.9)';
+      ctx.beginPath();ctx.arc(X(p.x),y1,4,0,7);ctx.fill();ctx.stroke();
+      if(cmp){ctx.fillStyle='rgba(87,212,255,.18)';ctx.strokeStyle='rgba(87,212,255,.9)';
+        ctx.beginPath();ctx.arc(X(FX),y2,4,0,7);ctx.fill();ctx.stroke();}
+      if(showLbl(k)){ctx.fillStyle='#9fb4d8';ctx.textAlign='center';
+        ctx.fillText(tt.toFixed(2)+'s',(X(FX)+X(p.x))/2,y1-6);}
+    }
+  }
+
+  /* 实时轨迹 */
+  const cur=posP(t), yF=posY(t);
+  if(t>0){
+    ctx.strokeStyle='#ffb454';ctx.lineWidth=2.5;ctx.lineCap='round';
+    ctx.shadowColor='rgba(255,180,84,.6)';ctx.shadowBlur=7;
+    ctx.beginPath();
+    const n=Math.max(8,Math.floor(64*t/T));
+    for(let i=0;i<=n;i++){const ti=t*i/n,p=posP(ti);
+      i?ctx.lineTo(X(p.x),PY(p.y)):ctx.moveTo(X(p.x),PY(p.y));}
+    ctx.stroke();ctx.shadowBlur=0;
+    if(cmp){ // 自由落体球的竖直轨迹
+      ctx.strokeStyle='rgba(87,212,255,.8)';ctx.lineWidth=2;ctx.setLineDash([4,5]);
+      ctx.beginPath();ctx.moveTo(X(FX),PY(h0));ctx.lineTo(X(FX),PY(yF));ctx.stroke();ctx.setLineDash([]);
+    }
+  }
+
+  /* 两球等高虚线（关键对比） */
+  if(cmp&&!S.finished&&t>0&&cur.y>0.05){
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.setLineDash([3,5]);
+    ctx.beginPath();ctx.moveTo(X(FX),PY(yF));ctx.lineTo(X(cur.x),PY(cur.y));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(220,232,255,.85)';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText('同高',(X(FX)+X(cur.x))/2,PY(yF)-8);
+  }
+
+  /* 小球 */
+  const bx=X(cur.x), by=PY(cur.y), fx=X(FX), fy=PY(yF);
+  ball(bx,by,rB,'#ffd9a0','#e08a2a');
+  if(cmp){
+    ball(fx,fy,rB,'#b8ecff','#2b8fc4');
+    ctx.fillStyle='#8fdcff';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText('自由落体球',fx,Math.min(H-10,fy+rB+14));
+  }
+  ctx.fillStyle='#ffd9a0';ctx.font='11px system-ui';ctx.textAlign='right';
+  ctx.fillText('平抛球',Math.max(46,bx-rB-6),Math.max(24,by-rB-8));
+
+  /* 速度矢量 */
+  if(ckVec.checked||ckV.checked){
+    const k=Math.max(2.2,Math.min(9,110/Math.hypot(v0,g*T)));  // (m/s)→px
+    if(ckVec.checked){
+      arrow(bx,by,bx+v0*k,by,'#ff7b72','vx',2.5);          // 水平分量(不变)
+      const vy=g*t*k;
+      arrow(bx,by,bx,by+vy,'#57d4ff','vy',2.5);             // 竖直分量(增大)
+      if(cmp) arrow(fx,fy,fx,fy+vy,'#57d4ff','',1.8);       // 自由落体球 vy 相同
+    }
+    if(ckV.checked){
+      const vx=v0*k,vy=g*t*k;
+      ctx.setLineDash([6,4]);
+      arrow(bx,by,bx+vx,by+vy,'#7ee787','v',2);
+      ctx.setLineDash([]);
+    }
+  }
+
+  /* 落地效果 */
+  if(S.finished){
+    const pts=[[X(LX+R),'#ffb454']]; if(cmp)pts.push([X(FX),'#57d4ff']);
+    pts.forEach(([x,c])=>{
+      if(S.flash<0.9){
+        ctx.strokeStyle=c;ctx.globalAlpha=1-S.flash/0.9;ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(x,groundY,8+S.flash*70,0,7);ctx.stroke();ctx.globalAlpha=1;
+      }
+      ctx.fillStyle=c;ctx.beginPath();
+      ctx.moveTo(x,groundY-1);ctx.lineTo(x-5,groundY-9);ctx.lineTo(x+5,groundY-9);ctx.closePath();ctx.fill();
+      ctx.font='700 12px ui-monospace,Consolas,monospace';ctx.textAlign='center';
+      ctx.fillText('t='+T.toFixed(2)+'s',x,groundY-16);
+    });
+  }
+
+  /* HUD / 数据面板 */
+  hudT.textContent='t = '+t.toFixed(2)+' s';
+  hudY.textContent=cmp?('两球高度 y = '+cur.y.toFixed(2)+' m'):'高度 y = '+cur.y.toFixed(2)+' m';
+  oT.textContent=t.toFixed(2)+' s';
+  oX.textContent=(cur.x-LX).toFixed(2)+' m';
+  oY.textContent=cur.y.toFixed(2)+' m';
+  oD.textContent=cmp?'0.00 m ✓':'—';
+  oVx.textContent=v0.toFixed(1)+' m/s';
+  oVy.textContent=(g*t).toFixed(1)+' m/s';
+  oTf.textContent=T.toFixed(2)+' s';
+  oR.textContent=R.toFixed(2)+' m';
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05); last=now;
+  if(S.running){
+    S.t+=dt*S.speed;
+    const T=tf();
+    if(S.t>=T){
+      S.t=T;S.running=false;S.finished=true;S.flash=0;
+      banner.textContent=ckCmp.checked
+        ? '🟠🔵 同时落地！t = '+T.toFixed(2)+' s —— 平抛的竖直分运动就是自由落体'
+        : '🟠 落地！t = '+T.toFixed(2)+' s';
+      banner.classList.add('show'); updateBtn();
+    }
+  }
+  if(S.finished)S.flash+=dt;
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

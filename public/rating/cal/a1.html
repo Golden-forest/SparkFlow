@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>氢原子能级跃迁交互仿真</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b0f17;color:#dbe4f0;font:14px/1.5 system-ui,"Microsoft YaHei",sans-serif}
+header{padding:14px 20px;border-bottom:1px solid #22304a}
+h1{font-size:20px;margin:0 0 4px}
+header p{margin:0;color:#8fa3c0;font-size:13px}
+main{display:flex;flex-wrap:wrap;gap:14px;padding:14px 20px;align-items:flex-start}
+.panel{background:#111826;border:1px solid #22304a;border-radius:10px;padding:10px 12px}
+.panel h2{font-size:14px;margin:2px 0 8px;color:#9bd1ff;font-weight:600}
+canvas{display:block;width:100%;height:auto;background:#0d1320;border-radius:6px}
+#cvLevels{cursor:pointer}
+.hint{font-size:12px;color:#7d8ca6;margin:6px 0 0}
+#left{flex:0 0 396px;max-width:100%}
+#mid{flex:1 1 420px;min-width:340px}
+#right{flex:0 0 352px;max-width:100%}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+button{background:#1f6feb;color:#fff;border:0;border-radius:6px;padding:7px 12px;cursor:pointer;font-size:13px}
+button:hover{background:#3b82f6}
+button.alt{background:#26344d}button.alt:hover{background:#33456a}
+input[type=range]{flex:1;accent-color:#3b82f6;min-width:120px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;margin:8px 0}
+.kv b{color:#9bd1ff;font-weight:600}
+.mono{font-family:ui-monospace,Consolas,monospace}
+#msg{min-height:38px;font-size:13px;border-left:3px solid #3b82f6;padding:4px 8px;background:#0d1424;border-radius:4px;margin:8px 0}
+#msg.good{border-color:#3fb950}#msg.bad{border-color:#f85149}#msg.warn{border-color:#f0b429}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+td,th{padding:3px 6px;border-bottom:1px solid #22304a;text-align:left}
+tr.hit td{background:#173a2a;color:#b9f6ca}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+footer{padding:6px 20px 22px;color:#8fa3c0;font-size:13px}
+footer li{margin:2px 0}
+label.chk{font-size:13px;display:flex;gap:6px;align-items:center;cursor:pointer}
+#log{font-size:12px;color:#9aa8c0;max-height:96px;overflow:auto;margin-top:4px}
+.sec{font-size:12px;color:#7d8ca6;margin-top:10px;border-top:1px dashed #22304a;padding-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>氢原子能级跃迁仿真</h1>
+  <p>E<sub>n</sub> = −13.6/n² eV　|　λ(nm) = 1240 / E(eV)　|　共振匹配容差 ±0.03 eV</p>
+</header>
+<main>
+  <section class="panel" id="left">
+    <h2>能级图（点击能级可直接跃迁）</h2>
+    <canvas id="cvLevels" width="360" height="540"></canvas>
+    <p class="hint">能级间距随 n 增大而收窄，n→∞ 趋于连续（E=0）；E&gt;0 为电离连续态。</p>
+  </section>
+
+  <section class="panel" id="mid">
+    <h2>原子示意 · 轨道/电子云 · 光子束</h2>
+    <canvas id="cvAtom" width="520" height="540"></canvas>
+    <p class="hint">左：光子源（可连续发射）；蓝点为电子；自发辐射时向外飞出带颜色的光子。</p>
+  </section>
+
+  <aside class="panel" id="right">
+    <h2>控制与读数</h2>
+    <div class="row">
+      <span>hν</span><input type="range" id="hnu" min="0" max="14" step="0.01" value="10.2">
+      <span class="mono" id="hnuV">10.20 eV</span>
+    </div>
+    <div class="row">
+      <button id="fire">发射光子</button>
+      <button id="snap" class="alt">对齐最近共振</button>
+      <label class="chk"><input type="checkbox" id="beamOn">连续束流</label>
+    </div>
+    <div class="row">
+      <button id="play" class="alt">⏸ 暂停</button>
+      <button id="reset" class="alt">↺ 重置</button>
+    </div>
+    <div class="kv mono">
+      <b>当前能级</b><span id="curN">n = 1，E = −13.60 eV</span>
+      <b>入射光子</b><span id="curP">λ = 121.6 nm · 紫外（不可见）</span>
+      <b>最近共振</b><span id="near">—</span>
+      <b>当前模式</b><span id="mode">吸收 / 辐射 / 电离</span>
+    </div>
+    <div id="msg">就绪。调节光子能量后点「发射光子」，或直接点击左侧能级。</div>
+    <div class="sec">巴尔末系（→n=2，可见光区）</div>
+    <table id="balT">
+      <tr><th>谱线</th><th>跃迁</th><th>λ (nm)</th><th>颜色</th></tr>
+      <tr id="b3"><td>Hα</td><td>3→2</td><td class="mono">656.3</td><td><span class="sw" style="background:#ff2b2b"></span>红</td></tr>
+      <tr id="b4"><td>Hβ</td><td>4→2</td><td class="mono">486.1</td><td><span class="sw" style="background:#2bff51"></span>青绿</td></tr>
+      <tr id="b5"><td>Hγ</td><td>5→2</td><td class="mono">434.0</td><td><span class="sw" style="background:#4265ff"></span>蓝</td></tr>
+      <tr id="b6"><td>Hδ</td><td>6→2</td><td class="mono">410.2</td><td><span class="sw" style="background:#7b2bff"></span>紫</td></tr>
+    </table>
+    <div class="sec">发射光谱记录（对数波长轴 85–2600 nm）</div>
+    <canvas id="cvSpec" width="320" height="86"></canvas>
+    <div class="sec">事件日志</div>
+    <div id="log"></div>
+  </aside>
+</main>
+<footer>
+  <b>教学要点：</b>
+  <ul>
+    <li><b>能级量子化</b>：电子只能处于分立能级 E<sub>n</sub>=−13.6/n² eV，n→∞ 时趋于连续。</li>
+    <li><b>吸收是共振的</b>：只有当 hν <u>精确等于</u>两能级差 ΔE 时光子才被吸收，否则穿过不发生作用。</li>
+    <li><b>谱线系</b>：巴尔末系（高能级→n=2）落在可见光区；莱曼系（→n=1）在紫外；帕邢系（→n=3）在红外。hν ≥ 13.6/n² 时发生电离。</li>
+  </ul>
+</footer>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const EV=13.6, NMAX=12;
+const En=n=>-EV/(n*n);
+const lamOf=E=>1240/E;
+
+const cvL=$('cvLevels'), cL=cvL.getContext('2d');
+const cvA=$('cvAtom'),  cA=cvA.getContext('2d');
+const cvS=$('cvSpec'),  cS=cvS.getContext('2d');
+
+/* ---------- 波长 → 颜色 ---------- */
+function colorOf(l){
+  let r=0,g=0,b=0,vis=true,reg;
+  if(l<380){r=.45;g=.1;b=.75;vis=false;reg='紫外 UV（不可见）';}
+  else if(l<440){r=(440-l)/60;b=1;reg='可见 · 紫';}
+  else if(l<490){g=(l-440)/50;b=1;reg='可见 · 蓝';}
+  else if(l<510){g=1;b=(510-l)/20;reg='可见 · 青';}
+  else if(l<580){r=(l-510)/70;g=1;reg='可见 · 绿';}
+  else if(l<645){r=1;g=(645-l)/65;reg='可见 · 黄/橙';}
+  else if(l<=780){r=1;reg='可见 · 红';}
+  else {r=.8;g=.25;b=.15;vis=false;reg='红外 IR（不可见）';}
+  const f=v=>Math.round(255*Math.max(0,Math.min(1,v)));
+  return {css:`rgb(${f(r)},${f(g)},${f(b)})`,vis,reg};
+}
+const BAL=[{n:3,l:656.3,t:'Hα'},{n:4,l:486.1,t:'Hβ'},{n:5,l:434.0,t:'Hγ'},{n:6,l:410.2,t:'Hδ'}];
+const balmerTag=(f,t)=> t===2 ? (f>=3&&f<=6 ? BAL[f-3].t : '巴尔末系') : '';
+
+/* ---------- 坐标映射：能级图 ---------- */
+const LW=360,LH=540, lPL=62,lPR=24,lPT=16,lPB=24;
+const ETOP=1.8, EBOT=-14.4;
+const yFor=E=> lPT + (ETOP-E)/(ETOP-EBOT)*(LH-lPT-lPB);
+const lx0=lPL+16, lx1=LW-lPR;
+/* ---------- 坐标映射：原子图 ---------- */
+const AW=520,AH=540, ax=AW*0.60, ay=AH*0.52;
+const rOrb=n=> Math.min(16*Math.pow(n,1.45), 200);
+
+/* ---------- 状态 ---------- */
+const S={n:1,ion:false,free:null,recomb:0,timer:0,
+  photons:[],arrows:[],em:[],ang:.7,dispR:rOrb(1),dispY:yFor(En(1)),
+  beam:false,beamT:0,playing:true,mode:'—'};
+
+/* ---------- UI 帮助 ---------- */
+function msg(t,k){const m=$('msg');m.textContent=t;m.className=k||'';}
+function log(t){const d=$('log');const e=document.createElement('div');e.textContent=t;d.prepend(e);while(d.children.length>7)d.lastChild.remove();}
+function electronPos(){
+  if(S.ion&&S.free)return{x:S.free.x,y:S.free.y};
+  return{x:ax+Math.cos(S.ang)*S.dispR, y:ay+Math.sin(S.ang)*S.dispR};
+}
+function nearest(E){
+  const n=S.ion?1:S.n; let best=null;
+  for(let m=n+1;m<=15;m++){const d=En(m)-En(n),df=Math.abs(E-d);
+    if(!best||df<best.df)best={df,v:d,a:n,b:m};}
+  const bind=-En(n),db=Math.abs(E-bind);
+  if(!best||db<best.df)best={df:db,v:bind,a:n,b:'∞'};
+  return best;
+}
+function refresh(){
+  const E=+$('hnu').value, l=lamOf(Math.max(E,.01));
+  $('hnuV').textContent=E.toFixed(2)+' eV';
+  $('curP').textContent=`λ = ${l.toFixed(0)} nm · ${E<=0?'—':colorOf(l).reg}`;
+  if(S.ion){$('curN').textContent='已电离（自由电子）';}
+  else $('curN').textContent=`n = ${S.n}，E = ${En(S.n).toFixed(2)} eV`;
+  const b=nearest(E);
+  $('near').textContent=E<=0?'—':`n=${b.a}→${b.b}，ΔE=${b.v.toFixed(2)} eV（差 ${b.df.toFixed(2)}）`;
+  $('mode').textContent=S.mode;
+}
+
+/* ---------- 物理事件 ---------- */
+function resolveIn(p){
+  if(S.ion){msg('原子已电离，光子直接穿过。','bad');S.mode='未吸收';return;}
+  const n=S.n, bind=-En(n);
+  if(p.E>=bind-0.021){ionize(p.E,bind);return;}
+  for(let m=n+1;m<=NMAX;m++){
+    const d=En(m)-En(n);
+    if(Math.abs(p.E-d)<=0.03){absorb(n,m,p.E);return;}
+  }
+  S.mode='未吸收';
+  msg(`未吸收：hν=${p.E.toFixed(2)} eV 与 n=${n} 的任何 ΔE 都不匹配（吸收是共振的！）。可点「对齐最近共振」。`,'bad');
+}
+function absorb(a,b,E){
+  S.n=b;S.timer=.9+Math.random()*.5;S.mode='吸收';
+  S.arrows.push({y1:yFor(En(a)),y2:yFor(En(b)),x:midX(),col:'#8fd3ff',t:0,lab:`吸收 +${E.toFixed(2)} eV`});
+  msg(`共振吸收！hν=${E.toFixed(2)} eV = ΔE(n=${a}→${b})，电子跃迁到 n=${b}，稍后将自发辐射回落。`,'good');
+  log(`吸收 ${E.toFixed(2)} eV：${a}→${b}`);
+}
+function emit(from,to){
+  const dE=En(to)-En(from), l=lamOf(dE), c=colorOf(l), tag=balmerTag(from,to);
+  S.mode='辐射';
+  S.arrows.push({y1:yFor(En(from)),y2:yFor(En(to)),x:midX(),col:c.css,t:0,
+    lab:`${dE.toFixed(2)} eV / ${l.toFixed(l<100?1:0)} nm`});
+  const e=electronPos(), ang=Math.random()*Math.PI*2;
+  S.photons.push({type:'out',x:e.x,y:e.y,ang,sp:250,E:dE,ph:0,col:c,
+    lab:`${l.toFixed(l<100?1:0)} nm${tag?' '+tag:''}${c.vis?'':'（'+(l<380?'紫外':'红外')+'·不可见）'}`});
+  S.em.push({l,from,to,c,tag}); if(S.em.length>60)S.em.shift();
+  msg(`自发辐射 n=${from}→${to}：ΔE=${dE.toFixed(2)} eV，λ=${l.toFixed(0)} nm ${tag?'【'+tag+'】':''}${c.vis?'':'（不可见：'+(l<380?'紫外':'红外')+'）'}`,'good');
+  log(`辐射 ${l.toFixed(0)} nm：${from}→${to}${tag?' '+tag:''}`);
+  if(to===2&&from>=3&&from<=6){const r=$('b'+from);r.classList.add('hit');setTimeout(()=>r.classList.remove('hit'),2500);}
+}
+function decay(){
+  const from=S.n; if(from<2)return;
+  const to=1+Math.floor(Math.random()*(from-1));
+  emit(from,to);S.n=to;
+  if(to>1)S.timer=.7+Math.random()*.4;
+}
+function ionize(E,bind){
+  const KE=E-bind;S.ion=true;S.mode='电离';S.timer=0;
+  const e=electronPos(), a=(Math.random()*.9-.45)+.35;
+  S.free={x:e.x,y:e.y,vx:Math.cos(a)*170,vy:Math.sin(a)*170,KE};
+  S.arrows.push({y1:yFor(En(S.n)),y2:yFor(ETOP),x:midX(),col:'#ffd166',t:0,lab:`电离 KE=${KE.toFixed(2)} eV`});
+  msg(`电离！hν=${E.toFixed(2)} eV ≥ 13.6/n²=${bind.toFixed(2)} eV，电子脱离原子，动能 KE=${KE.toFixed(2)} eV。`,'warn');
+  log(`电离 KE=${KE.toFixed(2)} eV`);
+  S.recomb=2.8;
+}
+function chooseLevel(m){
+  if(S.ion){msg('原子处于电离态，请等待电子被重新俘获或点重置。','bad');return;}
+  if(m===S.n){msg(`电子已在 n=${m} 能级。`);return;}
+  if(m>S.n){
+    S.arrows.push({y1:yFor(En(S.n)),y2:yFor(En(m)),x:midX(),col:'#c9a7ff',t:0,lab:`直接激发 →n=${m}`});
+    msg(`直接激发到 n=${m}（等效于电子碰撞激发），将自发辐射回落。`,'warn');
+    log(`激发 →n=${m}`);S.n=m;S.timer=.9+Math.random()*.5;
+  }else{
+    emit(S.n,m);S.n=m;if(m>1)S.timer=.7+Math.random()*.4;
+  }
+}
+function midX(){return lx0+(lx1-lx0)*(.55+.12*(S.arrows.length%3));}
+function fire(){
+  const E=+$('hnu').value;if(E<=0){msg('光子能量为 0，无法发射。','bad');return;}
+  S.photons.push({type:'in',x:-40,y:ay,ang:0,sp:250,E,ph:Math.random()*6});
+}
+$('fire').onclick=fire;
+$('snap').onclick=()=>{const E=+$('hnu').value,b=nearest(E);
+  $('hnu').value=b.v.toFixed(2);refresh();
+  msg(`已对齐最近共振：n=${b.a}→${b.b}，hν=ΔE=${b.v.toFixed(2)} eV，现在可发射。`,'good');};
+$('hnu').oninput=refresh;
+$('beamOn').onchange=e=>S.beam=e.target.checked;
+$('play').onclick=()=>{S.playing=!S.playing;$('play').textContent=S.playing?'⏸ 暂停':'▶ 播放';};
+$('reset').onclick=()=>{Object.assign(S,{n:1,ion:false,free:null,timer:0,photons:[],arrows:[],em:[],mode:'—',recomb:0});
+  $('log').innerHTML='';msg('已重置：电子回到基态 n=1。');refresh();};
+cvL.addEventListener('click',e=>{
+  const r=cvL.getBoundingClientRect();
+  const x=(e.clientX-r.left)*cvL.width/r.width, y=(e.clientY-r.top)*cvL.height/r.height;
+  if(x<lx0-8||x>lx1+8)return;
+  const E=ETOP-(y-lPT)/(LH-lPT-lPB)*(ETOP-EBOT);
+  if(E>0.3){msg(`E>0 为连续态（电离）。当前需 hν ≥ ${(-En(S.ion?1:S.n)).toFixed(2)} eV 才能电离。`,'warn');return;}
+  let best=1,bd=1e9;
+  for(let n=1;n<=NMAX;n++){const d=Math.abs(yFor(En(n))-y);if(d<bd){bd=d;best=n;}}
+  if(bd<9)chooseLevel(best);
+});
+
+/* ---------- 主循环 ---------- */
+let last=performance.now(),uiT=0;
+function loop(now){
+  let dt=Math.min(.05,(now-last)/1000);last=now;
+  if(!S.playing)dt=0;
+  step(dt);drawLevels();drawAtom();drawSpec();
+  uiT+=dt||.016;if(uiT>.12){uiT=0;refresh();}
+  requestAnimationFrame(loop);
+}
+function step(dt){
+  if(dt===0)return;
+  if(!S.ion)S.ang+=dt*1.7/Math.pow(S.n,1.5);
+  S.dispR+=(rOrb(S.n)-S.dispR)*Math.min(1,dt*6);
+  S.dispY+=(yFor(En(S.n))-S.dispY)*Math.min(1,dt*6);
+  if(!S.ion&&S.n>1&&S.timer>0){S.timer-=dt;if(S.timer<=0)decay();}
+  if(S.ion){S.recomb-=dt;S.free.x+=S.free.vx*dt;S.free.y+=S.free.vy*dt;
+    if(S.recomb<=0){S.ion=false;S.free=null;S.n=1;S.mode='—';
+      msg('电子被质子重新俘获，回到基态 n=1。','warn');}}
+  if(S.beam){S.beamT-=dt;if(S.beamT<=0){fire();S.beamT=1.4;}}
+  for(const p of S.photons){
+    p.ph+=dt*12;p.x+=Math.cos(p.ang)*p.sp*dt;p.y+=Math.sin(p.ang)*p.sp*dt;
+    if(p.type==='in'&&p.x>=ax-8){p.dead=true;resolveIn(p);}
+    if(p.x<-90||p.x>AW+90||p.y<-90||p.y>AH+90)p.dead=true;
+  }
+  S.photons=S.photons.filter(p=>!p.dead);
+  for(const a of S.arrows)a.t+=dt;
+  S.arrows=S.arrows.filter(a=>a.t<1.6);
+}
+
+/* ---------- 绘制：能级图 ---------- */
+function drawArrow(c,x,y1,y2,col,lab,t){
+  const al=Math.max(0,1-t/1.5);if(al<=0)return;
+  c.save();c.globalAlpha=al;c.strokeStyle=col;c.lineWidth=2.5;
+  c.setLineDash([6,4]);c.lineDashOffset=-t*36;
+  c.beginPath();c.moveTo(x,y1);c.lineTo(x,y2);c.stroke();c.setLineDash([]);
+  const s=Math.sign(y2-y1)||1,hy=y2-8*s;
+  c.beginPath();c.moveTo(x,y2);c.lineTo(x-5,hy);c.lineTo(x+5,hy);c.closePath();
+  c.fillStyle=col;c.fill();
+  c.fillStyle=col;c.font='11px ui-monospace,monospace';c.textAlign='left';
+  c.fillText(lab,x+9,(y1+y2)/2);c.restore();
+}
+function drawLevels(){
+  cL.clearRect(0,0,LW,LH);
+  /* 能量轴 */
+  cL.strokeStyle='#4a5568';cL.lineWidth=1;cL.beginPath();c.moveTo(lPL,lPT);c.lineTo(lPL,LH-lPB);c.stroke();
+  cL.fillStyle='#8fa3c0';cL.font='10px ui-monospace,monospace';cL.textAlign='right';
+  for(const E of [0,-2,-4,-6,-8,-10,-12,-13.6]){const y=yFor(E);
+    cL.beginPath();cL.moveTo(lPL-4,y);cL.lineTo(lPL,y);cL.stroke();
+    cL.fillText(E===-13.6?'-13.6':E.toString(),lPL-7,y+3);}
+  cL.save();cL.translate(12,LH/2);cL.rotate(-Math.PI/2);cL.textAlign='center';
+  cL.fillText('能量 (eV)',0,0);cL.restore();
+  /* 连续态区 */
+  const y0=yFor(0);
+  cL.save();cL.beginPath();cL.rect(lx0-8,lPT+2,lx1-lx0+16,y0-lPT-8);cL.clip();
+  cL.strokeStyle='rgba(255,209,102,.18)';cL.lineWidth=1;
+  for(let x=lx0-20;x<lx1+20;x+=9){cL.beginPath();cL.moveTo(x,lPT);cL.lineTo(x-14,y0);cL.stroke();}
+  cL.restore();
+  cL.fillStyle='#ffd166';cL.font='10px sans-serif';cL.textAlign='left';
+  cL.fillText('E > 0 连续态（电离）',lx0-4,lPT+12);
+  cL.strokeStyle='#ffd166';cL.setLineDash([5,4]);cL.beginPath();cL.moveTo(lx0-8,y0);cL.lineTo(lx1+8,y0);cL.stroke();cL.setLineDash([]);
+  cL.fillStyle='#c8d3e8';cL.font='10px sans-serif';cL.fillText('n → ∞  (E=0)',lx0+4,y0-3);
+  /* 能级线 */
+  for(let n=1;n<=NMAX;n++){
+    const y=yFor(En(n));if(y-y0<2&&n>1)continue;
+    cL.strokeStyle=n===1?'#9bd1ff':'rgba(155,209,255,'+(n<=8?.85:.4)+')';
+    cL.lineWidth=n===1?3:n<=8?2:1;
+    cL.beginPath();cL.moveTo(lx0,y);cL.lineTo(lx1,y);cL.stroke();
+    if(n<=7){cL.fillStyle='#dbe4f0';cL.font='11px sans-serif';cL.textAlign='left';
+      cL.fillText('n='+n,lx0+4,y-4);}
+    if(n<=4){cL.fillStyle='#7d8ca6';cL.font='10px ui-monospace,monospace';cL.textAlign='right';
+      cL.fillText(En(n).toFixed(2),lx1-2,y-4);}
+  }
+  /* 跃迁箭头 */
+  for(const a of S.arrows)drawArrow(cL,a.x,a.y1,a.y2,a.col,a.lab,a.t);
+  /* 电子标记 */
+  if(!S.ion){
+    const ex=lx0+26,y=S.dispY;
+    cL.save();cL.shadowColor='#4da3ff';cL.shadowBlur=10;
+    cL.fillStyle='#4da3ff';cL.beginPath();cL.arc(ex,y,6,0,7);cL.fill();cL.restore();
+    cL.fillStyle='#9bd1ff';cL.font='11px sans-serif';cL.textAlign='left';cL.fillText('e⁻',ex+10,y+4);
+  }else{
+    cL.fillStyle='#ffd166';cL.font='12px sans-serif';cL.textAlign='left';
+    cL.fillText('已电离（自由电子）',lx0+8,lPT+28);
+  }
+}
+
+/* ---------- 绘制：原子图 ---------- */
+function drawPhoton(p){
+  const l=lamOf(p.E), lp=Math.max(7,Math.min(22,l/34)), amp=5;
+  cA.save();cA.translate(p.x,p.y);cA.rotate(p.ang);
+  const col=p.type==='in'?'#f0f6ff':(p.col.vis?p.col.css:'#8899aa');
+  cA.strokeStyle=col;cA.lineWidth=2;
+  if(p.type==='out'&&!p.col.vis)cA.setLineDash([4,3]);
+  cA.beginPath();
+  for(let s=-15;s<=15;s+=1.2){const yy=amp*Math.sin(2*Math.PI*s/lp+p.ph);
+    s===-15?cA.moveTo(s,yy):cA.lineTo(s,yy);}
+  cA.stroke();cA.setLineDash([]);
+  cA.fillStyle=col;cA.beginPath();cA.moveTo(20,0);cA.lineTo(13,-4);cA.lineTo(13,4);cA.closePath();cA.fill();
+  cA.restore();
+  cA.fillStyle=p.type==='in'?'#f0f6ff':(p.col.vis?p.col.css:'#9aa8c0');
+  cA.font='11px ui-monospace,monospace';cA.textAlign='center';
+  cA.fillText(p.type==='in'?`hν=${p.E.toFixed(2)} eV`:p.lab,p.x,p.y-14);
+}
+function drawAtom(){
+  cA.clearRect(0,0,AW,AH);
+  /* 光子源 */
+  cA.fillStyle='#26344d';cA.fillRect(4,ay-14,26,28);
+  cA.strokeStyle='#4a5568';cA.strokeRect(4,ay-14,26,28);
+  cA.fillStyle='#9bd1ff';cA.font='11px sans-serif';cA.textAlign='left';
+  cA.fillText('光子源',2,ay-20);
+  cA.fillText(`hν=${(+$('hnu').value).toFixed(2)}eV`,2,ay+28);
+  /* 轨道 */
+  for(let n=1;n<=6;n++){
+    const r=rOrb(n);
+    cA.strokeStyle=n===S.n&&!S.ion?'rgba(155,209,255,.75)':'rgba(136,153,170,.30)';
+    cA.lineWidth=n===S.n&&!S.ion?1.8:1;
+    cA.setLineDash(n>5?[4,5]:[]);
+    cA.beginPath();cA.arc(ax,ay,r,0,7);cA.stroke();cA.setLineDash([]);
+    if(n<=5){cA.fillStyle='#7d8ca6';cA.font='10px sans-serif';cA.textAlign='center';
+      cA.fillText('n='+n,ax,ay-r-4);}
+  }
+  /* 电子云（当前能级简化示意） */
+  if(!S.ion){
+    cA.strokeStyle='rgba(120,190,255,.13)';cA.lineWidth=20;
+    cA.beginPath();cA.arc(ax,ay,S.dispR,0,7);cA.stroke();
+  }
+  /* 原子核 */
+  cA.save();cA.shadowColor='#ff6b6b';cA.shadowBlur=9;
+  cA.fillStyle='#ff6b6b';cA.beginPath();cA.arc(ax,ay,7,0,7);cA.fill();cA.restore();
+  cA.fillStyle='#ffb3b3';cA.font='11px sans-serif';cA.textAlign='left';cA.fillText('p⁺',ax+10,ay+4);
+  /* 电子 */
+  if(!S.ion){
+    const e=electronPos();
+    cA.save();cA.shadowColor='#4da3ff';cA.shadowBlur=12;
+    cA.fillStyle='#4da3ff';cA.beginPath();cA.arc(e.x,e.y,6,0,7);cA.fill();cA.restore();
+    cA.fillStyle='#9bd1ff';cA.font='11px sans-serif';cA.textAlign='left';
+    cA.fillText('e⁻ (n='+S.n+')',e.x+9,e.y-6);
+  }else if(S.free){
+    cA.setLineDash([5,5]);cA.strokeStyle='rgba(255,209,102,.4)';
+    cA.beginPath();cA.arc(ax,ay,Math.hypot(S.free.x-ax,S.free.y-ay),0,7);cA.stroke();cA.setLineDash([]);
+    cA.save();cA.shadowColor='#ffd166';cA.shadowBlur=12;
+    cA.fillStyle='#ffd166';cA.beginPath();cA.arc(S.free.x,S.free.y,6,0,7);cA.fill();cA.restore();
+    cA.fillStyle='#ffd166';cA.font='11px sans-serif';cA.textAlign='left';
+    cA.fillText(`自由 e⁻ KE=${S.free.KE.toFixed(2)} eV`,S.free.x+9,S.free.y-6);
+  }
+  /* 光子 */
+  for(const p of S.photons)drawPhoton(p);
+  /* 模式角标 */
+  cA.fillStyle='#7d8ca6';cA.font='12px sans-serif';cA.textAlign='left';
+  cA.fillText('模式：'+S.mode,10,18);
+}
+
+/* ---------- 绘制：光谱记录 ---------- */
+const sx=l=>{const a=Math.log(85),b=Math.log(2600);return 8+(Math.log(l)-a)/(b-a)*304;};
+function drawSpec(){
+  cS.clearRect(0,0,320,86);cS.fillStyle='#10141c';cS.fillRect(0,0,320,86);
+  const x1=sx(380),x2=sx(780);
+  const g=cS.createLinearGradient(x1,0,x2,0);
+  for(let i=0;i<=10;i++)g.addColorStop(i/10,colorOf(380+i*40).css);
+  cS.fillStyle=g;cS.fillRect(x1,26,x2-x1,22);
+  cS.fillStyle='#1c2433';cS.fillRect(8,26,x1-8,22);
+  cS.fillStyle='#241a16';cS.fillRect(x2,26,312-x2,22);
+  cS.fillStyle='#7d8ca6';cS.font='10px sans-serif';cS.textAlign='center';
+  cS.fillText('紫外',8+(x1-8)/2,40);cS.fillText('红外',x2+(312-x2)/2,40);
+  cS.fillStyle='#dbe4f0';cS.fillText('可见',(x1+x2)/2,20);
+  for(const L of[100,200,400,800,1600]){const x=sx(L);
+    cS.strokeStyle='#3a4buruk';}
+  for(const L of[100,200,400,800,1600]){const x=sx(L);
+    cS.strokeStyle='#3a4a63';cS.beginPath();cS.moveTo(x,50);cS.lineTo(x,54);cS.stroke();
+    cS.fillStyle='#7d8ca6';cS.font='9px ui-monospace,monospace';cS.textAlign='center';
+    cS.fillText(L,x,63);}
+  /* 巴尔末标记 */
+  for(const b of BAL){const x=sx(b.l);
+    cS.strokeStyle='rgba(255,255,255,.35)';cS.setLineDash([2,3]);
+    cS.beginPath();cS.moveTo(x,24);cS.lineTo(x,50);cS.stroke();cS.setLineDash([]);
+    cS.fillStyle='#fff';cS.font='9px sans-serif';cS.fillText(b.t,x,72);}
+  /* 记录的发射线 */
+  for(const e of S.em){const x=sx(e.l);
+    cS.strokeStyle=e.c.vis?e.c.css:'#8899aa';cS.lineWidth=2;
+    if(!e.c.vis)cS.setLineDash([2,2]);
+    cS.beginPath();cS.moveTo(x,48);cS.lineTo(x,80);cS.stroke();cS.setLineDash([]);cS.lineWidth=1;}
+}
+
+refresh();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

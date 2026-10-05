@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>链式反应模拟器 · 看得见的中子"繁殖"</title>
+<style>
+:root{--bg:#0d1117;--pan:#151d28;--pan2:#1b2532;--line:#28344a;--tx:#dce7f5;--dim:#8fa2bd;--cy:#7fd8ff;--or:#ff9d45;--gr:#57d98a;--rd:#ff5f6d;--ye:#ffd35c}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.7 system-ui,"PingFang SC","Microsoft YaHei",sans-serif;padding:18px}
+h1{font-size:22px;margin-bottom:4px}h1 span{color:var(--or)}
+.sub{color:var(--dim);font-size:13px;margin-bottom:14px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;max-width:1180px;margin:0 auto}
+@media(max-width:1000px){.wrap{grid-template-columns:1fr}}
+.pan{background:var(--pan);border:1px solid var(--line);border-radius:12px;padding:12px}
+canvas#sim{width:100%;display:block;border-radius:8px;background:#0a0e14}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:7px 0}
+.big{display:flex;align-items:baseline;gap:8px}
+.big b{font-size:30px;font-variant-numeric:tabular-nums}
+.pill{padding:2px 10px;border-radius:99px;font-size:12px;border:1px solid var(--line);background:var(--pan2)}
+.pill.good{color:var(--gr);border-color:var(--gr)} .pill.bad{color:var(--rd);border-color:var(--rd)} .pill.hot{color:var(--or);border-color:var(--or);animation:bl 1s infinite}
+@keyframes bl{50%{opacity:.55}}
+input[type=range]{width:100%;accent-color:var(--cy)}
+select,button{background:var(--pan2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--cy)}
+button.pri{background:#1d3a52;border-color:#2e6f9e}
+.chk{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.chk input{accent-color:var(--or);width:16px;height:16px}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.bar{height:8px;background:#0a0e14;border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar>div{height:100%;background:linear-gradient(90deg,#2e8f57,#d9a53f,#d94f43);width:0%}
+.stat{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+.stat b{color:var(--tx);font-variant-numeric:tabular-nums}
+#log{height:120px;overflow-y:auto;font-size:12.5px;display:flex;flex-direction:column-reverse}
+#log div{padding:1px 0;border-bottom:1px dashed #212c3d;color:var(--dim)}
+#log .g{color:var(--gr)}#log .r{color:var(--rd)}#log .o{color:var(--or)}
+#gchart{width:100%;display:block}
+h2{font-size:16px;margin:4px 0 8px}
+h3{font-size:14px;margin:10px 0 4px;color:var(--cy)}
+.bottom{max-width:1180px;margin:14px auto;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.bottom{grid-template-columns:1fr}}
+.cmp{border-radius:12px;padding:14px;border:1px solid var(--line)}
+.cmp.reactor{background:linear-gradient(180deg,#12202b,#151d28)}
+.cmp.bomb{background:linear-gradient(180deg,#2b1414,#1d1214)}
+.cmp ul{list-style:none;font-size:14px}
+.cmp li{padding:3px 0;border-bottom:1px dashed #232e40}
+.cmp li:last-child{border:0}
+.cmp b{color:var(--cy)}.bomb b{color:var(--rd)}
+.cmp .emoji{font-size:26px;margin-right:6px}
+details{background:var(--pan);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px}
+summary{cursor:pointer;font-weight:600;color:var(--ye)}
+details p{margin-top:8px;font-size:14px;color:var(--dim)}
+#bombBanner{display:none;margin-top:8px;padding:10px;border-radius:8px;background:#301418;border:1px solid var(--rd);font-size:13.5px}
+#steps li{margin-left:18px;font-size:14px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div style="max-width:1180px;margin:0 auto">
+<h1>⚛ 链式反应模拟器 —— <span>看得见的中子"繁殖"</span></h1>
+<div class="sub">中子撞裂铀-235 → 放出 2~3 个新中子 → 一代传一代。颜色代表代数：白→黄→橙→红→紫，越深代数越高。</div>
+</div>
+
+<div class="wrap">
+  <div>
+    <div class="pan">
+      <canvas id="sim" width="760" height="540"></canvas>
+      <div class="legend">
+        <span><i style="background:#ff9d45"></i>铀-235(可裂变)</span>
+        <span><i style="background:#5a6672"></i>铀-238(易吞快中子)</span>
+        <span><i style="background:#dff3ff"></i>快中子(带拖尾)</span>
+        <span><i style="background:#7fd8ff"></i>热中子(已慢化)</span>
+        <span><i style="background:#20242a;border:1px solid #444"></i>控制棒(吞中子)</span>
+        <span><i style="background:rgba(90,150,200,.35)"></i>慢化剂(水)</span>
+      </div>
+    </div>
+    <div class="pan" style="margin-top:14px">
+      <h2>📈 各代中子数 —— "繁殖"族谱</h2>
+      <canvas id="gchart" width="700" height="130"></canvas>
+      <div class="sub">每一根柱子是一代中子的数量。逐代变矮 = 熄灭;不变 = 自持;指数暴涨 = 雪崩。</div>
+      <div id="bombBanner"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="pan">
+      <div class="row"><div class="big"><b id="kEl">—</b><span style="color:var(--dim)">k<sub>eff</sub> 增殖系数</span></div><span class="pill" id="statusEl">待点火</span></div>
+      <div class="row"><div class="stat"><span>存活中子</span><b id="nAlive">0</b></div><div class="stat"><span>当前代数</span><b id="nGen">0</b></div></div>
+      <div class="row"><div class="stat"><span>总裂变</span><b id="nFis">0</b></div><div class="stat"><span>功率≈裂变/秒</span><b id="pwEl">0</b></div></div>
+      <div class="row"><div class="stat"><span>漏出堆芯</span><b id="nEsc">0</b></div><div class="stat"><span>被棒吸收</span><b id="nRod">0</b></div></div>
+      <h3>🌡 堆芯温度(负反馈会把 k 压回来)</h3>
+      <div class="bar"><div id="tempBar"></div></div>
+      <h3>🎛 控制棒插入深度 <span id="rodV" style="color:var(--tx)">55%</span></h3>
+      <input type="range" id="rodS" min="0" max="100" value="55">
+      <h3>⚗ 铀-235 富集度</h3>
+      <select id="enrS">
+        <option value="0.7">0.7% 天然铀</option>
+        <option value="3">3% 轻水堆低浓铀</option>
+        <option value="4.5">4.5%</option>
+        <option value="5" selected>5% 典型反应堆燃料</option>
+        <option value="20">20% 高浓堆用</option>
+        <option value="50">50%</option>
+        <option value="93">93% 武器级高浓铀</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="modC" checked>慢化剂(水)—— 把快中子慢化成热中子</label>
+      <label class="chk"><input type="checkbox" id="fbC" checked>负温度反馈(固有安全性)</label>
+      <div class="btns">
+        <button class="pri" id="fireB">⚡ 发射点火中子</button>
+        <button id="pulseB">脉冲 ×10</button>
+        <button id="clrB">清空中子</button>
+        <button id="rstB">重置</button>
+      </div>
+      <h3>🎬 一键场景</h3>
+      <div class="presets">
+        <button id="pReactor">🏨 反应堆·点火</button>
+        <button id="pStop">🛑 紧急停堆</button>
+        <button id="pNoMod">💧 撤走慢化剂</button>
+        <button id="pBomb">💣 原子弹模式</button>
+      </div>
+    </div>
+    <div class="pan" style="margin-top:14px">
+      <h2>🗒 事件记录</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="cmp reactor">
+    <h2><span class="emoji">🏨</span>反应堆 —— 受控的链式反应</h2>
+    <ul>
+      <li>富集度仅 <b>3%~5%</b>,大量铀-238"掺沙子"</li>
+      <li>靠水把中子<b>慢化成热中子</b>,裂变几率才够大</li>
+      <li>控制棒随时吞掉多余中子,把 k 钳在 <b>≈1</b>(临界自持)</li>
+      <li><b>负温度系数</b>:越热反应越"钝",自动刹车</li>
+      <li>能量按<b>秒、小时</b>缓慢释放 → 烧水发电</li>
+      <li>最坏事故是<b>冷却失效熔毁堆芯</b>——热事故,<b>不是核爆炸</b></li>
+    </ul>
+  </div>
+  <div class="cmp bomb">
+    <h2><span class="emoji">💣</span>原子弹 —— 放纵的链式反应</h2>
+    <ul>
+      <li>武器级富集 <b>&gt;90%</b>,几乎全是铀-235</li>
+      <li><b>快中子</b>直接引发裂变,根本不需要慢化剂</li>
+      <li>没有控制棒;化学炸药把弹芯<b>瞬间压到超临界 k≫1</b></li>
+      <li>能量在<b>百万分之一秒</b>内雪崩释放</li>
+      <li>一枚 ≈ 上万吨 TNT,毁伤来自瞬间核爆</li>
+      <li>本模拟"原子弹模式"里,几十代裂变在几秒内完成——<b>去试试低浓铀+无慢化剂,根本点不着</b></li>
+    </ul>
+  </div>
+</div>
+
+<div style="max-width:1180px;margin:0 auto">
+  <div class="pan">
+    <h2>🧪 三步实验</h2>
+    <ol id="steps">
+      <li>点「反应堆·点火」→ 看白→黄→橙的中子一代代"繁殖",拉控制棒让 k 停在 ≈1,堆芯稳定"烧水"。</li>
+      <li>把控制棒全插入 → 链式中断;再慢慢抽出 → 雪崩,但负温度反馈会自动把它拽回稳定——这就是反应堆"炸不了"的关键。</li>
+      <li>切到「原子弹模式」(93% 富集 + 快中子 + 无控制)对比:同样的物理,只因参数不同,一个温顺发电,一个微秒内毁灭。</li>
+    </ol>
+    <h2>❓ 常见疑问</h2>
+    <details open><summary>反应堆会不会像原子弹那样爆炸?</summary><p>不会。反应堆燃料富集度只有 3~5%,靠慢化剂+控制棒+负温度反馈把 k 死死钳在 1 附近;失去控制最坏的结果是堆芯熔毁(热事故)。而原子弹需要 90% 以上武器级铀、快中子链式、且没有任何控制,让 k 在微秒内雪崩——反应堆从物理条件上就凑不齐这三样。</p></details>
+    <details><summary>为什么必须有慢化剂?</summary><p>铀-235 对热(慢)中子的裂变截面远大于快中子。低浓铀里的快中子大多被铀-238 俘获或漏出堆芯,k&lt;1,链式反应点不着。试试「撤走慢化剂」按钮,亲眼看着它熄灭。</p></details>
+    <details><summary>k_eff 是什么?</summary><p>每一代中子数与上一代之比。k&lt;1 次临界(熄灭),k=1 临界(自持),k&gt;1 超临界(雪崩)。核电站就是一台把 k 精确调在 1 的"中子繁殖场"。</p></details>
+    <details><summary>控制棒为什么能"刹车"?</summary><p>硼、镉等材料特别爱吃中子。棒插得越深,中子被吞得越多,k 越低——全插入即停堆。</p></details>
+  </div>
+</div>
+
+<script>
+(()=>{
+const cv=document.getElementById('sim'),ctx=cv.getContext('2d');
+const gc=document.getElementById('gchart'),gctx=gc.getContext('2d');
+const W=760,H=540,CX=24,CY=24,CW=W-48,CH=H-48;
+const NCOLS=22,NROWS=15,FAST=3.4,THERM=1.05,NCAP=1400;
+const genCol=['#e8f6ff','#ffd35c','#ffb45c','#ff7e5f','#ff4d88','#c04cff'];
+const $=id=>document.getElementById(id);
+let nuclei=[],buckets=new Map(),neutrons=[],fx=[],born=[];
+let cfg={enrich:5,mod:true,fb:true};
+let rodT=.55,rodD=.55;
+let totFis=0,escaped=0,rodAbs=0,fisFrame=0,lastFisF=0,pw=0,temp=0,kS=null,frame=0;
+let meltWarned=false,bomb={on:false,fis0:0,shown:false},prevStatus='';
+
+function log(m,c){const d=document.createElement('div');if(c)d.className=c;d.textContent=`[${(frame/60).toFixed(1)}s] ${m}`;const L=$('log');L.prepend(d);while(L.children.length>40)L.lastChild.remove();}
+function buildCore(){
+  nuclei=[];buckets=new Map();
+  const mx=40,my=54,gw=(CW-2*mx)/(NCOLS-1),gh=(CH-my-34)/(NROWS-1);
+  for(let r=0;r<NROWS;r++)for(let c=0;c<NCOLS;c++){
+    const x=CX+mx+c*gw+(Math.random()*8-4),y=CY+my+r*gh+(Math.random()*8-4);
+    nuclei.push({x,y,t:Math.random()*100<cfg.enrich?235:238,cd:0,fl:0});
+  }
+  nuclei.forEach(n=>{const k=(n.x/36|0)*1000+(n.y/36|0);(buckets.get(k)||buckets.set(k,[]).get(k)).push(n);});
+}
+function nucAt(x,y){
+  const ix=x/36|0,iy=y/36|0;
+  for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){
+    const arr=buckets.get((ix+a)*1000+iy+b);if(!arr)continue;
+    for(const n of arr){if(n.cd>0)continue;const dx=x-n.x,dy=y-n.y;if(dx*dx+dy*dy<121)return n;}
+  }return null;
+}
+function rodXs(){const a=[];for(let i=0;i<6;i++)a.push(CX+CW*(i+.5)/6);return a;}
+function inRod(x,y){if(rodD<=.02)return false;const lim=CY+CH*rodD;if(y>lim)return false;return rodXs().some(rx=>Math.abs(x-rx)<11);}
+function inject(n,quiet){
+  if(neutrons.length===0){born=[];kS=null;}
+  for(let i=0;i<n&&neutrons.length<NCAP;i++){
+    const a=Math.random()*6.283;
+    neutrons.push({x:CX+CW*(.3+Math.random()*.4),y:CY+CH*(.3+Math.random()*.45),vx:Math.cos(a)*1.5,vy:Math.sin(a)*1.5,gen:0,cd:6});
+    born[0]=(born[0]||0)+1;
+  }
+  if(!quiet)log(`⚡ 注入 ${n} 个点火中子(第0代)`,'o');
+}
+function fission(h,n){
+  totFis++;fisFrame++;lastFisF=frame;if(bomb.on&&!bomb.shown)bomb.pending=(bomb.pending||0)+1;
+  h.cd=25;h.fl=1;born[n.gen+1]=born[n.gen+1]||0;
+  const nu=Math.random()<.5?2:3;
+  for(let k=0;k<nu;k++){
+    if(neutrons.length>=NCAP)break;
+    const a=Math.random()*6.283,s=FAST*(.9+Math.random()*.3);
+    neutrons.push({x:h.x,y:h.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,gen:n.gen+1,cd:8});
+    born[n.gen+1]+=nu; // 统计口径:每代新增中子
+  }
+  fx.push({tp:'fl',x:h.x,y:h.y,t:0});
+  for(let k=0;k<2;k++){const a=Math.random()*6.283;fx.push({tp:'fg',x:h.x,y:h.y,vx:Math.cos(a)*2.4,vy:Math.sin(a)*2.4,t:0});}
+}
+function scatter(n,h,mult){
+  const a=Math.random()*6.283,sp=Math.max(.45,Math.hypot(n.vx,n.vy)*mult);
+  n.vx=Math.cos(a)*sp;n.vy=Math.sin(a)*sp;
+  n.x=h.x+Math.cos(a)*13.5;n.y=h.y+Math.sin(a)*13.5;n.cd=10;
+}
+function step(){
+  const fb=cfg.fb?Math.max(.05,1-.7*temp):1;
+  rodD+=(rodT-rodD)*.08;
+  for(let i=neutrons.length-1;i>=0;i--){
+    const n=neutrons[i];let sp=Math.hypot(n.vx,n.vy);
+    if(cfg.mod&&sp>THERM){n.vx*=.982;n.vy*=.982;}
+    if(sp<THERM+.25){const j=(Math.random()-.5)*.35,c=Math.cos(j),s=Math.sin(j),vx=n.vx*c-n.vy*s,vy=n.vx*s+n.vy*c;n.vx=vx;n.vy=vy;}
+    n.x+=n.vx;n.y+=n.vy;if(n.cd>0)n.cd--;
+    if(n.x<CX||n.x>CX+CW||n.y<CY||n.y>CY+CH){escaped++;neutrons.splice(i,1);continue;}
+    if(inRod(n.x,n.y)){rodAbs++;fx.push({tp:'ab',x:n.x,y:n.y,t:0});neutrons.splice(i,1);continue;}
+    const h=nucAt(n.x,n.y);
+    if(h&&n.cd<=0){
+      sp=Math.hypot(n.vx,n.vy);const th=sp<THERM+.2;
+      if(h.t===235){
+        if(Math.random()<(th?.90:.16)*fb){fission(h,n);neutrons.splice(i,1);continue;}
+        scatter(n,h,cfg.mod?.9:.985);
+      }else{
+        if(Math.random()<(th?.04:.12)){h.cd=25;h.fl=0;fx.push({tp:'ab',x:h.x,y:h.y,t:0});neutrons.splice(i,1);continue;}
+        scatter(n,h,.93);
+      }
+    }
+  }
+  nuclei.forEach(n=>{if(n.cd>0)n.cd--;if(n.fl>0)n.fl*=.9;});
+  for(let i=fx.length-1;i>=0;i--){const f=fx[i];f.t++;if(f.tp==='fg'){f.x+=f.vx;f.y+=f.vy;f.vx*=.95;f.vy*=.95;}if(f.t>32)fx.splice(i,1);}
+  temp=Math.min(1.25,temp+fisFrame*.0009);temp*=.995;
+  pw=pw*.9+fisFrame*60*.1;fisFrame=0;
+  if(frame%20===0&&frame-lastFisF<120){
+    let g=-1;for(let i=born.length-1;i>=0;i--)if(born[i]>0){g=i;break;}
+    if(g>=1){const k=born[g]/born[g-1];kS=kS==null?k:kS*.75+k*.25;}
+  }
+  if(temp>1&&!meltWarned){meltWarned=true;log('⚠ 堆芯过热!注意:即使完全失控,反应堆也只是熔毁,绝不是核爆炸','r');}
+  if(bomb.on&&!bomb.shown&&bomb.pending>2500){bomb.shown=true;showBomb();}
+}
+function statusOf(){
+  if(neutrons.length===0)return{txt:'链式中断 · 熄灭',cls:'bad'};
+  if(kS==null)return{txt:'测量中…',cls:''};
+  if(kS<.9)return{txt:'次临界 k<1 · 逐代衰减',cls:'bad'};
+  if(kS<=1.12)return{txt:'临界 k≈1 · 自持链式',cls:'good'};
+  return{txt:'超临界 k>1 · 雪崩增殖',cls:'hot'};
+}
+function showBomb(){
+  const dFis=totFis-bomb.fis0,J=dFis*3.204e-11,tnt=J/4.184e9;
+  $('bombBanner').style.display='block';
+  $('bombBanner').innerHTML=`💣 <b>原子弹模式结果:</b>几十代裂变在几秒内雪崩完成,总裂变 <b>${dFis.toLocaleString()}</b> 次,释放 ≈ ${J.toExponential(1)} J ≈ <b>${tnt.toFixed(2)} 吨 TNT</b>(示意值)。<br>而同一时刻的核反应堆,仍在 k≈1 安静地慢慢烧水——<b>根本不是一回事</b>:富集度、中子速度、控制手段全不同。`;
+  log('💣 核爆级雪崩完成!对比:反应堆只会稳定在 k≈1','r');
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0a0e14';ctx.fillRect(0,0,W,H);
+  ctx.beginPath();ctx.roundRect(CX,CY,CW,CH,10);ctx.clip();
+  ctx.fillStyle='#10151d';ctx.fillRect(CX,CY,CW,CH);
+  if(cfg.mod){ctx.fillStyle='rgba(80,150,210,.10)';ctx.fillRect(CX,CY,CW,CH);
+    ctx.fillStyle='rgba(140,190,230,.18)';ctx.font='11px system-ui';ctx.fillText('水 · 慢化剂(开启)',CX+8,CY+16);}
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.beginPath();
+  for(let x=CX;x<=CX+CW;x+=48){ctx.moveTo(x,CY);ctx.lineTo(x,CY+CH);}
+  for(let y=CY;y<=CY+CH;y+=48){ctx.moveTo(CX,y);ctx.lineTo(CX+CW,y);}
+  ctx.stroke();
+  for(const n of nuclei){
+    if(n.t===235){ctx.fillStyle='rgba(255,157,69,.16)';ctx.beginPath();ctx.arc(n.x,n.y,13,0,7);ctx.fill();}
+    ctx.fillStyle=n.t===235?'#ff9d45':'#5a6672';
+    ctx.beginPath();ctx.arc(n.x,n.y,n.t===235?8:7,0,7);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(n.x-2,n.y-2,2.6,0,7);ctx.fill();
+    if(n.fl>.05){ctx.strokeStyle=`rgba(255,230,150,${n.fl})`;ctx.lineWidth=3;ctx.beginPath();ctx.arc(n.x,n.y,10+(1-n.fl)*22,0,7);ctx.stroke();ctx.lineWidth=1;}
+    if(n.cd>0&&n.fl<=.05){ctx.strokeStyle='rgba(120,140,160,.4)';ctx.beginPath();ctx.arc(n.x,n.y,9,0,7);ctx.stroke();}
+  }
+  for(const f of fx){
+    if(f.tp==='fl'){ctx.strokeStyle=`rgba(255,235,170,${1-f.t/32})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(f.x,f.y,6+f.t*1.6,0,7);ctx.stroke();}
+    else if(f.tp==='fg'){ctx.fillStyle=`rgba(200,220,140,${1-f.t/32})`;ctx.beginPath();ctx.arc(f.x,f.y,3,0,7);ctx.fill();}
+    else{ctx.strokeStyle=`rgba(160,180,200,${.8-f.t/40})`;ctx.beginPath();ctx.arc(f.x,f.y,4+f.t*.3,0,7);ctx.stroke();}
+  }
+  ctx.lineWidth=1;
+  for(const n of neutrons){
+    const sp=Math.hypot(n.vx,n.vy),c=genCol[Math.min(n.gen,5)];
+    if(sp>1.6){ctx.strokeStyle=c;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(n.x-n.vx*3,n.y-n.vy*3);ctx.lineTo(n.x,n.y);ctx.stroke();ctx.lineWidth=1;}
+    else{ctx.fillStyle=c;ctx.shadowColor=c;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(n.x,n.y,2.6,0,7);ctx.fill();ctx.shadowBlur=0;}
+  }
+  for(const rx of rodXs()){
+    const lim=CY+CH*rodD;
+    ctx.fillStyle='#1c2128';ctx.fillRect(rx-11,CY-14,22,lim-CY+14);
+    ctx.fillStyle='#39404c';ctx.fillRect(rx-11,CY-14,5,lim-CY+14);
+    ctx.fillStyle='#e8b93c';ctx.fillRect(rx-11,lim-4,22,4);
+  }
+  ctx.restore();
+  ctx.strokeStyle='#33415c';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(CX,CY,CW,CH,10);ctx.stroke();ctx.lineWidth=1;
+  ctx.fillStyle='#6c8098';ctx.font='12px system-ui';ctx.fillText(`堆芯 · 铀燃料 ${nuclei.filter(n=>n.t===235).length}/${nuclei.length} 个 U-235 · 控制棒 ${(rodD*100)|0}%`,CX,CY-6>18?CX+0:0,0);
+}
+function drawGen(){
+  gctx.clearRect(0,0,gc.width,gc.height);
+  const N=16,gw=gc.width/N,bars=born.slice(0,N);
+  const mx=Math.max(1,...bars);
+  for(let i=0;i<N;i++){
+    const h=(bars[i]||0)/mx*(gc.height-30);
+    gctx.fillStyle=genCol[Math.min(i,5)];
+    gctx.fillRect(i*gw+4,gc.height-18-h,gw-8,h);
+    if(i%5===0){gctx.fillStyle='#8fa2bd';gctx.font='11px system-ui';gctx.fillText(i,i*gw+gw/2-3,gc.height-4);}
+  }
+  if(!bars.some(x=>x>0)){gctx.fillStyle='#8fa2bd';gctx.font='13px system-ui';gctx.fillText('发射中子后,这里会显示每一代的"子孙数量"',60,gc.height/2);}
+}
+function ui(){
+  const s=statusOf();
+  $('kEl').textContent=kS==null?'—':kS.toFixed(2);
+  $('kEl').style.color=kS==null?'#8fa2bd':kS<.9?'#ff5f6d':kS<=1.12?'#57d98a':'#ff9d45';
+  const pill=$('statusEl');pill.textContent=s.txt;pill.className='pill '+s.cls;
+  if(s.txt!==prevStatus&&prevStatus){log('状态 → '+s.txt,s.cls==='bad'?'r':s.cls==='good'?'g':'o');}
+  prevStatus=s.txt;
+  $('nAlive').textContent=neutrons.length;
+  $('nGen').textContent=neutrons.length?Math.max(...neutrons.map(n=>n.gen)):0;
+  $('nFis').textContent=totFis.toLocaleString();
+  $('pwEl').textContent=Math.round(pw).toLocaleString();
+  $('nEsc').textContent=escaped;$('nRod').textContent=rodAbs;
+  $('tempBar').style.width=Math.min(100,temp/1.25*100)+'%';
+}
+function loop(){frame++;step();draw();drawGen();ui();requestAnimationFrame(loop);}
+
+function applyUI(){cfg.enrich=+$('enrS').value;rodT=$('rodS').value/100;cfg.mod=$('modC').checked;cfg.fb=$('fbC').checked;$('rodV').textContent=$('rodS').value+'%';}
+function softReset(msg){
+  neutrons=[];fx=[];born=[];kS=null;escaped=0;rodAbs=0;meltWarned=false;
+  $('bombBanner').style.display='none';bomb={on:false,shown:false,fis0:totFis,pending:0};
+  if(msg)log(msg);
+}
+$('rodS').oninput=applyUI;
+$('enrS').onchange=()=>{applyUI();buildCore();softReset('燃料更换为 '+cfg.enrich+'% 富集铀,重新点火');};
+$('modC').onchange=()=>{applyUI();log(cfg.mod?'💧 慢化剂注入:快中子将被慢化成热中子':'💧 慢化剂排空:中子保持快中子,低浓铀将难以维持链式',cfg.mod?'g':'r');};
+$('fbC').onchange=()=>{applyUI();log(cfg.fb?'✅ 负温度反馈开启:越热反应越钝(固有安全)':'❌ 负温度反馈关闭:温度不再自动刹车(危险!)',cfg.fb?'g':'r');};
+$('fireB').onclick=()=>inject(1);
+$('pulseB').onclick=()=>inject(10);
+$('clrB').onclick=()=>{neutrons=[];born=[];kS=null;log('已清空所有自由中子');};
+$('rstB').onclick=()=>{
+  $('enrS').value='5';$('modC').checked=true;$('fbC').checked=true;$('rodS').value=55;
+  totFis=0;pw=0;temp=0;applyUI();buildCore();softReset();$('log').innerHTML='';
+  log('🔄 重置完成:5% 富集 · 慢化剂开 · 反馈开 · 控制棒 55%','g');
+};
+$('pReactor').onclick=()=>{
+  $('enrS').value='5';$('modC').checked=true;$('fbC').checked=true;$('rodS').value=55;applyUI();buildCore();
+  softReset();log('🏨 场景:典型压水堆。目标:微调控制棒,让 k≈1 自持运行','g');inject(2,true);
+};
+$('pStop').onclick=()=>{$('rodS').value=100;applyUI();log('🛑 紧急停堆:控制棒全插入,所有中子将被吞噬','r');};
+$('pNoMod').onclick=()=>{
+  $('modC').checked=false;applyUI();
+  log('💧 撤走慢化剂:中子全是快中子,而燃料只有 5% 富集——观察它如何熄灭','r');
+};
+$('pBomb').onclick=()=>{
+  $('enrS').value='93';$('modC').checked=false;$('fbC').checked=false;$('rodS').value=0;applyUI();buildCore();
+  softReset();bomb.on=true;bomb.fis0=totFis;
+  log('💣 原子弹模式:93% 武器级铀 · 快中子 · 无慢化剂 · 无控制 · 无反馈','r');inject(3,true);
+};
+
+buildCore();applyUI();
+log('就绪。试试「反应堆·点火」,然后拉控制棒寻找 k≈1','g');
+loop();
+})();
+</script>
+</body>
+</html>

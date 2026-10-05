@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>一维碰撞演示：弹性 · 非弹性 · 完全非弹性</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic extensions */
+      --sim-ball-a: #2563eb;
+      --sim-ball-a-deep: #1e40af;
+      --sim-ball-a-soft: #dbeafe;
+      --sim-ball-b: #f59e0b;
+      --sim-ball-b-deep: #b45309;
+      --sim-ball-b-soft: #fef3c7;
+      --sim-energy: #8b5cf6;
+      --sim-energy-deep: #6d28d9;
+      --sim-energy-soft: #ede9fe;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.4rem, 2.1vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; font-size: 0.88rem; }
+    .status.run { background: var(--sim-accent-soft); color: var(--sim-accent-deep); }
+    .status.warn { background: rgba(245,158,11,.14); color: #a35d00; }
+    .status.danger { background: rgba(220,38,38,.10); color: var(--sim-danger); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 380px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 260px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(150deg, #fbfdff 0%, #f1f8fa 58%, #fff9ed 100%); }
+    .readout-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+    .tile { padding: 8px 10px; border: 1px solid rgba(15,159,186,.12); border-radius: 12px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .tile small { display: block; margin-bottom: 2px; color: var(--sim-muted); font-size: 0.68rem; white-space: nowrap; }
+    .tile strong { font-size: 1.02rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tile.p strong { color: var(--sim-accent-deep); }
+    .tile.e strong { color: var(--sim-energy-deep); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .compare, .bars-panel, .model-note { padding: 14px 16px; }
+    .compare h2, .bars-panel h2 { margin: 0 0 4px; font-size: 0.98rem; }
+    .compare .unit-note, .bars-panel .unit-note { margin: 0 0 10px; color: var(--sim-muted); font-size: 0.72rem; }
+    .crow { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; align-items: center; padding: 5px 8px; border-radius: 10px; }
+    .crow .lab { font-size: 0.78rem; color: var(--sim-muted); font-weight: 600; }
+    .crow .val { font-variant-numeric: tabular-nums; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .crow.total { background: var(--sim-surface-soft); border: 1px solid var(--sim-border); margin-top: 2px; }
+    .crow.total .lab { color: var(--sim-text); }
+    .crow.total .val { font-weight: 700; }
+    .badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; vertical-align: middle; }
+    .badge.wait { background: var(--sim-grid); color: var(--sim-muted); }
+    .badge.ok { background: rgba(15,159,186,.14); color: var(--sim-accent-deep); }
+    .badge.loss { background: rgba(220,38,38,.10); color: var(--sim-danger); }
+    .bars-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 4px; }
+    #bars { width: 100%; height: 100%; min-height: 150px; display: block; }
+    .bar-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bar-badges span { padding: 4px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #barDP { background: rgba(15,159,186,.12); color: var(--sim-accent-deep); }
+    #barDE { background: var(--sim-energy-soft); color: var(--sim-energy-deep); }
+    #barDE.loss { background: rgba(220,38,38,.10); color: var(--sim-danger); }
+    .model-note { display: grid; align-content: start; gap: 10px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.5; font-size: 0.78rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; font-size: 0.86rem; line-height: 1.55; }
+    .controls { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.84rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .group { display: flex; align-items: center; gap: 8px; }
+    .group > span { font-size: 0.75rem; color: var(--sim-muted); font-weight: 700; white-space: nowrap; }
+    .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+    .seg button { padding: 6px 9px; font-size: 0.76rem; }
+    .seg button[aria-pressed="true"] { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.45); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(15,159,186,.35); }
+    .sliders { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px 16px; flex: 1 1 100%; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 0.76rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .sv-grid { stroke: var(--sim-grid); stroke-width: 1; }
+    .sv-ruler { stroke: #b3bfd0; stroke-width: 1.2; }
+    .sv-ruler-label { fill: var(--sim-muted); font-size: 11px; }
+    .sv-rail { fill: url(#railGrad); stroke: #c9d4e2; stroke-width: 1.5; }
+    .sv-rail-top { stroke: #ffffff; stroke-width: 2; opacity: .8; }
+    .sv-leg { fill: #dbe3ee; stroke: #c9d4e2; stroke-width: 1; }
+    .sv-bumper { fill: url(#hatchWall); stroke: #9aa7ba; stroke-width: 1.5; }
+    .sv-com { stroke: var(--sim-accent-deep); stroke-width: 2; stroke-dasharray: 6 5; opacity: .8; }
+    .sv-com-tri { fill: var(--sim-accent-deep); }
+    .sv-com-text { fill: var(--sim-accent-deep); font-size: 12px; font-weight: 700; }
+    .sv-arrow { stroke-width: 3.5; stroke-linecap: round; }
+    .sv-arrow-a { stroke: var(--sim-ball-a); }
+    .sv-arrow-b { stroke: var(--sim-ball-b-deep); }
+    .sv-arrow-text { font-size: 12.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .sv-arrow-text-a { fill: var(--sim-ball-a-deep); }
+    .sv-arrow-text-b { fill: var(--sim-ball-b-deep); }
+    .sv-ball-text { fill: #fff; font-weight: 800; text-anchor: middle; font-variant-numeric: tabular-nums; }
+    .sv-flash { stroke: #f97316; stroke-width: 3; stroke-linecap: round; }
+    .sv-mark { fill: var(--sim-danger); }
+    .sv-mark-text { fill: var(--sim-danger); font-size: 11px; font-weight: 700; }
+    .sv-bar-label { fill: var(--sim-muted); font-size: 10.5px; }
+    .sv-bar-val { fill: var(--sim-text); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .sv-bar-title { fill: var(--sim-text); font-size: 12px; font-weight: 750; }
+    #bP1, #bP2 { fill: var(--sim-accent); }
+    #bE1, #bE2 { fill: var(--sim-energy); }
+    #bEL { fill: url(#hatchLoss); stroke: var(--sim-danger); stroke-width: 1; stroke-dasharray: 3 2; }
+    @media (max-width: 900px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 1000 / 560; }
+      .readout-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .sliders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .side { grid-template-rows: auto auto auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>一维碰撞演示：弹性 · 非弹性 · 完全非弹性</h1>
+        <p>两球在水平气垫轨道上碰撞——调质量、初速度与弹性程度，对比碰撞前后的动量与动能。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">待机 · 参数就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">水平气垫轨道（无摩擦）</h2>
+          <span>● 球A（蓝）　● 球B（橙）　▽ 质心 · 半径按质量示意，非真实比例</span>
+        </div>
+        <svg id="scene" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">两个小球在带米尺和末端挡板的水平轨道上运动、碰撞，箭头显示速度，虚线标记质心。</desc>
+          <defs>
+            <linearGradient id="railGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#eef3f8"></stop><stop offset="1" stop-color="#d8e2ee"></stop>
+            </linearGradient>
+            <radialGradient id="ballAGrad" cx="0.35" cy="0.3" r="0.9">
+              <stop stop-color="#93b4fd"></stop><stop offset="0.55" stop-color="#2563eb"></stop><stop offset="1" stop-color="#1e40af"></stop>
+            </radialGradient>
+            <radialGradient id="ballBGrad" cx="0.35" cy="0.3" r="0.9">
+              <stop stop-color="#fde68a"></stop><stop offset="0.55" stop-color="#f59e0b"></stop><stop offset="1" stop-color="#b45309"></stop>
+            </radialGradient>
+            <pattern id="hatchWall" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="8" height="8" fill="#e2e8f0"></rect><line x1="0" y1="0" x2="0" y2="8" stroke="#94a3b8" stroke-width="2.5"></line>
+            </pattern>
+            <pattern id="hatchLoss" width="7" height="7" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="7" height="7" fill="rgba(220,38,38,.12)"></rect><line x1="0" y1="0" x2="0" y2="7" stroke="rgba(220,38,38,.55)" stroke-width="2"></line>
+            </pattern>
+          </defs>
+          <g id="grid"></g>
+          <!-- end bumpers -->
+          <rect class="sv-bumper" x="30" y="318" width="18" height="104" rx="4"></rect>
+          <rect class="sv-bumper" x="952" y="318" width="18" height="104" rx="4"></rect>
+          <!-- rail -->
+          <rect class="sv-rail" x="48" y="380" width="904" height="26" rx="7"></rect>
+          <line class="sv-rail-top" x1="54" y1="382" x2="946" y2="382"></line>
+          <rect class="sv-leg" x="120" y="406" width="12" height="58"></rect>
+          <rect class="sv-leg" x="494" y="406" width="12" height="58"></rect>
+          <rect class="sv-leg" x="868" y="406" width="12" height="58"></rect>
+          <rect x="80" y="462" width="840" height="5" rx="2.5" fill="#dbe3ee"></rect>
+          <!-- ruler -->
+          <g id="ruler"></g>
+          <!-- center of mass -->
+          <g id="comG">
+            <line id="comLine" class="sv-com" x1="0" y1="286" x2="0" y2="428"></line>
+            <polygon id="comTri" class="sv-com-tri" points="0,278 -7,292 7,292"></polygon>
+            <text id="comText" class="sv-com-text" x="0" y="270" text-anchor="middle">质心</text>
+          </g>
+          <!-- collision marker on ruler -->
+          <g id="markC" opacity="0">
+            <polygon class="sv-mark" points="0,398 -6,388 6,388"></polygon>
+            <text class="sv-mark-text" id="markCText" x="0" y="382" text-anchor="middle">碰撞</text>
+          </g>
+          <!-- velocity arrows -->
+          <g id="arrowA">
+            <line id="aALine" class="sv-arrow sv-arrow-a" x1="0" y1="0" x2="0" y2="0"></line>
+            <polygon id="aAHead" class="sv-arrow-a" points=""></polygon>
+            <text id="aAText" class="sv-arrow-text sv-arrow-text-a" x="0" y="0" text-anchor="middle"></text>
+          </g>
+          <g id="arrowB">
+            <line id="aBLine" class="sv-arrow sv-arrow-b" x1="0" y1="0" x2="0" y2="0"></line>
+            <polygon id="aBHead" class="sv-arrow-b" points=""></polygon>
+            <text id="aBText" class="sv-arrow-text sv-arrow-text-b" x="0" y="0" text-anchor="middle"></text>
+          </g>
+          <!-- balls -->
+          <g id="gA"><circle id="cA" r="26" fill="url(#ballAGrad)" stroke="#1e40af" stroke-width="2"></circle><text id="tA" class="sv-ball-text" y="5" font-size="14">1.0</text></g>
+          <g id="gB"><circle id="cB" r="26" fill="url(#ballBGrad)" stroke="#b45309" stroke-width="2"></circle><text id="tB" class="sv-ball-text" y="5" font-size="14">3.0</text></g>
+          <!-- collision flash -->
+          <g id="flash" opacity="0">
+            <line class="sv-flash" x1="0" y1="-14" x2="0" y2="-30"></line>
+            <line class="sv-flash" x1="0" y1="14" x2="0" y2="30"></line>
+            <line class="sv-flash" x1="-14" y1="0" x2="-30" y2="0"></line>
+            <line class="sv-flash" x1="14" y1="0" x2="30" y2="0"></line>
+            <line class="sv-flash" x1="-10" y1="-10" x2="-21" y2="-21"></line>
+            <line class="sv-flash" x1="10" y1="-10" x2="21" y2="-21"></line>
+            <line class="sv-flash" x1="-10" y1="10" x2="-21" y2="21"></line>
+            <line class="sv-flash" x1="10" y1="10" x2="21" y2="21"></line>
+          </g>
+        </svg>
+        <div class="readout-strip" aria-label="实时读数">
+          <div class="tile"><small>时间 t</small><strong id="roT">0.00 s</strong></div>
+          <div class="tile"><small>球A速度 v₁</small><strong id="roVA">+2.00 m/s</strong></div>
+          <div class="tile"><small>球B速度 v₂</small><strong id="roVB">0.00 m/s</strong></div>
+          <div class="tile p"><small>总动量 p</small><strong id="roP">+2.000 kg·m/s</strong></div>
+          <div class="tile e"><small>总动能 E_k</small><strong id="roE">2.000 J</strong></div>
+          <div class="tile"><small>碰撞次数</small><strong id="roC">0</strong></div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel compare" aria-label="碰撞前后对比">
+          <h2>碰撞前后对比</h2>
+          <p class="unit-note">研究对象：两球系统（不含挡板）。动量单位 kg·m/s，动能单位 J。</p>
+          <div class="crow"><span class="lab">球A动量 p₁</span><span class="val" id="cPA">—</span></div>
+          <div class="crow"><span class="lab">球B动量 p₂</span><span class="val" id="cPB">—</span></div>
+          <div class="crow total"><span class="lab">总动量 p</span><span class="val" id="cPT">—<span class="badge wait" id="dP">等待碰撞</span></span></div>
+          <div class="crow"><span class="lab">球A动能 E₁</span><span class="val" id="cEA">—</span></div>
+          <div class="crow"><span class="lab">球B动能 E₂</span><span class="val" id="cEB">—</span></div>
+          <div class="crow total"><span class="lab">总动能 E_k</span><span class="val" id="cET">—<span class="badge wait" id="dE">等待碰撞</span></span></div>
+        </section>
+
+        <section class="panel bars-panel" aria-label="守恒对比条形图">
+          <h2>守恒对比</h2>
+          <p class="unit-note">同一比例尺下：动量条碰前碰后等长（守恒），动能条随 e 变短（损失部分标红）。</p>
+          <svg id="bars" viewBox="0 0 360 236" preserveAspectRatio="xMidYMid meet" role="img" aria-label="动量与动能的碰前碰后条形对比">
+            <text class="sv-bar-title" x="6" y="18">总动量 p（kg·m/s）</text>
+            <text class="sv-bar-label" x="6" y="44">碰前</text>
+            <rect id="bP1" x="52" y="31" width="0" height="18" rx="3"></rect>
+            <text class="sv-bar-val" id="tP1" x="58" y="44"></text>
+            <text class="sv-bar-label" x="6" y="72">碰后</text>
+            <rect id="bP2" x="52" y="59" width="0" height="18" rx="3"></rect>
+            <text class="sv-bar-val" id="tP2" x="58" y="72"></text>
+            <text class="sv-bar-title" x="6" y="130">总动能 E_k（J）</text>
+            <text class="sv-bar-label" x="6" y="156">碰前</text>
+            <rect id="bE1" x="52" y="143" width="0" height="18" rx="3"></rect>
+            <text class="sv-bar-val" id="tE1" x="58" y="156"></text>
+            <text class="sv-bar-label" x="6" y="184">碰后</text>
+            <rect id="bE2" x="52" y="171" width="0" height="18" rx="3"></rect>
+            <rect id="bEL" x="52" y="171" width="0" height="18" rx="3"></rect>
+            <text class="sv-bar-val" id="tE2" x="58" y="184"></text>
+            <text class="sv-bar-label" id="tEL" x="0" y="207" opacity="0"></text>
+          </svg>
+          <div class="bar-badges">
+            <span id="barDP">Δp = —</span>
+            <span id="barDE">ΔE_k = —</span>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">设定质量与初速度，选择碰撞类型，按「开始」。核心看点：无论哪种碰撞，总动量都不变；动能是否守恒取决于弹性程度 e。</p>
+          <p><strong>常见误区：</strong>“碰撞中动能也守恒”。实际上只有弹性碰撞（e=1）不损失动能；e 越小动能损失越多，完全非弹性（e=0）损失最大，损失的动能转化为内能（形变、发热）。</p>
+          <p>教学视图：小球半径按质量的压缩比例示意；碰撞瞬间的时间被放慢，便于观察。动量、动能的数值为精确计算值。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="group">
+        <span>碰撞类型</span>
+        <div class="seg" id="presetSeg">
+          <button class="preset-btn" data-e="1" type="button" aria-pressed="true">弹性 e=1</button>
+          <button class="preset-btn" data-e="0.5" type="button" aria-pressed="false">非弹性 e=0.5</button>
+          <button class="preset-btn" data-e="0" type="button" aria-pressed="false">完全非弹性 e=0</button>
+        </div>
+      </div>
+      <div class="group">
+        <span>时间流速</span>
+        <div class="seg" id="speedSeg">
+          <button class="speed-btn" data-s="0.25" type="button" aria-pressed="false">0.25×</button>
+          <button class="speed-btn" data-s="0.5" type="button" aria-pressed="false">0.5×</button>
+          <button class="speed-btn" data-s="1" type="button" aria-pressed="true">1×</button>
+          <button class="speed-btn" data-s="2" type="button" aria-pressed="false">2×</button>
+        </div>
+      </div>
+      <div class="sliders">
+        <div class="control">
+          <label for="inMassA">球A质量 m₁ <output id="outMassA">1.0 kg</output></label>
+          <input id="inMassA" type="range" min="0.5" max="5" step="0.1" value="1">
+        </div>
+        <div class="control">
+          <label for="inMassB">球B质量 m₂ <output id="outMassB">3.0 kg</output></label>
+          <input id="inMassB" type="range" min="0.5" max="5" step="0.1" value="3">
+        </div>
+        <div class="control">
+          <label for="inVelA">球A初速 v₁ <output id="outVelA">+2.0 m/s</output></label>
+          <input id="inVelA" type="range" min="-4" max="4" step="0.1" value="2">
+        </div>
+        <div class="control">
+          <label for="inVelB">球B初速 v₂ <output id="outVelB">0.0 m/s</output></label>
+          <input id="inVelB" type="range" min="-4" max="4" step="0.1" value="0">
+        </div>
+        <div class="control">
+          <label for="inRest">弹性程度 e <output id="outRest">1.00</output></label>
+          <input id="inRest" type="range" min="0" max="1" step="0.05" value="1">
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ================= physics kernel (pure, no DOM) ================= */
+    const DT = 1 / 240;            // fixed physical step (s)
+    const TRACK_L = 10;            // track length (m), walls at x=0 and x=10
+    const X_A0 = 3.0, X_B0 = 6.5;  // default initial centers (m)
+    const EPS = 1e-9;
+
+    const radii = (m) => 0.16 * Math.pow(m, 0.4); // declared (schematic) radii, m
+
+    function makeWorld(p) {
+      return {
+        t: 0,
+        xA: p.xA, xB: p.xB, vA: p.vA, vB: p.vB,
+        mA: p.mA, mB: p.mB, rA: radii(p.mA), rB: radii(p.mB),
+        e: p.e, latched: false,
+        events: [], minGap: Infinity
+      };
+    }
+
+    function gapOf(w) { return (w.xB - w.rB) - (w.xA + w.rA); }
+
+    function advanceFree(w, h) {
+      w.xA += w.vA * h;
+      w.xB += w.vB * h;
+      w.t += h;
+      const g = gapOf(w);
+      if (g < w.minGap) w.minGap = g;
+    }
+
+    function doCollision(w) {
+      const before = { vA: w.vA, vB: w.vB, xA: w.xA, xB: w.xB };
+      const u = w.vA - w.vB;                       // closing speed (> 0)
+      const mu = (w.mA * w.mB) / (w.mA + w.mB);    // reduced mass
+      const J = (1 + w.e) * mu * u;                // impulse magnitude
+      w.vA -= J / w.mA;
+      w.vB += J / w.mB;
+      if (w.e <= EPS) {                            // perfectly inelastic: latch at v_cm
+        const vcm = (w.mA * before.vA + w.mB * before.vB) / (w.mA + w.mB);
+        w.vA = vcm; w.vB = vcm; w.latched = true;
+      }
+      w.events.push({
+        type: "ball", t: w.t, x: w.xA + w.rA,
+        before, after: { vA: w.vA, vB: w.vB, xA: w.xA, xB: w.xB }
+      });
+    }
+
+    function doWall(w, side) {
+      const before = { vA: w.vA, vB: w.vB };
+      if (w.latched) { const v = -w.vA; w.vA = v; w.vB = v; }
+      else if (side === "L") w.vA = -w.vA;
+      else w.vB = -w.vB;
+      w.events.push({ type: "wall", side, t: w.t, before, after: { vA: w.vA, vB: w.vB } });
+    }
+
+    // One fixed step with exact event splitting. Motion is force-free between
+    // events, so trajectories are piecewise linear and the interpolated event
+    // time is exact (no integration error).
+    function stepWorld(w, h) {
+      let rem = h, guard = 0;
+      while (rem > 1e-12 && guard++ < 16) {
+        const g = gapOf(w);
+        const closing = w.vA - w.vB;
+        let tBall = Infinity;
+        if (closing > EPS) tBall = g > EPS ? g / closing : 0;
+        let tWL = (w.vA < -EPS) ? (w.xA - w.rA) / -w.vA : Infinity;
+        let tWR = (w.vB > EPS) ? (TRACK_L - w.rB - w.xB) / w.vB : Infinity;
+        if (tWL < 0) tWL = 0;
+        if (tWR < 0) tWR = 0;
+        const tMin = Math.min(tBall, tWL, tWR);
+        if (tMin >= rem - 1e-15) { advanceFree(w, rem); rem = 0; break; }
+        advanceFree(w, tMin);
+        rem -= tMin;
+        if (tMin === tBall) doCollision(w);
+        else doWall(w, tWL <= tWR ? "L" : "R");
+      }
+    }
+
+    // Fixed-grid accumulator shared by the runtime loop and model checks.
+    function advance(w, seconds, accRef) {
+      accRef.a += seconds;
+      let n = 0;
+      while (accRef.a >= DT - 1e-12) {
+        stepWorld(w, DT);
+        accRef.a -= DT;
+        if (++n >= 600) { accRef.a = 0; break; }   // drop backlog after suspension
+      }
+    }
+
+    const pOf = (v, m) => m * v;
+    const eOf = (v, m) => 0.5 * m * v * v;
+
+    function runFor(p, seconds, dt) {
+      const w = makeWorld(p);
+      const step = dt || DT;
+      let done = 0;
+      while (done < seconds - 1e-12) {
+        const h = Math.min(step, seconds - done);
+        stepWorld(w, h);
+        done += h;
+      }
+      return w;
+    }
+
+    function runModelChecks() {
+      const nearly = (a, b, tol) => Math.abs(a - b) <= tol;
+      const firstBall = (w) => w.events.find((ev) => ev.type === "ball");
+      const out = [];
+
+      // 1. elastic equal-mass exchange
+      {
+        const w = runFor({ xA: X_A0, xB: X_B0, vA: 2, vB: 0, mA: 1, mB: 1, e: 1 }, 4);
+        const ev = firstBall(w);
+        out.push({ name: "弹性·等质量交换速度", pass: !!ev && nearly(ev.after.vA, 0, 1e-9) && nearly(ev.after.vB, 2, 1e-9),
+          expected: "v1'=0, v2'=2", actual: ev ? `${ev.after.vA}, ${ev.after.vB}` : "no event", tolerance: "1e-9" });
+      }
+      // 2. elastic 1:3 classic
+      {
+        const w = runFor({ xA: X_A0, xB: X_B0, vA: 2, vB: 0, mA: 1, mB: 3, e: 1 }, 4);
+        const ev = firstBall(w);
+        out.push({ name: "弹性·1:3经典解", pass: !!ev && nearly(ev.after.vA, -1, 1e-9) && nearly(ev.after.vB, 1, 1e-9),
+          expected: "v1'=-1, v2'=1", actual: ev ? `${ev.after.vA}, ${ev.after.vB}` : "no event", tolerance: "1e-9" });
+      }
+      // 3. opposite-direction e=0.8
+      {
+        const w = runFor({ xA: 3, xB: 7, vA: 3, vB: -2, mA: 2, mB: 1, e: 0.8 }, 4);
+        const ev = firstBall(w);
+        out.push({ name: "对撞·e=0.8解析解", pass: !!ev && nearly(ev.after.vA, 0, 1e-9) && nearly(ev.after.vB, 4, 1e-9),
+          expected: "v1'=0, v2'=4", actual: ev ? `${ev.after.vA}, ${ev.after.vB}` : "no event", tolerance: "1e-9" });
+      }
+      // 4. very heavy target (moving-wall limit)
+      {
+        const w = runFor({ xA: X_A0, xB: X_B0, vA: 2, vB: 0, mA: 0.5, mB: 100, e: 1 }, 4);
+        const ev = firstBall(w);
+        const eA = ((0.5 - 100) / 100.5) * 2, eB = (2 * 0.5 * 2) / 100.5;
+        out.push({ name: "重靶极限", pass: !!ev && nearly(ev.after.vA, eA, 1e-9) && nearly(ev.after.vB, eB, 1e-9),
+          expected: `${eA}, ${eB}`, actual: ev ? `${ev.after.vA}, ${ev.after.vB}` : "no event", tolerance: "1e-9" });
+      }
+      // 5. momentum conserved for every restitution
+      {
+        const cases = [
+          { xA: 3, xB: 6.5, vA: 2, vB: 0, mA: 1, mB: 3, e: 0 },
+          { xA: 2, xB: 6, vA: 1.5, vB: -1, mA: 2, mB: 3, e: 0.65 },
+          { xA: 3, xB: 7, vA: -2, vB: 1, mA: 1, mB: 4, e: 0 },
+          { xA: 2, xB: 8, vA: 2.2, vB: 0.4, mA: 5, mB: 0.5, e: 1 }
+        ];
+        let worst = 0;
+        cases.forEach((c) => {
+          const w = runFor(c, 3);
+          const ev = firstBall(w);
+          if (!ev) return;
+          const p0 = pOf(c.vA, c.mA) + pOf(c.vB, c.mB);
+          const p1 = pOf(ev.after.vA, c.mA) + pOf(ev.after.vB, c.mB);
+          worst = Math.max(worst, Math.abs(p1 - p0));
+        });
+        out.push({ name: "动量守恒（e=0~1各工况）", pass: worst <= 1e-9, expected: "|Δp| ≤ 1e-9", actual: worst, tolerance: "1e-9" });
+      }
+      // 6. kinetic-energy loss formula dEk = 0.5*mu*(1-e^2)*u^2
+      {
+        const cases = [
+          { xA: 3, xB: 6.5, vA: 2, vB: 0, mA: 1, mB: 3, e: 0.5 },
+          { xA: 2, xB: 6, vA: 1.5, vB: -1, mA: 2, mB: 3, e: 0.65 },
+          { xA: 3, xB: 7, vA: 3, vB: -2, mA: 2, mB: 1, e: 0.8 }
+        ];
+        let worst = 0;
+        cases.forEach((c) => {
+          const w = runFor(c, 3);
+          const ev = firstBall(w);
+          if (!ev) return;
+          const dEk = (eOf(ev.after.vA, c.mA) + eOf(ev.after.vB, c.mB)) - (eOf(ev.before.vA, c.mA) + eOf(ev.before.vB, c.mB));
+          const mu = (c.mA * c.mB) / (c.mA + c.mB);
+          const expect = -0.5 * mu * (1 - c.e * c.e) * Math.pow(c.vA - c.vB, 2);
+          worst = Math.max(worst, Math.abs(dEk - expect));
+        });
+        out.push({ name: "动能损失公式 ½μ(1−e²)u²", pass: worst <= 1e-9, expected: "|Δ(Ek差)| ≤ 1e-9", actual: worst, tolerance: "1e-9" });
+      }
+      // 7. perfectly inelastic latch at center-of-mass velocity
+      {
+        const w = runFor({ xA: 3, xB: 6.5, vA: 2, vB: 0, mA: 1, mB: 3, e: 0 }, 2.5);
+        const ev = firstBall(w);
+        const vcm = (1 * 2 + 3 * 0) / 4;
+        out.push({ name: "e=0合体同速（=质心速度）", pass: !!ev && nearly(ev.after.vA, ev.after.vB, 1e-12) && nearly(ev.after.vA, vcm, 1e-12) && w.latched,
+          expected: `v1'=v2'=${vcm}`, actual: ev ? `${ev.after.vA}, ${ev.after.vB}` : "no event", tolerance: "1e-12" });
+      }
+      // 8. no penetration ever
+      {
+        const w = runFor({ xA: 3, xB: 6.5, vA: 3, vB: -1, mA: 2, mB: 2, e: 0.85 }, 30);
+        out.push({ name: "全程无穿透", pass: w.minGap >= -1e-9, expected: "min gap ≥ -1e-9", actual: w.minGap, tolerance: "-1e-9" });
+      }
+      // 9. exact collision time (linear root)
+      {
+        const p = { xA: 3, xB: 6.5, vA: 2, vB: 0, mA: 1, mB: 3, e: 0.7 };
+        const w = runFor(p, 3);
+        const ev = firstBall(w);
+        const tStar = ((p.xB - radii(p.mB)) - (p.xA + radii(p.mA))) / (p.vA - p.vB);
+        out.push({ name: "碰撞时刻精确（线性求根）", pass: !!ev && Math.abs(ev.t - tStar) <= 1e-9,
+          expected: tStar, actual: ev ? ev.t : "no event", tolerance: "1e-9 s" });
+      }
+      // 10. step-halving consistency (piecewise-linear => machine-identical)
+      {
+        const p = { xA: 3, xB: 6.5, vA: 2.3, vB: -0.7, mA: 1.4, mB: 2.6, e: 0.6 };
+        const w1 = runFor(p, 2, 1 / 120), w2 = runFor(p, 2, 1 / 480);
+        const d = Math.max(Math.abs(w1.xA - w2.xA), Math.abs(w1.xB - w2.xB), Math.abs(w1.vA - w2.vA), Math.abs(w1.vB - w2.vB));
+        out.push({ name: "步长减半一致性", pass: d <= 1e-12, expected: "≤ 1e-12", actual: d, tolerance: "1e-12" });
+      }
+      // 11. time-scale invariance through the shared accumulator
+      {
+        const p = { xA: 3, xB: 6.5, vA: 2.3, vB: -0.7, mA: 1.4, mB: 2.6, e: 0.6 };
+        const w1 = makeWorld(p), w2 = makeWorld(p);
+        const a1 = { a: 0 }, a2 = { a: 0 };
+        advance(w1, 1.0, a1);
+        for (let i = 0; i < 4; i++) advance(w2, 0.25, a2);
+        const d = Math.max(Math.abs(w1.xA - w2.xA), Math.abs(w1.xB - w2.xB), Math.abs(w1.vA - w2.vA), Math.abs(w1.vB - w2.vB));
+        out.push({ name: "时间流速不变性", pass: d === 0, expected: "完全一致", actual: d, tolerance: "exact" });
+      }
+      // 12. wall bounce is perfectly elastic
+      {
+        const w = runFor({ xA: 1, xB: 8, vA: -3, vB: 0.2, mA: 1, mB: 3, e: 0.5 }, 1.5);
+        const ev = w.events.find((x) => x.type === "wall" && x.side === "L");
+        out.push({ name: "末端挡板弹性反弹", pass: !!ev && nearly(ev.after.vA, 3, 1e-12),
+          expected: "v1' = +3", actual: ev ? ev.after.vA : "no event", tolerance: "1e-12" });
+      }
+      // 13. latched pair reflects as a whole at the wall
+      {
+        const w = runFor({ xA: 1.2, xB: 2.4, vA: -1.5, vB: -1.5, mA: 1, mB: 2, e: 0 }, 3);
+        const wall = w.events.find((x) => x.type === "wall");
+        const ok = wall && w.vA === w.vB && w.vA > 0;
+        out.push({ name: "合体整体反弹", pass: !!ok, expected: "碰墙后 v1=v2>0", actual: wall ? `${w.vA}, ${w.vB}` : "no event", tolerance: "exact" });
+      }
+      // 14. no collision when v1 <= v2, and all state finite
+      {
+        const w = runFor({ xA: 3, xB: 6.5, vA: 1, vB: 2, mA: 1, mB: 1, e: 1 }, 3);
+        const noHit = !w.events.some((x) => x.type === "ball");
+        const fin = [w.xA, w.xB, w.vA, w.vB, w.t].every(Number.isFinite);
+        out.push({ name: "v1≤v2不相碰 + 状态有限", pass: noHit && fin, expected: "无球球碰撞，状态有限", actual: `events=${w.events.length}, finite=${fin}`, tolerance: "exact" });
+      }
+      return out;
+    }
+
+    /* ================= view geometry ================= */
+    const PX0 = 60, PPM = 88, RAIL_Y = 380, RSCALE = 160;
+    const X = (x) => PX0 + x * PPM;
+    const RPX = (r) => r * RSCALE;
+
+    /* ================= runtime state ================= */
+    const parameterSchema = [
+      { key: "massA", label: "球A质量 m₁", type: "slider", min: 0.5, max: 5, step: 0.1, default: 1, unit: "kg" },
+      { key: "massB", label: "球B质量 m₂", type: "slider", min: 0.5, max: 5, step: 0.1, default: 3, unit: "kg" },
+      { key: "velA", label: "球A初速 v₁", type: "slider", min: -4, max: 4, step: 0.1, default: 2, unit: "m/s" },
+      { key: "velB", label: "球B初速 v₂", type: "slider", min: -4, max: 4, step: 0.1, default: 0, unit: "m/s" },
+      { key: "rest", label: "弹性程度 e", type: "slider", min: 0, max: 1, step: 0.05, default: 1, unit: "" }
+    ];
+    const P = { massA: 1, massB: 3, velA: 2, velB: 0, rest: 1 };
+    const state = {
+      running: false, phase: "idle", speed: 1,
+      world: null, snapshot: null, flashT: -9,
+      collisions: 0, wallHits: 0, consumed: 0,
+      accRef: { a: 0 }, lastTs: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+    let el = null;
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const fmt = (v, n) => (Number.isFinite(v) ? v.toFixed(n) : "—");
+    const fmtS = (v, n) => (Number.isFinite(v) ? (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(n) : "—");
+
+    function setStatus(text, cls) {
+      el.status.textContent = text;
+      el.status.className = "status" + (cls ? " " + cls : "");
+    }
+
+    function buildRuler() {
+      const parts = [];
+      for (let i = 0; i <= 10; i += 1) {
+        const px = X(i);
+        parts.push(`<line class="sv-ruler" x1="${px}" y1="406" x2="${px}" y2="416"></line>`);
+        parts.push(`<text class="sv-ruler-label" x="${px}" y="432" text-anchor="middle">${i}${i === 10 ? " m" : ""}</text>`);
+        if (i < 10) {
+          const hx = px + PPM / 2;
+          parts.push(`<line class="sv-grid" x1="${hx}" y1="409" x2="${hx}" y2="416"></line>`);
+        }
+      }
+      el.ruler.innerHTML = parts.join("");
+    }
+
+    function buildScene() {
+      const w = state.world;
+      el.cA.setAttribute("r", String(RPX(w.rA)));
+      el.cB.setAttribute("r", String(RPX(w.rB)));
+      const fA = RPX(w.rA) > 26 ? 14 : 11, fB = RPX(w.rB) > 26 ? 14 : 11;
+      el.tA.setAttribute("font-size", String(fA));
+      el.tB.setAttribute("font-size", String(fB));
+      el.tA.textContent = fmt(w.mA, 1);
+      el.tB.textContent = fmt(w.mB, 1);
+      el.markC.setAttribute("opacity", "0");
+      el.flash.setAttribute("opacity", "0");
+    }
+
+    function resetExperiment(statusText) {
+      state.running = false;
+      state.world = makeWorld({ xA: X_A0, xB: X_B0, vA: P.velA, vB: P.velB, mA: P.massA, mB: P.massB, e: P.rest });
+      state.snapshot = null;
+      state.flashT = -9;
+      state.collisions = 0;
+      state.wallHits = 0;
+      state.consumed = 0;
+      state.accRef = { a: 0 };
+      state.lastTs = null;
+      state.phase = "idle";
+      buildScene();
+      setStatus(statusText || "待机 · 参数就绪", "");
+      render();
+    }
+
+    function willCollide() {
+      const w = state.world;
+      return (w.vA - w.vB) > EPS && gapOf(w) > EPS;
+    }
+
+    function init() {
+      el = {
+        status: $("status"), ruler: $("ruler"),
+        gA: $("gA"), gB: $("gB"), cA: $("cA"), cB: $("cB"), tA: $("tA"), tB: $("tB"),
+        aALine: $("aALine"), aAHead: $("aAHead"), aAText: $("aAText"),
+        aBLine: $("aBLine"), aBHead: $("aBHead"), aBText: $("aBText"),
+        comLine: $("comLine"), comTri: $("comTri"), comText: $("comText"),
+        flash: $("flash"), markC: $("markC"), markCText: $("markCText"),
+        roT: $("roT"), roVA: $("roVA"), roVB: $("roVB"), roP: $("roP"), roE: $("roE"), roC: $("roC"),
+        cPA: $("cPA"), cPB: $("cPB"), cPT: $("cPT"), cEA: $("cEA"), cEB: $("cEB"), cET: $("cET"),
+        dP: $("dP"), dE: $("dE"),
+        bP1: $("bP1"), bP2: $("bP2"), tP1: $("tP1"), tP2: $("tP2"),
+        bE1: $("bE1"), bE2: $("bE2"), bEL: $("bEL"), tE1: $("tE1"), tE2: $("tE2"), tEL: $("tEL"),
+        barDP: $("barDP"), barDE: $("barDE"), insight: $("insight"),
+        inMassA: $("inMassA"), outMassA: $("outMassA"), inMassB: $("inMassB"), outMassB: $("outMassB"),
+        inVelA: $("inVelA"), outVelA: $("outVelA"), inVelB: $("inVelB"), outVelB: $("outVelB"),
+        inRest: $("inRest"), outRest: $("outRest"),
+        startBtn: $("startBtn"), pauseBtn: $("pauseBtn"), resetBtn: $("resetBtn")
+      };
+      buildRuler();
+      bindControls();
+      setParameters({ massA: 1, massB: 3, velA: 2, velB: 0, rest: 1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (!state.world) return;
+      state.running = true;
+      if (state.phase === "idle" || state.phase === "wall") {
+        state.phase = willCollide() ? "approach" : "drift";
+      }
+      setStatus(state.phase === "drift" ? "运行中 · v₁≤v₂ 不会相碰" : "运行中 · 两球接近", "run");
+      el.startBtn.setAttribute("aria-pressed", "true");
+      render();
+    }
+    function pause() {
+      state.running = false;
+      setStatus("已暂停", "warn");
+      el.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      resetExperiment("待机 · 参数就绪");
+      el.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function makeSnapshot(w, ev) {
+      const b = ev.before, a = ev.after;
+      const before = {
+        pA: pOf(b.vA, w.mA), pB: pOf(b.vB, w.mB),
+        eA: eOf(b.vA, w.mA), eB: eOf(b.vB, w.mB),
+        vA: b.vA, vB: b.vB
+      };
+      const after = {
+        pA: pOf(a.vA, w.mA), pB: pOf(a.vB, w.mB),
+        eA: eOf(a.vA, w.mA), eB: eOf(a.vB, w.mB),
+        vA: a.vA, vB: a.vB
+      };
+      before.pT = before.pA + before.pB; after.pT = after.pA + after.pB;
+      before.eT = before.eA + before.eB; after.eT = after.eA + after.eB;
+      const loss = after.eT - before.eT;              // ≤ 0
+      const pct = before.eT > EPS ? (loss / before.eT) * 100 : 0;
+      return { t: ev.t, x: ev.x, e: w.e, before, after, loss, pct, latched: w.latched };
+    }
+
+    function processEvents() {
+      const w = state.world;
+      while (state.consumed < w.events.length) {
+        const ev = w.events[state.consumed];
+        state.consumed += 1;
+        if (ev.type === "ball") {
+          state.snapshot = makeSnapshot(w, ev);
+          state.collisions += 1;
+          state.flashT = w.t;
+          state.phase = w.latched ? "latched" : "after";
+          setStatus(w.latched ? "运行中 · 两球合体同速" : "运行中 · 碰后观察", "run");
+          el.markC.setAttribute("transform", `translate(${X(ev.x)},0)`);
+          el.markC.setAttribute("opacity", "1");
+          el.markCText.textContent = state.collisions > 1 ? `碰撞×${state.collisions}` : "碰撞";
+        } else {
+          state.wallHits += 1;
+          state.running = false;
+          state.phase = "wall";
+          setStatus("已暂停 · 小球碰到末端挡板", "danger");
+          el.startBtn.setAttribute("aria-pressed", "false");
+        }
+      }
+    }
+
+    function update(dt) {
+      if (!state.running || !state.world) return;
+      const h = clamp(finite(dt, 0), 0, 0.05) * state.speed;
+      advance(state.world, h, state.accRef);
+      processEvents();
+    }
+
+    function setArrow(lineC, headC, textC, cx, y, v, label) {
+      const show = Math.abs(v) >= 0.02;
+      const L = clamp(Math.abs(v) * 34, 14, 170);
+      const x2 = cx + (v >= 0 ? L : -L);
+      lineC.setAttribute("x1", String(cx)); lineC.setAttribute("y1", String(y));
+      lineC.setAttribute("x2", String(x2)); lineC.setAttribute("y2", String(y));
+      lineC.setAttribute("opacity", show ? "1" : "0");
+      const dir = v >= 0 ? 1 : -1;
+      headC.setAttribute("points", `${x2 + dir * 10},${y} ${x2 - dir * 3},${y - 5.5} ${x2 - dir * 3},${y + 5.5}`);
+      headC.setAttribute("opacity", show ? "1" : "0");
+      textC.setAttribute("x", String(cx)); textC.setAttribute("y", String(y - 9));
+      textC.textContent = `${label} ${fmtS(v, 2)} m/s`;
+    }
+
+    function render() {
+      if (!state.world || !el) return;
+      const w = state.world;
+      const M = w.mA + w.mB;
+      const rA = RPX(w.rA), rB = RPX(w.rB);
+      const cxA = X(w.xA), cxB = X(w.xB);
+      const cyA = RAIL_Y - rA, cyB = RAIL_Y - rB;
+      // contact squash (visual only, decays over 0.12 s of model time)
+      const q = clamp(1 - (w.t - state.flashT) / 0.12, 0, 1);
+      const sx = 1 - 0.14 * q, sy = 1 + 0.10 * q;
+      el.gA.setAttribute("transform", `translate(${cxA},${cyA}) scale(${sx},${sy})`);
+      el.gB.setAttribute("transform", `translate(${cxB},${cyB}) scale(${sx},${sy})`);
+      // velocity arrows
+      setArrow(el.aALine, el.aAHead, el.aAText, cxA, RAIL_Y - rA - rA - 20, w.vA, "v₁");
+      setArrow(el.aBLine, el.aBHead, el.aBText, cxB, RAIL_Y - rB - rB - 20, w.vB, "v₂");
+      // center of mass
+      const xcm = (w.mA * w.xA + w.mB * w.xB) / M;
+      const vcm = (pOf(w.vA, w.mA) + pOf(w.vB, w.mB)) / M;
+      const pxcm = X(xcm);
+      el.comLine.setAttribute("x1", String(pxcm)); el.comLine.setAttribute("x2", String(pxcm));
+      el.comTri.setAttribute("points", `${pxcm},278 ${pxcm - 7},292 ${pxcm + 7},292`);
+      el.comText.setAttribute("x", String(pxcm));
+      el.comText.textContent = `质心 ${fmtS(vcm, 2)} m/s`;
+      // flash
+      const k = clamp(1 - (w.t - state.flashT) / 0.4, 0, 1);
+      if (k > 0 && state.snapshot) {
+        const cyMid = (cyA + cyB) / 2;
+        el.flash.setAttribute("transform", `translate(${X(state.snapshot.x)},${cyMid}) scale(${1 + (1 - k) * 0.5})`);
+        el.flash.setAttribute("opacity", String(k));
+      } else {
+        el.flash.setAttribute("opacity", "0");
+      }
+      // live readouts
+      const pT = pOf(w.vA, w.mA) + pOf(w.vB, w.mB);
+      const eT = eOf(w.vA, w.mA) + eOf(w.vB, w.mB);
+      el.roT.textContent = `${fmt(w.t, 2)} s`;
+      el.roVA.textContent = `${fmtS(w.vA, 2)} m/s`;
+      el.roVB.textContent = `${fmtS(w.vB, 2)} m/s`;
+      el.roP.textContent = `${fmtS(pT, 3)} kg·m/s`;
+      el.roE.textContent = `${fmt(eT, 3)} J`;
+      el.roC.textContent = String(state.collisions);
+      renderCompare();
+      renderInsight(pT);
+    }
+
+    function pairText(b, a) { return `${fmtS(b, 3)} → ${fmtS(a, 3)}`; }
+    function pairTextE(b, a) { return `${fmt(b, 3)} → ${fmt(a, 3)}`; }
+
+    function renderCompare() {
+      const s = state.snapshot;
+      if (!s) {
+        el.cPA.textContent = "—"; el.cPB.textContent = "—"; el.cEA.textContent = "—"; el.cEB.textContent = "—";
+        el.cPT.textContent = "—"; el.cET.textContent = "—";
+        el.dP.className = "badge wait"; el.dP.textContent = "等待碰撞";
+        el.dE.className = "badge wait"; el.dE.textContent = "等待碰撞";
+        el.bP1.setAttribute("width", "0"); el.bP2.setAttribute("width", "0");
+        el.bE1.setAttribute("width", "0"); el.bE2.setAttribute("width", "0"); el.bEL.setAttribute("width", "0");
+        el.tP1.textContent = ""; el.tP2.textContent = ""; el.tE1.textContent = ""; el.tE2.textContent = "";
+        el.tEL.setAttribute("opacity", "0");
+        el.barDP.textContent = "Δp = —"; el.barDE.textContent = "ΔE_k = —"; el.barDE.className = "";
+        return;
+      }
+      el.cPA.textContent = pairText(s.before.pA, s.after.pA);
+      el.cPB.textContent = pairText(s.before.pB, s.after.pB);
+      el.cPT.textContent = `${fmtS(s.before.pT, 3)} → ${fmtS(s.after.pT, 3)}`;
+      el.cEA.textContent = pairTextE(s.before.eA, s.after.eA);
+      el.cEB.textContent = pairTextE(s.before.eB, s.after.eB);
+      el.cET.textContent = `${fmt(s.before.eT, 3)} → ${fmt(s.after.eT, 3)}`;
+      el.dP.className = "badge ok"; el.dP.textContent = "Δ=0 ✓ 守恒";
+      if (s.loss >= -EPS) {
+        el.dE.className = "badge ok"; el.dE.textContent = "Δ=0 ✓ 守恒";
+      } else {
+        el.dE.className = "badge loss"; el.dE.textContent = `${fmt(s.loss, 3)} J（${fmt(s.pct, 1)}%）`;
+      }
+      // bars: common scale per group
+      const pMax = Math.max(Math.abs(s.before.pT), Math.abs(s.after.pT), 0.001);
+      const eMax = Math.max(s.before.eT, s.after.eT, 0.001);
+      const W = 250;
+      const wp1 = (Math.abs(s.before.pT) / pMax) * W, wp2 = (Math.abs(s.after.pT) / pMax) * W;
+      const we1 = (s.before.eT / eMax) * W, we2 = (s.after.eT / eMax) * W;
+      el.bP1.setAttribute("width", String(wp1)); el.bP2.setAttribute("width", String(wp2));
+      el.bE1.setAttribute("width", String(we1)); el.bE2.setAttribute("width", String(we2));
+      el.bEL.setAttribute("x", String(52 + we2));
+      el.bEL.setAttribute("width", String(Math.max(0, we1 - we2)));
+      el.tP1.textContent = fmtS(s.before.pT, 2); el.tP1.setAttribute("x", String(58 + wp1));
+      el.tP2.textContent = fmtS(s.after.pT, 2); el.tP2.setAttribute("x", String(58 + wp2));
+      el.tE1.textContent = fmt(s.before.eT, 2); el.tE1.setAttribute("x", String(58 + we1));
+      el.tE2.textContent = fmt(s.after.eT, 2); el.tE2.setAttribute("x", String(58 + we2));
+      if (s.loss < -EPS) {
+        el.tEL.setAttribute("x", "52"); el.tEL.setAttribute("opacity", "1");
+        el.tEL.textContent = `损失 ${fmt(-s.loss, 2)} J（${fmt(-s.pct, 1)}%）→ 转化为内能`;
+      } else {
+        el.tEL.setAttribute("opacity", "0");
+      }
+      el.barDP.textContent = "Δp = 0.000 · 守恒 ✓";
+      if (s.loss >= -EPS) {
+        el.barDE.className = ""; el.barDE.textContent = "ΔE_k = 0.000 · 守恒 ✓";
+      } else {
+        el.barDE.className = "loss"; el.barDE.textContent = `ΔE_k = ${fmt(s.loss, 3)} J（${fmt(s.pct, 1)}%）· 转化为内能`;
+      }
+    }
+
+    function renderInsight(pT) {
+      const w = state.world;
+      const s = state.snapshot;
+      let text;
+      if (!state.running && w.t === 0) {
+        text = "设定质量与初速度，选择碰撞类型，按「开始」。核心看点：无论哪种碰撞，总动量都不变；动能是否守恒取决于弹性程度 e。";
+      } else if (state.phase === "drift") {
+        text = "v₁ ≤ v₂：两球不会相碰。请调大 v₁ 或调小 v₂ 后重置。";
+      } else if (state.phase === "wall") {
+        text = "小球与末端挡板相碰：挡板对球施加了冲量（外力），从这一刻起两球系统的动量不再守恒。已自动暂停，可按「开始」继续或「重置」。";
+      } else if (!s) {
+        text = `两球接近中——总动量保持 ${fmtS(pT, 3)} kg·m/s 不变（系统不受外力）。`;
+      } else if (s.e >= 1 - EPS) {
+        text = `弹性碰撞（e=1）：动量守恒，动能也守恒（ΔE_k=0）。速度发生“交换式”传递。`;
+      } else if (s.e <= EPS) {
+        const M = w.mA + w.mB;
+        const vcm = s.before.pT / M;
+        text = `完全非弹性碰撞（e=0）：两球合为一体，以共同速度 ${fmtS(vcm, 2)} m/s（=质心速度）运动，动能损失最大（${fmt(-s.pct, 1)}%）。`;
+      } else {
+        text = `非弹性碰撞（e=${fmt(s.e, 2)}）：动量仍守恒，但动能损失了 ${fmt(-s.pct, 1)}%（转化为内能）。`;
+      }
+      el.insight.textContent = text;
+    }
+
+    function setParameters(values) {
+      const defs = {};
+      parameterSchema.forEach((d) => { defs[d.key] = d; });
+      Object.keys(P).forEach((key) => {
+        const d = defs[key];
+        P[key] = clamp(finite(Number(values[key]), d.default), d.min, d.max);
+      });
+      // sync inputs and outputs
+      el.inMassA.value = String(P.massA); el.outMassA.textContent = `${fmt(P.massA, 1)} kg`;
+      el.inMassB.value = String(P.massB); el.outMassB.textContent = `${fmt(P.massB, 1)} kg`;
+      el.inVelA.value = String(P.velA); el.outVelA.textContent = `${fmtS(P.velA, 1)} m/s`;
+      el.inVelB.value = String(P.velB); el.outVelB.textContent = `${fmtS(P.velB, 1)} m/s`;
+      el.inRest.value = String(P.rest); el.outRest.textContent = fmt(P.rest, 2);
+      syncPresetHighlight();
+      resetExperiment("参数已更新 · 待机");
+    }
+
+    function syncPresetHighlight() {
+      const btns = document.querySelectorAll(".preset-btn");
+      for (let i = 0; i < btns.length; i += 1) {
+        const b = btns[i];
+        b.setAttribute("aria-pressed", Math.abs(Number(b.dataset.e) - P.rest) < 1e-9 ? "true" : "false");
+      }
+    }
+
+    function getState() {
+      const w = state.world;
+      return {
+        running: state.running, phase: state.phase, t: w ? w.t : 0,
+        params: { ...P },
+        world: w ? { xA: w.xA, xB: w.xB, vA: w.vA, vB: w.vB, latched: w.latched } : null,
+        collisions: state.collisions, wallHits: state.wallHits,
+        snapshot: state.snapshot ? JSON.parse(JSON.stringify(state.snapshot)) : null
+      };
+    }
+    function getReadouts() {
+      const w = state.world;
+      if (!w) return { t: 0, vA: 0, vB: 0, pTotal: 0, ekTotal: 0, collisions: 0, running: false, phase: "idle" };
+      return {
+        t: w.t, vA: w.vA, vB: w.vB,
+        pTotal: pOf(w.vA, w.mA) + pOf(w.vB, w.mB),
+        ekTotal: eOf(w.vA, w.mA) + eOf(w.vB, w.mB),
+        collisions: state.collisions, running: state.running, phase: state.phase
+      };
+    }
+
+    function bindControls() {
+      el.startBtn.addEventListener("click", start);
+      el.pauseBtn.addEventListener("click", pause);
+      el.resetBtn.addEventListener("click", reset);
+      const sliders = [
+        [el.inMassA, "massA"], [el.inMassB, "massB"], [el.inVelA, "velA"], [el.inVelB, "velB"], [el.inRest, "rest"]
+      ];
+      sliders.forEach(([input, key]) => {
+        input.addEventListener("input", () => {
+          const next = { massA: P.massA, massB: P.massB, velA: P.velA, velB: P.velB, rest: P.rest };
+          next[key] = Number(input.value);
+          setParameters(next);
+        });
+      });
+      const presets = document.querySelectorAll(".preset-btn");
+      for (let i = 0; i < presets.length; i += 1) {
+        presets[i].addEventListener("click", () => {
+          setParameters({ massA: P.massA, massB: P.massB, velA: P.velA, velB: P.velB, rest: Number(presets[i].dataset.e) });
+        });
+      }
+      const speeds = document.querySelectorAll(".speed-btn");
+      for (let i = 0; i < speeds.length; i += 1) {
+        speeds[i].addEventListener("click", () => {
+          state.speed = Number(speeds[i].dataset.s);
+          for (let j = 0; j < speeds.length; j += 1) {
+            speeds[j].setAttribute("aria-pressed", j === i ? "true" : "false");
+          }
+        });
+      }
+    }
+
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

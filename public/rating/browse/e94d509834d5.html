@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>α / β / γ 射线对比仿真 — 穿透 · 电离 · 磁偏转</title>
+<style>
+:root{
+  --bg:#0a0e13; --panel:#111823; --panel2:#0d141d; --line:#223042;
+  --txt:#dbe7f4; --dim:#8fa5bd; --acc:#59c2ff;
+  --alpha:#ff5d4d; --beta:#4da3ff; --gamma:#3fd97f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:14px/1.6 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:14px}
+h1{font-size:19px;margin-bottom:2px}
+.sub{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+.wrap{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.controls{width:300px;flex:none;display:flex;flex-direction:column;gap:12px}
+.stage{flex:1;min-width:520px}
+canvas{width:100%;height:500px;display:block;border-radius:10px;background:#070b10}
+fieldset{border:1px solid var(--line);border-radius:9px;padding:8px 10px 10px}
+legend{padding:0 6px;color:var(--acc);font-size:13px}
+.row{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:13px}
+.row>label:first-child{flex:none;width:66px;color:var(--dim)}
+.row output{flex:none;width:72px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}
+input[type=range]{flex:1;accent-color:var(--acc);height:22px;min-width:0}
+.chk{display:flex;align-items:center;gap:6px;margin:4px 2px;font-size:13px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--acc);width:15px;height:15px;cursor:pointer;flex:none}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+.btns{display:flex;gap:8px}
+button{flex:1;background:#1b2838;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 4px;font-size:13.5px;cursor:pointer}
+button:hover{background:#24374e;border-color:#38516e}
+button.primary{background:#14364e;border-color:#2d6da3}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:1}
+.seg button{border:0;border-radius:0}
+.seg button.on{background:#2d6da3;color:#fff}
+.stats{display:flex;gap:8px;margin-top:10px}
+.stat{flex:1;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:8px;padding:7px 9px;min-width:0}
+.stat .t{font-size:12px;color:var(--dim);white-space:nowrap}
+.stat .p{font-size:21px;font-weight:700;color:var(--c);font-variant-numeric:tabular-nums}
+.stat .n{font-size:11.5px;color:var(--dim);margin-top:2px}
+.bar{height:6px;background:#0a121c;border-radius:4px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--c);width:0%;transition:width .2s}
+.legend{font-size:12.5px;color:var(--dim);margin-top:10px}
+.legend>b,.legend b{color:var(--txt)}
+.lg-row{display:flex;align-items:center;gap:8px;margin-top:5px}
+.track{height:8px;border-radius:4px;flex:none}
+#deflect{font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.8}
+#deflect b{color:var(--txt)}
+.teach{margin-top:14px;font-size:13.5px}
+.teach ul{margin-top:4px}
+.teach li{margin:4px 0 4px 18px}
+.teach b{color:var(--acc)}
+.teach .cA{color:var(--alpha);font-weight:700}.teach .cB{color:var(--beta);font-weight:700}.teach .cG{color:var(--gamma);font-weight:700}
+.note{font-size:12px;color:#6d8299;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>α · β · γ 射线对比仿真</h1>
+<div class="sub">穿透本领 · 电离本领 · 磁场中的偏转 ｜ 左侧放射源 → 空气 → 可叠加屏蔽层 → 匀强磁场区 → 右侧探测器计数屏</div>
+
+<div class="wrap">
+  <!-- ===================== 控制面板 ===================== -->
+  <div class="panel controls">
+    <fieldset><legend>射线源（可单独开关 / 同屏对比）</legend>
+      <label class="chk"><input type="checkbox" id="ckA" checked><span class="sw" style="background:var(--alpha)"></span>α 射线（氦核 ⁴₂He，+2e，质量数 4）</label>
+      <label class="chk"><input type="checkbox" id="ckB" checked><span class="sw" style="background:var(--beta)"></span>β 射线（高速电子 e⁻，−1e）</label>
+      <label class="chk"><input type="checkbox" id="ckG" checked><span class="sw" style="background:var(--gamma)"></span>γ 射线（光子，电中性）</label>
+    </fieldset>
+
+    <fieldset><legend>匀强磁场（B 垂直屏面）</legend>
+      <div class="row"><label class="chk" style="margin:0"><input type="checkbox" id="ckM">启用磁场</label></div>
+      <div class="row"><label>磁感应强度</label><input type="range" id="sB" min="0" max="1" step="0.05" value="0.5"><output id="oB">0.50 T</output></div>
+      <div class="row"><label>磁场方向</label>
+        <div class="seg"><button id="dIn" class="on">⊗ 指向屏内</button><button id="dOut">⊙ 指向屏外</button></div>
+      </div>
+      <div id="deflect"></div>
+    </fieldset>
+
+    <fieldset><legend>屏蔽层（可叠加插入，0 = 移除）</legend>
+      <div class="row"><label>纸 / 布</label><input type="range" id="sP" min="0" max="1" step="0.05" value="0"><output id="oP">已移除</output></div>
+      <div class="row"><label>铝板</label><input type="range" id="sAl" min="0" max="10" step="0.25" value="0"><output id="oAl">已移除</output></div>
+      <div class="row"><label>铅板</label><input type="range" id="sPb" min="0" max="10" step="0.25" value="0"><output id="oPb">已移除</output></div>
+      <div class="row"><label>空气路径</label><input type="range" id="sAir" min="0" max="30" step="0.5" value="5"><output id="oAir">5.0 cm</output></div>
+    </fieldset>
+
+    <fieldset><legend>播放控制</legend>
+      <div class="btns">
+        <button id="bPlay" class="primary">⏸ 暂停</button>
+        <button id="bStep">⏭ 单步</button>
+        <button id="bReset">↺ 重置</button>
+      </div>
+    </fieldset>
+  </div>
+
+  <!-- ===================== 舞台 ===================== -->
+  <div class="stage">
+    <div class="panel">
+      <canvas id="cv"></canvas>
+
+      <div class="stats">
+        <div class="stat" style="--c:var(--alpha)">
+          <div class="t">α 到达比例</div><div class="p" id="pA">—</div>
+          <div class="bar"><i id="bA"></i></div><div class="n" id="nA">发射 0 · 到达 0</div>
+        </div>
+        <div class="stat" style="--c:var(--beta)">
+          <div class="t">β 到达比例</div><div class="p" id="pB">—</div>
+          <div class="bar"><i id="bB"></i></div><div class="n" id="nB">发射 0 · 到达 0</div>
+        </div>
+        <div class="stat" style="--c:var(--gamma)">
+          <div class="t">γ 到达比例</div><div class="p" id="pG">—</div>
+          <div class="bar"><i id="bG"></i></div><div class="n" id="nG">发射 0 · 到达 0</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <b>径迹图例（沿路径按电离度染色：径迹越粗、越亮 = 电离本领越强）</b>
+        <div class="lg-row"><span class="track" style="background:var(--alpha);width:36px;box-shadow:0 0 9px var(--alpha)"></span><span>α：电离本领 <b>最强</b> ｜ 穿透本领 <b>最弱</b>（一张纸 / 几厘米空气即可挡住）</span></div>
+        <div class="lg-row"><span class="track" style="background:var(--beta);height:5px;width:36px;box-shadow:0 0 5px var(--beta)"></span><span>β：电离本领 <b>中等</b> ｜ 穿透本领 <b>中等</b>（几毫米铝板可挡住）</span></div>
+        <div class="lg-row"><span class="track" style="background:var(--gamma);height:2px;width:36px;opacity:.85"></span><span>γ：电离本领 <b>最弱</b> ｜ 穿透本领 <b>最强</b>（需数厘米厚铅板才能显著减弱）</span></div>
+      </div>
+    </div>
+
+    <div class="panel teach">
+      <b>教学要点</b>
+      <ul>
+        <li><b>三种射线的本质：</b><span class="cA">α = 氦原子核（⁴₂He，+2e，质量数 4）</span>；<span class="cB">β = 高速电子（−1e）</span>；<span class="cG">γ = 波长极短的电磁波（光子，不带电）</span>。</li>
+        <li><b>排序互为消长：</b>电离本领 α &gt; β &gt; γ；穿透本领 α &lt; β &lt; γ。电离越强 → 单位路程损失能量越快 → 射程越短，两者大致相反。</li>
+        <li><b>磁场中的偏转：</b><span class="cA">α 带正电</span>、<span class="cB">β 带负电</span>，受洛伦兹力 F = qv×B，沿<b>相反方向</b>偏转（β 质量极小，偏转明显得多，磁感应强度足够大时会偏出探测器）；<span class="cG">γ 电中性，在磁场中始终不偏转</span>。</li>
+      </ul>
+      <div class="note">模型说明：穿透采用「射程（α）+ 指数衰减（β、γ）」的简化统计模型；为便于观察，磁场中的偏转曲率做了视觉化缩放（真实电子在 1 T 磁场中偏转半径不足 1 mm，会紧贴圆周回旋）；α 在空气中的射程设为约 13 cm（真实值约几厘米，随能量而定）。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+
+/* ---------------- 物理设定 ---------------- */
+// qm：视觉化等效荷质比（符号决定偏转方向），r = v/(|qm|·B)
+const RAYS={
+  alpha:{color:'#ff5d4d',speed:8, rate:10,w:4.6,a:0.95,qm:+8/22, kind:'range',
+         stop:{air:1/13, paper:250, alu:330, lead:500}},          // α：空气射程≈13cm，任何屏蔽层表面即停
+  beta: {color:'#4da3ff',speed:16,rate:14,w:2.3,a:0.85,qm:-16/4.5,kind:'exp',
+         mu:{air:0.002, paper:0.6, alu:5.8, lead:8.0}},           // β：几毫米铝板即可挡住
+  gamma:{color:'#3fd97f',speed:26,rate:18,w:1.4,a:0.65,qm:0,      kind:'exp',
+         mu:{air:0.0005,paper:0.005,alu:0.15,lead:0.7}}           // γ：铅板半厚层≈1cm
+};
+const state={playing:true,on:{alpha:true,beta:true,gamma:true},
+             BOn:false,B:0.5,Bdir:-1, paper:0,alu:0,lead:0,air:5};
+const stats={alpha:{e:0,a:0},beta:{e:0,a:0},gamma:{e:0,a:0}};
+let particles=[],sparks=[],hits=[],acc={alpha:0,beta:0,gamma:0};
+
+const FW=6,GAP=1.2,DETW=1.2,SRCW=1.7;      // 磁场区宽/后隙/探测器宽/源宽(cm)
+let L={},scale=20,x0=0,cy=0,W=0,H=0,DPR=1,aperture=4.2;
+
+function layout(){
+  const x1=SRCW+state.air, x2=x1+state.paper/10, x3=x2+state.alu/10, x4=x3+state.lead;
+  const f0=x4,f1=x4+FW,det=f1+GAP;
+  L={x1,x2,x3,x4,f0,f1,det,total:det+DETW+0.7};
+}
+function resize(){DPR=window.devicePixelRatio||1;W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;}
+const X=x=>x0+x*scale, Y=y=>cy+y*scale;
+function mediumAt(x){
+  if(x>=L.x1&&x<L.x2)return'paper';
+  if(x>=L.x2&&x<L.x3)return'alu';
+  if(x>=L.x3&&x<L.x4)return'lead';
+  return'air';
+}
+
+/* ---------------- 仿真 ---------------- */
+function spawn(k){
+  const r=RAYS[k],ang=(Math.random()*8-4)*Math.PI/180,v=r.speed*(0.88+Math.random()*0.24);
+  particles.push({k,x:SRCW-0.55,y:(Math.random()-0.5)*0.5,vx:v*Math.cos(ang),vy:v*Math.sin(ang),E:1,trail:[]});
+  stats[k].e++;
+}
+function kill(i,p){sparks.push({x:p.x,y:p.y,c:RAYS[p.k].color,life:.5,max:.5});particles.splice(i,1);}
+
+function stepSim(dt){
+  for(const k in state.on){
+    if(state.on[k]){acc[k]+=RAYS[k].rate*dt;while(acc[k]>=1){acc[k]--;if(particles.length<420)spawn(k);}}
+    else acc[k]=0;
+  }
+  const Bz=state.BOn?state.B*state.Bdir:0;
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i],r=RAYS[p.k];
+    if(Bz!==0&&r.qm!==0&&p.x>=L.f0&&p.x<=L.f1){        // 洛伦兹力（B⊥屏面）
+      const a=r.qm*Bz,nvx=p.vx+a*p.vy*dt;p.vy+=-a*p.vx*dt;p.vx=nvx;
+    }
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    p.trail.push(p.x,p.y);if(p.trail.length>240)p.trail.splice(0,2);
+    if(p.x>=L.det){                                      // 到达探测器平面
+      if(Math.abs(p.y)<=aperture){stats[p.k].a++;hits.push({y:p.y,k:p.k,t:performance.now()});if(hits.length>400)hits.shift();}
+      particles.splice(i,1);continue;
+    }
+    const m=mediumAt(p.x),spd=Math.hypot(p.vx,p.vy);
+    if(r.kind==='range'){                                // α：连续慢化，能量耗尽即停
+      p.E-=r.stop[m]*spd*dt;if(p.E<=0){kill(i,p);continue;}
+    }else{                                               // β/γ：随机吸收（指数衰减）
+      const mu=r.mu[m]*spd*dt;
+      if(mu>0&&Math.random()<1-Math.exp(-mu)){kill(i,p);continue;}
+    }
+    if(Math.abs(p.y)>H/(2*scale)+0.5||p.x>L.total+1)particles.splice(i,1);
+  }
+  for(let i=sparks.length-1;i>=0;i--){sparks[i].life-=dt;if(sparks[i].life<=0)sparks.splice(i,1);}
+}
+
+/* ---------------- 绘制 ---------------- */
+function label(t,x,y,c){ctx.fillStyle=c;ctx.font='12.5px sans-serif';ctx.textAlign='center';ctx.fillText(t,x,y);}
+function slab(a,b,color,ch){
+  const wpx=(b-a)*scale;if(wpx<0.6)return;
+  const x=X(a),y=32,h=H-84;
+  const g=ctx.createLinearGradient(x,0,x+wpx,0);
+  g.addColorStop(0,'rgba(255,255,255,.30)');g.addColorStop(.12,color);g.addColorStop(.9,color);g.addColorStop(1,'rgba(0,0,0,.45)');
+  ctx.fillStyle=g;ctx.fillRect(x,y,wpx,h);
+  ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,wpx-1,h-1);
+  if(wpx>16){ctx.fillStyle='rgba(8,12,18,.9)';ctx.font='bold 13px sans-serif';ctx.textAlign='center';ctx.fillText(ch,x+wpx/2,y+h/2+4);}
+}
+function deflectSigns(){const s=-Math.sign(RAYS.alpha.qm*state.B*state.Bdir);return{a:s||1,b:-(s||1)};}
+function arrow(x,y,dir,color,txt){
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;ctx.globalAlpha=.95;
+  const len=18,y0=dir>0?y:y+len,y1=dir>0?y+len:y;
+  ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x-4,y1-dir*6);ctx.lineTo(x+4,y1-dir*6);ctx.closePath();ctx.fill();
+  ctx.font='bold 12px sans-serif';ctx.textAlign='left';ctx.fillText(txt,x+8,(y0+y1)/2+4);ctx.globalAlpha=1;
+}
+function poly(t,w,al,color){
+  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.globalAlpha=al;
+  ctx.beginPath();ctx.moveTo(X(t[0]),Y(t[1]));
+  for(let i=1;i<t.length/2;i++)ctx.lineTo(X(t[i*2]),Y(t[i*2+1]));
+  ctx.stroke();ctx.globalAlpha=1;
+}
+
+function drawScene(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a1018');g.addColorStop(1,'#070b11');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(140,170,200,.12)';ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.moveTo(X(0),cy);ctx.lineTo(X(L.total),cy);ctx.stroke();ctx.setLineDash([]);
+
+  /* 磁场区 */
+  const fx0=X(L.f0),fx1=X(L.f1);
+  if(state.BOn){
+    ctx.fillStyle='rgba(96,150,255,.09)';ctx.fillRect(fx0,30,fx1-fx0,H-80);
+    ctx.strokeStyle='rgba(120,165,255,.5)';ctx.setLineDash([6,5]);ctx.strokeRect(fx0,30,fx1-fx0,H-80);ctx.setLineDash([]);
+    ctx.strokeStyle='rgba(140,180,255,.5)';ctx.fillStyle='rgba(140,180,255,.5)';ctx.lineWidth=1.2;
+    for(let px=fx0+22;px<fx1-8;px+=44)for(let py=52;py<H-104;py+=44){
+      ctx.beginPath();ctx.arc(px,py,6,0,7);ctx.stroke();
+      if(state.Bdir<0){ctx.beginPath();ctx.moveTo(px-4,py-4);ctx.lineTo(px+4,py+4);ctx.moveTo(px+4,py-4);ctx.lineTo(px-4,py+4);ctx.stroke();}
+      else{ctx.beginPath();ctx.arc(px,py,1.8,0,7);ctx.fill();}
+    }
+    label(`匀强磁场 B = ${state.B.toFixed(2)} T ${state.Bdir<0?'⊗ 向内':'⊙ 向外'}`,(fx0+fx1)/2,18,'#8db8ff');
+    if(state.B>0){const s=deflectSigns();arrow(fx0+18,H-72,s.a,RAYS.alpha.color,'α');arrow(fx0+62,H-72,s.b,RAYS.beta.color,'β');}
+  }else{
+    ctx.strokeStyle='rgba(120,150,190,.22)';ctx.setLineDash([5,6]);ctx.strokeRect(fx0,30,fx1-fx0,H-80);ctx.setLineDash([]);
+    label('磁场区（已关闭）',(fx0+fx1)/2,18,'rgba(140,165,195,.6)');
+  }
+
+  /* 屏蔽层（源→探测器：纸→铝→铅） */
+  slab(L.x1,L.x2,'#c9a06a','纸');slab(L.x2,L.x3,'#9fb2c0','铝');slab(L.x3,L.x4,'#55677a','铅');
+  const on=[];
+  if(state.paper>0)on.push(`纸/布 ${state.paper.toFixed(2)} mm`);
+  if(state.alu>0)on.push(`铝 ${state.alu.toFixed(2)} mm`);
+  if(state.lead>0)on.push(`铅 ${state.lead.toFixed(2)} cm`);
+  ctx.fillStyle='rgba(150,180,210,.7)';ctx.font='12px sans-serif';ctx.textAlign='left';
+  ctx.fillText(on.length?('屏蔽层：'+on.join(' ｜ ')):'屏蔽层：无',12,20);
+  if(state.air>3)label(`空气路径 ${state.air.toFixed(1)} cm`,(X(SRCW)+X(L.x1))/2,18,'rgba(150,180,210,.6)');
+
+  /* 放射源 */
+  const sx=X(0.15),sw=X(SRCW-0.3)-sx;
+  ctx.fillStyle='#2a3242';ctx.strokeStyle='#46587a';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(sx,cy-34,Math.max(sw,26),68,6);ctx.fill();ctx.stroke();
+  const cxp=sx+Math.max(sw,26)/2;
+  ctx.fillStyle='#ffd23f';
+  for(let i=0;i<3;i++){const a0=-Math.PI/2+i*2*Math.PI/3-.5,a1=a0+1;
+    ctx.beginPath();ctx.moveTo(cxp,cy);ctx.arc(cxp,cy,12,a0,a1);ctx.closePath();ctx.fill();}
+  ctx.fillStyle='#0a0e13';ctx.beginPath();ctx.arc(cxp,cy,4,0,7);ctx.fill();
+  label('放射源',cxp,cy+52,'#c9d8ea');
+
+  /* 探测器 */
+  const dx=X(L.det),ap=aperture*scale;
+  ctx.fillStyle='#12202b';ctx.fillRect(dx,32,DETW*scale,H-84);
+  const dg=ctx.createLinearGradient(dx,0,dx+DETW*scale,0);
+  dg.addColorStop(0,'#123240');dg.addColorStop(1,'#1d4d5a');
+  ctx.fillStyle=dg;ctx.fillRect(dx,cy-ap,DETW*scale,2*ap);
+  ctx.strokeStyle='#59e2c8';ctx.strokeRect(dx+.5,cy-ap+.5,DETW*scale-1,2*ap-1);
+  label('探测器 · 计数屏',dx+DETW*scale/2,cy-ap-8,'#59e2c8');
+
+  /* 底部标尺 */
+  const ry=H-26;
+  ctx.strokeStyle='rgba(140,170,200,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(X(SRCW),ry);ctx.lineTo(X(L.det),ry);ctx.stroke();
+  ctx.font='11px sans-serif';ctx.fillStyle='rgba(140,170,200,.6)';ctx.textAlign='center';
+  const st=scale>18?2:5;
+  for(let d=0;d<=Math.ceil(L.det-SRCW);d+=st){
+    const px=X(SRCW+d);ctx.beginPath();ctx.moveTo(px,ry-4);ctx.lineTo(px,ry+4);ctx.stroke();
+    if(d>0&&px<W-24)ctx.fillText(d,px,ry+16);
+  }
+  ctx.textAlign='left';ctx.fillText('距源距离 / cm',X(SRCW)-40,ry+16);
+}
+function drawHits(){
+  const now=performance.now();
+  for(const h of hits){
+    const age=(now-h.t)/7000;if(age>1)continue;
+    const px=X(L.det+DETW/2),py=Y(h.y),c=RAYS[h.k].color;
+    ctx.globalAlpha=.25*(1-age);ctx.fillStyle=c;ctx.beginPath();ctx.arc(px,py,5,0,7);ctx.fill();
+    ctx.globalAlpha=1-age;ctx.beginPath();ctx.arc(px,py,2.4,0,7);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function drawTrails(){
+  ctx.lineCap='round';ctx.lineJoin='round';
+  for(const p of particles){
+    const r=RAYS[p.k],t=p.trail;if(t.length<4)continue;
+    const w=r.w*(0.5+0.5*p.E),al=r.a*(0.45+0.55*p.E);
+    poly(t,w*2.6,al*0.18,r.color);              // 电离辉光
+    poly(t,w,al,r.color);                       // 主径迹（粗细/亮度∝电离度）
+    ctx.fillStyle='#fff';ctx.globalAlpha=.9;
+    ctx.beginPath();ctx.arc(X(p.x),Y(p.y),Math.max(1.5,w*.45),0,7);ctx.fill();ctx.globalAlpha=1;
+  }
+}
+function drawSparks(){
+  for(const s of sparks){const f=s.life/s.max;
+    ctx.globalAlpha=f;ctx.fillStyle=s.c;
+    ctx.beginPath();ctx.arc(X(s.x),Y(s.y),(1-f)*7+2,0,7);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ---------------- 面板刷新 ---------------- */
+const KEY={alpha:'A',beta:'B',gamma:'G'};
+function updatePanel(){
+  for(const k of ['alpha','beta','gamma']){
+    const st=stats[k],pct=st.e?st.a/st.e*100:null;
+    $('p'+KEY[k]).textContent=pct===null?'—':pct.toFixed(1)+'%';
+    $('b'+KEY[k]).style.width=(pct||0)+'%';
+    $('n'+KEY[k]).textContent=`发射 ${st.e} · 到达 ${st.a}`;
+  }
+}
+function updateDeflectText(){
+  const el=$('deflect');
+  if(!state.BOn){el.innerHTML='磁场已关闭：三种射线均沿直线传播。<br>勾选「启用磁场」可观察偏转（γ 始终不偏转）。';return;}
+  if(state.B<=0){el.innerHTML=`B = 0.00 T：无磁场力，带电射线也不偏转。`;return;}
+  const s=deflectSigns(),d=t=>t>0?'向下':'向上';
+  el.innerHTML=`B ${state.Bdir<0?'⊗ 垂直屏面向里':'⊙ 垂直屏面向外'}，B = ${state.B.toFixed(2)} T：<br>`+
+    `<b style="color:var(--alpha)">α（+2e）→ ${d(s.a)}偏转</b> ｜ <b style="color:var(--beta)">β（−1e）→ ${d(s.b)}偏转</b> ｜ <b style="color:var(--gamma)">γ（不带电）→ 不偏转</b>`;
+}
+function physicsChanged(){particles=[];sparks=[];hits=[];acc={alpha:0,beta:0,gamma:0};
+  for(const k in stats){stats[k].e=0;stats[k].a=0;}layout();updateDeflectText();updatePanel();}
+
+/* ---------------- 交互 ---------------- */
+$('ckA').onchange=e=>state.on.alpha=e.target.checked;
+$('ckB').onchange=e=>state.on.beta=e.target.checked;
+$('ckG').onchange=e=>state.on.gamma=e.target.checked;
+$('ckM').onchange=e=>{state.BOn=e.target.checked;physicsChanged();};
+$('sB').oninput=e=>{state.B=+e.target.value;$('oB').textContent=state.B.toFixed(2)+' T';};
+$('sB').onchange=physicsChanged;
+$('dIn').onclick=()=>{state.Bdir=-1;$('dIn').classList.add('on');$('dOut').classList.remove('on');physicsChanged();};
+$('dOut').onclick=()=>{state.Bdir=+1;$('dOut').classList.add('on');$('dIn').classList.remove('on');physicsChanged();};
+$('sP').oninput=e=>{state.paper=+e.target.value;$('oP').textContent=state.paper?('已插入 '+state.paper.toFixed(2)+' mm'):'已移除';};
+$('sP').onchange=physicsChanged;
+$('sAl').oninput=e=>{state.alu=+e.target.value;$('oAl').textContent=state.alu?('已插入 '+state.alu.toFixed(2)+' mm'):'已移除';};
+$('sAl').onchange=physicsChanged;
+$('sPb').oninput=e=>{state.lead=+e.target.value;$('oPb').textContent=state.lead?('已插入 '+state.lead.toFixed(2)+' cm'):'已移除';};
+$('sPb').onchange=physicsChanged;
+$('sAir').oninput=e=>{state.air=+e.target.value;$('oAir').textContent=state.air.toFixed(1)+' cm';};
+$('sAir').onchange=physicsChanged;
+$('bPlay').onclick=()=>{state.playing=!state.playing;$('bPlay').textContent=state.playing?'⏸ 暂停':'▶ 播放';};
+$('bStep').onclick=()=>{state.playing=false;$('bPlay').textContent='▶ 播放';stepSim(1/60);render();};
+$('bReset').onclick=physicsChanged;
+
+/* ---------------- 主循环 ---------------- */
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,W,H);
+  scale=Math.min((W-14)/L.total,26);x0=(W-L.total*scale)/2;cy=H/2;
+  aperture=Math.min(4.2,H/(2*scale)-0.6);
+  drawScene();drawHits();drawTrails();drawSparks();updatePanel();
+}
+let last=performance.now();
+function frame(t){
+  const dt=Math.min((t-last)/1000,0.05);last=t;
+  if(state.playing)stepSim(dt);
+  render();requestAnimationFrame(frame);
+}
+new ResizeObserver(resize).observe(cv);
+resize();layout();updateDeflectText();requestAnimationFrame(frame);
+</script>
+</body>
+</html>

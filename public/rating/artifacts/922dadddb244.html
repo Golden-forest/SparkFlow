@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>平抛运动交互仿真</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    min-height:100vh;
+    background:#0b1020;
+    background-image:radial-gradient(1100px 520px at 75% -10%, #18224a 0%, rgba(24,34,74,0) 60%);
+    color:#e8ecf5;
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  }
+  header{padding:18px 22px 8px}
+  h1{margin:0;font-size:22px;letter-spacing:.5px}
+  .sub{color:#8fa1c7;font-size:13px;margin-top:4px}
+  .app{display:flex;gap:16px;padding:10px 18px 6px;max-width:1440px;margin:0 auto}
+  .stage-wrap{flex:1;min-width:0}
+  .stage{
+    position:relative;height:clamp(430px,68vh,700px);
+    border:1px solid #253054;border-radius:14px;overflow:hidden;
+    background:#0d1428;
+  }
+  #cv{width:100%;height:100%;display:block}
+  .sidebar{width:352px;flex:none;display:flex;flex-direction:column;gap:14px}
+  .card{background:#121a30;border:1px solid #253054;border-radius:12px;padding:14px 16px}
+  .card h2{margin:0 0 12px;font-size:14px;color:#8fb4ff;letter-spacing:1px}
+  .ctl .row{margin-bottom:14px}
+  .ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:#c3d0ec;margin-bottom:6px}
+  .ctl output{font-family:ui-monospace,Consolas,monospace;color:#7ce8f5;font-weight:700}
+  input[type=range]{width:100%;accent-color:#4dd0e1;cursor:pointer}
+  .seg{display:flex;background:#0e1526;border:1px solid #263257;border-radius:8px;padding:3px;gap:3px}
+  .seg button{flex:1;padding:6px 4px;font-size:12px;border:none;background:transparent;color:#9fb0d0;border-radius:6px;cursor:pointer}
+  .seg button.active{background:#2b7f96;color:#eafcff;font-weight:700}
+  .btns{display:flex;gap:8px;margin:4px 0 10px}
+  .btns button{flex:1;padding:9px 6px;font-size:14px;border-radius:8px;border:1px solid #2c3a63;background:#182242;color:#dbe4ff;cursor:pointer;transition:.15s}
+  .btns button:hover{background:#22305a}
+  .btns .primary{background:#0f8fa3;border-color:#2fd4e4;color:#031018;font-weight:700}
+  .btns .primary:hover{background:#17a9c0}
+  .chk{display:flex;align-items:center;gap:7px;font-size:13px;color:#c3d0ec;margin-top:8px;cursor:pointer}
+  .chk input{accent-color:#4dd0e1}
+  .big{font-family:ui-monospace,Consolas,monospace;font-size:20px;color:#7ce8f5;margin-bottom:8px}
+  .land{background:rgba(80,220,150,.10);border:1px solid #35d08f;color:#8df0c0;padding:8px 10px;border-radius:8px;font-size:13px;margin-bottom:10px}
+  .hidden{display:none}
+  .grid{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+  .grid .lb{color:#9fb0d0}
+  .grid .vl{font-family:ui-monospace,Consolas,monospace;text-align:right;color:#e8ecf5}
+  .grid .vl.hl{color:#4ade80;font-weight:700}
+  .theory{margin-top:12px;padding-top:10px;border-top:1px dashed #2c3a63;display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:13px}
+  .theory span{color:#8fa1c7}
+  .theory b{font-family:ui-monospace,Consolas,monospace;color:#ffd54f}
+  .teach ol{margin:0;padding-left:20px;font-size:13px;line-height:1.75;color:#c3d0ec}
+  .teach li b{color:#9fd6ff}
+  .tip{margin-top:12px;font-size:12.5px;line-height:1.7;color:#ffd54f;background:rgba(255,213,79,.07);border:1px solid rgba(255,213,79,.25);border-radius:8px;padding:8px 10px}
+  footer{text-align:center;color:#66799f;font-size:12px;padding:14px}
+  @media (max-width:960px){
+    .app{flex-direction:column}
+    .sidebar{width:auto}
+    .stage{height:56vh}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎯 平抛运动交互仿真</h1>
+  <div class="sub">高处平台上的小球 A 以水平初速度 v₀ 抛出；同高度处对照球 B 由静止释放 —— 观察两方向运动的独立性与等时性（忽略空气阻力）</div>
+</header>
+
+<div class="app">
+  <div class="stage-wrap">
+    <div class="stage"><canvas id="cv"></canvas></div>
+  </div>
+
+  <aside class="sidebar">
+    <!-- 参数与控制 -->
+    <section class="card ctl">
+      <h2>🎛 参数与控制</h2>
+      <div class="row">
+        <label>水平初速度 v₀ <output id="oV0">8.0 m/s</output></label>
+        <input type="range" id="rV0" min="2" max="20" step="0.5" value="8">
+      </div>
+      <div class="row">
+        <label>抛出高度 h <output id="oH">20 m</output></label>
+        <input type="range" id="rH" min="5" max="45" step="1" value="20">
+      </div>
+      <div class="row">
+        <label>重力加速度 g</label>
+        <div class="seg" id="segG">
+          <button data-g="10" class="active">10 m/s²（默认）</button>
+          <button data-g="9.8">9.8 m/s²</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>播放倍率（慢放便于观察）</label>
+        <div class="seg" id="segS">
+          <button data-s="0.25">0.25×</button>
+          <button data-s="0.5">0.5×</button>
+          <button data-s="1" class="active">1×</button>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="bPlay" class="primary">▶ 播放</button>
+        <button id="bStep" title="前进 0.05 s">⏭ 单步</button>
+        <button id="bReset">↺ 重置</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="cVec" checked> 显示速度矢量及分量</label>
+      <label class="chk"><input type="checkbox" id="cStrobe" checked> 显示频闪点（每 T/8，含等高连线）</label>
+    </section>
+
+    <!-- 实时数据 -->
+    <section class="card">
+      <h2>📊 实时数据（平抛球 A）</h2>
+      <div class="big" id="dT">t = 0.00 s</div>
+      <div id="landMsg" class="land hidden"></div>
+      <div class="grid">
+        <span class="lb">水平位移 x = v₀t</span>   <span class="vl" id="pX">0.00 m</span>
+        <span class="lb">下落高度 y = ½gt²</span>   <span class="vl" id="pY">0.00 m</span>
+        <span class="lb">离地高度 h − y</span>      <span class="vl" id="pH">20.00 m</span>
+        <span class="lb">水平速度 vx（恒定）</span>  <span class="vl hl" id="pVx">8.00 m/s</span>
+        <span class="lb">竖直速度 vy = gt</span>     <span class="vl" id="pVy">0.00 m/s</span>
+        <span class="lb">合速度 v = √(vx²+vy²)</span><span class="vl" id="pV">8.00 m/s</span>
+        <span class="lb">对照球 B 的 vy′（≡A 的 vy）</span><span class="vl" id="pVyB">0.00 m/s</span>
+      </div>
+      <div class="theory">
+        <span>落地时刻 T = √(2h/g)</span><b id="pTth">2.00 s</b>
+        <span>射程 R = v₀·T</span><b id="pRth">16.00 m</b>
+      </div>
+    </section>
+
+    <!-- 教学要点 -->
+    <section class="card teach">
+      <h2>📚 教学要点</h2>
+      <ol>
+        <li><b>水平方向 — 匀速直线运动：</b>水平方向不受力，vx = v₀ 保持不变，x = v₀t（频闪点水平间距始终相等）。</li>
+        <li><b>竖直方向 — 自由落体：</b>vy = g·t，y = ½gt²，与对照球 B 的下落完全相同。</li>
+        <li><b>独立性与等时性：</b>两方向运动互不影响、同时进行。任意时刻 A、B 两球等高（见白色连线），同时落地；T = √(2h/g) 只由 h、g 决定，与 v₀ 无关。</li>
+        <li><b>射程：</b>R = v₀·√(2h/g)，与 v₀ 成正比。</li>
+      </ol>
+      <div class="tip">💡 动手试：① 只增大 v₀ → 落地时间不变、射程变大；② 只增大 h → 时间与射程都变大；③ 切换 g = 9.8 与 10，比较 T 与 R。</div>
+    </section>
+  </aside>
+</div>
+
+<footer>快捷键：空格 = 播放/暂停 · → = 单步 · R = 重置 ｜ 理想模型：忽略空气阻力</footer>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var cv = $('cv'), ctx = cv.getContext('2d'), stage = cv.parentElement;
+
+  // ---------------- 状态 ----------------
+  var state = { v0:8, h:20, g:10, t:0, playing:false, speed:1, showVec:true, showStrobe:true };
+  var landed = false, landTs = 0;
+  var L = {};   // 画布布局缓存
+
+  function T(){ return Math.sqrt(2*state.h/state.g); }
+  function R(){ return state.v0*T(); }
+  function posX(t){ return state.v0*t; }
+  function posY(t){ return 0.5*state.g*t*t; }
+
+  // ---------------- 画布与布局 ----------------
+  function setupCanvas(){
+    var r = stage.getBoundingClientRect();
+    L.W = Math.max(320, r.width);
+    L.H = Math.max(300, r.height);
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(L.W*dpr);
+    cv.height = Math.round(L.H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  function niceStep(scale){
+    var target = 70/scale, pows=[0.2,0.5,1,2,5,10,20,50], i;
+    for(i=0;i<pows.length;i++) if(pows[i]>=target) return pows[i];
+    return 100;
+  }
+
+  function layout(){
+    var padL=16, padR=18, padT=56, padB=58, abovePx=42;
+    L.padT = padT;
+    L.x0 = padL+76;                                  // 抛出点（桌面右缘）像素 x
+    var availW = L.W - L.x0 - padR;
+    var availH = L.H - padT - padB - abovePx;
+    var worldW = Math.max(R()+3.2, 9);
+    L.scale = Math.max(1.5, Math.min(availW/worldW, availH/state.h));
+    var extraV = Math.max(0, availH - state.h*L.scale);
+    L.y0 = padT + abovePx + extraV*0.55;             // 抛出点像素 y
+    L.groundY = L.y0 + state.h*L.scale;
+    L.bx = L.x0 + 30;                                // 对照球 B 的像素 x
+    var maxComp = Math.max(state.v0, state.g*T(), 4);
+    L.vecK = Math.min(6, 110/maxComp);               // 速度矢量比例（px 每 m/s）
+    L.strobeDt = T()/8;
+    L.step = niceStep(L.scale);
+  }
+
+  // ---------------- 绘图工具 ----------------
+  function line(x1,y1,x2,y2,color,w,dash){
+    ctx.save();
+    if(dash) ctx.setLineDash(dash);
+    ctx.strokeStyle = color; ctx.lineWidth = w||1;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.restore();
+  }
+  function dot(x,y,r,fill){
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = fill; ctx.fill();
+  }
+  function text(str,x,y,color,font,align,base){
+    ctx.save();
+    ctx.font = font || '11px system-ui,sans-serif';
+    ctx.fillStyle = color || '#c6d2ec';
+    ctx.textAlign = align||'left'; ctx.textBaseline = base||'alphabetic';
+    ctx.fillText(str,x,y);
+    ctx.restore();
+  }
+  function labelO(str,x,y,color,align){
+    ctx.save();
+    ctx.font = 'bold 12px system-ui,sans-serif';
+    ctx.textAlign = align||'left'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,12,24,.85)';
+    ctx.strokeText(str,x,y);
+    ctx.fillStyle = color; ctx.fillText(str,x,y);
+    ctx.restore();
+  }
+  function drawArrow(x1,y1,x2,y2,color,w,head){
+    var dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy);
+    if(len<1.5) return 0;
+    var a=Math.atan2(dy,dx);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w||2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var hx=x2-Math.cos(a)*head, hy=y2-Math.sin(a)*head;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(hx-Math.sin(a)*head*0.5, hy+Math.cos(a)*head*0.5);
+    ctx.lineTo(hx+Math.sin(a)*head*0.5, hy-Math.cos(a)*head*0.5);
+    ctx.closePath(); ctx.fill();
+    return len;
+  }
+  function rr(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);     ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  // ---------------- 各图层 ----------------
+  function drawBG(){
+    var sky = ctx.createLinearGradient(0,0,0,L.H);
+    sky.addColorStop(0,'#0f1834'); sky.addColorStop(1,'#0a0f22');
+    ctx.fillStyle = sky; ctx.fillRect(0,0,L.W,L.H);
+    var step=L.step, s=L.scale, xm, py;
+    for(xm=step; ; xm+=step){                       // 竖向网格
+      var px=L.x0+xm*s; if(px>L.W-4) break;
+      line(px,L.padT-12,px,L.groundY,'rgba(120,150,220,.08)');
+    }
+    line(L.x0,L.padT-12,L.x0,L.groundY,'rgba(120,150,220,.16)',1);
+    for(var ym=step; ; ym+=step){                   // 横向网格
+      py=L.groundY-ym*s; if(py<L.padT-16) break;
+      line(L.x0,py,L.W-6,py,'rgba(120,150,220,.08)');
+    }
+  }
+
+  function drawGround(){
+    ctx.fillStyle='#0a1024'; ctx.fillRect(0,L.groundY,L.W,L.H-L.groundY);
+    line(0,L.groundY,L.W,L.groundY,'#33508f',2);
+    ctx.fillStyle='#1c2a4d'; ctx.fillRect(0,L.groundY+2,L.W,3);
+    var step=L.step, s=L.scale;
+    for(var xm=0; ; xm+=step){
+      var px=L.x0+xm*s; if(px>L.W-8) break;
+      line(px,L.groundY,px,L.groundY+5,'#33508f',1);
+      text(String(xm), px, L.groundY+18, 'rgba(180,195,230,.75)','11px system-ui','center');
+    }
+    text('x / m', L.W-10, L.groundY+18, 'rgba(180,195,230,.55)','10px system-ui','right');
+  }
+
+  function drawPlatform(){
+    var top=L.y0, right=L.x0;
+    ctx.fillStyle='#232f52'; rr(-4,top,right+4,16,4); ctx.fill();
+    ctx.fillStyle='#3a4a7d'; rr(-4,top,right+4,5,3); ctx.fill();
+    var legTop=top+16, legH=L.groundY-legTop;
+    if(legH>2){
+      ctx.fillStyle='#1a2340';
+      ctx.fillRect(10,legTop,10,legH);
+      ctx.fillRect(right-26,legTop,10,legH);
+    }
+  }
+
+  function drawHDim(){
+    var x=L.x0-48, y1=L.y0, y2=L.groundY, c='rgba(255,213,79,.8)';
+    line(x,y1+2,x,y2-2,c,1.5);
+    line(x-5,y1,x+5,y1,c,1.5); line(x-5,y2,x+5,y2,c,1.5);
+    ctx.save();
+    ctx.translate(x-7,(y1+y2)/2); ctx.rotate(-Math.PI/2);
+    ctx.font='bold 12px system-ui,sans-serif';
+    ctx.fillStyle='#ffd54f'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText('h = '+state.h+' m',0,0);
+    ctx.restore();
+  }
+
+  function drawPredict(){
+    var s=L.scale, tT=T(), n=70, i;
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.strokeStyle='rgba(77,208,225,.35)'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    for(i=0;i<=n;i++){
+      var tt=tT*i/n, px=L.x0+posX(tt)*s, py=L.y0+posY(tt)*s;
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // 理论落点
+    dot(L.x0+R()*s, L.groundY, 4, 'rgba(77,208,225,.5)');
+  }
+
+  function drawRelease(){
+    var bx=L.bx;
+    line(bx,8,bx,L.y0-15,'rgba(255,255,255,.28)',1.5);
+    ctx.fillStyle='#3b4a77'; ctx.fillRect(bx-5,L.y0-17,10,8);
+    text('B：同高静止释放（对照）', bx+9, 16, 'rgba(255,213,79,.9)','bold 12px system-ui');
+  }
+
+  function drawTrails(){
+    var s=L.scale, t=state.t;
+    if(t>0.001){                                    // A 已走过轨迹
+      var n=Math.max(2, Math.ceil(t/0.02)), i;
+      ctx.strokeStyle='#4dd0e1'; ctx.lineWidth=2.5; ctx.beginPath();
+      for(i=0;i<=n;i++){
+        var tt=t*i/n, px=L.x0+posX(tt)*s, py=L.y0+posY(tt)*s;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+    }
+    var by = L.y0 + posY(Math.min(t,T()))*s;        // B 竖直轨迹
+    line(L.bx, L.y0, L.bx, Math.min(by,L.groundY), 'rgba(255,213,79,.8)', 2, [5,5]);
+  }
+
+  function drawStrobe(){
+    if(!state.showStrobe) return;
+    var s=L.scale, i;
+    for(i=1;i<=8;i++){
+      var tt=i*L.strobeDt, ay=L.y0+posY(tt)*s, ax=L.x0+posX(tt)*s;
+      line(ax,ay,L.bx,ay,'rgba(255,255,255,.16)',1,[3,4]);
+      dot(ax,ay,3.5,'#4dd0e1');
+      dot(L.bx,ay,3.5,'#ffd54f');
+      text('t='+tt.toFixed(2), (ax+L.bx)/2, ay-8, 'rgba(255,255,255,.5)','10px system-ui','center');
+    }
+  }
+
+  function drawCurrentLink(){
+    var t=state.t, s=L.scale;
+    if(t<=0.001) return;
+    var ax=L.x0+posX(Math.min(t,T()))*s, ay=L.y0+posY(Math.min(t,T()))*s;
+    ay=Math.min(ay,L.groundY-9);
+    line(ax,ay,L.bx,ay,'rgba(255,255,255,.45)',1.2,[6,5]);
+    text('同高', (ax+L.bx)/2, ay+13, 'rgba(255,255,255,.55)','10px system-ui','center');
+  }
+
+  function drawVectors(){
+    if(!state.showVec) return;
+    var s=L.scale, k=L.vecK, t=state.t;
+    var ax=L.x0+posX(t)*s, ay=Math.min(L.y0+posY(t)*s, L.groundY-9);
+    var vx=state.v0, vy=state.g*t;
+    var ex=ax+vx*k, ey=ay+vy*k;
+    if(vy>0.02){
+      ctx.save(); ctx.setLineDash([4,4]);
+      line(ex,ay,ex,ey,'rgba(251,146,60,.4)',1);
+      line(ax,ey,ex,ey,'rgba(251,146,60,.4)',1);
+      ctx.restore();
+    }
+    drawArrow(ax,ay,ex,ay,'#4ade80',2.5,8);
+    labelO('vx', ex+8, ay, '#4ade80');
+    if(vy>0.02){
+      drawArrow(ax,ay,ax,ey,'#60a5fa',2.5,8);
+      drawArrow(ax,ay,ex,ey,'#fb923c',3,10);
+      labelO('vy', ax+8, ey+11, '#60a5fa');
+      labelO('v',  (ax+ex)/2+14, (ay+ey)/2+13, '#fb923c');
+      // 对照球 B 的速度（竖直向下，与 A 的 vy 相同）
+      drawArrow(L.bx,ay,L.bx,ay+vy*k,'#c084fc',2.5,8);
+      labelO('vy′', L.bx+9, ay+vy*k+11, '#c084fc');
+    }
+  }
+
+  function drawBall(px,py,r,fill,edge){
+    var y=Math.min(py,L.groundY-r);
+    ctx.beginPath(); ctx.arc(px,y,r,0,Math.PI*2);
+    ctx.fillStyle=fill; ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle=edge; ctx.stroke();
+    ctx.beginPath(); ctx.arc(px-r*0.3,y-r*0.35,r*0.3,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.fill();
+    return y;
+  }
+
+  function drawBalls(){
+    var s=L.scale, t=Math.min(state.t,T());
+    var ax=L.x0+posX(t)*s, ayRaw=L.y0+posY(t)*s;
+    var ay=drawBall(ax,ayRaw,9,'#2fb9d0','#9ff0ff');
+    labelO('A', ax+13, ay-11, '#7ce8f5');
+    var by=drawBall(L.bx,ayRaw,9,'#e8b93c','#ffe9a0');
+    labelO('B', L.bx+13, by-11, '#ffd54f');
+    if(state.t===0){
+      text('以 v₀ = '+state.v0.toFixed(1)+' m/s 水平抛出', L.x0-6, L.y0-32, '#7ce8f5','bold 12px system-ui');
+      text('静止释放', L.bx-9, L.y0-15, '#ffd54f','bold 12px system-ui','right');
+    }
+  }
+
+  function drawFlash(){
+    if(!landed) return;
+    var el=(performance.now()-landTs)/900;
+    if(el>1) return;
+    var pts=[[L.x0+R()*L.scale,L.groundY-2],[L.bx,L.groundY-2]];
+    ctx.lineWidth=2.5;
+    for(var i=0;i<2;i++){
+      ctx.beginPath(); ctx.arc(pts[i][0],pts[i][1],8+45*el,0,Math.PI*2);
+      ctx.strokeStyle='rgba(255,224,130,'+(0.9*(1-el)).toFixed(3)+')';
+      ctx.stroke();
+    }
+  }
+
+  function drawRDim(){
+    var s=L.scale, x1=L.x0, x2=L.x0+R()*s, y=L.groundY+30;
+    var c = landed ? '#7ff0c0' : 'rgba(255,255,255,.45)';
+    line(x1,y,x2,y,c,1.5);
+    line(x1,y-5,x1,y+5,c,1.5); line(x2,y-5,x2,y+5,c,1.5);
+    var mid=(x1+x2)/2, txt='R = '+R().toFixed(2)+' m';
+    ctx.save();
+    ctx.font='bold 12px system-ui,sans-serif';
+    ctx.fillStyle = landed ? '#7ff0c0' : 'rgba(255,255,255,.65)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(txt,mid,y);
+    ctx.restore();
+  }
+
+  function drawLegend(){
+    var w=152, h=98, x=L.W-w-10, y=8;
+    rr(x,y,w,h,8);
+    ctx.fillStyle='rgba(10,16,34,.72)'; ctx.fill();
+    ctx.strokeStyle='rgba(90,110,170,.35)'; ctx.lineWidth=1; ctx.stroke();
+    var items=[
+      ['#4dd0e1','A 平抛轨迹',null],
+      ['#ffd54f','B 自由落体（对照）',[4,3]],
+      ['#4ade80','vx 水平分速度',null],
+      ['#60a5fa','vy 竖直分速度',null],
+      ['#fb923c','v 合速度',null]
+    ];
+    for(var i=0;i<items.length;i++){
+      var yy=y+14+i*17;
+      ctx.save();
+      if(items[i][2]) ctx.setLineDash(items[i][2]);
+      ctx.strokeStyle=items[i][0]; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(x+10,yy); ctx.lineTo(x+28,yy); ctx.stroke();
+      ctx.restore();
+      text(items[i][1], x+34, yy+3.5, '#c6d2ec','11px system-ui');
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,L.W,L.H);
+    drawBG();
+    drawGround();
+    drawPlatform();
+    drawHDim();
+    drawPredict();
+    drawRelease();
+    drawTrails();
+    drawStrobe();
+    drawCurrentLink();
+    drawVectors();
+    drawBalls();
+    drawFlash();
+    drawRDim();
+    drawLegend();
+  }
+
+  // ---------------- 面板 ----------------
+  function fmt(n){ return n.toFixed(2); }
+  function updatePanel(){
+    var t=state.t, y=posY(t);
+    $('dT').textContent  = 't = '+fmt(t)+' s'+(landed?'  ✓ 已落地':'');
+    $('pX').textContent  = fmt(posX(t))+' m';
+    $('pY').textContent  = fmt(y)+' m';
+    $('pH').textContent  = fmt(Math.max(0,state.h-y))+' m';
+    $('pVx').textContent = fmt(state.v0)+' m/s';
+    $('pVy').textContent = fmt(state.g*t)+' m/s';
+    $('pV').textContent  = fmt(Math.sqrt(state.v0*state.v0+(state.g*t)*(state.g*t)))+' m/s';
+    $('pVyB').textContent= fmt(state.g*t)+' m/s';
+    $('pTth').textContent= fmt(T())+' s';
+    $('pRth').textContent= fmt(R())+' m';
+  }
+  function showLand(){
+    var el=$('landMsg');
+    el.classList.remove('hidden');
+    el.textContent='🎯 两球同时落地！T = '+T().toFixed(2)+' s，射程 R = '+R().toFixed(2)+' m';
+  }
+  function hideLand(){ $('landMsg').classList.add('hidden'); }
+
+  // ---------------- 控制 ----------------
+  function syncPlayBtn(){
+    $('bPlay').textContent = state.playing ? '⏸ 暂停'
+      : (state.t >= T()-1e-9 ? '▶ 重播' : '▶ 播放');
+  }
+  function onLand(){ landed=true; landTs=performance.now(); showLand(); }
+  function resetTime(){ state.t=0; landed=false; hideLand(); }
+  function restart(){ resetTime(); layout(); }        // 参数变化：回到 t=0（保持播放状态）
+  function togglePlay(){
+    if(!state.playing && state.t>=T()-1e-9) resetTime();
+    state.playing=!state.playing; syncPlayBtn();
+  }
+  function stepOnce(){
+    state.playing=false;
+    if(state.t < T()-1e-9){
+      state.t=Math.min(state.t+0.05,T());
+      if(state.t>=T()-1e-9 && !landed) onLand();
+    }
+    syncPlayBtn();
+  }
+  function resetSim(){ state.playing=false; resetTime(); syncPlayBtn(); }
+
+  // ---------------- 事件绑定 ----------------
+  $('rV0').addEventListener('input',function(){
+    state.v0=+this.value;
+    $('oV0').textContent=state.v0.toFixed(1)+' m/s';
+    restart();
+  });
+  $('rH').addEventListener('input',function(){
+    state.h=+this.value;
+    $('oH').textContent=state.h+' m';
+    restart();
+  });
+  var segG=$('segG');
+  segG.querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click',function(){
+      segG.querySelectorAll('button').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      state.g=+b.dataset.g;
+      restart();
+    });
+  });
+  var segS=$('segS');
+  segS.querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click',function(){
+      segS.querySelectorAll('button').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      state.speed=+b.dataset.s;
+    });
+  });
+  $('bPlay').addEventListener('click',togglePlay);
+  $('bStep').addEventListener('click',stepOnce);
+  $('bReset').addEventListener('click',resetSim);
+  $('cVec').addEventListener('change',function(){ state.showVec=this.checked; });
+  $('cStrobe').addEventListener('change',function(){ state.showStrobe=this.checked; });
+
+  window.addEventListener('keydown',function(e){
+    if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
+    else if(e.code==='ArrowRight'){ stepOnce(); }
+    else if(e.key==='r'||e.key==='R'){ resetSim(); }
+  });
+
+  window.addEventListener('resize',function(){ setupCanvas(); layout(); });
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){ setupCanvas(); layout(); }).observe(stage);
+  }
+
+  // ---------------- 主循环 ----------------
+  var lastTs=null;
+  function frame(ts){
+    if(lastTs===null) lastTs=ts;
+    var dt=Math.min((ts-lastTs)/1000,0.05);
+    lastTs=ts;
+    if(state.playing){
+      state.t+=dt*state.speed;
+      if(state.t>=T()){
+        state.t=T(); state.playing=false;
+        if(!landed) onLand();
+        syncPlayBtn();
+      }
+    }
+    draw();
+    updatePanel();
+    requestAnimationFrame(frame);
+  }
+
+  // 初始化
+  setupCanvas();
+  layout();
+  syncPlayBtn();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

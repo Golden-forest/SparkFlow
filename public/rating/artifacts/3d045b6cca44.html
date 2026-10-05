@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电磁打点计时器·纸带分析实验</title>
+<style>
+:root{
+  --bg:#0f1419; --panel:#1a2129; --panel2:#141a20; --ink:#e8e6e1; --ink2:#a8b0b8;
+  --accent:#ffb454; --accent2:#4fc3f7; --good:#7ee787; --bad:#ff7b72; --warn:#ffd866;
+  --line:#2a333d; --tape:#f5efdf; --dot:#2b2b33;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.65 "PingFang SC","Microsoft YaHei",sans-serif;padding:18px}
+h1{font-size:19px;margin-bottom:4px;letter-spacing:.5px}
+.sub{color:var(--ink2);font-size:12.5px;margin-bottom:14px}
+.layout{display:grid;grid-template-columns:400px 1fr;gap:14px;align-items:start}
+@media(max-width:980px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.panel+.panel{margin-top:14px}
+h2{font-size:14px;color:var(--accent);margin-bottom:10px;border-left:3px solid var(--accent);padding-left:8px}
+h3{font-size:12.5px;color:var(--ink2);margin:10px 0 6px}
+label{display:block;font-size:12.5px;color:var(--ink2);margin:6px 0 3px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=number],select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(----ink,#e8e6e1);border-radius:6px;padding:6px 8px;font-size:13px}
+select,button{font-family:inherit}
+.btn{background:var(--accent);color:#1a1208;border:0;border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;margin:4px 4px 0 0}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn.small{padding:5px 10px;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--panel2);color:var(--ink2);border:1px solid var(--line)}
+.chip.on{background:var(--accent);color:#1a1208;border-color:var(--accel,#ffb454)}
+.switches label{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px;color:var(--ink);cursor:pointer}
+.switches input{accent-color:var(--accent)}
+.readout{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--accent2)}
+.hint{font-size:11.5px;color:var(--ink2);line-height:1.6}
+.hint b{color:var(--warn)}
+.warnbox{background:rgba(255,216,102,.08);border:1px solid rgba(255,216,102,.35);border-radius:8px;padding:10px;font-size:12.5px;color:var(--warn);display:none;margin-top:8px}
+.errbox{background:rgba(255,123,114,.08);border:1px solid rgba(255,123,114,.4);border-radius:8px;padding:10px;font-size:12.5px;color:var(--bad);display:none;margin-top:8px}
+.okbox{background:rgba(126,231,135,.07);border:1px solid rgba(126,231,135,.3);border-radius:8px;padding:10px;font-size:12.5px;color:var(--good);display:none;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+th,td{border:1px solid var(--line);padding:5px 7px;text-align:right;font-family:ui-monospace,Menlo,Consolas,monospace}
+th{background:var(--panel2);color:var(--ink2);font-weight:600;text-align:center}
+td:first-child,th:first-child{text-align:center}
+tbody tr:hover{background:rgba(79,195,247,.06)}
+.delta-row{background:rgba(255,180,84,.04)}
+canvas{display:block;border-radius:8px;background:var(--panel2);width:100%;cursor:grab;touch-action:none}
+canvas:active{cursor:grabbing}
+.formula{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;color:var(--accent2);overflow-x:auto;white-space:nowrap}
+.formula .op{color:var(--ink2)}
+.result-big{font-size:16px;color:var(--good);font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace;margin-top:6px}
+.tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.tab{padding:5px 12px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);font-size:12px;cursor:pointer;color:var(--ink2)}
+.tab.active{background:var(--accent);color:#1a1208;border-color:var(--accent)}
+.stage{position:relative}
+.overlay{position:absolute;left:10px;top:10px;background:rgba(15,20,25,.85);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink2);pointer-events:none;line-height:1.7}
+.overlay b{color:var(--accent2)}
+.status-bar{display:flex;gap:10px;align-items:center;font-size:12px;margin:8px 0;flex-wrap:wrap}
+.led{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.led.ac{background:#ff5d5d;box-shadow:0 0 6px #ff5d5d;animation:acblink 1s steps(2) infinite}
+.led.dc{background:#4d7cff;box-shadow:0 0 6px #4d7cff}
+.led.off{background:#333}
+@keyframes acblink{50%{opacity:.35}}
+.blink-dot{color:var(--bad);animation:acblink .5s steps(2) infinite;font-weight:700}
+ul.tips{padding-left:18px;font-size:12.5px;color:var(--ink2);line-height:1.8}
+ul.tips li b{color:var(--ink)}
+.hidden{display:none!important}
+.tag{font-size:10.5px;color:var(--ink2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.vf3{color:var(--accent2)} .vf4{color:var(--good)}
+</style>
+</head>
+<body>
+<h1>⚡ 电磁打点计时器 · 纸带分析实验</h1>
+<div class="sub">匀加速直线运动研究 · 打点=等间隔离散事件 · 逐差法求加速度</div>
+
+<div class="layout">
+<div>
+  <!-- 电源/装置控制 -->
+  <div class="panel">
+    <h2>① 装置与电源</h2>
+    <div class="status-bar">
+      <span><span class="led off" id="led"></span><b id="powerMode">未通电</b></span>
+      <span class="chip" id="freqChip">f = 50 Hz</span>
+      <span class="timer" id="clock" style="font-family:ui-monospace,monospace;color:var(--accent2)">t = 0.000 s</span>
+    </div>
+    <div class="row">
+      <button class="btn" id="btnAC">接低压交流 4–6 V</button>
+      <button class="btn ghost" id="btnDC">误接直流</button>
+      <button class="btn ghost" id="btnOff">断开</button>
+    </div>
+    <div class="errbox" id="dcErr">⚠ 误接直流！电磁打点计时器依靠<strong>交变磁场</strong>驱动振针：交流每半个周期吸合一次，才形成 50 Hz 等间隔打点。直流磁场恒定不变 → 振针只会在通电瞬间动作一次，随后静止，<strong>无法形成周期性点迹</strong>。</div>
+    <div class="warnbox" id="acNote">✓ 交流接通：交变磁场以 50 Hz 驱动振针，每 T = 1/50 = 0.02 s 打一个点。纸带已可被打点。</div>
+    <div class="hint" style="margin-top:8px">真实的打点计时器要求<strong>低压交流</strong>（学生电源 4–6 V 挡）。本仿真中：只有接通交流后才可运行纸带。</div>
+  </div>
+
+  <!-- 运动参数 -->
+  <div class="panel">
+    <h2>② 小车运动</h2>
+    <label>真实加速度 a（内置不显示，仅教师用滑条设置）<span class="tag" id="aTag">隐藏</span></label>
+    <input type="range" id="aSlider" min="0.2" max="4" step="0.05" value="2">
+    <label>纸带工作长度 <span class="readout" id="lenRO">1200 mm</span></label>
+    <input type="span" disabled style="display:none">
+    <div class="row" style="margin-top:4px">
+      <button class="btn" id="btnRun">▶ 释放小车</button>
+      <button class="btn ghost" id="btnReset">↺ 重置纸带</button>
+      <span class="chip" id="statusChip">待机</span>
+    </div>
+    <h3>选项</h3>
+    <div class="switches">
+      <label><input type="checkbox" id="optScatter"> 开启 ±1 mm 随机读数散布 <span class="hint">（模拟人眼读数，此时相邻差不再严格相等）</span></label>
+      <label><input type="checkbox" id="optSlow"> 慢放打点过程（×0.25 速）</label>
+      <label><input type="checkbox" id="optShowAll"> 快速打满整条纸带</label>
+      <checkbox style="display:none">
+    </div>
+  </div>
+
+  <!-- 教学要点 -->
+  <div class=" папel panel" style="display:none"></div>
+  <div class="panel">
+    <h2>📖 教学要点</h2>
+<untranslated-modification count="1">.</untranslated-modification>
+    <ul class="tips">
+      <li><b>打点是等间隔离散事件</b>：交流 50 Hz，每隔 T = 0.02 s 打一点，点迹序列是时间上等间隔的离散采样。</li>
+      <li><b>计数点间隔 T′ = 0.1 s</b>：每 5 个间隔取一个计数点，T′ = 5T = 0.1 s，便于用毫米刻度尺测量。</li>
+      <li><b>匀加速的相邻差恒定是统计意义</b>：理论上 Δs = aT′² 恒定；实测存在读数误差，相邻差只在平均意义上近似相等。</li>
+      <li><b>逐差法充分利用全部数据</b>：a = ((s₃+s₄)−(s₁+s₂)) / (4T′²) 用到每一段间距，比只取首尾更充分、可大幅减小偶然误差。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 右侧主区 -->
+<div>
+  <!-- 纸带视图 -->
+  <div class="panel">
+    <h2>③ 纸带（拖动测量框读数）</h2>
+    <div class="stage" style="position:relative">
+      <canvas id="tape" height="300"></canvas>
+      <div class="overlay">
+        <div>打点计时 <b id="ovDot">0</b> 个</div>
+        <div>计数点 <b id="ovCnt">0</b> 个</div>
+        <div>测量框读数 <b id="ovRuler">— —</b></div>
+        <div>框内区间 <b id="ovSpan">—</b></div>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:8px">
+      <b>操作：</b>按住纸带空白处左右拖动 = 移动测量框（细调：拖动后用 ←/→ 键，每次 0.5 mm）；滚轮缩放。<br>
+      测量框左右刀口对齐两计数点<b>同侧切缘</b>读数，两次读数之差即间距 s（mm 级）。
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn ghost small" id="btnPrevCP">← 上一个计数点</button>
+      <button class="btn ghost small" id="btnNextCP">→ 下一个计数点</button>
+      <button class="btn ghost small" id="btnFit">⚙ 适配视图</</button>
+      <button class="btn ghost small" id="btnZoomIn">＋</button>
+      <button class="btn small" id="btnZoomOut">－</button>
+    </div>
+  </div>
+
+  <!-- 数据处理 -->
+  <div class="panel">
+    <h2>④ 数据处理</h2>
+    <div class="tabs">
+      <div class="tab active" data-tab="table">间距表 + 相邻差</div>
+      <div class="tab" data-tab="vd">逐差法求 a</div>
+      <div class="tab" data-tab="vel">逐点速度 vₙ</div>
+    </div>
+
+    <div id="tab-table">
+      <h3>测量记录（从纸带读取，单位 mm）</h3>
+      <div class="hint">拖动测量框依次读取 s₁, s₂, … 填入下表；或点击「自动读数演示」。</div>
+      <div class="row" style="margin:6px 0">
+        <button class="btn small" id="btnAuto">自动读数演示</button>
+        <button class="btn ghost small" id="btnClear">清空测量值</button>
+        <span class="chip" id="readCnt">已读 0/6</span>
+      </div>
+      <table id="dataTable"><thead><tr><th>段</th><th>测量值 s / mm</th><th>相邻差 Δs / mm</th><th>Δs − Δs̄</th></tr></thead><tbody></tbody></table>
+      <div class="hint" id="tableHint">Δs = sₙ₊₁ − sₙ。匀加速时理论上 Δs = aT′² 为常量；开启读数散布后各 Δs 只在平均值附近波动。</div>
+    </div>
+
+    <div id="tab-vd" class="hidden">
+      <h3>逐差法（4 段法）</h3>
+      <div class="formula">a = ((s₃+s₄) − (s₁+s₂)) / (4T′²)　<span class="op">T′ = 0.1 s → 4T′² = 0.04 s²</span></div>
+      <table id="vdTable"><thead><tr><th>量</th><th>值</th></tr></thead><tbody></tbody></table>
+      <h3>六段推广式（需 6 段间距）</h3>
+      <div class="formula">a = ((s₄+s₅+s₆) − (s₁+s₂+s₃)) / (9T′²)</div>
+      <div class="hint" id="vdNote">六段法将前后各半分组逐差，两组数据全部利用，误差更小。等数据填好后自动计算。</div>
+      <div class="result-big" id="aResult"></div>
+      <div class="okbox" id="aCheck"></div>
+    </div>
+
+    <div id="tab-vel" class="hidden">
+      <h3>中间时刻速度法（可选输出）</h3>
+      <div class="formula">vₙ = (sₙ + sₙ₊₁) / (2T′)　<span class="op">取两相邻间距的平均 / 总时间</span></div>
+      <table id="velTable"><thead><tr><th>计数点 n</th><th>vₙ / (m·s⁻¹)</th><th>Δv / (m·s⁻¹)</th></tr></thead><tbody></tbody></table>
+      <div class="hint">vₙ 为第 n 与 n+1 段整体位移的<b>中间时刻速度</b>，即计数点 n 的瞬时速度。若 Δv 恒定 → 匀加速的又一验证。</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn small" id="btnVPlot">绘制 v–t 图像</button>
+        <button class="btn ghost small" id="btnAFit">斜率法求 a（v–t 拟合）</button>
+      </div>
+      <canvas id="vtplot" height="220" class="hidden" style="margin-top:8px"></canvas>
+      <div class="result-big" id="aFitResult"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🔬 课堂小结流程</h2>
+    <ul class="timer tips">
+      <li>接通<b>低压交流</b> → 释放小车 → 观察点迹逐个闪现（等间隔离散事件序列）。</li>
+      <li>每 5 个间隔取计数点，T′ = 0.1 s，用测量框读 s₁…s₆（mm 级）。</li>
+      <li>观察相邻差 Δs：理论上恒定；开启读数散布后仅统计近似恒定。</li>
+      <li>逐差法 a = ((s₃+s₃...)  —  —</li>
+      <li>（可选）vₙ = (sₙ+sₙ₊₁)/(2T′) 逐点速度 → v–t 直线斜率即 a。</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ================= 物理常量与状态 ================= */
+const T0=0.02, TPRIME=0.1, SEG_PER_CNT=5;
+const PX_PER_MM_BASE = 0.9;             // 基础像素比例
+let state={
+  power:"off",                          // off | ac | dc
+  a:2.0,                                // m/s^2 真值（不显示）
+  running:false, tSim:0, dots:[],       // dots: {t, x(mm from start)}
+  tapeLenMM:1200, started:false, finished:false,
+  scatter:false, slow:false, fastFull:false,
+  view:{scale:1, offset:0},             // offset 为视口左端对应的纸带 mm
+  ruler:{mm:0, attached:-1},            // 测量框位置
+  drag:null, keys:false,
+  measured:new Array(7).fill(null),     // s1..s6
+  flash:0
+};
+const cv=document.getElementById('tape'), ctx=cv.getContext('2d');
+
+/* ================= 电源 ================= */
+const led=document.getElementById('led'), powerMode=document.getElementById('powerMode');
+const dcErr=document.getElementById('dcErr'), acNote=document.getElementById('acNote');
+function setPower(p){
+  state.power=p;
+  if(state.running) stopRun();
+  led.className='led '+(p==='ac'?'ac':p==='dc'?'dc':'off');
+  powerMode.textContent = p==='ac'?'低压交流 4–6 V ✓':p==='dc'?'直流（错误）':'未通电';
+  dcErr.style.display = p==='dc'?'block':'none';
+  acNote.style.display = p==='ac'?'block':'none';
+  document.getElementById('btnAC').classList.toggle('ghost', p==='ac');
+  document.getElementById('btnDC').classList.toggle('ghost', p==='dc');
+  if(p==='ac' && !state.started){
+    state.dots=[]; state.tSim=0; state.finished=false;
+  }
+}
+document.getElementById('btnAC').onclick=()=>setPower('ac');
+document.getElementById('btnDC').onclick=()=>setPower('dc');
+document.getElementById('btnOff').onclick=()=>setPower('off');
+
+/* ================= 运行与打点 ================= */
+function idealX(t){ return 0.5*state.a*t*t*1000; }        // mm
+function dotCountAt(t){ return Math.floor(t/T0)+1; }
+function xOfDot(i){ return idealX(i*T0); }                 // 第i个点(1-based)
+function cntIndex2Dot(k){ return k*SEG_PER_CNT+1; }        // 计数点k(0..)对应打点序号
+
+function stopRun(){ state.running=false; document.getElementById('statusChip').textContent=state.finished?'打点完成':'暂停'; }
+function startRun(){
+  if(state.power!=='ac'){ flashMsg(); return; }
+  if(state.finished){ resetTape(); }
+  state.running=true; state.started=true;
+  document.getElementById('status.5Chip') && 0;
+  document.getElementById('statusChip').textContent='打点中…';
+}
+function flashMsg(){
+  const c=document.getElementById('statusChip');
+  c.textContent='⚠ 请先接通低压交流电源！'; c.style.color='var(--bad)';
+  setTimeout(()=>{c.textContent=state.finished?'打点完成':state.running?'打点中…':'待机';c.style.color='';},1600);
+}
+function resetTape(){
+  state.running=false; state.started=false; state.finished=false; state.tSim=0;
+  state.dots=[]; state.measured.fill(null);
+  document.getElementById('statusChip').textContent='待机';
+  renderAll();
+}
+document.getElementById('btnRun').onclick=()=>state.running?stopRun():startRun();
+document.getElementById('btnReset').onclick=resetT;
+function resetT(){ resetTape(); }
+
+let lastTs=null;
+function loop(ts){
+  if(lastTs===null) lastTs=ts;
+  let dt=(ts-lastTs)/1000; lastTs=ts;
+  dt=Math.min(dt,0.05);
+  if(state.running){
+    const speed = state.slow?0.25:1;
+    const steps = state.fastFull? 60 : 1;
+    for(let k=0;k<steps;k++){
+      state.tSim += dt*speed;
+      const n=dotCountAt(state.tSim);
+      while(state.dots.length < n){
+        const i=state.dots.length+1;
+        state.dots.push({t:i*T0, x:xOfDot(i), born:performance.now()});
+      }
+      const xmax=state.dots[state.dots.length-1].x;
+      if(xmax>=state.tapeLenMM-6){ state.finished=true; stopRun(); break; }
+    }
+    document.getElementById('clock').textContent='t = '+state.tSim.toFixed(3)+' s';
+    document.getElementById('ovDot').textContent=state.dots.count||state.dots.length;
+    document.getElementById('ovCnt').textContent=Math.max(0,Math.floor((state.dots.length-1)/SEG_PER_CNT));
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================= 纸带绘制 ================= */
+function resize(){
+  const w=cv.clientWidth; cv.width=w; cv.height=300;
+  document.getElementById('vtplot').width = Math.min(700, w);
+}
+addEventListener('resize',()=>{resize();draw();});
+
+function xPx(mm){ return (mm-state.view.offset)*PX_PER_MM_BASE*state.view.scale; }
+function pxToMM(px){ return px/(PX_PER_MM_BASE*state.view.scale)+state.view.offset; }
+
+function draw(){
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const top=34, bh=170, bottom=top+bh;
+  const pxScale=PX_PER_MM_BASE*state.view.scale;
+
+  /* 打点计时器主体（视口固定，示意） */
+  drawTimerBody(ctx, W, top, bottom);
+
+  /* 纸带 */
+  ctx.save();
+  ctx.fillStyle='#f5efdf';
+  ctx.strokeStyle='#c9bfa5'; ctx.lineWidth=1;
+  const x0=xPx(0), x1=xPx(state.tapeLenMM);
+  ctx.fillRect(x0, top, x1-x0, bh);
+  ctx.strokeRect(x0+0.5, top+0.5, x1-x0,  (x1-x0)>2?x1-x0-1:1);
+  if((x1-x0)>2){ ctx.strokeRect(x0+0.5, top+0.5, x1-x0-1, bh-1); }
+
+  /* 点迹 */
+  const nCntVisible = Math.floor((state.dots.length-1)/SEG_PER_CNT);
+  state.dots.forEach((d,i)=>{
+    const idx=i+1;
+    const isCnt = (idx-1)%SEG_PER_CNT===0;
+    const age=(performance.now()-d.born)/1000;
+    const flash = age<0.5 ? 1-age*2 : 0;
+    const x=xPx(d.x);
+    if(x<-4||x>W+4) return;
+    if(isCnt){
+      ctx.beginPath(); ctx.fillStyle='rgba(214,40,40,'+(0.75+0.25*flash)+')';
+      ctx.arc(x, top+bh/2, 3.4+2.5*flash, 0, 7); ctx.fill();
+      /* 标签 */
+      ctx.fillStyle='#5a4632'; ctx.font='700 11px ui-monospace,monospace'; ctx.textAlign='center';
+      const lbl = idx===1?'0':String((idx-1)/SEG_PER_CNT);
+      ctx.fillText(lbl, x, top+bh+16);
+      ctx.fillStyle='rgba(90,70,50,.55)'; ctx.font='10px ui-monospace,monospace';
+      ctx.fillText(((idx-1)*T0).toFixed(2)+'s', x, top+bh+28);
+    } else {
+      ctx.beginPath(); ctx.fillStyle='rgba(43,43,51,'+(0.7+0.3*flash)+')';
+      densityGuard();
+      ctx.arc(x, top+bh/2, 1.6, 0, 7); ctx.fill();
+    }
+  });
+
+  /* 未打点提示（直流错误时） */
+  if(state.power==='dc'){
+    ctx.fillStyle='rgba(255,123,114,.85)'; ctx.font='700 13px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('✖ 直流磁场恒定，振针不动作 → 无点迹', 12, top-8);
+  }
+
+  /* 栕尺（固定毫米刻度贴在纸带下方，随纸带移动） */
+  drawRuler(ctx, top+bh+40, W, pxScale);
+  /* 测量框 */
+  drawMeasureBox(ctx, top, bottom, W);
+  ctx.restore();
+}
+function densityGuard(){/* 占位保证样式 */}
+
+function drawTimerBody(ctx,W,top,bottom){
+  ctx.save();
+  /* 计时器外壳 */
+  const bx=W*0.5-95, by=top-26, bw=190, bhh=22;
+  ctx.fillStyle='#2c3742'; ctx.strokeStyle='#4a5866'; ctx.lineWidth=1.5;
+  roundRect(ctx,bx,by,bw,bhh,5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#9fb2c3'; ctx.font='600 11px sans-serif'; ctx.textAlign='center';
+  const mode = state.power==='ac'?'电磁打点计时器 · 50Hz ✓': state.power==='dc'?'电磁打点计时器 · ⚠直流':'电磁打点计时器';
+  ctx.fillText(mode, W*0.5, by+15);
+  /* 振针 */
+  const needlex=xPx(currentPenX());
+  ctx.strokeStyle=state.power==='ac'?'#ff9d5c':'#66707a'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(needlex-10,by+bhh); ctx.lineTo(needlex+10,by+bhh); ctx.stroke();
+  if(state.power==='ac' && state.running){
+    const ph=(performance.now()/  (1000*T0) %1);
+    const drop=Math.sin(ph*Math.PI)*6;
+    ctx.strokeStyle='#ff7b4f';
+    ctx.beginPath(); ctx.moveTo(needlex,by+bhh); ctx.lineTo(needlex,by+bhh+drop); ctx.stroke();
+  }
+  ctx.restore();
+}
+function currentPenX(){
+  /* 打点位置 = 最新的未打点位置（约等于下一打点时刻的位置）*/
+  if(!state.started) return 0;
+  return idealX(state.tSim);
+}
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+function drawRuler(ctx,y,W,pxScale){
+  if(pxScale<0.25){ /* 太小时只画计数点刻度 */ }
+  const mmPer10=10*pxScale;
+  ctx.strokeStyle='#6b7683'; ctx.fillStyle='#8b95a2'; ctx.lineWidth=1;
+  ctx.font='9px ui-monospace,monospace'; ctx.textAlign='center';
+  const v0=Math.floor(state.view.offset/10)*10, v1=pxToMM(W);
+  for(let v=v0; v<=v1+10; v+=10){
+    const x=xPx(v);
+    if(v%100===0){
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-12);ctx.stroke();
+      ctx.fillText((v/10).toFixed(0)+'cm',x,y+11);
+      ctx.strokeStyle='rgba(107,118,131,.25)';
+      ctx.beginPath();ctx.moveTo(x,y-16);ctx.lineTo(x,y-58);ctx.stroke();
+      ctx.strokeStyle='#6b7683';
+    } else if(pxScale>=0.5){
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y-7);ctx.stroke();
+      (v%50===0)&&ctx.fillText((v/10).toFixed(0),x,y+11);
+    }
+    void mmPer10;
+  }
+  ctx.fillStyle='#5a6472'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('mm 标尺（纸带坐标，起点=计数点0）', 8, y+24);
+}
+
+/* 测量框：左右刀口 */
+function drawMeasureBox(ctx, top, bottom, W){
+  const y1=top-6, y2=bottom+6;
+  const xa=xPx(state.ruler.mm - MEAS_W_MM/2), xb=xPx(state.ruler.mm + MEAS_W_MM/2);
+  const yc=(top+bottom)/2;
+  if(xb<-20||xa>W+20) return;
+  ctx.save();
+  ctx.strokeStyle='#4fc3f7'; ctx.lineWidth=1.5; ctx.setLineDash([5,3]);
+  ctx.beginPath(); ctx.moveTo(xa,yc); ctx.lineTo(xb,yc); ctx.stroke();
+  ctx.setLineDash([]);
+  /* 刀口 */
+  ctx.strokeStyle='#4fc3c7'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(xa,y1); ctx.lineTo(xa,y2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(xb,y1); ctx.lineTo(xb,y2); ctx.stroke();
+  ctx.strokeStyle='rgba(79,195,247,.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(xa+1.5,y1); ctx.lineTo(xa+1.5,y2); ctx.stroke();
+  ctx.beginPath();  ctx.moveTo(xb-1.5,y1); ctx.lineTo(xb-1.5,y2); ctx.stroke();
+  ctx.fillStyle='#4fc3f7'; ctx.font='600 10.5px ui-monospace,monospace'; ctx.textAlign='center';
+  ctx.fillText('◀ 刀口A', xa, y1-6); ctx.fillText('刀口B ▶', xb, y1-6);
+  ctx.restore();
+}
+const MEAS_W_MM=30;
+
+/* ================= 交互：拖动 / 缩放 / 键盘 ================= */
+function ptFromEvent(e){
+  const r=cv.getBoundingClientRect();
+  const cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+  return {x:cx*(cv.width/r.width)};
+}
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  state.drag={type:'pan', startX:e.clientX, startOff:state.view.offset, moved:false};
+});
+cv.addEventListener('pointermove',e=>{
+  if(!state.drag) return;
+  const r=cv.getBoundingClientRect();
+  const dpx=(e.clientX-state.drag.startX)*(cv.width/r.width);
+  if(Math.abs(dpx)>3) state.drag.moved=true;
+  state.view.offset = state.drag.startOff - dpx/(PX_PER_MM_BASE*state.view.scale);
+  clampView();
+});
+addEventListener('pointerup',()=>{ state.drag=null; });
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*(cv.width/r.width);
+  const mmAt=pxToMM(mx);
+  state.view.scale=clamp(state.view.scale*(e.deltaY<0?1.12:0.89),0.25,6);
+  state.view.offset=mmAt-(mx/(PX_PER_MM_BASE*state.view.scale));
+  clampView();
+},{passive:false});
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function clampView(){
+  state.view.offset=clamp(state.view.offset, -60, state.tapeLenMM - cv.width/(PX_PER_MM_BASE*state.view.scale) + 80);
+}
+addEventListener('keydown',e=>{
+  if(['ArrowLeft','ArrowRight'].includes(e.key)){
+    e.preventDefault();
+    const step=(e.shiftKey?0.1:0.5);
+    state.ruler.mm += (e.key==='ArrowLeft'?-1:1)*step;
+    snapRuler();
+  }
+});
+function snapRuler(){
+  state.ruler.mm=clamp(state.ruler.mm, 0, state.tapeLenMM);
+  updateOvRuler();
+}
+function updateOvRuler(){
+  const el=document.getElementById('ovRuler');
+  el.textContent = state.ruler.mm.toFixed(1)+' mm';
+}
+function nearestCnt(mm){
+  const k=Math.round((mm)/ (SEG_PER_CNT*T0*T0*state.a*500));  /* 近似 */
+  return k;
+}
+document.getElementById('btnPrevCP').onclick=()=>stepCP(-1);
+document.getElementById('btnNextCP').onclick=()=>stepCP(1);
+function stepCP(d){
+  let k=nearestCnt(state.ruler.mm)+d;
+  const maxK=Math.floor((state.dots.length-1)/SEG_PER_CNT);
+  k=clamp(k,0,Math.max(0,maxK));
+  state.ruler.mm = xOfDot(cntIndex2Dot(k));
+  centerOn(state.ruler.mm);
+  updateOR();
+}
+function updateOR(){updateOvRuler(); markActiveRow();}
+function centerOn(mm){
+  state.view.offset = mm - (cv.width/2)/(PX_PER_MM_BASE*state.view.scale);
+  clampView();
+}
+document.getElementById('btnFit').onclick=()=>{
+  const last = state.dots.length? state.dots[state.dots.length-1].x : 400;
+  state.view.scale = clamp((cv.width-120)/Math.max(200,last+80),0.25,6);
+  state.view.offset=-30;
+};
+document.getElementById('btnZoomIn').onclick=()=>{state.view.scale=clamp(state.view.scale*1.3,0.25,6);clampView();};
+document.getElementById('btnZoomOut').onclick=()=>{state.view.scale=clamp(state.view.scale/1.3,0.25,6);clampView();};
+
+/* ================= 数据表 ================= */
+const NSEG=6;
+function sTrue(k){ /* 第k段间距(k=1..6)，理想值 mm，加可选散布 */
+  const x0=xOfDot(cntIndex2Dot(k-1)), x1=xOfDot(cntIndex2Dot(k));
+  let s=(x1-x0);
+  if(state.scatter) s+= (Math.random()*2-1)*1;   // ±1mm
+  return Math.max(1,s);
+}
+function rebuildDynamic(){
+  /* 根据当前打点数刷新可读段数 */
+  const nCnt=Math.floor((state.dots.length-1)/SEG_PER_CNT);
+  const avail=Math.min(NSEG,nCnt);
+  document.getElementById('readCnt').textContent='已读 '+countMeasured()+'/'+avail;
+}
+function countMeasured(){return state.measured.slice(1,NSEG+1).filter(v=>v!==null).length;}
+document.getElementById('btnAuto').onclick=()=>{
+  const nCnt=Math.floor((state.dots.length-1)/SEG_PER_CNT);
+  if(nCnt<1){ alert('请先打点：接通低压交流 → 释放小车，至少得到 2 个计数点'); return; }
+  const avail=Math.min(NSEG,nCnt);
+  let i=1;
+  const timer=setInterval(()=>{
+    if(i>avail){ clearInterval(timer); rebuildDynamic(); switchTab('table'); return; }
+    state.measured[i]=Math.round(sTrue(i)*10)/10;
+    const k=i; state.ruler.mm=xOfDot(cntIndex2Dot(k)); centerOn(state.ruler.mm); updateOR(); renderTables();
+    i++;
+  },420);
+};
+document.getElementById('btnClear').onclick=()=>{state.measured.fill(null);renderTables();rebuildDynamic();};
+
+function renderTables(){
+  const tb=document.querySelector('#dataTable tbody'); tb.innerHTML='';
+  let dsum=0,dcnt=0, dvals=[];
+  const avail = Math.floor((state.dots.length-1)/SEG_PER_CNT);
+  for(let i=1;i<=NSEG;i++){
+    const tr=document.createElement('tr');
+    const readable = i<=avail && state.dots.length>1;
+    const v=state.measured[i];
+    let d='';
+    if(v!==null && state.measured[i+1]!==null && i<NSEG){
+      const dd=state.measured[i+1]-v; dvals.push(dd); dsum+=dd; dcnt++;
+      d=dd.toFixed(1);
+    }
+    tr.innerHTML=`<td>s${i}</td><td>${readable?(v===null?'<span style="color:#5a6472">待测…</span>':v.toFixed(1)):'<span style="color:#3a424c">—</span>'}</td><td>${d}</td><td></td>`;
+    tr.dataset.k=i;
+    if(state.ruler.attached===i) tr.classList.add('delta-row');
+    tb.appendChild(tr);
+  }
+  const db=dvals.length?dsum/dvals.length:0;
+  [...tb.children].forEach((tr,ix)=>{
+    const dd = dvals[ix]!==undefined ? dvals[ix]-db : null;
+    tr.children[3].textContent = dd===null?'':(dd>=0?'+':'')+dd.toFixed(1);
+  });
+  const rows=[...document.querySelectorAll('#dataTable tbody tr')];
+  rows.forEach(tr=>{
+    tr.onclick=()=>{
+      const k=+tr.dataset.k;
+      state.ruler.attached=k;
+      state.ruler.mm=xOfDot(cntIndex2Dot(k));
+      centerOn(state.ruler.measMM?state.ruler.measMM:state.ruler.mm);
+      updateOR();
+    };
+  });
+  renderVD(); renderVel();
+}
+
+function renderVD(){
+  const tb=document.querySelector('#vdTable tbody'); tb.innerHTML='';
+  const s=state.measured, need4=[1,2,3,4].every(i=>s[i]!==null), need6=[1,2,3,4,5,6].every(i=>s[i]!==null);
+  const T2=(TPRIME*TPRIME).toFixed(2);
+  function row(name,val,ok){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${name}</td><td>${ok?val:'<span style="color:#5a6472">待填</span>'}</td>`; tb.appendChild(tr); }
+  row('T′', TPRIME+' s', true);
+  if(need4){
+    const A=(s[3]+s[4])/1000, B=(s[1]+s[2])/1000;
+    const a4=((A-B)/(4*TPRIME*TPRIME));
+    row('s₁+s₂', B.toFixed(1)+' mm → '+B.toFixed(0)+' mm', true);
+    row('s₃+s₄', A.toFixed(4)+' mm', true);
+    row('(s₃+s₄)−(s₁+s₂)', (A-B).toFixed(1)+' mm', true);
+    row('<b>a（四段逐差）</b>', '<b>'+a4.toFixed(3)+' m/s²</b>', true);
+    document.getElementById('aResult').textContent='a ≈ '+a4. toFixed(3)+' m/s²';
+    document.getElementById('aCheck').style.display='block';
+    document.getElementById('aCheck').textContent='✓ 已充分利用 s₁…s₄ 全部数据，比“只取首尾两段”更能减小偶然误差。';
+  } else {
+    document.getElementById('aResult').textContent='';
+    document.getElementById('aCheck').style.display='menu'==='block'?'block':'none';
+  }
+  const note=document.getElementById('vdNote');
+  if(need6){
+    const A=(s[4]+s[5]+s[6])/1000,B=(s[1]+s[2]+s[UpInside3])/1000;
+    const a6=((A-B)/(9*TPRIME*TPRIME));
+    note.innerHTML='六段法：a = ((s₄+s₅+s₆)−(s₁+s₂+s₃))/(9T′²) = <b>'+a6.toFixed(3)+' m/s²</b>（前后分组、全部利用）';
+  } else if(need4){
+    note.textContent='已有 4 段数据：四段逐差可用；补齐 s₅、s₆ 可用六段推广式，误差更小。';
+  } else {
+    note.textContent='等数据填好后自动计算。';
+  }
+}
+let UPIde3=null; function UpI(){return state.measured[3];}
+function renderVel(){
+  const tb=document.querySelector('#velTable tbody'); tb.innerHTML='';
+  const s=state.measured;
+  const rows=[];
+  for(let n=1;n<=5;n++){
+    if(s[n]!==null && s[n+1]!==null){
+      const v=((s[n]+s[n+1])/1000)/(2*TPRIME);
+      rows.push({n,v});
+    }
+  }
+  rows.forEach((r,i)=>{
+    const dv = i>0 ? r.v-rows[i-1].v : null;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>计数点 ${r.n}</td><td>${r.v.toFixed(3)}</td><td>${dv===null?'—':(dv>=0?'+':'')+dv.toFixed(3)}</td>`;
+    tb.appendChild(tr);
+  });
+  if(!rows.length){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td colspan="3" style="color:#5a6472">填好相邻两段间距后自动计算 vₙ</td>';
+    tb.appendChild(tr);
+  }
+}
+
+/* v-t 图 */
+let vplotDrawn=false;
+document.getElementById('btnVPlot').onclick=()=>{
+  const c=document.getElementById('vtplot');
+  c.classList.remove('hidden');
+  drawVT();
+};
+document.getElementById('btnAFit').onclick=()=>{
+  const s=state.measured, pts=[];
+  for(let n=1;n<=5;n++) if(s[n]!==null&&s[n+1]!==null){
+    pts.push({t:n*TPRIME, v:((s[n]+s[n+1])/1000)/(2*TPRIME)});
+  }
+  if(pts.length<2){ alert('至少需要两相邻段数据'); return; }
+  const n=pts.length, st=pts.reduce((u,p)=>u+p.t,0), sv=pts.reduce((u,p)=>u+p.v,0);
+  const stt=pts.reduce((u,p)=>u+p.t*p.t,0), stv=pts.reduce((u,p)=>u+p.t*p.v,0);
+  const a=(n*stv-st*sv)/(n*stt-st*st);
+  drawVT(a);
+  document.getElementById('aFitResult').textContent='v–t 直线斜率 → a ≈ '+a.toFixed(3)+' m/s²（与逐差法一致：两者数学等价）';
+};
+function drawVT(slope){
+  const c=document.getElementById('vtplot'), g=c.getContext('2d');
+  const W=c.width=c.clientWidth||640, H=c.height=220;
+  g.clearRect(0,0,W,H);
+  g.fillStyle='#141a20'; g.fillRect(0,0,W,H);
+  const s=state.measured, pts=[];
+  for(let n=1;n<=5;n++) if(s[n]!==null&&s[n+1]!==null) pts.push({t:n*TPRIME, v:((s[n]+s[n+1])/1000)/(2*TPRIME)});
+  if(!pts.length){ g.fillStyle='#5a6472'; g.font='13px sans-serif'; g.fillText('暂无数据', 20,40); return; }
+  const pad=44;
+  const tmax=Math.max(...pts.map(p=>p.t))*1.15+0.02, vmax=Math.max(...pts.map(p=>p.v))*1.2+0.02;
+  const X=t=>pad+(t/tmax)*(W-pad-20), Y=v=>H-30-(v/vmax)*(H-60);
+  g.strokeStyle='#2a333d'; g.fillStyle='#8b95a2'; g.font='11px ui-monospace,monospace';
+  for(let i=0;i<=5;i++){
+    const t=tmax*i/5, x=X(t);
+    g.fillText(t.toFixed(2), x-14, H-12);
+    g.beginPath();g.moveTo(x,H-30);g.lineTo(x,pad-20);g.stroke();
+  }
+  for(let i=0;i<=4;i++){
+    const v=vmax*i/4, y=Y(v);
+    g.fillText(v.toFixed(2), 6, y+4);
+    g.strokeStyle='rgba(42,51,61,.6)';
+    g.beginPath();g.moveTo(pad,y);g.lineTo(W-20,y);g.stroke();
+  }
+  g.fillStyle='#a8b0b8'; g.fillText('t/s', W-30, H-12); g.fillText('v/(m/s)', 6, 16);
+  if(slope!==undefined){
+    const b=pts.reduce((u,p)=>u+p.v,0)/pts.length - slope*pts.reduce((u,p)=>u+p.t,0)/pts.length;
+    g.strokeStyle='rgba(126,231,135,.6)'; g.lineWidth=1.5;
+    g.beginPath(); g.moveTo(X(0),Y(b)); g.lineTo(X(tmax),Y(b+slope*tmax)); g.stroke();
+  }
+  g.fillStyle='#4fc3f7';
+  pts.forEach(p=>{ g.beginPath(); g.arc(X(p.t),Y(p.v),4,0,7); g.fill(); });
+  g.strokeStyle='rgba(79,195,247,.5)'; g.lineWidth=1;
+  g.beginPath(); pts.forEach((p,i)=>i?g.lineTo(X(p.t),Y(p.v)):g.moveTo(X(p.t),Y(p.v))); g.stroke();
+}
+
+/* ================= 选项与初始化 ================= */
+document.getElementById('aSlider').oninput=function(){
+  state.a=+this.value;
+  document.getElementById('lenRO').textContent=state.tapeLenMM+' mm';
+};
+document.getElementById('optScatter').onchange=function(){ state.scatter=this.checked; };
+document['getElementById']('optSlow').onchange=function(){ state.slow=this.checked; };
+document.getElementById('optShowAll').onchange=function(){
+  state.fastFull=this.checked;
+  if(this.checked && state.power==='ac'){ startRun(); }
+};
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+  ['table','vd','vel'].forEach(n=>document.getElementById('tab-'+n).classList.toggle('hidden',n!==name));
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+
+function renderAll(){ renderTables(); rebuildDynamic(); updateOvRuler(); }
+resize(); setPower('off'); renderAll(); document.getElementById('btnFit').click();
+document.getElementById('ovSpan').textContent='s'+String.fromCodePoint(0x2081)+… '' ;
+document.getElementById('ovSpan').textContent='测量刀口间距离';
+</script>
+</body>
+</html>

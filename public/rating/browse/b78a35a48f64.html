@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>光电效应虚拟实验</title>
+<style>
+:root{--bg:#070d1a;--card:#0e1628;--line:#22304a;--txt:#dbe4f3;--dim:#8ea0bd;--acc:#4cc9f0;--amber:#fbbf24;--ok:#34d399;--bad:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:13px/1.55 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:14px}
+header{max-width:1560px;margin:0 auto 12px}
+header h1{font-size:19px;letter-spacing:.5px}
+header p{color:var(--dim);font-size:12px}
+main{max-width:1560px;margin:0 auto;display:grid;grid-template-columns:295px minmax(520px,1fr) 396px;gap:12px;align-items:start}
+@media(max-width:1240px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.card h3{font-size:13px;color:var(--acc);margin-bottom:8px;font-weight:600}
+.ctl{margin-bottom:10px}
+.ctl label{display:flex;justify-content:space-between;margin-bottom:3px;color:var(--dim)}
+.ctl label b{color:var(--txt)}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.seg{display:flex;gap:6px}
+.segBtn{flex:1;padding:5px 0;background:#16213a;border:1px solid var(--line);color:var(--dim);border-radius:6px;cursor:pointer;font-size:12px}
+.segBtn.active{background:#1d3a54;border-color:var(--acc);color:#fff}
+.btn{padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:#16213a;color:var(--txt);cursor:pointer;font-size:12px}
+.btn:hover{border-color:var(--acc)}
+.btn.primary{background:#155e75;border-color:#0891b2;color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chk{display:flex;align-items:center;gap:6px;color:var(--dim);margin-top:6px;font-size:12px;cursor:pointer}
+canvas{display:block;width:100%}
+.stat{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #1b2740;font-size:12px}
+.stat span{color:var(--dim)}
+.stat b{font-weight:600}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+.readouts{display:flex;gap:14px;flex-wrap:wrap;padding:7px 4px 1px;color:var(--dim);font-size:12px}
+.readouts b{color:var(--txt);font-size:13px}
+#scanWrap{margin-top:6px}
+.scanTrack{height:6px;background:#16213a;border-radius:3px;overflow:hidden}
+#scanBar{height:100%;width:0;background:var(--amber);transition:width .05s linear}
+.hint{color:var(--dim);font-size:11.5px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:4px 6px;border-bottom:1px solid #1b2740;text-align:center}
+th{color:var(--dim);font-weight:600}
+td del,.del{cursor:pointer;color:var(--bad);border:none;background:none;font-size:12px}
+.frow{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #1b2740;font-size:12px}
+.frow span{color:var(--dim)} .frow b{font-weight:600}
+.fnote{margin-top:6px;font-size:11px;color:var(--dim)}
+ul.tp{padding-left:16px;font-size:12px;color:#b9c6da}
+ul.tp li{margin-bottom:5px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#132241;border:1px solid var(--acc);color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:9;max-width:80vw}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#toast.warn{border-color:var(--bad)}
+#toast.ok{border-color:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+<h1>光电效应虚拟实验 — 遏止电压法测普朗克常量</h1>
+<p>调节频率 ν 与电压 U，扫描 I–U 曲线读取遏止电压 U₀；多点测量后自动拟合 U₀–ν 直线（斜率 = h/e，截距 = −W₀/e）。</p>
+</header>
+
+<main>
+<!-- ================= 左：参数与控制 ================= -->
+<div>
+<div class="card">
+<h3>① 实验参数</h3>
+<div class="ctl"><label>阴极逸出功 W₀ <b id="w0Val">2.00 eV</b></label>
+<input type="range" id="w0Slider" min="1.5" max="3.5" step="0.05" value="2.0"></div>
+<div class="ctl"><label>光频率 ν <b id="nuVal">0.60 ×10¹⁵ Hz</b></label>
+<input type="range" id="nuSlider" min="0.3" max="1.2" step="0.005" value="0.6"></div>
+<div class="ctl"><label>光强 I（三档）</label>
+<div class="seg" id="intSeg">
+<button class="segBtn active" data-m="1">1×</button>
+<button class="segBtn" data-m="2">2×</button>
+<button class="segBtn" data-m="4">4×</button>
+</div></div>
+<div class="ctl"><label>管电压 U <b id="uVal">+0.00 V</b></label>
+<input type="range" id="uSlider" min="-2" max="10" step="0.05" value="0"></div>
+<div class="btnrow">
+<button class="btn primary" id="scanBtn">⟳ 自动扫描 I–U 并测 U₀</button>
+</div>
+<div id="scanWrap" style="display:none">
+<div class="scanTrack"><div id="scanBar"></div></div>
+<span class="hint">正在从 +10 V → −2 V 扫描…</span>
+</div>
+</div>
+
+<div class="card">
+<h3>② 实验状态</h3>
+<div class="stat"><span>光子能量 hν</span><b id="hv">—</b></div>
+<div class="stat"><span>波长 λ</span><b id="lam">—</b></div>
+<div class="stat"><span>最大初动能 E<sub>k,max</sub></span><b id="ek">—</b></div>
+<div class="stat"><span>是否发射光电子</span><b id="em">—</b></div>
+<div class="stat"><span>饱和电流 I<sub>sat</sub></span><b id="isat">—</b></div>
+<div class="stat"><span>理论 U₀（对照）</span><b id="u0th">—</b></div>
+<label class="chk"><input type="checkbox" id="showRefChk" checked>显示 I–U 参考曲线</label>
+<label class="chk"><input type="checkbox" id="showTheoryChk">显示理论 U₀ / 理论直线</label>
+</div>
+
+<div class="card">
+<h3>③ 播放控制</h3>
+<div class="btnrow">
+<button class="btn" id="playBtn">⏸ 暂停</button>
+<button class="btn" id="resetBtn">⟲ 重置</button>
+<button class="btn" id="clearBtn">🗑 清空数据表</button>
+</div>
+</div>
+
+<div class="card">
+<h3>教学要点</h3>
+<ul class="tp">
+<li>遏止电压 U₀ 对应最大初动能：<b>eU₀ = E<sub>k,max</sub> = hν − W₀</b></li>
+<li>U₀–ν 严格线性：斜率 = h/e，截距 = −W₀/e</li>
+<li>截止频率 ν₀ = W₀/h：ν &lt; ν₀ 时无论光强多大、电压多大都无光电流</li>
+<li>光强只改变<b>饱和电流</b>，不改变 U₀ 与 ν₀（试试切换 1×/2×/4×）</li>
+<li>发射瞬时性：光子命中阴极瞬间即弹出电子，无需能量积累时间</li>
+<li>反向电压恰好为 U₀ 时，最快电子在阳极前减速至停、电流恰为零</li>
+</ul>
+</div>
+</div>
+
+<!-- ================= 中：光电管动画 ================= -->
+<div>
+<div class="card">
+<h3>光电管与测量电路（动画）</h3>
+<canvas id="tube"></canvas>
+<div class="readouts">
+<span>光电流 <b id="rI">0.0</b> μA</span>
+<span>电压 <b id="rU">+0.00</b> V</span>
+<span>发射 e⁻ <b id="rE">0</b></span>
+<span>到达阳极 <b id="rC">0</b></span>
+</div>
+</div>
+</div>
+
+<!-- ================= 右：曲线 / 拟合 / 数据 ================= -->
+<div>
+<div class="card">
+<h3>I–U 曲线（饱和平台与截止点）</h3>
+<canvas id="plot1"></canvas>
+</div>
+<div class="card">
+<h3>U₀–ν 数据与直线拟合</h3>
+<canvas id="plot2"></canvas>
+<div id="fitBody" style="margin-top:8px"></div>
+<div class="fnote">参考真值：h = 6.626×10⁻³⁴ J·s（即斜率约 4.14 V/10¹⁵Hz）</div>
+</div>
+<div class="card">
+<h3>数据表（<span id="dataCount">0</span> 组）</h3>
+<div style="max-height:150px;overflow:auto">
+<table><thead><tr><th>#</th><th>ν / 10¹⁵Hz</th><th>U₀ / V</th><th></th></tr></thead>
+<tbody id="tableBody"></tbody></table>
+</div>
+</div>
+</div>
+</main>
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const H_EV=4.135667696e-15, Qe=1.602176634e-19;
+const fmt=(v,d=2)=>v.toFixed(d);
+
+/* ---------- 状态 ---------- */
+const S={W0:2.0,nu:0.60,mult:1,U:0,playing:true,showRef:true,showTheory:false,
+ photons:[],electrons:[],rings:[],
+ emitCount:0,collectCount:0,spawnAcc:0,flashK:0,flashA:0,dash:0,
+ noise:0,noiseT:0,t:0,scan:null,curve:[],data:[],fit:null};
+
+/* ---------- 物理 ---------- */
+const hnu=()=>H_EV*S.nu*1e15;
+const u0 =()=>hnu()-S.W0;                       // eV（即遏止电压 V 数）
+const Isat=()=>18*S.mult;                       // μA
+function cleanI(U){const a=u0();if(a<=0)return 0;if(U<=-a)return 0;
+ if(U>=0)return Isat();return Isat()*Math.sin((U+a)/a*Math.PI/2);}
+const lam=()=>299.792458/S.nu;
+const band=()=>{const l=lam();return l>760?'红外':(l<380?'紫外':'可见光');};
+function wl2rgb(w){
+ if(w<380)return[150,110,250]; if(w>780)return[200,80,60];
+ let r,g,b;
+ if(w<440){r=(440-w)/60;g=0;b=1}else if(w<490){r=0;g=(w-440)/50;b=1}
+ else if(w<510){r=0;g=1;b=(510-w)/20}else if(w<580){r=(w-510)/70;g=1;b=0}
+ else if(w<645){r=1;g=(645-w)/65;b=0}else{r=1;g=0;b=0}
+ const f=w<420?.55+.45*(w-380)/40:w>700?.55+.45*(780-w)/80:1;
+ return[r*255*f,g*255*f,b*255*f];}
+const photonColor=()=>{const[r,g,b]=wl2rgb(lam());return`rgb(${r|0},${g|0},${b|0})`};
+
+/* ---------- 画布 ---------- */
+const G={W:760,H:356,KX:180,AX:600,KY0:78,KY1:212,CY:145,wireY:300,
+ dial:{x:474,y:296,r:23}};
+const GAP=G.AX-G.KX;
+let tctx,p1ctx,p2ctx;
+function fit(cv,W,H){const d=window.devicePixelRatio||1,w=cv.clientWidth||W;
+ cv.width=Math.round(w*d);cv.height=Math.round(w*H/W*d);
+ const c=cv.getContext('2d');c.setTransform(cv.width/W,0,0,cv.width/W,0,0);return c;}
+function setup(){tctx=fit($('tube'),G.W,G.H);p1ctx=fit($('plot1'),382,252);p2ctx=fit($('plot2'),382,252);}
+window.addEventListener('resize',()=>{setup();drawPlots();});
+
+/* ---------- 提示 ---------- */
+let toastTm;
+function toast(msg,type){const el=$('toast');el.textContent=msg;el.className='show '+(type||'');
+ clearTimeout(toastTm);toastTm=setTimeout(()=>el.className='',3000);}
+
+/* ---------- 读数刷新 ---------- */
+function updateReadouts(){
+ $('hv').textContent=fmt(hnu())+' eV';
+ $('lam').textContent=Math.round(lam())+' nm（'+band()+'）';
+ const e=u0();
+ if(e>0){$('ek').textContent=fmt(e)+' eV';$('em').textContent='● 发射中';$('em').className='ok';}
+ else{$('ek').textContent='—（hν ≤ W₀）';$('em').textContent='○ 不发射';$('em').className='bad';}
+ $('isat').textContent=fmt(Isat(),0)+' μA';
+ $('u0th').textContent=S.showTheory?fmt(Math.max(0,u0()))+' V':'已隐藏';
+}
+
+/* ---------- 电压设置 ---------- */
+function setU(v,fromScan){
+ S.U=Math.round(v*100)/100;
+ if(!fromScan)$('uSlider').value=S.U;
+ const s=(S.U>0?'+':'')+fmt(S.U);
+ $('uVal').textContent=s+' V';$('rU').textContent=s+' V';
+ drawPlots();}
+
+/* ---------- 数据表 / 拟合 ---------- */
+function renderTable(){
+ const tb=$('tableBody');
+ if(!S.data.length){tb.innerHTML='<tr><td colspan="4" class="hint">暂无数据：调好 ν 后点击「自动扫描」</td></tr>';}
+ else tb.innerHTML=S.data.map((d,i)=>
+  `<tr><td>${i+1}</td><td>${fmt(d.nu,3)}</td><td>${fmt(d.u0)}</td>
+   <td><button class="del" data-i="${i}">✕</button></td></tr>`).join('');
+ $('dataCount').textContent=S.data.length;
+ tb.querySelectorAll('.del').forEach(b=>b.onclick=()=>{
+  S.data.splice(+b.dataset.i,1);renderTable();doFit();drawPlots();});}
+
+function doFit(){
+ const n=S.data.length,el=$('fitBody');
+ if(n<2){S.fit=null;el.innerHTML='<div class="hint">数据不足：至少需要 2 组（ν, U₀）才能拟合直线。</div>';drawPlot2();return;}
+ let sx=0,sy=0,sxx=0,sxy=0;
+ for(const d of S.data){sx+=d.nu;sy+=d.u0;sxx+=d.nu*d.nu;sxy+=d.nu*d.u0;}
+ const k=(n*sxy-sx*sy)/(n*sxx-sx*sx),b=(sy-k*sx)/n;
+ let ssr=0,sst=0;const ym=sy/n;
+ for(const d of S.data){ssr+=(d.u0-(k*d.nu+b))**2;sst+=(d.u0-ym)**2;}
+ const r2=sst>1e-9?1-ssr/sst:1;
+ S.fit={k,b};
+ const h34=k*1e-15*Qe/1e-34, nu0=k>1e-6?-b/k:NaN;
+ el.innerHTML=
+  `<div class="frow"><span>斜率 k</span><b>${fmt(k,3)} V/(10¹⁵ Hz)</b></div>
+   <div class="frow"><span>截距 b</span><b>${fmt(b,3)} V</b></div>
+   <div class="frow"><span>h = k·e</span><b>${fmt(h34,3)}×10⁻³⁴ J·s</b></div>
+   <div class="frow"><span>W₀ = −b</span><b>${fmt(-b)} eV（设定 ${fmt(S.W0)}）</b></div>
+   <div class="frow"><span>截止频率 ν₀ = −b/k</span><b>${isFinite(nu0)?fmt(nu0,3)+'×10¹⁵ Hz':'—'}</b></div>
+   <div class="frow"><span>拟合优度 R²</span><b>${fmt(r2,4)}</b></div>`;
+ drawPlot2();}
+
+/* ---------- 自动扫描 ---------- */
+function startScan(){
+ if(S.scan)return;
+ S.curve=[];
+ S.scan={t:0,U:10,prevU:10.001,crossed:false,U0:null};
+ setDisabled(true);
+ $('scanWrap').style.display='block';$('scanBar').style.width='0%';
+ setU(10,true);S.playing=true;syncPlay();drawPlots();}
+
+function scanStep(){
+ const sc=S.scan,U=sc.U;
+ setU(U,true);
+ S.curve.push({U,I:Math.max(0,cleanI(U)+(Math.random()-.5)*.5)});
+ if(!sc.crossed&&u0()>0&&cleanI(U)<=0&&cleanI(sc.prevU)>0){
+  sc.crossed=true;sc.U0=u0()+(Math.random()-.5)*.02;}
+ sc.prevU=U;sc.U=Math.round((U-.1)*100)/100;
+ $('scanBar').style.width=Math.min(100,(10-sc.U)/12*100)+'%';
+ if(sc.U<-2-1e-9)finishScan();}
+
+function finishScan(){
+ const sc=S.scan;S.scan=null;setDisabled(false);
+ $('scanWrap').style.display='none';
+ $('scanBtn').disabled=false;$('scanBtn').textContent='⟳ 自动扫描 I–U 并测 U₀';
+ if(sc&&sc.crossed){
+  S.data.push({nu:S.nu,u0:sc.U0});renderTable();doFit();
+  toast(`已记录：ν=${fmt(S.nu,3)}×10¹⁵ Hz，U₀=${fmt(sc.U0)} V`,'ok');}
+ else if(u0()<=0)toast('无光电流：ν 低于截止频率，无法测 U₀（换更高频率试试）','warn');
+ else toast('−2 V 内未出现遏止点（U₀ 超出量程），请增大 W₀ 或减小 ν','warn');
+ drawPlots();}
+
+function setDisabled(d){
+ ['w0Slider','nuSlider','uSlider','scanBtn'].forEach(id=>$(id).disabled=d);
+ $('intSeg').querySelectorAll('button').forEach(b=>b.disabled=d);}
+
+/* ---------- 仿真更新 ---------- */
+function update(dt){
+ // 光子发射速率 ∝ 光强（发射瞬时：光子到达即弹出电子）
+ S.spawnAcc+=4.5*S.mult*dt;
+ while(S.spawnAcc>=1){S.spawnAcc--;
+  S.photons.push({x:62,y:G.CY+(Math.random()*80-40),ph:Math.random()*6});}
+ // 光子飞行
+ for(let i=S.photons.length-1;i>=0;i--){const p=S.photons[i];
+  p.x+=250*dt;p.ph+=dt*18;
+  if(p.x>=G.KX-6){S.photons.splice(i,1);S.flashK=.12;
+   const a=u0();
+   if(a>0){const y=Math.min(G.KY1-8,Math.max(G.KY0+8,p.y));
+    S.electrons.push({x:G.KX+10,y,vy:(Math.random()-.5)*34,Ek:a,dir:1});
+    S.emitCount++;
+    S.rings.push({x:G.KX+8,y,r:4,life:1,col:'rgba(125,211,252,.9)'});}
+   else if(Math.random()<.35)
+    S.rings.push({x:G.KX+6,y:p.y,r:3,life:.8,col:'rgba(148,163,184,.5)'});}}
+ // 电子：能量法 ½mv²∝ Ek + U·x/d（减速→停→返回）
+ for(let i=S.electrons.length-1;i>=0;i--){const e=S.electrons[i];
+  if(e.dir>0&&S.U<0){const xt=G.KX+GAP*e.Ek/(-S.U);
+   if(e.x>=xt-.5){e.x=xt;e.dir=-1;
+    S.rings.push({x:e.x,y:e.y,r:3,life:1,col:'rgba(251,191,36,.85)'});}}
+  const en=Math.max(0,e.Ek+S.U*(e.x-G.KX)/GAP);
+  e.x+=e.dir*160*Math.sqrt(en)*dt;e.y+=e.vy*dt;
+  if(e.x>=G.AX-4){S.collectCount++;S.flashA=.12;S.electrons.splice(i,1);continue;}
+  if(e.x<=G.KX+4||e.y<G.KY0+3||e.y>G.KY1-3){S.electrons.splice(i,1);}}
+ // 环、闪烁、电流表噪声、导线电流虚线
+ for(let i=S.rings.length-1;i>=0;i--){const r=S.rings[i];
+  r.r+=85*dt;r.life-=dt*2.4;if(r.life<=0)S.rings.splice(i,1);}
+ S.flashK=Math.max(0,S.flashK-dt);S.flashA=Math.max(0,S.flashA-dt);
+ S.noiseT+=dt;
+ if(S.noiseT>.15){S.noiseT=0;S.noise=(Math.random()-.5)*(.25+cleanI(S.U)*.02);}
+ S.dash+=Math.max(0,cleanI(S.U)+S.noise)*1.6*dt;
+ // 扫描步进
+ if(S.scan){S.scan.t+=dt;
+  while(S.scan.t>=.045){S.scan.t-=.045;scanStep();if(!S.scan)break;}}}
+
+/* ---------- 光电管画面 ---------- */
+function rr(c,x,y,w,h,r){c.beginPath();
+ if(c.roundRect)c.roundRect(x,y,w,h,r);else{c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);
+ c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}}
+
+function drawTube(){
+ const c=tctx;if(!c)return;
+ c.clearRect(0,0,G.W,G.H);
+ c.fillStyle='#0a1020';c.fillRect(0,0,G.W,G.H);
+ // 光束锥
+ const col=photonColor();
+ c.globalAlpha=.05+.045*S.mult;c.fillStyle=col;
+ c.beginPath();c.moveTo(58,G.CY-13);c.lineTo(G.KX,G.KY0+13);
+ c.lineTo(G.KX,G.KY1-13);c.lineTo(58,G.CY+13);c.closePath();c.fill();c.globalAlpha=1;
+ // 光源
+ c.fillStyle='#141d33';c.strokeStyle='#4a5d80';c.lineWidth=1.5;
+ rr(c,12,116,42,58,7);c.fill();c.stroke();
+ c.globalAlpha=.25+.18*S.mult;c.strokeStyle=col;c.lineWidth=2;
+ for(let i=1;i<=3;i++){c.beginPath();c.arc(56,G.CY,8+i*5,-0.6,0.6);c.stroke();}
+ c.globalAlpha=1;c.fillStyle='#93a7c6';c.font='11px sans-serif';c.textAlign='center';
+ c.fillText('光源',33,112);c.fillText(S.mult+'×',33,188);
+ // 真空管
+ c.strokeStyle='#3b4f6e';c.lineWidth=2;rr(c,60,34,660,212,24);c.stroke();
+ c.fillStyle='#93a7c6';c.font='11px sans-serif';
+ c.fillText('光电管（真空）',390,26);
+ // 电场箭头
+ c.font='11px sans-serif';
+ if(Math.abs(S.U)>.05){const dir=S.U>0?-1:1;
+  c.strokeStyle='rgba(248,113,113,.75)';c.fillStyle='rgba(248,113,113,.9)';c.lineWidth=1.6;
+  [270,395,520].forEach(x=>{c.beginPath();c.moveTo(x+dir*17,56);c.lineTo(x-dir*17,56);
+   c.lineTo(x-dir*17,56);c.stroke();
+   c.beginPath();c.moveTo(x-dir*22,56);c.lineTo(x-dir*12,51);c.lineTo(x-dir*12,61);c.closePath();c.fill();});
+  c.fillText('E',560,60);}
+ else{c.fillStyle='#64748b';c.fillText('U = 0（管内无电场）',390,60);}
+ // 阴极
+ const kg=c.createLinearGradient(G.KX-6,0,G.KX+6,0);
+ kg.addColorStop(0,'#5b6b85');kg.addColorStop(.5,'#9fb2ce');kg.addColorStop(1,'#5b6b85');
+ c.fillStyle=kg;c.fillRect(G.KX-6,G.KY0,12,G.KY1-G.KY0);
+ if(S.flashK>0){c.fillStyle=`rgba(125,211,252,${S.flashK*3})`;c.fillRect(G.KX-6,G.KY0,12,G.KY1-G.KY0);}
+ c.fillStyle='#c3d2e8';c.font='11px sans-serif';
+ c.fillText('K 阴极（W₀='+fmt(S.W0)+' eV）',G.KX,G.KY1+18);
+ // 阳极（栅网，光可穿过）
+ c.fillStyle='#7f93b3';
+ for(let y=G.KY0+2;y<=G.KY1-14;y+=22)c.fillRect(G.AX-2,y,4,14);
+ if(S.flashA>0){c.fillStyle=`rgba(52,211,153,${S.flashA*3})`;c.fillRect(G.AX-4,G.KY0,8,G.KY1-G.KY0);}
+ c.fillStyle='#c3d2e8';c.fillText('A 阳极',G.AX,G.KY1+18);
+ // 电路
+ c.strokeStyle='#7f93b3';c.lineWidth=2;
+ c.beginPath();c.moveTo(G.KX,G.KY1);c.lineTo(G.KX,G.wireY);c.lineTo(288,G.wireY);c.stroke();
+ c.beginPath();c.moveTo(312,G.wireY);c.lineTo(G.dial.x-G.dial.r,G.wireY);c.stroke();
+ c.beginPath();c.moveTo(G.dial.x+G.dial.r,G.wireY);c.lineTo(G.AX,G.wireY);c.lineTo(G.AX,G.KY1);c.stroke();
+ // 电池（极性随 U 翻转）
+ const longR=S.U>=0;
+ c.strokeStyle='#c3d2e8';c.lineWidth=2.5;
+ c.beginPath();c.moveTo(longR?292:308,G.wireY-13);c.lineTo(longR?292:308,G.wireY+13);c.stroke();
+ c.lineWidth=4;
+ c.beginPath();c.moveTo(longR?308:292,G.wireY-7);c.lineTo(longR?308:292,G.wireY+7);c.stroke();
+ c.fillStyle=S.U>0?'#34d399':(S.U<0?'#f87171':'#94a3b8');c.font='bold 11px sans-serif';
+ c.fillText(S.U>=0?'+':'−',longR?322:278,G.wireY-16);
+ c.fillText(S.U>=0?'−':'+',longR?278:322,G.wireY-16);
+ c.fillStyle='#dbe4f3';c.font='12px sans-serif';
+ c.fillText('U = '+(S.U>0?'+':'')+fmt(S.U)+' V',300,G.wireY-30);
+ // 外电路常规电流（动画虚线，方向 K→A）
+ const dispI=Math.max(0,cleanI(S.U)+S.noise);
+ if(dispI>.15){c.save();c.strokeStyle='rgba(52,211,153,.95)';c.lineWidth=2;
+  c.setLineDash([7,9]);c.lineDashOffset=-S.dash;
+  c.beginPath();c.moveTo(G.KX+4,G.wireY);c.lineTo(G.AX-4,G.wireY);c.stroke();c.restore();}
+ // 微安表
+ const{ x:mx,y:my,r:mr}=G.dial;
+ c.fillStyle='#0d1526';c.strokeStyle='#64748b';c.lineWidth=1.5;
+ c.beginPath();c.arc(mx,my,mr,0,7);c.fill();c.stroke();
+ c.font='8px sans-serif';c.fillStyle='#8ea0bd';
+ for(let I=0;I<=80;I+=20){const th=Math.PI*(1-I/90);
+  c.strokeStyle='#8ea0bd';c.lineWidth=1;
+  c.beginPath();c.moveTo(mx+Math.cos(th)*(mr-3),my-Math.sin(th)*(mr-3));
+  c.lineTo(mx+Math.cos(th)*(mr-8),my-Math.sin(th)*(mr-8));c.stroke();
+  c.fillText(I,mx+Math.cos(th)*(mr-14),my-Math.sin(th)*(mr-14)+3);}
+ const thN=Math.PI*(1-Math.min(90,dispI)/90);
+ c.strokeStyle='#f87171';c.lineWidth=2;
+ c.beginPath();c.moveTo(mx,my);c.lineTo(mx+Math.cos(thN)*(mr-5),my-Math.sin(thN)*(mr-5));c.stroke();
+ c.fillStyle='#f87171';c.beginPath();c.arc(mx,my,2.5,0,7);c.fill();
+ c.fillStyle='#8ea0bd';c.font='8px sans-serif';c.fillText('μA',mx,my+14);
+ // 光子（正弦波包）
+ c.lineWidth=1.6;c.strokeStyle=col;
+ for(const p of S.photons){
+  c.beginPath();
+  for(let dx=0;dx<=26;dx+=2){const X=p.x-26+dx,Y=p.y+Math.sin(dx*.55+p.ph)*3.6;
+   dx===0?c.moveTo(X,Y):c.lineTo(X,Y);}
+  c.stroke();
+  c.fillStyle=col;c.beginPath();c.arc(p.x,p.y,2.6,0,7);c.fill();}
+ // 电子
+ for(const e of S.electrons){c.save();c.shadowColor='#7dd3fc';c.shadowBlur=7;
+  c.fillStyle='#7dd3fc';c.beginPath();c.arc(e.x,e.y,3.2,0,7);c.fill();c.restore();}
+ // 命中/停驻光环
+ for(const r of S.rings){c.globalAlpha=Math.max(0,r.life);
+  c.strokeStyle=r.col;c.lineWidth=1.5;
+  c.beginPath();c.arc(r.x,r.y,r.r,0,7);c.stroke();c.globalAlpha=1;}
+ // HTML 读数
+ $('rI').textContent=dispI.toFixed(1);
+ $('rE').textContent=S.emitCount;$('rC').textContent=S.collectCount;}
+
+/* ---------- I–U 图 ---------- */
+function drawPlot1(){
+ const c=p1ctx;if(!c)return;const W=382,H=252,l=46,r=10,t=16,b=32,pw=W-l-r,ph=H-t-b;
+ const X=v=>l+(v+2)/12*pw, Y=v=>t+ph-Math.min(90,v)/90*ph;
+ c.clearRect(0,0,W,H);c.fillStyle='#0a1020';c.fillRect(0,0,W,H);
+ c.lineWidth=1;c.font='9px sans-serif';
+ for(let U=-2;U<=10;U++){c.strokeStyle=U%2?'#141d33':'#22304a';
+  c.beginPath();c.moveTo(X(U),t);c.lineTo(X(U),t+ph);c.stroke();
+  if(U%2===0){c.fillStyle='#8ea0bd';c.textAlign='center';c.fillText(U,X(U),t+ph+12);}}
+ for(let I=0;I<=80;I+=10){c.strokeStyle=I%20?'#141d33':'#22304a';
+  c.beginPath();c.moveTo(l,Y(I));c.lineTo(l+pw,Y(I));c.stroke();
+  if(I%20===0){c.fillStyle='#8ea0bd';c.textAlign='right';c.fillText(I,l-4,Y(I)+3);}}
+ c.fillStyle='#8ea0bd';c.textAlign='center';c.font='10px sans-serif';
+ c.fillText('U / V',l+pw/2,H-4);
+ c.save();c.translate(10,t+ph/2);c.rotate(-Math.PI/2);c.fillText('I / μA',0,0);c.restore();
+ const a=u0();
+ if(S.showRef&&a>0){ // 参考曲线
+  c.beginPath();
+  for(let U=-2;U<=10.001;U+=.05){const I=cleanI(U);
+   U<=-2?c.moveTo(X(U),Y(I)):c.lineTo(X(U),Y(I));}
+  c.strokeStyle='rgba(125,211,252,.45)';c.lineWidth=1.3;c.stroke();}
+ if(a>0){ // 饱和线 + 截止点
+  c.setLineDash([4,4]);c.strokeStyle='rgba(253,224,71,.55)';c.lineWidth=1;
+  c.beginPath();c.moveTo(X(0),Y(Isat()));c.lineTo(X(10),Y(Isat()));c.stroke();
+  c.fillStyle='rgba(253,224,71,.85)';c.font='9px sans-serif';c.textAlign='left';
+  c.fillText('饱和 I_sat='+fmt(Isat(),0)+'μA',X(6.2),Y(Isat())-4);
+  if(a<=2){c.strokeStyle='rgba(248,113,113,.85)';
+   c.beginPath();c.moveTo(X(-a),Y(0));c.lineTo(X(-a),Y(Isat()*.6));c.stroke();
+   c.fillStyle='#f87171';c.fillText('U₀='+fmt(a)+'V',X(-a)+3,Y(Isat()*.55));}
+  c.setLineDash([]);}
+ if(S.curve.length>1){ // 扫描轨迹
+  c.strokeStyle='#fbbf24';c.lineWidth=1.6;c.beginPath();
+  S.curve.forEach((p,i)=>i?c.lineTo(X(p.U),Y(p.I)):c.moveTo(X(p.U),Y(p.I)));
+  c.stroke();
+  c.fillStyle='#fbbf24';
+  for(let i=0;i<S.curve.length;i+=4){const p=S.curve[i];
+   c.beginPath();c.arc(X(p.U),Y(p.I),1.7,0,7);c.fill();}}
+ if(!S.scan&&a>0){ // 当前工作点
+  c.fillStyle='#34d399';c.beginPath();c.arc(X(S.U),Y(cleanI(S.U)),3.4,0,7);c.fill();
+  c.fillStyle='#34d399';c.font='9px sans-serif';c.textAlign='left';
+  c.fillText('当前',X(S.U)+5,Y(cleanI(S.U))-5);}
+ if(a<=0){c.fillStyle='#94a3b8';c.font='11px sans-serif';c.textAlign='left';
+  c.fillText('ν 低于截止频率：光电流恒为 0',l+16,t+18);}}
+
+/* ---------- U₀–ν 拟合图 ---------- */
+function drawPlot2(){
+ const c=p2ctx;if(!c)return;const W=382,H=252,l=46,r=10,t=16,b=32,pw=W-l-r,ph=H-t-b;
+ const X=v=>l+(v-.3)/.9*pw, Y=v=>t+ph-Math.min(3.5,Math.max(0,v))/3.5*ph;
+ c.clearRect(0,0,W,H);c.fillStyle='#0a1020';c.fillRect(0,0,W,H);
+ c.lineWidth=1;c.font='9px sans-serif';
+ for(let v=.3;v<=1.2001;v+=.1){c.strokeStyle=Math.abs(v%.3)<.05?'#22304a':'#141d33';
+  c.beginPath();c.moveTo(X(v),t);c.lineTo(X(v),t+ph);c.stroke();}
+ for(let v=0;v<=3.5;v+=.5){c.strokeStyle=v%1<.01?'#22304a':'#141d33';
+  c.beginPath();c.moveTo(l,Y(v));c.lineTo(l+pw,Y(v));c.stroke();}
+ [0.3,0.6,0.9,1.2].forEach(v=>{c.fillStyle='#8ea0bd';c.textAlign='center';c.fillText(v.toFixed(1),X(v),t+ph+12);});
+ [0,1,2,3].forEach(v=>{c.fillStyle='#8ea0bd';c.textAlign='right';c.fillText(v,l-4,Y(v)+3);});
+ c.fillStyle='#8ea0bd';c.textAlign='center';c.font='10px sans-serif';
+ c.fillText('ν / 10¹⁵ Hz',l+pw/2,H-4);
+ c.save();c.translate(10,t+ph/2);c.rotate(-Math.PI/2);c.fillText('U₀ / V',0,0);c.restore();
+ if(S.showTheory){c.setLineDash([5,4]);c.strokeStyle='rgba(148,163,184,.6)';c.lineWidth=1.2;
+  c.beginPath();const v0=S.W0/H_EV;
+  for(let v=Math.max(.3,v0);v<=1.2001;v+=.01){const y=H_EV*v*1e15-S.W0;
+   v<=Math.max(.3,v0)+.011?c.moveTo(X(v),Y(y)):c.lineTo(X(v),Y(y));}
+  c.stroke();c.setLineDash([]);
+  c.fillStyle='rgba(148,163,184,.8)';c.font='9px sans-serif';c.textAlign='left';
+  c.fillText('理论（W₀='+fmt(S.W0)+'）',X(.72),Y(H_EV*.72*1e15-S.W0)-6);}
+ if(S.fit){const{k,b}=S.fit;c.strokeStyle='#4cc9f0';c.lineWidth=1.8;c.beginPath();
+  let started=false;
+  for(let v=.3;v<=1.2001;v+=.005){const y=k*v+b;
+   if(y<-.05){started=false;continue;}
+   started?c.lineTo(X(v),Y(y)):(c.moveTo(X(v),Y(y)),started=true);}
+  c.stroke();
+  c.fillStyle='#4cc9f0';c.font='9px sans-serif';c.textAlign='left';
+  c.fillText('拟合 U₀=kν+b',X(1.02),Y(k*1.02+b)-7);}
+ S.data.forEach((d,i)=>{c.fillStyle='#fbbf24';c.strokeStyle='#0a1020';c.lineWidth=1;
+  c.beginPath();c.arc(X(d.nu),Y(d.u0),3.4,0,7);c.fill();c.stroke();
+  c.fillStyle='#8ea0bd';c.font='8px sans-serif';c.textAlign='center';
+  c.fillText(i+1,X(d.nu),Y(d.u0)-6);});
+ if(!S.data.length){c.fillStyle='#94a3b8';c.font='11px sans-serif';c.textAlign='left';
+  c.fillText('完成自动扫描后，数据点将出现在此处',l+16,t+18);}}
+
+function drawPlots(){drawPlot1();drawPlot2();}
+function resetCurve(){S.curve=[];drawPlots();}
+
+/* ---------- 事件 ---------- */
+$('w0Slider').addEventListener('input',e=>{
+ S.W0=+e.target.value;$('w0Val').textContent=fmt(S.W0)+' eV';
+ S.data=[];S.fit=null;renderTable();doFit();resetCurve();updateReadouts();
+ toast('已更换阴极金属（W₀='+fmt(S.W0)+' eV），数据表已清空');});
+$('nuSlider').addEventListener('input',e=>{
+ S.nu=+e.target.value;$('nuVal').textContent=fmt(S.nu,3)+' ×10¹⁵ Hz';
+ resetCurve();updateReadouts();});
+$('intSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+ if(S.scan)return;
+ $('intSeg').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+ b.classList.add('active');S.mult=+b.dataset.m;
+ resetCurve();updateReadouts();
+ if(u0()>0)toast('光强 '+S.mult+'×：饱和电流变为 '+fmt(Isat(),0)+' μA，U₀ 不变','ok');});
+$('uSlider').addEventListener('input',e=>{if(!S.scan)setU(+e.target.value,false);});
+$('scanBtn').onclick=startScan;
+$('showRefChk').onchange=e=>{S.showRef=e.target.checked;drawPlots();};
+$('showTheoryChk').onchange=e=>{S.showTheory=e.target.checked;updateReadouts();drawPlots();};
+function syncPlay(){$('playBtn').textContent=S.playing?'⏸ 暂停':'▶ 播放';}
+$('playBtn').onclick=()=>{S.playing=!S.playing;syncPlay();};
+$('resetBtn').onclick=()=>{
+ if(S.scan)finishScan();
+ S.photons=[];S.electrons=[];S.rings=[];S.curve=[];
+ S.emitCount=0;S.collectCount=0;S.spawnAcc=0;S.playing=true;syncPlay();
+ setU(0,false);toast('已重置动画与电压（数据表保留）');};
+$('clearBtn').onclick=()=>{S.data=[];S.fit=null;renderTable();doFit();drawPlots();
+ toast('数据表已清空');};
+document.addEventListener('keydown',e=>{
+ if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='BUTTON'){
+  e.preventDefault();S.playing=!S.playing;syncPlay();}});
+
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(.05,(now-last)/1000);last=now;S.t+=dt;
+ if(S.playing)update(dt);
+ drawTube();requestAnimationFrame(loop);}
+
+/* ---------- 初始化 ---------- */
+setup();renderTable();doFit();updateReadouts();setU(0,false);drawPlots();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

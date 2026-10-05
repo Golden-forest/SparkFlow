@@ -1,0 +1,1298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>测金属丝的电阻率（伏安法 · 内外接可切换）</title>
+<style>
+  :root{
+    color-scheme: light;
+    --sim-bg:#eef3f8;
+    --sim-surface:#ffffff;
+    --sim-surface-soft:#f8fafc;
+    --sim-text:#172033;
+    --sim-muted:#657188;
+    --sim-border:#dfe6ef;
+    --sim-grid:#e8edf4;
+    --sim-accent:#0f9fba;
+    --sim-accent-deep:#08758a;
+    --sim-accent-soft:#d9f4f7;
+    --sim-positive:#0f9fba;
+    --sim-warning:#d97706;
+    --sim-danger:#dc2626;
+    --sim-radius-sm:10px;
+    --sim-radius-md:16px;
+    --sim-radius-lg:22px;
+    --sim-shadow:0 18px 46px rgba(28,43,70,.10);
+    --sim-space-1:4px;
+    --sim-space-2:8px;
+    --sim-space-3:12px;
+    --sim-space-4:16px;
+    --sim-space-5:24px;
+    --sim-space-6:32px;
+    /* subject semantic colors (extend, not replace) */
+    --sim-wire:#39435c;         /* circuit line ink */
+    --sim-ext:#0f9fba;          /* 安培表外接 (external) */
+    --sim-int:#d97706;          /* 安培表内接 (internal) */
+    --sim-metal:#8a99b4;        /* metal wire body */
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-width:320px;
+    color:var(--sim-text);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(15,159,186,.12), transparent 28%),
+      radial-gradient(circle at 92% 4%, rgba(217,119,6,.09), transparent 26%),
+      var(--sim-bg);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Inter,ui-sans-serif,system-ui,sans-serif;
+  }
+  button,input{font:inherit}
+  button:focus-visible,input:focus-visible{outline:3px solid rgba(37,99,235,.32);outline-offset:2px}
+
+  .app{
+    width:min(1600px,100%);
+    height:100vh;
+    margin:0 auto;
+    padding:14px 18px 12px;
+    display:grid;
+    grid-template-rows:auto minmax(0,1fr) auto;
+    gap:12px;
+    overflow:hidden;
+  }
+
+  /* ---------- header ---------- */
+  .header{display:flex;justify-content:space-between;align-items:center;gap:18px;min-height:52px}
+  .header h1{margin:0 0 5px;font-size:clamp(1.45rem,2.2vw,1.95rem);font-weight:760;letter-spacing:-.03em;line-height:1.05}
+  .header p{margin:0;color:var(--sim-muted);font-size:.86rem}
+  .status{border:1px solid rgba(15,159,186,.18);border-radius:999px;padding:9px 14px;background:var(--sim-accent-soft);color:var(--sim-accent-deep);font-weight:760;white-space:nowrap}
+  .status.off{background:#eef2f7;color:#536071;border-color:rgba(148,163,184,.25)}
+  .status.int{background:rgba(217,119,6,.13);color:#9a5a04;border-color:rgba(217,119,6,.25)}
+
+  /* ---------- main split ---------- */
+  .main{min-height:0;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(330px,.9fr);gap:12px}
+  .panel{min-width:0;background:rgba(255,255,255,.94);border:1px solid rgba(148,163,184,.2);border-radius:var(--sim-radius-lg);box-shadow:var(--sim-shadow)}
+
+  /* stage */
+  .stage-panel{min-height:0;height:100%;display:flex;flex-direction:column;padding:12px 14px 10px}
+  .panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+  .panel-head h2{margin:0;font-size:1rem;font-weight:750}
+  .panel-head span{color:var(--sim-muted);font-size:.75rem}
+  .stage-svg{width:100%;height:100%;min-height:0;display:block;flex:1}
+  .stage-actions{display:flex;gap:9px;align-items:center;justify-content:center;flex-wrap:wrap;padding-top:9px;border-top:1px dashed var(--sim-border);margin-top:8px}
+
+  /* evidence side */
+  .side{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px}
+  .readouts{padding:14px 16px}
+  .readout-title{font-size:.78rem;font-weight:750;color:var(--sim-muted);letter-spacing:.05em;margin-bottom:9px}
+  .readout-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .metric{padding:12px 13px;border:1px solid rgba(15,159,186,.12);border-radius:14px;background:linear-gradient(145deg,#f8fcfd,#f4f8fb)}
+  .metric small{display:block;margin-bottom:4px;color:var(--sim-muted);font-size:.72rem}
+  .metric strong{font-size:1.4rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .metric .sub{display:block;margin-top:3px;color:var(--sim-muted);font-size:.7rem;font-variant-numeric:tabular-nums}
+  .d-rows{margin:9px 0 0;padding:0;list-style:none;max-height:96px;overflow:auto;font-variant-numeric:tabular-nums;font-size:.8rem;color:var(--sim-text)}
+  .d-rows li{display:flex;justify-content:space-between;padding:2px 6px;border-radius:6px}
+  .d-rows li:nth-child(odd){background:var(--sim-surface-soft)}
+  .records{padding:12px 14px;display:flex;flex-direction:column;min-height:0}
+  .records table{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums}
+  .records th{color:var(--sim-muted);font-weight:700;text-align:right;padding:4px 6px;border-bottom:1px solid var(--sim-border);white-space:nowrap}
+  .records td{text-align:right;padding:5px 6px;border-bottom:1px solid var(--sim-grid);white-space:nowrap}
+  .records th:first-child,.records td:first-child{text-align:left}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:750}
+  .badge.ext{background:rgba(15,159,186,.13);color:var(--sim-accent-deep)}
+  .badge.int{background:rgba(217,119,6,.14);color:#9a5a04}
+  .fit-line{margin-top:auto;padding-top:8px;font-size:.8rem;color:var(--sim-muted);font-variant-numeric:tabular-nums;line-height:1.5}
+  .fit-line strong{color:var(--sim-text)}
+
+  /* insight */
+  .model-note{padding:0 16px 14px}
+  .insight{padding:12px 14px;border-left:3px solid var(--sim-warning);border-radius:0 12px 12px 0;background:#fff8e8;color:#80510a;font-weight:650;font-size:.86rem;line-height:1.55}
+  .mode-help{margin:10px 0 0;padding:0;list-style:none;font-size:.78rem;color:var(--sim-muted);line-height:1.6}
+  .mode-help li{margin-bottom:3px}
+
+  /* ---------- controls dock ---------- */
+  .controls{
+    padding:10px 12px;display:grid;
+    grid-template-columns:auto auto minmax(150px,1fr) auto auto;
+    gap:14px;align-items:center;border-radius:17px;
+  }
+  .actions{display:flex;gap:7px}
+  button{
+    border:1px solid var(--sim-border);border-radius:var(--sim-radius-sm);
+    padding:9px 13px;color:var(--sim-text);background:var(--sim-surface-soft);
+    cursor:pointer;font-weight:740;font-size:.86rem;
+    transition:transform .16s ease,background .16s ease,border-color .16s ease,opacity .16s ease;
+  }
+  button:hover{border-color:#c7d2e2;background:#eef3f9}
+  button:active{transform:scale(.97)}
+  button:disabled{opacity:.42;cursor:not-allowed;transform:none}
+  button.primary{border-color:var(--sim-accent-deep);color:#fff;background:linear-gradient(135deg,var(--sim-accent-deep),var(--sim-accent));box-shadow:0 8px 18px rgba(15,159,186,.2)}
+  button.rec{border-color:rgba(217,119,6,.5);color:#9a5a04;background:rgba(217,119,6,.09)}
+  button.rec:hover{background:rgba(217,119,6,.16)}
+  .seg-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .seg-row button{padding:8px 6px;font-size:.8rem}
+  .seg-row button.active{background:var(--sim-accent-soft);border-color:var(--sim-accent);color:var(--sim-accent-deep);box-shadow:inset 0 0 0 1px rgba(15,159,186,.25)}
+  .mode-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .mode-row button{padding:8px 12px;white-space:nowrap}
+  .mode-row button.active.ext{background:var(--sim-accent-soft);border-color:var(--sim-ext);color:var(--sim-accent-deep)}
+  .mode-row button.active.int{background:rgba(217,119,6,.13);border-color:var(--sim-int);color:#9a5a04}
+  .control{min-width:0}
+  .control label{display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:.78rem;font-weight:720}
+  .control output{color:var(--sim-muted);font-variant-numeric:tabular-nums}
+  input[type="range"]{width:100%;accent-color:var(--sim-accent)}
+  .dock-label{font-size:.7rem;font-weight:750;color:var(--sim-muted);letter-spacing:.04em;margin-bottom:5px;display:block}
+
+  /* ---------- SVG scene shared ---------- */
+  .text{fill:#334155;font-size:17px;font-weight:650;font-family:inherit}
+  .subtext{fill:#657188;font-size:12.5px;font-weight:500;font-family:inherit}
+  .tinytext{fill:#657188;font-size:11px;font-weight:500;font-family:inherit}
+  .scene-stage{display:none}
+  .scene-stage.active{display:block}
+  .view-flash{animation:none}
+
+  /* micrometer */
+  .mic-body{fill:#dfe6ef;stroke:#9aa7ba;stroke-width:2.5}
+  .mic-metal{fill:#c3cedd;stroke:#8d9ab0;stroke-width:2.5}
+  .mic-main-tick{stroke:#334155;stroke-width:2}
+  .mic-half-tick{stroke:#334155;stroke-width:2}
+  .mic-num{fill:#334155;font-size:13px;font-weight:700}
+  .thimble-face{fill:#eef2f7;stroke:#8d9ab0;stroke-width:2.5}
+  .thimble-tick{stroke:#334155;stroke-width:1.6}
+  .thimble-index{stroke:#dc2626;stroke-width:3}
+  .zoom-ring{fill:#ffffff;stroke:#b7c3d4;stroke-width:3}
+  .sample-wire{stroke:var(--sim-metal);stroke-width:7;stroke-linecap:round}
+
+  /* circuit */
+  .cwire{fill:none;stroke:var(--sim-wire);stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+  .cwire.dim{opacity:.22}
+  .cwire.live{stroke:var(--sim-accent);filter:drop-shadow(0 0 5px rgba(15,159,186,.45))}
+  .cwire.vlead{stroke-width:3;stroke-dasharray:1 0}
+  .cwire.vlead.idle-lead{stroke-dasharray:6 6;opacity:.3}
+  .csym{stroke:var(--sim-wire);stroke-width:4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .meter-face{fill:#fff;stroke:#334155;stroke-width:4}
+  .meter-tick{stroke:#94a3b8;stroke-width:1.6}
+  .meter-tick.major{stroke:#334155;stroke-width:2.4}
+  .meter-needle{stroke:#dc2626;stroke-width:3.5;stroke-linecap:round;transition:none}
+  .meter-hub{fill:#334155}
+  .meter-label{fill:#334155;font-size:20px;font-weight:800}
+  .meter-read{font-size:16px;font-weight:750;font-variant-numeric:tabular-nums}
+  .over-range{fill:var(--sim-danger);font-size:13px;font-weight:800}
+  .rheo-slider{fill:#334155;transition:x1 .2s ease,x2 .2s ease}
+  .sw-lever{stroke:#222c3b;stroke-width:7;stroke-linecap:round;transition:x2 .25s ease,y2 .25s ease;cursor:pointer}
+  .sw-knob{fill:#222c3b;cursor:pointer}
+  .sw-contact{fill:#fff;stroke:#222c3b;stroke-width:4;cursor:pointer}
+  .particle{pointer-events:none}
+  .ruler-tick{stroke:#64748b;stroke-width:1.4}
+  .ruler-tick.cm{stroke:#334155;stroke-width:2}
+  .ruler-num{fill:#657188;font-size:10.5px;font-family:inherit}
+  .seg-label{font-size:13px;font-weight:750}
+
+  /* R–L chart */
+  .grid-line{stroke:var(--sim-grid);stroke-width:1}
+  .axis{stroke:#9aa7ba;stroke-width:1.5}
+  .axis-label{fill:var(--sim-muted);font-size:12.5px}
+  .pt{stroke:#fff;stroke-width:2.5}
+  .fit-line-path{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-dasharray:9 7}
+  .ideal-path{fill:none;stroke:var(--sim-grid);stroke-width:2.5;stroke-dasharray:3 6}
+  .result-k{font-size:14px;font-weight:750;fill:#2563eb}
+
+  @media (max-width:1240px){
+    .controls{grid-template-columns:auto auto minmax(150px,1fr) auto;grid-template-rows:auto auto}
+    .controls .control:nth-child(5){grid-column:2/-1}
+  }
+  @media (max-width:960px){
+    .app{height:auto;min-height:100vh;overflow:visible;padding:12px}
+    .main{grid-template-columns:1fr}
+    .stage-svg{height:auto;aspect-ratio:920/560}
+    .controls{grid-template-columns:1fr 1fr;align-items:end}
+    .controls .actions{grid-column:1/-1}
+    .side{grid-template-rows:auto auto}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important;transition-duration:.001s !important}
+  }
+</style>
+</head>
+<body>
+<!-- AppShell shell · ExperimentLayout -->
+<div class="app" data-layout="experiment" data-model-tier="analytic">
+
+  <header class="header" data-zone="header">
+    <div>
+      <h1>测金属丝的电阻率</h1>
+      <p>螺旋测微器测直径 · 米尺测长度 · 伏安法测电阻（安培表内接 / 外接可切换）· R–L 图像求电阻率</p>
+    </div>
+    <div id="status" class="status off" role="status" aria-live="polite">阶段① 测直径 · 电键断开</div>
+  </header>
+
+  <main class="main">
+    <section class="panel stage-panel" data-zone="stage" aria-labelledby="stageTitle">
+      <div class="panel-head">
+        <h2 id="stageTitle">① 螺旋测微器 · 测直径</h2>
+        <span id="stageHint">在金属丝不同位置采集 5 次左右读数，取平均值</span>
+      </div>
+
+      <svg id="stageSvg" class="stage-svg" viewBox="0 0 920 560" role="img" aria-label="实验装置视图">
+        <!-- ============ 场景一：螺旋测微器 ============ -->
+        <g id="sceneMic" class="scene-stage active">
+          <!-- 放大主尺读数条 -->
+          <rect x="46" y="52" width="330" height="96" rx="12" fill="#fbfdff" stroke="#dfe6ef"/>
+          <text class="subtext" x="62" y="74">固定刻度（主尺，放大视图）· 单位 mm</text>
+          <g id="micMainScale" transform="translate(70,110)"></g>
+          <line id="micEdge" x1="0" y1="0" x2="0" y2="0" stroke="#dc2626" stroke-width="3" stroke-dasharray="5 4"/>
+          <text id="micEdgeText" class="tinytext" x="0" y="0" fill="#dc2626">微分筒边缘</text>
+
+          <!-- 测微仪主体（侧视示意） -->
+          <g id="micBody" transform="translate(-30,50)">
+            <rect class="mic-body" x="330" y="220" width="300" height="24" rx="12"/>
+            <rect class="mic-body" x="330" y="356" width="300" height="24" rx="12"/>
+            <rect class="mic-metal" x="296" y="244" width="40" height="112" rx="6"/>
+            <line class="sample-wire" id="micWire" x1="346" y1="250" x2="346" y2="350"/>
+            <rect class="mic-metal" x="356" y="248" width="26" height="108" rx="4"/>
+            <rect class="mic-metal" x="382" y="252" width="150" height="100" rx="6"/>
+            <g id="micSleeveTicks"></g>
+            <rect class="thimble-face" x="532" y="240" width="140" height="124" rx="8"/>
+            <g id="micThimbleTicks"></g>
+            <rect class="mic-metal" x="672" y="264" width="38" height="76" rx="12"/>
+            <text class="subtext" x="346" y="424" text-anchor="middle">被测金属丝（d≈0.5 mm，放大示意）</text>
+            <text class="subtext" x="600" y="214" text-anchor="middle">微分筒（可动）</text>
+          </g>
+
+          <!-- 端视放大读数盘：每格 0.01 mm -->
+          <g transform="translate(760,220)">
+            <circle r="92" class="zoom-ring"/>
+            <circle r="80" fill="#f8fafc" stroke="#dfe6ef"/>
+            <g id="micDial"></g>
+            <line class="thimble-index" x1="0" y1="-92" x2="0" y2="-64"/>
+            <text class="tinytext" x="0" y="-100" text-anchor="middle">微分筒端视图（放大）</text>
+          </g>
+
+          <!-- 读数分解 -->
+          <g transform="translate(46,508)">
+            <text id="micBreakdown" class="text" x="0" y="0">读数 = 主尺 0.5 mm ＋ 微分筒 0.000 mm ＝ 0.500 mm</text>
+          </g>
+
+          <!-- 测量位置指示 -->
+          <g transform="translate(46,470)">
+            <text class="tinytext" x="0" y="0" id="micPosText">当前测量位置：未采样</text>
+            <rect x="250" y="-9" width="240" height="10" rx="5" fill="#e2e8f0"/>
+            <circle id="micPosMarker" cx="250" cy="-4" r="6" fill="#0f9fba" opacity="0"/>
+          </g>
+        </g>
+
+        <!-- ============ 场景二：伏安法电路 ============ -->
+        <g id="sceneCircuit" class="scene-stage">
+          <!-- 顶干路：电源+ → 右母线 -->
+          <path class="cwire" id="wTop1" d="M110 230 V110 H150"/>
+          <path class="cwire" id="wTop2" d="M210 110 H790 V190"/>
+          <!-- 电源 -->
+          <line class="csym" x1="76" y1="258" x2="144" y2="258"/>
+          <line class="csym" x1="92" y1="284" x2="128" y2="284" style="stroke-width:7"/>
+          <line class="cwire" d="M110 284 V330"/>
+          <text class="text" x="40" y="240">直流电源</text>
+          <text class="tinytext" x="152" y="248">＋</text>
+          <text class="tinytext" x="152" y="292">－</text>
+
+          <!-- 电键（开关） -->
+          <circle class="sw-contact" cx="150" cy="110" r="7"/>
+          <circle class="sw-contact" cx="210" cy="110" r="7"/>
+          <line id="swLever" class="sw-lever" x1="150" y1="110" x2="186" y2="78"/>
+          <text class="subtext" x="180" y="52" text-anchor="middle">电键 S（点击开 / 合）</text>
+
+          <!-- 右母线下引 → 金属丝右端 -->
+          <path class="cwire" id="wRightBus" d="M790 190 V420"/>
+
+          <!-- 电压表右引线（常接于金属丝右端节点 C） -->
+          <path class="cwire vlead" id="vLeadR" d="M684 275 H790 V420" style="stroke:#0f9fba"/>
+          <!-- 电压表左引线：外接 / 内接 两条候选路径 -->
+          <path class="cwire vlead" id="vLeadExt" d="M596 275 H560 V340" style="stroke:#0f9fba"/>
+          <path class="cwire vlead idle-lead" id="vLeadInt" d="M596 275 H560 V340" style="stroke:#d97706"/>
+          <!-- 两个触点的短引线 -->
+          <path class="cwire vlead idle-lead" id="stubExt" d="M540 392 V414 H492 V420" style="stroke:#0f9fba"/>
+          <path class="cwire vlead idle-lead" id="stubInt" d="M498 352 H410 V420" style="stroke:#d97706"/>
+          <!-- 单刀双掷 -->
+          <circle class="sw-knob" cx="560" cy="340" r="8"/>
+          <line id="connLever" class="sw-lever" x1="560" y1="340" x2="540" y2="392"/>
+          <circle class="sw-contact" id="contactExt" cx="540" cy="392" r="8" style="stroke:#0f9fba"/>
+          <circle class="sw-contact" id="contactInt" cx="498" cy="352" r="8" style="stroke:#d97706"/>
+          <text class="tinytext" x="568" y="400" fill="#08758a">外接触点 B</text>
+          <text class="tinytext" x="360" y="344" fill="#9a5a04" text-anchor="start">内接触点 A</text>
+
+          <!-- 电压表 -->
+          <circle class="meter-face" cx="640" cy="275" r="44"/>
+          <g id="vTicks"></g>
+          <line id="vNeedle" class="meter-needle" x1="640" y1="275" x2="640" y2="239"/>
+          <circle class="meter-hub" cx="640" cy="275" r="5"/>
+          <text class="meter-label" x="640" y="284" text-anchor="middle">V</text>
+          <text class="meter-read" id="vRead" x="640" y="340" text-anchor="middle" fill="#08758a">0.00 V</text>
+          <text class="tinytext" id="vOver" x="640" y="358" text-anchor="middle" fill="#dc2626" opacity="0">超量程！</text>
+
+          <!-- 底干路：节点A → 电流表 → 节点B → 金属丝 -->
+          <path class="cwire" id="wRetA" d="M110 330 V420 H250"/>
+          <!-- 滑动变阻器 -->
+          <rect x="250" y="398" width="140" height="44" rx="6" fill="none" stroke="#39435c" stroke-width="4"/>
+          <path id="rheoCoil" d="M262 420 h116" fill="none" stroke="#39435c" stroke-width="3" stroke-dasharray="7 7"/>
+          <line id="rheoArrow" class="rheo-slider" x1="300" y1="378" x2="300" y2="398"/>
+          <polygon id="rheoArrowHead" points="300,398 294,388 306,388" fill="#334155"/>
+          <text class="subtext" x="320" y="470" text-anchor="middle">滑动变阻器（调电压）</text>
+          <path class="cwire" id="wRetB" d="M390 420 H410"/>
+          <!-- 电流表 -->
+          <circle class="meter-face" cx="450" cy="420" r="40"/>
+          <g id="aTicks"></g>
+          <line id="aNeedle" class="meter-needle" x1="450" y1="420" x2="450" y2="388"/>
+          <circle class="meter-hub" cx="450" cy="420" r="5"/>
+          <text class="meter-label" x="450" y="429" text-anchor="middle">A</text>
+          <text class="meter-read" id="aRead" x="450" y="484" text-anchor="middle" fill="#08758a">0.00 A</text>
+          <text class="tinytext" id="aOver" x="450" y="500" text-anchor="middle" fill="#dc2626" opacity="0">超量程！</text>
+          <path class="cwire" id="wRetC" d="M490 420 H500"/>
+
+          <!-- 金属丝样品 + 米尺 -->
+          <line id="wireSample" x1="500" y1="420" x2="800" y2="420" stroke="#8a99b4" stroke-width="11" stroke-linecap="round"/>
+          <path class="cwire" id="wWireTail" d="M800 420 H790"/>
+          <g id="rulerG" transform="translate(500,446)"></g>
+          <text class="seg-label" id="wireLabel" x="650" y="398" text-anchor="middle" fill="#334155">第①段金属丝（镍铬合金）</text>
+          <line id="wireGlowLine" x1="500" y1="420" x2="800" y2="420" stroke="#f59e0b" stroke-width="11" stroke-linecap="round" opacity="0"/>
+
+          <!-- 电流粒子 -->
+          <g id="particles"></g>
+        </g>
+
+        <!-- ============ 场景三：R–L 图像 ============ -->
+        <g id="sceneChart" class="scene-stage">
+          <g id="chartGrid"></g>
+          <line class="axis" x1="90" y1="480" x2="860" y2="480"/>
+          <line class="axis" x1="90" y1="480" x2="90" y2="60"/>
+          <text class="axis-label" x="850" y="506">L / m</text>
+          <text class="axis-label" x="30" y="55">R / Ω</text>
+          <g id="chartAxisNums"></g>
+          <path id="idealPath" class="ideal-path" d=""/>
+          <path id="fitPath" class="fit-line-path" d=""/>
+          <g id="chartPoints"></g>
+          <g id="chartLegend" transform="translate(560,80)">
+            <circle cx="8" cy="0" r="7" fill="#0f9fba"/><text class="tinytext" x="22" y="4">外接测得</text>
+            <circle cx="8" cy="24" r="7" fill="#d97706"/><text class="tinytext" x="22" y="28">内接测得</text>
+            <line x1="0" y1="48" x2="16" y2="48" stroke="#2563eb" stroke-width="3" stroke-dasharray="9 7"/>
+            <text class="tinytext" x="22" y="52">最小二乘拟合</text>
+            <line x1="0" y1="72" x2="16" y2="72" stroke="#cbd5e1" stroke-width="2.5" stroke-dasharray="3 6"/>
+            <text class="tinytext" x="22" y="76">参考线（ρ 标准）</text>
+          </g>
+          <text id="chartK" class="result-k" x="110" y="120">斜率 k = —</text>
+          <text id="chartRho" class="result-k" x="110" y="146" fill="#172033">ρ = kπd̄²/4 = —</text>
+          <text id="chartErr" class="result-k" x="110" y="172" fill="#657188">相对误差 = —</text>
+        </g>
+      </svg>
+
+      <div class="stage-actions">
+        <button id="micTakeBtn" class="rec" type="button">📍 采集一次直径读数</button>
+        <button id="micDoneBtn" class="primary" type="button" disabled>② 去测长度与电阻 →</button>
+        <button id="lenBtn" class="rec" type="button" hidden>📏 记录本段长度 L</button>
+        <button id="uiBtn" class="rec" type="button" hidden disabled>📝 记录 (U, I)</button>
+        <button id="measDoneBtn" class="primary" type="button" hidden disabled>③ R–L 图像求电阻率 →</button>
+        <button id="refBtn" type="button" hidden aria-pressed="true">隐藏参考线</button>
+      </div>
+    </section>
+
+    <aside class="side" data-zone="evidence">
+      <section class="panel readouts" aria-label="实时读数">
+        <div class="readout-title" id="liveTitle">螺旋测微器 · 直径</div>
+        <div id="diaBlock">
+          <div class="readout-grid">
+            <div class="metric"><small>已采读数 n</small><strong id="diaCount">0</strong></div>
+            <div class="metric"><small>平均直径 d̄</small><strong id="diaAvg">— mm</strong><span class="sub" id="diaArea">S = — mm²</span></div>
+          </div>
+          <ul class="d-rows" id="diaRows"></ul>
+        </div>
+        <div id="meterBlock" hidden>
+          <div class="readout-grid">
+            <div class="metric"><small>电压表读数 U</small><strong id="mU">0.00 V</strong><span class="sub">量程 0–3 V · R<sub>V</sub>=3000 Ω</span></div>
+            <div class="metric"><small>电流表读数 I</small><strong id="mI">0.000 A</strong><span class="sub">量程 0–0.6 A · R<sub>A</sub>=0.10 Ω</span></div>
+            <div class="metric"><small>本段 R = U/I（拟合）</small><strong id="mR">— Ω</strong><span class="sub" id="mRSub">尚无记录</span></div>
+            <div class="metric"><small>当前接法</small><strong id="mMode" style="font-size:1.05rem">外接</strong><span class="sub" id="mModeSub">电压表并在金属丝两端</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel records" aria-label="实验记录">
+        <div class="readout-title">分段记录（R–L 数据）</div>
+        <table>
+          <thead><tr><th>段</th><th>L / m</th><th>(U,I) 组</th><th>R / Ω</th><th>接法</th></tr></thead>
+          <tbody id="recordsBody">
+            <tr id="emptyRow"><td colspan="5" style="text-align:center;color:var(--sim-muted)">尚无记录——先完成直径测量</td></tr>
+          </tbody>
+        </table>
+        <div class="fit-line" id="fitSummary">直线拟合：至少测 2 段后给出 k 与 ρ</div>
+      </section>
+
+      <section class="panel model-note" data-zone="insight">
+        <p class="insight" id="insight">先用螺旋测微器测直径：d 的相对误差会被"平方放大"进入横截面积 S=πd²/4，多测几个位置取平均能显著减小它。</p>
+        <ul class="mode-help">
+          <li><b>外接</b>（电流表接电压表外侧）：电压表分流 → I 偏大 → R<sub>测</sub> 偏小，适用于 R ≪ R<sub>V</sub></li>
+          <li><b>内接</b>（电流表接电压表内侧）：电压表多量 R<sub>A</sub> 上电压 → R<sub>测</sub> = R + R<sub>A</sub> 偏大，适用于 R ≫ R<sub>A</sub></li>
+          <li>判据：比较 R 与 √(R<sub>A</sub>·R<sub>V</sub>) ≈ <b>17.3 Ω</b>——本实验金属丝只有 2～6 Ω，应选<b>外接</b></li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-zone="controls" aria-label="实验控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button" disabled>⚡ 闭合电键</button>
+      <button id="pauseBtn" type="button" disabled>断开电键</button>
+      <button id="resetBtn" type="button">↺ 重新实验</button>
+    </div>
+    <div class="control">
+      <span class="dock-label">实验阶段</span>
+      <div class="seg-row" role="group" aria-label="实验阶段">
+        <button id="ph1" type="button" class="active">① 直径</button>
+        <button id="ph2" type="button" disabled>② 电路测量</button>
+        <button id="ph3" type="button" disabled>③ 数据处理</button>
+      </div>
+    </div>
+    <div class="control">
+      <label for="voltageInput">电压 U（滑动变阻器调压）<output id="voltageOutput">1.50 V</output></label>
+      <input id="voltageInput" type="range" min="0.2" max="3" step="0.05" value="1.5" disabled/>
+    </div>
+    <div class="control">
+      <span class="dock-label">金属丝段（同种丝，不同长度）</span>
+      <div class="seg-row" role="group" aria-label="选择金属丝段">
+        <button data-seg="0" type="button" class="active">① 0.4 m</button>
+        <button data-seg="1" type="button">② 0.6 m</button>
+        <button data-seg="2" type="button">③ 0.8 m</button>
+        <button data-seg="3" type="button">④ 1.0 m</button>
+      </div>
+    </div>
+    <div class="control">
+      <span class="dock-label">安培表接法（单刀双掷）</span>
+      <div class="mode-row" role="group" aria-label="安培表接法">
+        <button data-mode="ext" type="button" class="ext active">外接</button>
+        <button data-mode="int" type="button" class="int">内接</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+/* =====================================================================
+ * Physics kernel — pure, DOM-free. Deterministic, seeded.
+ * 镍铬合金丝：ρ=1.10e-6 Ω·m, d=0.500 mm；伏安法，R_V=3000 Ω，R_A=0.10 Ω。
+ * 外接(安培表外接/电压表直接并在丝两端)：V=U_R, I=U_R/R+U_R/R_V → R测=R·R_V/(R+R_V) 偏小
+ * 内接(安培表内接/电压表跨丝+电流表)：I=U_R/R, V=U_R+I·R_A → R测=R+R_A 偏大
+ * ===================================================================== */
+(() => {
+  "use strict";
+  const CONSTANTS = Object.freeze({
+    RHO_TRUE: 1.10e-6,          // Ω·m  nichrome
+    D_TRUE: 0.500e-3,           // m
+    SEG_LENGTHS: [0.4, 0.6, 0.8, 1.0], // m
+    RV: 3000.0,                 // Ω voltmeter internal resistance
+    RA: 0.10,                   // Ω ammeter internal resistance
+    U_MIN: 0.2, U_MAX: 3.0,     // V adjustable supply window
+    V_FS: 3.0,                  // V voltmeter full scale
+    A_FS: 0.6,                  // A ammeter full scale
+    SEED: 777,
+    D_NOISE: 0.004,             // mm ± on micrometer reading
+    L_NOISE: 0.002,             // m ± fixed per segment (ruler + alignment)
+    V_NOISE: 0.01,              // V ± meter reading noise
+    I_NOISE: 0.002,             // A ± meter reading noise
+  });
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const finiteNum = (v, fallback) => (Number.isFinite(+v) ? +v : fallback);
+  const quantize = (x, q) => Math.round(x / q) * q;
+  const area = (d) => (Math.PI * d * d) / 4;            // d in m → m²
+  const resistance = (L, rho = CONSTANTS.RHO_TRUE, d = CONSTANTS.D_TRUE) => rho * L / area(d);
+  const criticalR = Math.sqrt(CONSTANTS.RA * CONSTANTS.RV);
+
+  /* Exact meter readings for the selected connection mode (noise-free). */
+  function solveMeter(Uset, R, mode) {
+    if (!Number.isFinite(Uset) || !Number.isFinite(R) || R <= 0 || Uset < 0) return { V: NaN, I: NaN };
+    if (mode === "int") {           // 安培表内接：电压表跨（丝＋电流表）
+      const I = Uset / R;
+      return { V: Uset + I * CONSTANTS.RA, I };
+    }
+    // 安培表外接：电压表并在丝两端，电流表含电压表分流
+    const V = Uset;
+    return { V, I: Uset / R + Uset / CONSTANTS.RV };
+  }
+  const apparentR = (V, I) => (Number.isFinite(V) && Number.isFinite(I) && I !== 0 ? V / I : NaN);
+  const analyticApparent = (R, mode) => (mode === "int" ? R + CONSTANTS.RA : (R * CONSTANTS.RV) / (R + CONSTANTS.RV));
+
+  /* Deterministic PRNG (mulberry32). */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* Seeded measurement session: diameter samples, fixed per-segment length
+   * offsets, meter reading noise. */
+  function createExperiment(seed = CONSTANTS.SEED) {
+    const rng = mulberry32(seed);
+    const lengthOffsets = CONSTANTS.SEG_LENGTHS.map(() => quantize((rng() * 2 - 1) * CONSTANTS.L_NOISE, 0.001));
+    return {
+      rng,
+      lengthOffsets,
+      sampleDiameter() {
+        const mm = quantize(CONSTANTS.D_TRUE * 1000 + (rng() * 2 - 1) * CONSTANTS.D_NOISE, 0.001);
+        const posCm = 5 + rng() * 90;   // where along the wire the jaws close
+        return { mm, posCm };
+      },
+      sampleMeter(Uset, R, mode) {
+        const truth = solveMeter(Uset, R, mode);
+        const overI = truth.I > CONSTANTS.A_FS + 1e-12;
+        const overV = truth.V > CONSTANTS.V_FS + 1e-12;
+        const V = quantize(truth.V + (rng() * 2 - 1) * CONSTANTS.V_NOISE, 0.01);
+        const I = quantize(truth.I + (rng() * 2 - 1) * CONSTANTS.I_NOISE, 0.001);
+        return { V, I, overI, overV };
+      },
+    };
+  }
+
+  /* Least squares U = R·I through origin → R = ΣUI/ΣI² . */
+  function fitThroughOrigin(pairs) {
+    let su = 0, si = 0;
+    for (const { U, I } of pairs) { su += U * I; si += I * I; }
+    return si > 0 ? su / si : NaN;
+  }
+
+  /* Ordinary least squares with intercept: y = k·x + b . */
+  function ols(points) {
+    const n = points.length;
+    if (n < 2) return { k: NaN, b: NaN };
+    let sx = 0, sy = 0, sxy = 0, sxx = 0;
+    for (const p of points) { sx += p.x; sy += p.y; sxy += p.x * p.y; sxx += p.x * p.x; }
+    const den = n * sxx - sx * sx;
+    if (den === 0) return { k: NaN, b: NaN };
+    const k = (n * sxy - sx * sy) / den;
+    return { k, b: (sy - k * sx) / n };
+  }
+
+  const rhoFromSlope = (k, dMeanMm) => k * area(dMeanMm / 1000);   // Ω/m · m² → Ω·m
+
+  /* ---------------------- oracle checks ---------------------- */
+  function runChecks() {
+    const C = CONSTANTS;
+    const results = [];
+    const add = (name, pass, expected, actual, tolerance) => results.push({ name, pass, expected, actual, tolerance });
+
+    // 1. linearity of R(L) and agreement with ρL/S (relative form)
+    {
+      const Ls = C.SEG_LENGTHS;
+      const pts = Ls.map((L) => ({ x: L, y: resistance(L) }));
+      const { k } = ols(pts);
+      const perMeter = resistance(1);
+      add("R–L 线性且过原点（斜率=ρ/S）",
+        Math.abs(k - perMeter) < 1e-9 * perMeter,
+        perMeter, k, "rel 1e-9");
+    }
+
+    // 2/3. exact apparent-R formulas, ordinary case L=0.6
+    {
+      const R = resistance(0.6), U = 2.0;
+      const ext = solveMeter(U, R, "ext"), int = solveMeter(U, R, "int");
+      const relErr = (a, e) => Math.abs(a - e) / e;
+      add("外接：V/I = R·R_V/(R+R_V)",
+        relErr(apparentR(ext.V, ext.I), analyticApparent(R, "ext")) < 1e-12,
+        analyticApparent(R, "ext"), apparentR(ext.V, ext.I), "rel 1e-12");
+      add("内接：V/I = R + R_A",
+        relErr(apparentR(int.V, int.I), analyticApparent(R, "int")) < 1e-12,
+        analyticApparent(R, "int"), apparentR(int.V, int.I), "rel 1e-12");
+    }
+
+    // 4. critical-resistance rule: error sign flip around √(R_A·R_V)
+    {
+      const relErr = (meas, trueR) => Math.abs(meas - trueR) / trueR;
+      const smallR = resistance(1.0), bigR = 40.0;   // below / above criticalR≈17.32
+      const smallOk = relErr(analyticApparent(smallR, "ext"), smallR) < relErr(analyticApparent(smallR, "int"), smallR);
+      const bigOk = relErr(analyticApparent(bigR, "ext"), bigR) > relErr(analyticApparent(bigR, "int"), bigR);
+      add("判据 √(R_A·R_V)：小电阻外接优、大电阻内接优",
+        smallOk && bigOk && Math.abs(criticalR - Math.sqrt(300)) < 1e-9,
+        "临界≈17.32 Ω；R=5.60→外接优，R=40→内接优", `small:${smallOk}, big:${bigOk}, Rc=${criticalR.toFixed(4)}`, "strict");
+    }
+
+    // 5. slope method recovers ρ in external mode (tiny curvature only)
+    {
+      const pts = C.SEG_LENGTHS.map((L) => {
+        const R = resistance(L);
+        const m = solveMeter(2.0, R, "ext");
+        return { x: L, y: apparentR(m.V, m.I) };
+      });
+      const rho = rhoFromSlope(ols(pts).k, C.D_TRUE * 1000);
+      add("外接噪声-free：斜率法回收 ρ",
+        Math.abs(rho - C.RHO_TRUE) / C.RHO_TRUE < 5e-3,
+        C.RHO_TRUE, rho, "rel 0.5%");
+    }
+
+    // 6. slope method in internal mode: intercept absorbs R_A exactly
+    {
+      const pts = C.SEG_LENGTHS.map((L) => {
+        const R = resistance(L);
+        const m = solveMeter(2.0, R, "int");
+        return { x: L, y: apparentR(m.V, m.I) };
+      });
+      const { k, b } = ols(pts);
+      const rho = rhoFromSlope(k, C.D_TRUE * 1000);
+      add("内接噪声-free：截距吸收 R_A，斜率仍回收 ρ",
+        Math.abs(rho - C.RHO_TRUE) / C.RHO_TRUE < 1e-9 && Math.abs(b - C.RA) < 1e-9,
+        `ρ=${C.RHO_TRUE}, b=${C.RA}`, `ρ=${rho}, b=${b}`, "rel 1e-9");
+    }
+
+    // 7. seeded determinism
+    {
+      const a = createExperiment(), b = createExperiment();
+      const sa = [], sb = [];
+      for (let i = 0; i < 6; i += 1) { sa.push(a.sampleDiameter().mm); sb.push(b.sampleDiameter().mm); }
+      add("同种子测量序列完全可复现",
+        sa.every((v, i) => v === sb[i]),
+        sa.join(","), sb.join(","), "strict");
+    }
+
+    // 8. over-range guard: shortest wire at 3 V exceeds 0.6 A; normal case does not
+    {
+      const bad = solveMeter(3.0, resistance(0.4), "ext");
+      const good = solveMeter(1.5, resistance(0.6), "ext");
+      add("量程保护：I>0.6 A 判定正确",
+        bad.I > C.A_FS && good.I <= C.A_FS,
+        `3V/0.4m→I>0.6A（${bad.I.toFixed(2)}）；1.5V/0.6m→I≤0.6A（${good.I.toFixed(2)}）`,
+        `${bad.I.toFixed(3)} / ${good.I.toFixed(3)}`, "strict");
+    }
+
+    // 9. through-origin fit sanity: exact data returns exact R
+    {
+      const R = resistance(0.8);
+      const pairs = [{ U: 1.0, I: 1.0 / R }, { U: 2.0, I: 2.0 / R }, { U: 3.0, I: 3.0 / R }];
+      const fit = fitThroughOrigin(pairs);
+      add("过原点拟合 U=R·I 恢复 R",
+        Math.abs(fit - R) < 1e-9 * R, R, fit, "rel 1e-9");
+    }
+
+    return results;
+  }
+
+  const SimKernel = {
+    CONSTANTS, clamp, finiteNum, quantize, area, resistance, criticalR,
+    solveMeter, apparentR, analyticApparent,
+    mulberry32, createExperiment,
+    fitThroughOrigin, ols, rhoFromSlope, runChecks,
+  };
+  if (typeof window !== "undefined") window.SimKernel = SimKernel;
+  if (typeof module !== "undefined" && module.exports) module.exports = SimKernel;
+})();
+</script>
+<script>
+/* =====================================================================
+ * App layer — one authoritative state; scene/evidence/insight derived.
+ * ===================================================================== */
+(() => {
+  "use strict";
+  const K = window.SimKernel, C = K.CONSTANTS;
+  const $ = (s) => document.querySelector(s);
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  };
+  const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const els = {
+    status: $("#status"), stageTitle: $("#stageTitle"), stageHint: $("#stageHint"),
+    micTakeBtn: $("#micTakeBtn"), micDoneBtn: $("#micDoneBtn"), lenBtn: $("#lenBtn"),
+    uiBtn: $("#uiBtn"), measDoneBtn: $("#measDoneBtn"), refBtn: $("#refBtn"),
+    startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"),
+    ph1: $("#ph1"), ph2: $("#ph2"), ph3: $("#ph3"),
+    voltageInput: $("#voltageInput"), voltageOutput: $("#voltageOutput"),
+    segBtns: [...document.querySelectorAll("[data-seg]")],
+    modeBtns: [...document.querySelectorAll("[data-mode]")],
+    sceneMic: $("#sceneMic"), sceneCircuit: $("#sceneCircuit"), sceneChart: $("#sceneChart"),
+    liveTitle: $("#liveTitle"), diaBlock: $("#diaBlock"), meterBlock: $("#meterBlock"),
+    diaCount: $("#diaCount"), diaAvg: $("#diaAvg"), diaArea: $("#diaArea"), diaRows: $("#diaRows"),
+    mU: $("#mU"), mI: $("#mI"), mR: $("#mR"), mRSub: $("#mRSub"), mMode: $("#mMode"), mModeSub: $("#mModeSub"),
+    recordsBody: $("#recordsBody"), fitSummary: $("#fitSummary"), insight: $("#insight"),
+    micDial: $("#micDial"), micEdge: $("#micEdge"), micEdgeText: $("#micEdgeText"),
+    micBreakdown: $("#micBreakdown"), micPosText: $("#micPosText"), micPosMarker: $("#micPosMarker"),
+    swLever: $("#swLever"), connLever: $("#connLever"),
+    vLeadR: $("#vLeadR"), vLeadExt: $("#vLeadExt"), vLeadInt: $("#vLeadInt"),
+    stubExt: $("#stubExt"), stubInt: $("#stubInt"),
+    contactExt: $("#contactExt"), contactInt: $("#contactInt"),
+    vNeedle: $("#vNeedle"), aNeedle: $("#aNeedle"), vRead: $("#vRead"), aRead: $("#aRead"),
+    vOver: $("#vOver"), aOver: $("#aOver"),
+    rheoArrow: $("#rheoArrow"), rheoArrowHead: $("#rheoArrowHead"),
+    wireSample: $("#wireSample"), wireGlowLine: $("#wireGlowLine"), wireLabel: $("#wireLabel"),
+    wireArrow: null, wBusJoin: null,
+    particles: $("#particles"),
+    chartGrid: $("#chartGrid"), chartAxisNums: $("#chartAxisNums"), chartPoints: $("#chartPoints"),
+    fitPath: $("#fitPath"), idealPath: $("#idealPath"),
+    chartK: $("#chartK"), chartRho: $("#chartRho"), chartErr: $("#chartErr"),
+  };
+
+  /* ---------------- authoritative state ---------------- */
+  const state = {
+    phase: 1, running: false, segIdx: 0, mode: "ext", Uset: 1.5, showRef: true,
+    experiment: null, dReadings: [], segs: [],
+    animT: 0, lastTs: null,
+    dispV: 0, dispI: 0,             // eased needle positions (display filter)
+    particleOffset: 0, branchOffset: 0,
+  };
+
+  function freshSegments(exp) {
+    return C.SEG_LENGTHS.map((L, i) => ({
+      Ltrue: L, Lmeas: L + exp.lengthOffsets[i], lenRecorded: false,
+      pairs: [], mode: null, R: NaN,
+    }));
+  }
+
+  /* ---------------- derived quantities ---------------- */
+  const dAvg = () => (state.dReadings.length ? state.dReadings.reduce((a, b) => a + b, 0) / state.dReadings.length : NaN);
+  const segR = (s) => (s.pairs.length ? K.fitThroughOrigin(s.pairs) : NaN);
+  const measuredSegs = () => state.segs.filter((s) => s.lenRecorded && s.pairs.length > 0);
+  const currentTrueR = () => K.resistance(C.SEG_LENGTHS[state.segIdx]);
+
+  function meterTruth() {
+    if (state.phase === 2 && state.running) return K.solveMeter(state.Uset, currentTrueR(), state.mode);
+    return { V: 0, I: 0 };
+  }
+  function fitResult() {
+    const pts = measuredSegs().map((s) => ({ x: s.Lmeas, y: segR(s) }));
+    if (pts.length < 2) return { n: pts.length, k: NaN, b: NaN, rho: NaN, err: NaN };
+    const { k, b } = K.ols(pts);
+    const rho = K.rhoFromSlope(k, dAvg());
+    return { n: pts.length, k, b, rho, err: (rho - C.RHO_TRUE) / C.RHO_TRUE * 100 };
+  }
+
+  /* ---------------- static scene builders ---------------- */
+  const MM = 110; // px per mm on the magnified main scale
+  function buildMicrometer() {
+    const g = $("#micMainScale");
+    g.appendChild(mk("line", { x1: 0, y1: 0, x2: 2.6 * MM, y2: 0, stroke: "#334155", "stroke-width": 2.5 }));
+    for (let t = 0; t <= 2.5 * 10; t += 5) {
+      const v = t / 10, x = v * MM, half = Math.round(v * 2) % 2 === 1;
+      g.appendChild(mk("line", { x1: x, y1: half ? 0 : 0, x2: x, y2: half ? 9 : -16, class: half ? "mic-half-tick" : "mic-main-tick" }));
+      if (!half && v <= 2) g.appendChild(mk("text", { x: x, y: 26, "text-anchor": "middle", class: "mic-num" })).textContent = String(v);
+    }
+    const sleeve = $("#micSleeveTicks");
+    for (let i = 0; i < 10; i += 1) {
+      sleeve.appendChild(mk("line", { x1: 392 + i * 13.5, y1: 252, x2: 392 + i * 13.5, y2: i % 2 ? 262 : 270, class: "mic-main-tick", "stroke-width": i % 2 ? 1.4 : 2 }));
+    }
+    const thimble = $("#micThimbleTicks");
+    for (let i = 0; i < 11; i += 1) {
+      thimble.appendChild(mk("line", { x1: 542 + i * 12, y1: 244, x2: 542 + i * 12, y2: 258, class: "thimble-tick" }));
+    }
+    const dial = $("#micDial");
+    for (let i = 0; i < 50; i += 1) {
+      const a = (i * 7.2 * Math.PI) / 180, major = i % 5 === 0;
+      const r1 = major ? 52 : 60, r2 = 68;
+      dial.appendChild(mk("line", {
+        x1: r1 * Math.sin(a), y1: -r1 * Math.cos(a), x2: r2 * Math.sin(a), y2: -r2 * Math.cos(a),
+        class: "thimble-tick", "stroke-width": major ? 2.2 : 1.2,
+      }));
+      if (major && i % 10 === 0) {
+        const t = dial.appendChild(mk("text", { x: 40 * Math.sin(a), y: -40 * Math.cos(a) + 4, "text-anchor": "middle", fill: "#334155", "font-size": 12, "font-weight": 700 }));
+        t.textContent = String(i);
+      }
+    }
+  }
+
+  function buildMeterTicks() {
+    const build = (gid, cx, cy, r, fs, majorStep, minorStep, fmt) => {
+      const g = $(gid);
+      for (let v = 0; v <= fs + 1e-9; v += minorStep) {
+        const a = (-60 + (v / fs) * 120) * Math.PI / 180;
+        const major = Math.abs(v / majorStep - Math.round(v / majorStep)) < 1e-6;
+        const r1 = r - (major ? 11 : 6);
+        g.appendChild(mk("line", {
+          x1: cx + r1 * Math.sin(a), y1: cy - r1 * Math.cos(a),
+          x2: cx + (r - 2) * Math.sin(a), y2: cy - (r - 2) * Math.cos(a),
+          class: "meter-tick" + (major ? " major" : ""),
+        }));
+        if (major) {
+          const t = g.appendChild(mk("text", {
+            x: cx + (r - 22) * Math.sin(a), y: cy - (r - 22) * Math.cos(a) + 4,
+            "text-anchor": "middle", fill: "#657188", "font-size": 10.5, "font-weight": 700,
+          }));
+          t.textContent = fmt(v);
+        }
+      }
+    };
+    build("#vTicks", 640, 275, 44, 3.0, 1, 0.5, (v) => v.toFixed(0));
+    build("#aTicks", 450, 420, 40, 0.6, 0.2, 0.1, (v) => v.toFixed(1));
+  }
+
+  const RULER_PX_PER_CM = 2.9; // 100 cm spans 290 px
+  function buildRuler() {
+    const g = $("#rulerG");
+    g.appendChild(mk("rect", { x: -6, y: -8, width: 2.9 * 100 + 12, height: 30, rx: 5, fill: "#fbf6e9", stroke: "#d8c9a3" }));
+    g.appendChild(mk("line", { x1: 0, y1: 0, x2: 2.9 * 100, y2: 0, stroke: "#8a7b55", "stroke-width": 2 }));
+    for (let cm = 0; cm <= 100; cm += 1) {
+      const major = cm % 10 === 0;
+      g.appendChild(mk("line", { x1: cm * RULER_PX_PER_CM, y1: 0, x2: cm * RULER_PX_PER_CM, y2: major ? 10 : 5, class: "ruler-tick" + (major ? " cm" : "") }));
+      if (cm % 20 === 0) {
+        const t = g.appendChild(mk("text", { x: cm * RULER_PX_PER_CM, y: 22, "text-anchor": "middle", class: "ruler-num" }));
+        t.textContent = String(cm);
+      }
+    }
+    const unit = g.appendChild(mk("text", { x: 2.9 * 100 + 8, y: 22, class: "ruler-num" }));
+    unit.textContent = "cm";
+  }
+
+  /* chart geometry */
+  const CH = { x0: 90, x1: 860, y0: 480, y1: 60, Lmax: 1.1, Rmax: 6.5 };
+  const chX = (L) => CH.x0 + (L / CH.Lmax) * (CH.x1 - CH.x0);
+  const chY = (R) => CH.y0 - (R / CH.Rmax) * (CH.y0 - CH.y1);
+  function buildChart() {
+    const g = $("#chartGrid"), nums = $("#chartAxisNums");
+    for (let i = 0; i <= 11; i += 1) {
+      const L = i / 10, x = chX(L);
+      g.appendChild(mk("line", { x1: x, y1: CH.y1, x2: x, y2: CH.y0, class: "grid-line" }));
+      if (i % 2 === 0) {
+        const t = nums.appendChild(mk("text", { x: x, y: CH.y0 + 18, "text-anchor": "middle", class: "axis-label" }));
+        t.textContent = L.toFixed(1);
+      }
+    }
+    for (let i = 0; i <= 13; i += 1) {
+      const R = i / 2, y = chY(R);
+      g.appendChild(mk("line", { x1: CH.x0, y1: y, x2: CH.x1, y2: y, class: "grid-line" }));
+      if (i % 2 === 0) {
+        const t = nums.appendChild(mk("text", { x: CH.x0 - 8, y: y + 4, "text-anchor": "end", class: "axis-label" }));
+        t.textContent = R.toFixed(0);
+      }
+    }
+  }
+
+  /* ---------------- phase / dock / status / insight ---------------- */
+  const PHASE_META = {
+    1: { title: "① 螺旋测微器 · 测直径", hint: "在金属丝不同位置采集 5 次左右读数，取平均值" },
+    2: { title: "② 米尺测长度 · 伏安法测电阻", hint: "闭合电键 → 调电压 → 记录 (U, I)；切换内/外接对比系统误差" },
+    3: { title: "③ R–L 图像 · 求电阻率", hint: "R = ρL/S ⇒ 直线斜率 k = ρ/S ⇒ ρ = kπd̄²/4" },
+  };
+  const SEG_NAMES = ["①", "②", "③", "④"];
+
+  function setPhase(p) {
+    state.phase = p;
+    if (p !== 2 && state.running) { state.running = false; }
+    render();
+  }
+
+  function renderStageChrome() {
+    const m = PHASE_META[state.phase];
+    els.stageTitle.textContent = m.title;
+    els.stageHint.textContent = m.hint;
+    els.sceneMic.classList.toggle("active", state.phase === 1);
+    els.sceneCircuit.classList.toggle("active", state.phase === 2);
+    els.sceneChart.classList.toggle("active", state.phase === 3);
+
+    els.micTakeBtn.hidden = state.phase !== 1;
+    els.micDoneBtn.hidden = state.phase !== 1;
+    els.lenBtn.hidden = state.phase !== 2;
+    els.uiBtn.hidden = state.phase !== 2;
+    els.measDoneBtn.hidden = state.phase !== 2;
+    els.refBtn.hidden = state.phase !== 3;
+
+    els.micDoneBtn.disabled = state.dReadings.length < 1;
+    els.micDoneBtn.textContent = state.dReadings.length >= 5 ? "② 去测长度与电阻 →"
+      : `② 去测长度与电阻 →（已测 ${state.dReadings.length}/5 次）`;
+    const seg = state.segs[state.segIdx];
+    els.lenBtn.disabled = seg.lenRecorded;
+    els.lenBtn.textContent = seg.lenRecorded ? `✓ 长度已记录 L=${seg.Lmeas.toFixed(3)} m`
+      : `📏 记录本段长度 L（${seg.Lmeas.toFixed(3)} m）`;
+    const truth = meterTruth();
+    els.uiBtn.disabled = !state.running || truth.I > C.A_FS + 1e-12 || truth.V > C.V_FS + 1e-12;
+    const nMeasured = measuredSegs().length;
+    els.measDoneBtn.disabled = nMeasured < 2 || !Number.isFinite(dAvg());
+    els.measDoneBtn.textContent = nMeasured < 2
+      ? `③ 去处理数据（已测 ${nMeasured}/至少 2 段）`
+      : `③ R–L 图像求电阻率（${nMeasured} 段）→`;
+    els.refBtn.textContent = state.showRef ? "隐藏参考线" : "显示参考线";
+  }
+
+  function renderDock() {
+    const inCircuit = state.phase === 2;
+    els.startBtn.disabled = !inCircuit || state.running;
+    els.pauseBtn.disabled = !inCircuit || !state.running;
+    els.ph1.disabled = false;
+    els.ph2.disabled = state.dReadings.length < 1;
+    els.ph3.disabled = measuredSegs().length < 2 || !Number.isFinite(dAvg());
+    els.ph1.classList.toggle("active", state.phase === 1);
+    els.ph2.classList.toggle("active", state.phase === 2);
+    els.ph3.classList.toggle("active", state.phase === 3);
+    els.voltageInput.disabled = !inCircuit;
+    els.segBtns.forEach((b) => { b.disabled = !inCircuit; b.classList.toggle("active", +b.dataset.seg === state.segIdx); });
+    els.modeBtns.forEach((b) => { b.disabled = !inCircuit; b.classList.toggle("active", b.dataset.mode === state.mode); });
+    els.voltageOutput.textContent = `${state.Uset.toFixed(2)} V`;
+  }
+
+  function renderStatus() {
+    let txt, cls = "status";
+    if (state.phase === 1) {
+      txt = `阶段① 测直径 · 已采 ${state.dReadings.length} 次`;
+    } else if (state.phase === 2) {
+      txt = `阶段② 第${SEG_NAMES[state.segIdx]}段(${C.SEG_LENGTHS[state.segIdx].toFixed(1)} m) · ${state.mode === "ext" ? "外接" : "内接"} · ${state.running ? "电键闭合" : "电键断开"}`;
+      if (state.mode === "int") cls += " int";
+    } else {
+      const f = fitResult();
+      txt = `阶段③ 数据处理 · ${f.n} 段${Number.isFinite(f.rho) ? ` · ρ̂=${(f.rho * 1e6).toFixed(3)}×10⁻⁶ Ω·m` : ""}`;
+    }
+    if (state.phase !== 2 || !state.running) cls += " off";
+    els.status.textContent = txt;
+    els.status.className = cls;
+  }
+
+  function renderInsight() {
+    let txt;
+    if (state.phase === 1) {
+      txt = state.dReadings.length === 0
+        ? "先用螺旋测微器测直径：d 的相对误差会被“平方放大”进入横截面积 S=πd²/4，多测几个位置取平均能显著减小它。"
+        : `已测 ${state.dReadings.length} 次，d̄=${dAvg().toFixed(3)} mm。只测 1 次与测 5 次取平均，ρ 的结果会差多少？继续采集几次感受一下。`;
+    } else if (state.phase === 2) {
+      const R = currentTrueR(), Rc = Math.sqrt(C.RA * C.RV);
+      const errExt = (R / (R + C.RV)) * 100, errInt = (C.RA / R) * 100;
+      if (state.mode === "ext") {
+        txt = `【外接】电压表并在金属丝两端：U 准确，I 偏大（多算了电压表分流）→ R测 偏小。本段 R≈${R.toFixed(2)} Ω ≪ R_V=3 kΩ，系统误差约 −${errExt.toFixed(2)}%。`;
+      } else {
+        txt = `【内接】电压表跨在（金属丝＋电流表）两端：I 准确，U 多量了 R_A 上的电压 → R测=R+R_A 偏大。本段 R≈${R.toFixed(2)} Ω，系统误差约 +${errInt.toFixed(2)}%。`;
+      }
+      txt += ` 判据：本段 R ${R < Rc ? "<" : ">"} √(R_A·R_V)≈${Rc.toFixed(1)} Ω ⇒ 应选${R < Rc ? "外接" : "内接"}。两种接法各测一次同一段，对比记录表里的 R！`;
+    } else {
+      const f = fitResult();
+      if (!Number.isFinite(f.rho)) {
+        txt = "至少测 2 段金属丝才能拟合 R–L 直线；测满 4 段效果最好。";
+      } else {
+        txt = `R–L 拟合：k=${f.k.toFixed(3)} Ω/m，截距 b=${f.b.toFixed(3)} Ω。ρ=kπd̄²/4=${(f.rho * 1e6).toFixed(3)}×10⁻⁶ Ω·m（标准值 1.10，误差 ${f.err.toFixed(1)}%）。内接测得的点整体上移约 R_A——斜率法自动消掉了这项系统误差！`;
+      }
+    }
+    els.insight.textContent = txt;
+  }
+
+  function renderRecords() {
+    const rows = [];
+    state.segs.forEach((s, i) => {
+      if (!s.lenRecorded) return;
+      const R = segR(s);
+      rows.push(`<tr><td>${SEG_NAMES[i]}</td><td>${s.Lmeas.toFixed(3)}</td><td>${s.pairs.length}</td>` +
+        `<td>${Number.isFinite(R) ? R.toFixed(3) : "—"}</td>` +
+        `<td>${s.mode ? `<span class="badge ${s.mode}">${s.mode === "ext" ? "外接" : "内接"}</span>` : "—"}</td></tr>`);
+    });
+    els.recordsBody.innerHTML = rows.length ? rows.join("")
+      : `<tr id="emptyRow"><td colspan="5" style="text-align:center;color:var(--sim-muted)">尚无记录——先完成直径测量</td></tr>`;
+    const f = fitResult();
+    els.fitSummary.innerHTML = Number.isFinite(f.rho)
+      ? `直线拟合：<strong>k=${f.k.toFixed(3)} Ω/m</strong> · b=${f.b.toFixed(3)} Ω · d̄=${dAvg().toFixed(3)} mm<br>` +
+        `ρ = kπd̄²/4 = <strong>${(f.rho * 1e6).toFixed(3)}×10⁻⁶ Ω·m</strong>（相对误差 ${f.err.toFixed(1)}%）`
+      : `直线拟合：至少测 2 段后给出 k 与 ρ（当前 ${f.n} 段）`;
+  }
+
+  function renderEvidenceLive() {
+    const p1 = state.phase === 1;
+    els.liveTitle.textContent = p1 ? "螺旋测微器 · 直径" : "仪表实时读数";
+    els.diaBlock.hidden = !p1;
+    els.meterBlock.hidden = p1;
+    if (p1) {
+      els.diaCount.textContent = String(state.dReadings.length);
+      els.diaAvg.textContent = Number.isFinite(dAvg()) ? `${dAvg().toFixed(3)} mm` : "— mm";
+      const aMm2 = Number.isFinite(dAvg()) ? Math.PI * dAvg() * dAvg() / 4 : NaN;
+      els.diaArea.textContent = Number.isFinite(aMm2) ? `S = ${aMm2.toFixed(4)} mm²` : "S = — mm²";
+      els.diaRows.innerHTML = state.dReadings.map((d, i) => `<li><span>第 ${i + 1} 次</span><span>${d.toFixed(3)} mm</span></li>`).join("");
+    } else {
+      const t = meterTruth();
+      const overI = t.I > C.A_FS + 1e-12, overV = t.V > C.V_FS + 1e-12;
+      els.mU.textContent = `${t.V.toFixed(2)} V`;
+      els.mI.textContent = `${t.I.toFixed(3)} A`;
+      els.mU.style.color = overV ? "#dc2626" : "";
+      els.mI.style.color = overI ? "#dc2626" : "";
+      const seg = state.segs[state.segIdx];
+      const R = segR(seg);
+      els.mR.textContent = Number.isFinite(R) ? `${R.toFixed(3)} Ω` : "— Ω";
+      els.mRSub.textContent = state.phase === 3 ? "见下表与 R–L 图" : (seg.pairs.length ? `${seg.pairs.length} 组 (U,I) 过原点拟合` : "尚无记录");
+      els.mMode.textContent = state.mode === "ext" ? "外接" : "内接";
+      els.mModeSub.textContent = state.mode === "ext" ? "电压表并在金属丝两端" : "电压表跨（丝＋电流表）";
+    }
+  }
+
+  /* ---------------- scene 1: micrometer ---------------- */
+  let lastDiaSample = null;
+  function renderMic() {
+    const d = lastDiaSample ? lastDiaSample.mm : 0.500;
+    const ex = 70 + d * MM;
+    els.micEdge.setAttribute("x1", ex); els.micEdge.setAttribute("x2", ex);
+    els.micEdge.setAttribute("y1", 88); els.micEdge.setAttribute("y2", 132);
+    els.micEdgeText.setAttribute("x", ex + 6); els.micEdgeText.setAttribute("y", 84);
+    const rot = ((d * 100) % 50) * 7.2;
+    els.micDial.style.transform = `rotate(${rot}deg)`;
+    const mainPart = Math.floor(d * 2) / 2, thimblePart = d - mainPart;
+    els.micBreakdown.textContent = lastDiaSample
+      ? `读数 = 主尺 ${mainPart.toFixed(1)} mm ＋ 微分筒 ${thimblePart.toFixed(3)} mm ＝ ${d.toFixed(3)} mm`
+      : "读数 = 主尺 0.5 mm ＋ 微分筒 0.000 mm ＝ 0.500 mm（尚未采样）";
+    if (lastDiaSample) {
+      els.micPosText.textContent = `当前测量位置：距丝左端 ${lastDiaSample.posCm.toFixed(1)} cm（换个位置再测，减小偶然误差）`;
+      els.micPosMarker.setAttribute("cx", 250 + (lastDiaSample.posCm / 100) * 240);
+      els.micPosMarker.setAttribute("opacity", "1");
+    }
+  }
+
+  /* ---------------- scene 2: circuit ---------------- */
+  const MAIN_PATH = [[110, 230], [110, 110], [790, 110], [790, 420], [500, 420], [110, 420], [110, 330]];
+  const BR_EXT = [[790, 275], [596, 275], [560, 275], [560, 340], [540, 392], [540, 414], [492, 414], [492, 420]];
+  const BR_INT = [[790, 275], [596, 275], [560, 275], [560, 340], [498, 352], [410, 352], [410, 420]];
+  function pathMeasure(pts) {
+    const seg = []; let total = 0;
+    for (let i = 1; i < pts.length; i += 1) {
+      const len = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      seg.push({ len, a: pts[i - 1], b: pts[i], start: total }); total += len;
+    }
+    return { seg, total };
+  }
+  function pointAt(pm, dist) {
+    const d = ((dist % pm.total) + pm.total) % pm.total;
+    for (const s of pm.seg) {
+      if (d <= s.start + s.len) {
+        const u = (d - s.start) / s.len;
+        return [s.a[0] + (s.b[0] - s.a[0]) * u, s.a[1] + (s.b[1] - s.a[1]) * u];
+      }
+    }
+    return pm.seg[pm.seg.length - 1].b;
+  }
+  const PM = { main: pathMeasure(MAIN_PATH), ext: pathMeasure(BR_EXT), int: pathMeasure(BR_INT) };
+  const mainDots = [], branchDots = [];
+
+  function buildCircuitExtras() {
+    els.wBusJoin = mk("path", { class: "cwire", id: "wBusJoin", d: "M790 420 H790" });
+    els.sceneCircuit.insertBefore(els.wBusJoin, $("#wireSample"));
+    els.wireArrow = mk("polygon", { points: "", fill: "#08758a", opacity: "0" });
+    els.sceneCircuit.insertBefore(els.wireArrow, els.particles);
+    const note = mk("text", { x: 640, y: 222, "text-anchor": "middle", class: "tinytext", fill: "#657188" });
+    note.textContent = "V 支路粒子速度为放大示意（实际分流 ≈ 1 mA）";
+    els.sceneCircuit.insertBefore(note, els.particles);
+  }
+
+  function renderCircuit() {
+    const seg = state.segs[state.segIdx];
+    const t = meterTruth();
+    const overI = t.I > C.A_FS + 1e-12, overV = t.V > C.V_FS + 1e-12;
+
+    // needles (eased display values)
+    const aV = -60 + K.clamp(state.dispV / C.V_FS, 0, 1.05) * 120;
+    const aA = -60 + K.clamp(state.dispI / C.A_FS, 0, 1.05) * 120;
+    els.vNeedle.setAttribute("x2", 640 + 34 * Math.sin(aV * Math.PI / 180));
+    els.vNeedle.setAttribute("y2", 275 - 34 * Math.cos(aV * Math.PI / 180));
+    els.aNeedle.setAttribute("x2", 450 + 30 * Math.sin(aA * Math.PI / 180));
+    els.aNeedle.setAttribute("y2", 420 - 30 * Math.cos(aA * Math.PI / 180));
+    els.vRead.textContent = `${t.V.toFixed(2)} V`;
+    els.aRead.textContent = `${t.I.toFixed(3)} A`;
+    els.vRead.setAttribute("fill", overV ? "#dc2626" : "#08758a");
+    els.aRead.setAttribute("fill", overI ? "#dc2626" : "#08758a");
+    els.vOver.setAttribute("opacity", overV ? "1" : "0");
+    els.aOver.setAttribute("opacity", overI ? "1" : "0");
+
+    // switch + connection lever
+    els.swLever.setAttribute("x2", state.running ? 210 : 186);
+    els.swLever.setAttribute("y2", state.running ? 110 : 78);
+    const leverTarget = state.mode === "ext" ? [540, 392] : [498, 352];
+    els.connLever.setAttribute("x2", leverTarget[0]);
+    els.connLever.setAttribute("y2", leverTarget[1]);
+    els.contactExt.setAttribute("stroke-width", state.mode === "ext" ? 6 : 4);
+    els.contactInt.setAttribute("stroke-width", state.mode === "int" ? 6 : 4);
+
+    // voltmeter leads: active path solid, other dashed+dim
+    const col = state.mode === "ext" ? "#0f9fba" : "#d97706";
+    els.vLeadR.setAttribute("stroke", col);
+    const act = (el, active) => {
+      el.setAttribute("stroke", el === els.vLeadInt || el === els.stubInt ? "#d97706" : "#0f9fba");
+      el.classList.toggle("idle-lead", !active);
+    };
+    act(els.vLeadExt, state.mode === "ext"); act(els.stubExt, state.mode === "ext");
+    act(els.vLeadInt, state.mode === "int"); act(els.stubInt, state.mode === "int");
+
+    // wire + ruler geometry (drawn at true length)
+    const x2 = 500 + seg.Ltrue * 290;
+    els.wireSample.setAttribute("x2", x2);
+    els.wireGlowLine.setAttribute("x2", x2);
+    els.wBusJoin.setAttribute("d", `M790 420 H${x2}`);
+    els.wireLabel.textContent = `第${SEG_NAMES[state.segIdx]}段金属丝 · L≈${seg.Ltrue.toFixed(2)} m（镍铬合金）`;
+    const mx = (500 + x2) / 2;
+    els.wireArrow.setAttribute("points", `${mx + 9},411 ${mx + 9},429 ${mx - 9},420`);
+    els.wireArrow.setAttribute("opacity", state.running ? "1" : "0");
+    const P = state.phase === 2 && state.running ? state.Uset * t.I : 0;
+    els.wireGlowLine.setAttribute("opacity", String(K.clamp(P / 2, 0, 0.45)));
+
+    // rheostat slider position echoes voltage
+    const rx = 262 + ((state.Uset - C.U_MIN) / (C.U_MAX - C.U_MIN)) * 116;
+    els.rheoArrow.setAttribute("x1", rx); els.rheoArrow.setAttribute("x2", rx);
+    els.rheoArrowHead.setAttribute("points", `${rx},398 ${rx - 6},388 ${rx + 6},388`);
+
+    // current particles
+    els.particles.setAttribute("opacity", state.running ? "1" : "0");
+    const wantMain = state.running ? 8 : 0, wantBr = state.running ? 2 : 0;
+    while (mainDots.length < wantMain) {
+      const c = mk("circle", { r: 4.5, class: "particle", fill: "#0f9fba" });
+      els.particles.appendChild(c); mainDots.push(c);
+    }
+    while (mainDots.length > wantMain) mainDots.pop().remove();
+    while (branchDots.length < wantBr) {
+      const c = mk("circle", { r: 3.8, class: "particle" });
+      els.particles.appendChild(c); branchDots.push(c);
+    }
+    while (branchDots.length > wantBr) branchDots.pop().remove();
+    mainDots.forEach((c, i) => {
+      const [x, y] = pointAt(PM.main, state.particleOffset + (i / wantMain) * PM.main.total);
+      c.setAttribute("cx", x); c.setAttribute("cy", y);
+    });
+    branchDots.forEach((c, i) => {
+      const pm = PM[state.mode];
+      const [x, y] = pointAt(pm, state.branchOffset + (i / wantBr) * pm.total);
+      c.setAttribute("cx", x); c.setAttribute("cy", y);
+      c.setAttribute("fill", state.mode === "ext" ? "#0f9fba" : "#d97706");
+    });
+  }
+
+  /* ---------------- scene 3: R–L chart ---------------- */
+  function renderChart() {
+    els.chartPoints.innerHTML = "";
+    const pts = measuredSegs();
+    pts.forEach((s) => {
+      const i = state.segs.indexOf(s), R = segR(s);
+      if (!Number.isFinite(R)) return;
+      els.chartPoints.appendChild(mk("circle", {
+        cx: chX(s.Lmeas), cy: chY(R), r: 7, class: "pt",
+        fill: s.mode === "int" ? "#d97706" : "#0f9fba",
+      }));
+      const t = els.chartPoints.appendChild(mk("text", {
+        x: chX(s.Lmeas) + 9, y: chY(R) - 7, class: "tinytext", "font-weight": 700,
+      }));
+      t.textContent = SEG_NAMES[i];
+    });
+    const f = fitResult();
+    if (f.n >= 2 && Number.isFinite(f.k)) {
+      const yA = K.clamp(f.k * 0.05 + f.b, 0, CH.Rmax), yB = K.clamp(f.k * 1.05 + f.b, 0, CH.Rmax);
+      els.fitPath.setAttribute("d", `M${chX(0.05)},${chY(yA)} L${chX(1.05)},${chY(yB)}`);
+      els.chartK.textContent = `斜率 k = ${f.k.toFixed(3)} Ω/m · 截距 b = ${f.b.toFixed(3)} Ω`;
+      els.chartRho.textContent = `ρ = kπd̄²/4 = ${(f.rho * 1e6).toFixed(3)}×10⁻⁶ Ω·m`;
+      els.chartErr.textContent = `相对误差 = ${f.err.toFixed(1)}%（标准值 1.10×10⁻⁶ Ω·m）`;
+    } else {
+      els.fitPath.setAttribute("d", "");
+      els.chartK.textContent = "斜率 k = —（≥2 段后拟合）";
+      els.chartRho.textContent = "ρ = kπd̄²/4 = —";
+      els.chartErr.textContent = "相对误差 = —";
+    }
+    const kTrue = C.RHO_TRUE / K.area(C.D_TRUE);
+    els.idealPath.setAttribute("d", `M${chX(0)},${chY(0)} L${chX(1.05)},${chY(kTrue * 1.05)}`);
+    els.idealPath.setAttribute("opacity", state.showRef ? "1" : "0");
+  }
+
+  /* ---------------- lifecycle ---------------- */
+  function render() {
+    renderStageChrome(); renderDock(); renderStatus(); renderInsight();
+    renderEvidenceLive(); renderMic(); renderCircuit(); renderChart(); renderRecords();
+  }
+  function init() {
+    buildMicrometer(); buildMeterTicks(); buildRuler(); buildChart(); buildCircuitExtras();
+    if (!REDUCED) els.micDial.style.transition = "transform .6s ease";
+    bindControls(); reset(); requestAnimationFrame(frame);
+  }
+  function start() { if (state.phase === 2) { state.running = true; render(); } }
+  function pause() { state.running = false; render(); }
+  function reset() {
+    state.experiment = K.createExperiment(C.SEED);
+    state.dReadings = []; lastDiaSample = null;
+    state.segs = freshSegments(state.experiment);
+    state.phase = 1; state.running = false; state.segIdx = 0; state.mode = "ext"; state.Uset = 1.5;
+    state.animT = 0; state.dispV = 0; state.dispI = 0;
+    state.particleOffset = 0; state.branchOffset = 0;
+    els.voltageInput.value = "1.5";
+    els.micPosMarker.setAttribute("opacity", "0");
+    els.micPosText.textContent = "当前测量位置：未采样";
+    render();
+  }
+  function update(dt) {
+    const bounded = K.clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
+    const t = meterTruth();
+    const rate = REDUCED ? 1 : Math.min(1, 12 * Math.max(bounded, 0.001));
+    state.dispV += (t.V - state.dispV) * rate;
+    state.dispI += (t.I - state.dispI) * rate;
+    if (state.running && state.phase === 2) {
+      state.animT += bounded;
+      const speed = 90 + 260 * (t.I / C.A_FS);
+      state.particleOffset = (state.particleOffset + speed * bounded) % PM.main.total;
+      const pm = PM[state.mode];
+      state.branchOffset = (state.branchOffset + Math.max(speed * 0.05, 6) * bounded) % pm.total;
+    }
+  }
+  function setParameters(values) {
+    if (values && values.voltage !== undefined) {
+      state.Uset = K.clamp(K.finiteNum(values.voltage, state.Uset), C.U_MIN, C.U_MAX);
+      els.voltageInput.value = String(state.Uset);
+    }
+    if (values && values.segIdx !== undefined) {
+      state.segIdx = K.clamp(Math.round(K.finiteNum(values.segIdx, state.segIdx)), 0, 3);
+    }
+    if (values && values.mode !== undefined && values.mode === "int") state.mode = "int";
+    else if (values && values.mode !== undefined) state.mode = "ext";
+    render();
+  }
+  function getState() {
+    return JSON.parse(JSON.stringify({
+      phase: state.phase, running: state.running, segIdx: state.segIdx, mode: state.mode,
+      Uset: state.Uset, dReadings: state.dReadings, animT: state.animT,
+      segs: state.segs,
+    }));
+  }
+  function getReadouts() {
+    const f = fitResult();
+    return {
+      phase: state.phase, running: state.running, segIdx: state.segIdx, mode: state.mode,
+      Uset: state.Uset, dAvgMm: dAvg(), nDia: state.dReadings.length,
+      segmentsMeasured: f.n, slope: f.k, intercept: f.b, rho: f.rho, errPct: f.err,
+      V: meterTruth().V, I: meterTruth().I,
+    };
+  }
+
+  /* ---------------- bindings ---------------- */
+  function bindControls() {
+    els.micTakeBtn.addEventListener("click", () => {
+      lastDiaSample = state.experiment.sampleDiameter();
+      state.dReadings.push(lastDiaSample.mm);
+      render();
+    });
+    els.micDoneBtn.addEventListener("click", () => setPhase(2));
+    els.lenBtn.addEventListener("click", () => {
+      state.segs[state.segIdx].lenRecorded = true; render();
+    });
+    els.uiBtn.addEventListener("click", () => {
+      const s = state.experiment.sampleMeter(state.Uset, currentTrueR(), state.mode);
+      if (s.overI || s.overV) return;
+      const seg = state.segs[state.segIdx];
+      seg.pairs.push({ U: s.V, I: s.I }); seg.mode = state.mode; seg.lenRecorded = true;
+      render();
+    });
+    els.measDoneBtn.addEventListener("click", () => setPhase(3));
+    els.refBtn.addEventListener("click", () => { state.showRef = !state.showRef; render(); });
+    els.startBtn.addEventListener("click", start);
+    els.pauseBtn.addEventListener("click", pause);
+    els.resetBtn.addEventListener("click", reset);
+    els.ph1.addEventListener("click", () => setPhase(1));
+    els.ph2.addEventListener("click", () => setPhase(2));
+    els.ph3.addEventListener("click", () => setPhase(3));
+    els.voltageInput.addEventListener("input", () => setParameters({ voltage: els.voltageInput.value }));
+    els.segBtns.forEach((b) => b.addEventListener("click", () => setParameters({ segIdx: +b.dataset.seg })));
+    els.modeBtns.forEach((b) => b.addEventListener("click", () => setParameters({ mode: b.dataset.mode })));
+    els.swLever.addEventListener("click", () => { if (state.phase === 2) state.running ? pause() : start(); });
+    els.contactExt.addEventListener("click", () => { if (state.phase === 2) setParameters({ mode: "ext" }); });
+    els.contactInt.addEventListener("click", () => { if (state.phase === 2) setParameters({ mode: "int" }); });
+  }
+
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    const dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    update(dt); renderCircuit(); renderEvidenceLive(); renderStageChrome();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: () => K.runChecks() };
+  init();
+})();
+</script>
+</body>
+</html>

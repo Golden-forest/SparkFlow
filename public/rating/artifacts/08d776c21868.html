@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>布朗运动：花粉颗粒为什么走折线？</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject additions (extend, never replace, the base tokens) */
+      --sim-grain-s: #ffd54a;
+      --sim-grain-m: #ff9130;
+      --sim-grain-l: #f0524f;
+      --sim-molecule: #4dd6e6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.4); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2.0rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; }
+    .status.running { background: rgba(15,159,186,.2); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(310px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    .stage-wrap { position: relative; min-height: 0; border-radius: 18px; overflow: hidden; border: 1px solid rgba(15,159,186,.14); background: #060d15; }
+    #scene { width: 100%; height: 100%; min-height: 330px; display: block; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(150px, 1fr) auto; gap: 12px; }
+    .readouts { padding: 14px 16px 12px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.12rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .grain-rows { margin-top: 10px; display: grid; gap: 5px; }
+    .grain-row { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 11px; background: var(--sim-surface-soft); border: 1px solid var(--sim-border); font-size: 0.8rem; }
+    .grain-row .dot { width: 11px; height: 11px; border-radius: 50%; align-self: center; box-shadow: 0 0 0 2px rgba(255,255,255,.7) inset; }
+    .grain-row .r { color: var(--sim-muted); }
+    .grain-row .val { font-weight: 760; font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+    .chart-panel { padding: 10px 12px 8px; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    #msdChart { width: 100%; height: 100%; min-height: 120px; display: block; }
+    .model-note { padding: 13px 16px; display: grid; align-content: start; gap: 9px; }
+    .insight { margin: 0; padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 11px 11px 0; background: #fff7e6; color: #7a4d06; font-weight: 640; font-size: 0.86rem; line-height: 1.5; }
+    .conclusion { padding: 10px 12px; border-radius: 11px; background: #eef7fb; border: 1px solid rgba(15,159,186,.25); font-size: 0.8rem; line-height: 1.55; }
+    .conclusion strong { color: var(--sim-accent-deep); }
+    .conclusion .warn { display: block; margin-top: 5px; color: #9a3412; font-weight: 680; }
+    .note { margin: 0; color: var(--sim-muted); font-size: 0.72rem; line-height: 1.5; }
+    .controls { padding: 10px 12px; display: grid; grid-template-columns: auto auto minmax(190px, 1fr) auto; gap: 14px; align-items: center; border-radius: 17px; }
+    .actions, .tools { display: flex; gap: 7px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; font-size: 0.86rem; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.toggled { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); box-shadow: inset 0 0 0 1px rgba(8,117,138,.35); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speed-group { display: flex; gap: 5px; align-items: center; }
+    .speed-group .lbl { font-size: 0.78rem; font-weight: 700; color: var(--sim-muted); margin-right: 2px; }
+    .speed-group button { padding: 8px 10px; font-size: 0.8rem; }
+    .speed-group button.active { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); }
+    @media (max-width: 980px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      .stage-wrap, #scene { min-height: 0; height: auto; aspect-ratio: 760 / 560; }
+      .chart-panel { min-height: 220px; }
+    }
+    @media (max-width: 640px) {
+      .controls { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>布朗运动：花粉颗粒为什么走折线？</h1>
+        <p>显微镜视野 · 三颗花粉颗粒的无规则折线，是看不见的液体分子热运动的<strong>间接证据</strong></p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">未开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">显微镜视野</h2>
+          <span>视野直径 120 µm · 比例尺见左下角 · 小 / 中 / 大 三颗颗粒同屏对比</span>
+        </div>
+        <div class="stage-wrap">
+          <canvas id="scene" aria-label="显微镜视野中的布朗运动：三颗花粉颗粒在液体中被分子撞击，走出无规则折线轨迹"></canvas>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>温度</small><strong><span id="tempRead">25</span> °C</strong></div>
+            <div class="metric"><small>分子方均根速率</small><strong><span id="vRead">—</span> µm/s</strong></div>
+            <div class="metric"><small>颗粒被撞频率</small><strong><span id="hitRead">0.0</span> 次/s</strong></div>
+            <div class="metric"><small>模拟时间</small><strong><span id="timeRead">0.0</span> s</strong></div>
+          </div>
+          <div class="grain-rows">
+            <div class="grain-row"><span class="dot" style="background: var(--sim-grain-s);"></span><span>小颗粒</span><span class="r">r = 4 µm</span><span class="val" style="color:#a8790a;"><span id="g0Disp">0.0</span> µm</span></div>
+            <div class="grain-row"><span class="dot" style="background: var(--sim-grain-m);"></span><span>中颗粒</span><span class="r">r = 7 µm</span><span class="val" style="color:#b3540e;"><span id="g1Disp">0.0</span> µm</span></div>
+            <div class="grain-row"><span class="dot" style="background: var(--sim-grain-l);"></span><span>大颗粒</span><span class="r">r = 12 µm</span><span class="val" style="color:#a32724;"><span id="g2Disp">0.0</span> µm</span></div>
+          </div>
+          <p class="note" style="margin: 8px 0 0;">每行数值：该颗粒近 5 秒的位移（滚动平均）——数值越大，动得越“欢”。</p>
+        </section>
+
+        <section class="panel chart-panel" aria-label="位移图表">
+          <div class="panel-head" style="margin-bottom: 6px;">
+            <h2 style="font-size: 0.9rem;">近 5 秒位移 − 时间</h2>
+            <span>三线同图 · 对比活跃度</span>
+          </div>
+          <canvas id="msdChart" aria-label="三颗颗粒近5秒位移随时间变化的曲线图，小颗粒曲线最高，大颗粒最低，升温后三条曲线一起抬高"></canvas>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="解读与结论">
+          <p id="insightText" class="insight">按「开始」后盯住一颗颗粒：它的路线是无规则折线，而且永不停息。</p>
+          <div class="conclusion">
+            看得见的：<strong>颗粒的无规则折线轨迹</strong><br>
+            推断出的：<strong>液体分子在永不停息地做无规则运动</strong>
+            <span class="warn">注意：折线只是分子热运动的<strong>间接证据</strong>——颗粒不是分子，颗粒的运动也不是分子热运动本身。</span>
+          </div>
+          <p class="note">教学视图：分子的大小、数量、速率与时间尺度均经大幅放大以便观察；升温对分子速率的放大高于真实的 √T 规律。碰撞、动量守恒与扩散规律由模型严格计算。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">▶ 开始</button>
+        <button id="pauseBtn" type="button">Ⅱ 暂停</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="tools">
+        <button id="clearBtn" type="button">✕ 清除轨迹</button>
+        <button id="revealBtn" type="button" aria-pressed="false">👁 显示分子</button>
+      </div>
+      <div class="control">
+        <label for="tempInput">温度 <output id="tempOutput">25 °C</output></label>
+        <input id="tempInput" type="range" min="0" max="99" step="1" value="25">
+      </div>
+      <div class="speed-group" role="group" aria-label="时间倍率">
+        <span class="lbl">时间</span>
+        <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+        <button class="speed-btn active" data-speed="1" type="button">1×</button>
+        <button class="speed-btn" data-speed="2" type="button">2×</button>
+        <button class="speed-btn" data-speed="4" type="button">4×</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* =====================================================================
+     * Physics kernel (DOM-free, deterministic).
+     * Event-contact model: explicit elastic collisions between molecules and
+     * pollen grains plus exact-per-step Langevin viscous decay on grains.
+     * Randomness only enters through the seeded initial conditions; the
+     * dynamics themselves are deterministic and reproducible.
+     * Units: length µm, time s, mass in units of one molecule mass m0 = 1.
+     * ===================================================================== */
+
+    const KERNEL_DEFAULTS = {
+      seed: 20260929,
+      fieldRadius: 60,          // µm, radius of the field of view
+      moleculeCount: 110,
+      rMol: 1.2,                // µm
+      m0: 1,                    // molecule mass (unit)
+      gammaCoeff: 24,           // Stokes-like drag: gamma = gammaCoeff * (r + rMol)
+      dt: 1 / 240,              // fixed physical step (s)
+      bounds: "reflect",        // "reflect" (page) | "periodic" (oracle runs)
+      temperatureC: 25,
+      grains: [
+        { r: 4, x: 0, y: 0 },
+        { r: 7, x: -24, y: 18 },
+        { r: 12, x: 26, y: -12 }
+      ],
+      moleculesOverride: null,  // optional explicit molecule list for oracles
+      grainVelocity: null,      // optional initial velocity of grain 0 for oracles
+      trailInterval: 1 / 30,    // s between trail samples
+      trailCap: 480,            // ~16 s of trail
+      historyInterval: 0.25,    // s between statistic samples
+      historyCap: 420,
+      dispWindow: 5,            // s, trailing displacement window
+      dispEMA: 0.08             // smoothing per history sample
+    };
+
+    const T_REF_K = 293.15;
+    const V_REF = 240;          // µm/s reference rms speed at T_REF_K
+
+    // Teaching exaggeration, declared in the model note: exponent 3 instead
+    // of the physical 1/2 so that heating is unmistakable on a projector.
+    const TEMPERATURE_EXPONENT = 3;
+    function vRmsFor(temperatureC) {
+      return V_REF * Math.pow((temperatureC + 273.15) / T_REF_K, TEMPERATURE_EXPONENT);
+    }
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function finiteOr(value, fallback) {
+      return Number.isFinite(value) ? value : fallback;
+    }
+
+    function createKernel(config) {
+      const cfg = Object.assign({}, KERNEL_DEFAULTS, config);
+      const rand = mulberry32(cfg.seed);
+      const R = cfg.fieldRadius;
+      const rM = cfg.rMol;
+      const m0 = cfg.m0;
+      const dt = cfg.dt;
+      const periodic = cfg.bounds === "periodic";
+      const thermostat = cfg.moleculesOverride === null; // bath-as-reservoir, off in oracle configs
+      const vRms0 = vRmsFor(cfg.temperatureC);
+
+      let gaussSpare = null;
+      function gauss() {
+        if (gaussSpare !== null) { const s = gaussSpare; gaussSpare = null; return s; }
+        let u = 0, v = 0;
+        while (u === 0) u = rand();
+        while (v === 0) v = rand();
+        const mag = Math.sqrt(-2 * Math.log(u));
+        gaussSpare = mag * Math.sin(2 * Math.PI * v);
+        return mag * Math.cos(2 * Math.PI * v);
+      }
+
+      // ---- state -------------------------------------------------------
+      let time = 0;
+      let steps = 0;
+      let vRms = vRms0;
+      const molecules = [];
+      const grains = cfg.grains.map((g) => {
+        const gamma = cfg.gammaCoeff * (g.r + rM);
+        return {
+          r: g.r, m: g.r * g.r * g.r, gamma, tauV: (g.r * g.r * g.r) / gamma,
+          x: g.x, y: g.y, ux: g.x, uy: g.y, vx: 0, vy: 0,
+          hits: 0, hitsAtLastSample: 0, hitRateEMA: 0,
+          v2Sum: 0, dispEMA: 0,
+          trail: [], history: []
+        };
+      });
+      if (cfg.grainVelocity) {
+        grains[0].vx = finiteOr(cfg.grainVelocity.vx, 0);
+        grains[0].vy = finiteOr(cfg.grainVelocity.vy, 0);
+      }
+
+      if (cfg.moleculesOverride) {
+        for (const m of cfg.moleculesOverride) {
+          molecules.push({ x: m.x, y: m.y, vx: m.vx, vy: m.vy });
+        }
+      } else {
+        // Seeded, reproducible initial conditions: 2D Maxwell speeds,
+        // uniform positions rejected against grain interiors.
+        const sigma = vRms0 / Math.SQRT2;
+        for (let i = 0; i < cfg.moleculeCount; i += 1) {
+          let x = 0, y = 0, ok = false;
+          for (let attempt = 0; attempt < 60 && !ok; attempt += 1) {
+            const rr = Math.sqrt(rand()) * (R - rM - 1.5);
+            const th = rand() * 2 * Math.PI;
+            x = rr * Math.cos(th); y = rr * Math.sin(th);
+            ok = grains.every((g) => Math.hypot(x - g.x, y - g.y) > g.r + rM + 0.5);
+          }
+          molecules.push({ x, y, vx: sigma * gauss(), vy: sigma * gauss() });
+        }
+      }
+
+      let nextTrailT = 0;
+      let nextHistT = 0;
+      const recentHits = []; // {x, y, t} collision flashes, derived from state + time
+      let molV2EMA = vRms0 * vRms0;
+
+      // ---- helpers -------------------------------------------------------
+      function wrap(v) { // periodic minimum-image helper for deltas
+        return v - 2 * R * Math.round(v / (2 * R));
+      }
+      function delta(ax, ay, bx, by) { // delta from b to a
+        const dx = ax - bx, dy = ay - by;
+        if (periodic) return [wrap(dx), wrap(dy)];
+        return [dx, dy];
+      }
+      function confine(body, rad) {
+        const d = Math.hypot(body.x, body.y);
+        const lim = R - rad;
+        if (d > lim) { const s = lim / (d || 1e-12); body.x *= s; body.y *= s; }
+      }
+
+      function collideMoleculeGrain(m, g) {
+        const [dx, dy] = delta(m.x, m.y, g.x, g.y);
+        const rr = g.r + rM;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > rr * rr) return;
+        const d = Math.sqrt(d2) || 1e-12;
+        const nx = dx / d, ny = dy / d;
+        const un = (m.vx - g.vx) * nx + (m.vy - g.vy) * ny;
+        if (un < 0) {
+          // Exact unequal-mass elastic impulse along the contact normal:
+          // conserves momentum and kinetic energy of the pair.
+          const mm = m0 + g.m;
+          const dvMol = (2 * g.m / mm) * un; // magnitude applied along -n on molecule
+          const dvGrain = (2 * m0 / mm) * un;
+          m.vx -= dvMol * nx; m.vy -= dvMol * ny;
+          g.vx += dvGrain * nx; g.vy += dvGrain * ny;
+          g.hits += 1;
+          recentHits.push({ x: g.x + nx * g.r, y: g.y + ny * g.r, t: time });
+        }
+        // Positional projection: push the light body out of overlap.
+        m.x = g.x + nx * (rr + 1e-4);
+        m.y = g.y + ny * (rr + 1e-4);
+        if (periodic) {
+          if (m.x > R) m.x -= 2 * R; else if (m.x < -R) m.x += 2 * R;
+          if (m.y > R) m.y -= 2 * R; else if (m.y < -R) m.y += 2 * R;
+        } else {
+          confine(m, rM);
+        }
+      }
+
+      function step() {
+        const n = molecules.length;
+
+        // 1. Free flight + boundary handling for molecules.
+        for (let i = 0; i < n; i += 1) {
+          const m = molecules[i];
+          m.x += m.vx * dt; m.y += m.vy * dt;
+          if (periodic) {
+            if (m.x > R) m.x -= 2 * R; else if (m.x < -R) m.x += 2 * R;
+            if (m.y > R) m.y -= 2 * R; else if (m.y < -R) m.y += 2 * R;
+          } else {
+            const d = Math.hypot(m.x, m.y);
+            const lim = R - rM;
+            if (d > lim) {
+              const inv = 1 / (d || 1e-12);
+              const nx = m.x * inv, ny = m.y * inv;
+              const vn = m.vx * nx + m.vy * ny;
+              if (vn > 0) { m.vx -= 2 * vn * nx; m.vy -= 2 * vn * ny; }
+              m.x = nx * lim; m.y = ny * lim;
+            }
+          }
+        }
+
+        // 2. Grain drag decay (integrated exactly) + advance.
+        for (let gi = 0; gi < grains.length; gi += 1) {
+          const g = grains[gi];
+          const k = Math.exp(-(g.gamma / g.m) * dt);
+          g.vx *= k; g.vy *= k;
+          const dvx = g.vx * dt, dvy = g.vy * dt;
+          g.x += dvx; g.y += dvy; g.ux += dvx; g.uy += dvy;
+          g.v2Sum += (g.vx * g.vx + g.vy * g.vy) * dt;
+          if (periodic) {
+            if (g.x > R) g.x -= 2 * R; else if (g.x < -R) g.x += 2 * R;
+            if (g.y > R) g.y -= 2 * R; else if (g.y < -R) g.y += 2 * R;
+          } else {
+            const d = Math.hypot(g.x, g.y);
+            const lim = R - g.r;
+            if (d > lim) {
+              const inv = 1 / (d || 1e-12);
+              const nx = g.x * inv, ny = g.y * inv;
+              const vn = g.vx * nx + g.vy * ny;
+              if (vn > 0) { g.vx -= 2 * vn * nx; g.vy -= 2 * vn * ny; }
+              g.x = nx * lim; g.y = ny * lim;
+            }
+          }
+        }
+
+        // 3. Molecule-molecule elastic collisions (equal mass).
+        const dd = 2 * rM, dd2 = dd * dd;
+        for (let i = 0; i < n; i += 1) {
+          const a = molecules[i];
+          for (let j = i + 1; j < n; j += 1) {
+            const b = molecules[j];
+            const [dx, dy] = delta(a.x, a.y, b.x, b.y);
+            if (dx * dx + dy * dy > dd2) continue;
+            const d = Math.hypot(dx, dy) || 1e-12;
+            const nx = dx / d, ny = dy / d;
+            const un = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+            if (un < 0) {
+              a.vx -= un * nx; a.vy -= un * ny;
+              b.vx += un * nx; b.vy += un * ny;
+            }
+            const push = (dd - d) / 2 + 1e-4;
+            a.x += nx * push; a.y += ny * push;
+            b.x -= nx * push; b.y -= ny * push;
+          }
+        }
+
+        // 4. Molecule-grain collisions (the teaching heart of the model).
+        for (let gi = 0; gi < grains.length; gi += 1) {
+          const g = grains[gi];
+          for (let i = 0; i < n; i += 1) collideMoleculeGrain(molecules[i], g);
+        }
+
+        // 5. Grain-grain elastic collisions (rare, but honest).
+        for (let i = 0; i < grains.length; i += 1) {
+          for (let j = i + 1; j < grains.length; j += 1) {
+            const a = grains[i], b = grains[j];
+            const [dx, dy] = delta(a.x, a.y, b.x, b.y);
+            const rr = a.r + b.r;
+            if (dx * dx + dy * dy > rr * rr) continue;
+            const d = Math.hypot(dx, dy) || 1e-12;
+            const nx = dx / d, ny = dy / d;
+            const un = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+            if (un < 0) {
+              const mmass = a.m + b.m;
+              const da = (2 * b.m / mmass) * un;
+              const db = (2 * a.m / mmass) * un;
+              a.vx -= da * nx; a.vy -= da * ny;
+              b.vx += db * nx; b.vy += db * ny;
+            }
+            const push = (rr - d) / 2 + 1e-4;
+            a.x += nx * push; a.y += ny * push;
+            b.x -= nx * push; b.y -= ny * push;
+          }
+        }
+
+        // Positional corrections above may push bodies marginally past the
+        // wall; guarantee the containment invariant after every step.
+        if (!periodic) {
+          for (let i = 0; i < n; i += 1) confine(molecules[i], rM);
+          for (let gi = 0; gi < grains.length; gi += 1) confine(grains[gi], grains[gi].r);
+        }
+
+        time += dt;
+        steps += 1;
+
+        // 6. Deterministic sampling (independent of the render rate).
+        if (time >= nextTrailT) {
+          nextTrailT = time + cfg.trailInterval;
+          for (const g of grains) {
+            g.trail.push({ x: g.x, y: g.y });
+            if (g.trail.length > cfg.trailCap) g.trail.shift();
+          }
+        }
+        if (time >= nextHistT) {
+          nextHistT = time + cfg.historyInterval;
+          for (const g of grains) {
+            const span = Math.min(cfg.dispWindow, time);
+            const target = time - span;
+            let ref = g.history[0];
+            for (let i = g.history.length - 1; i >= 0; i -= 1) {
+              if (g.history[i].t <= target) { ref = g.history[i]; break; }
+            }
+            const disp = ref ? Math.hypot(g.x - ref.x, g.y - ref.y) : 0;
+            g.dispEMA = g.dispEMA + cfg.dispEMA * (disp - g.dispEMA);
+            const dh = g.hits - g.hitsAtLastSample;
+            g.hitsAtLastSample = g.hits;
+            const rate = dh / cfg.historyInterval;
+            g.hitRateEMA = g.hitRateEMA + 0.15 * (rate - g.hitRateEMA);
+            g.history.push({ t: time, x: g.x, y: g.y, ux: g.ux, uy: g.uy, disp: g.dispEMA });
+            if (g.history.length > cfg.historyCap) g.history.shift();
+          }
+          let v2 = 0;
+          for (const m of molecules) v2 += m.vx * m.vx + m.vy * m.vy;
+          v2 = molecules.length ? v2 / molecules.length : vRms * vRms;
+          molV2EMA = molV2EMA + 0.2 * (v2 - molV2EMA);
+          // Thermal reservoir: the drawn molecules are a small sample of a
+          // vast heat bath, and viscous drag on the grains is a net energy
+          // sink. Renormalize the bath to its Maxwell statistics so the
+          // liquid stays at the set temperature (deterministic, no RNG).
+          if (thermostat && molecules.length) {
+            const f = vRms / Math.sqrt(v2);
+            for (const m of molecules) { m.vx *= f; m.vy *= f; }
+          }
+        }
+        while (recentHits.length && recentHits[0].t < time - 0.3) recentHits.shift();
+
+        // Defensive: never let non-finite state survive a step.
+        for (const g of grains) {
+          if (!Number.isFinite(g.x + g.y + g.vx + g.vy)) {
+            g.x = finiteOr(g.x, 0); g.y = finiteOr(g.y, 0);
+            g.vx = 0; g.vy = 0;
+          }
+        }
+      }
+
+      function setTemperature(temperatureC) {
+        const target = vRmsFor(temperatureC);
+        const f = target / vRms;
+        for (const m of molecules) { m.vx *= f; m.vy *= f; }
+        vRms = target;
+      }
+
+      function clearTrails() {
+        for (const g of grains) g.trail.length = 0;
+      }
+
+      // Mean squared displacement over a lag, from unwrapped history.
+      // Two-pointer matching: pairs (i, j) with t_i − t_j closest below the
+      // requested lag (sample spacing is dt-quantized, never exactly `lag`).
+      function msdOf(grainIdx, lag) {
+        const h = grains[grainIdx].history;
+        if (h.length < 32) return NaN;
+        let j = 0, sum = 0, cnt = 0;
+        for (let i = 1; i < h.length; i += 1) {
+          while (j + 1 < i && h[i].t - h[j + 1].t >= lag) j += 1;
+          if (h[i].t - h[j].t >= lag) {
+            const a = h[i], b = h[j];
+            sum += (a.ux - b.ux) * (a.ux - b.ux) + (a.uy - b.uy) * (a.uy - b.uy);
+            cnt += 1;
+          }
+        }
+        return cnt >= 20 ? sum / cnt : NaN;
+      }
+
+      return {
+        step, setTemperature, clearTrails, msdOf,
+        get time() { return time; },
+        get steps() { return steps; },
+        get vRms() { return vRms; },
+        get measuredV2() { return molV2EMA; },
+        get molecules() { return molecules; },
+        get grains() { return grains; },
+        get recentHits() { return recentHits; },
+        get config() { return cfg; }
+      };
+    }
+
+    /* =====================================================================
+     * Model checks (headless-runnable; no DOM access below this line).
+     * ===================================================================== */
+
+    function runModelChecks() {
+      const results = [];
+      const add = (name, pass, expected, actual, tolerance) =>
+        results.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      // -- 1. Determinism: identical seeds and steps give identical states.
+      {
+        const k1 = createKernel({}), k2 = createKernel({});
+        for (let i = 0; i < 1200; i += 1) { k1.step(); k2.step(); }
+        let same = true;
+        for (let gi = 0; gi < k1.grains.length; gi += 1) {
+          const a = k1.grains[gi], b = k2.grains[gi];
+          if (a.x !== b.x || a.y !== b.y || a.vx !== b.vx || a.vy !== b.vy) same = false;
+        }
+        for (let mi = 0; mi < k1.molecules.length; mi += 1) {
+          const a = k1.molecules[mi], b = k2.molecules[mi];
+          if (a.x !== b.x || a.y !== b.y || a.vx !== b.vx || a.vy !== b.vy) same = false;
+        }
+        add("determinism (seeded run reproduces exactly)", same, "identical state after 1200 steps", same ? "identical" : "diverged", "exact");
+      }
+
+      // -- 2. Head-on collision: conservation + sign conventions.
+      {
+        const k = createKernel({
+          seed: 7, fieldRadius: 5000, moleculeCount: 0, gammaCoeff: 0,
+          grains: [{ r: 7, x: 0, y: 0 }],
+          moleculesOverride: [{ x: -20, y: 0, vx: 240, vy: 0 }]
+        });
+        const g0 = k.grains[0], m0 = k.molecules[0];
+        const Px0 = m0.vx + g0.m * g0.vx, Py0 = m0.vy + g0.m * g0.vy;
+        const E0 = 0.5 * (m0.vx * m0.vx + m0.vy * m0.vy) + 0.5 * g0.m * (g0.vx * g0.vx + g0.vy * g0.vy);
+        for (let i = 0; i < 60; i += 1) k.step(); // 0.25 s: hit happens at ~0.049 s
+        const Px1 = m0.vx + g0.m * g0.vx, Py1 = m0.vy + g0.m * g0.vy;
+        const E1 = 0.5 * (m0.vx * m0.vx + m0.vy * m0.vy) + 0.5 * g0.m * (g0.vx * g0.vx + g0.vy * g0.vy);
+        const hit = g0.hits >= 1;
+        add("head-on hit occurred", hit, "grain.hits >= 1", g0.hits, "strict");
+        add("collision momentum conservation", Math.abs(Px1 - Px0) + Math.abs(Py1 - Py0) < 1e-9, Px0.toFixed(9), Px1.toFixed(9), "|ΔP| < 1e-9");
+        add("collision energy conservation", Math.abs(E1 - E0) < 1e-6, E0.toFixed(9), E1.toFixed(9), "|ΔE| < 1e-6");
+        add("direction: molecule from -x pushes grain to +x", g0.vx > 0, "grain.vx > 0", g0.vx.toFixed(6), "strict");
+        add("direction: molecule reflects back to -x", m0.vx < 0, "molecule.vx < 0", m0.vx.toFixed(6), "strict");
+      }
+
+      // -- 3. Drag decay is integrated exactly (analytic oracle).
+      {
+        const k = createKernel({
+          seed: 3, moleculeCount: 0, fieldRadius: 5000,
+          grains: [{ r: 7, x: 0, y: 0 }], grainVelocity: { vx: 100, vy: 0 }
+        });
+        const g0 = k.grains[0];
+        for (let i = 0; i < 720; i += 1) k.step(); // 3 s
+        const expected = 100 * Math.exp(-(g0.gamma / g0.m) * k.time);
+        add("viscous decay matches V0*exp(-gamma t/M)", Math.abs(g0.vx - expected) < 1e-9, expected.toFixed(9), g0.vx.toFixed(9), "|Δ| < 1e-9");
+      }
+
+      // -- 4. Containment: reflecting walls hold every body inside.
+      {
+        const k = createKernel({});
+        let maxOverflow = 0;
+        for (let i = 0; i < 4800; i += 1) { // 20 s
+          k.step();
+          if (i % 24 === 0) {
+            for (const m of k.molecules) maxOverflow = Math.max(maxOverflow, Math.hypot(m.x, m.y) - (k.config.fieldRadius - k.config.rMol));
+            for (const g of k.grains) maxOverflow = Math.max(maxOverflow, Math.hypot(g.x, g.y) - (k.config.fieldRadius - g.r));
+          }
+        }
+        add("field containment (reflecting bounds)", maxOverflow <= 1e-9, "overflow <= 0", maxOverflow.toExponential(3), "strict (1e-9)");
+      }
+
+      // -- 5. Molecular thermal speed matches the declared mapping.
+      {
+        const k = createKernel({});
+        for (let i = 0; i < 7200; i += 1) k.step(); // 30 s
+        const measured = Math.sqrt(k.measuredV2);
+        const target = vRmsFor(25);
+        add("molecule v_rms matches target mapping", Math.abs(measured - target) / target < 0.08, target.toFixed(1) + " µm/s", measured.toFixed(1) + " µm/s", "±8%");
+      }
+
+      // -- Shared bulk runs (periodic bounds, no wall bias) --------------
+      // Analytic context (reported as diagnostics, not pass/fail): a grain
+      // bombarded by a Maxwell bath obeys an OU balance Var = ζ·m0·v²/(2M(γ+ζ))
+      // with FDT-exact noise rate ζ·m0·v_rms², ζ ∝ (r+rMol), γ ∝ (r+rMol).
+      // The absolute amplitude depends on the collisional-friction prefactor
+      // and backscatter correlations (±factor), so the pass/fail oracles
+      // below use only prefactor-free consequences of that structure.
+
+      // 180 s bulk run at 25 °C serves checks 6-8.
+      const kBulk = createKernel({ bounds: "periodic" });
+      for (let i = 0; i < 43200; i += 1) kBulk.step();
+
+      // -- 6. Uniform effective grain temperature: since ζ/γ is the same for
+      // every grain (both scale with r+rMol), the OU balance requires
+      // Var(Vx)·M to be equal across grains — a robust thermalization law.
+      {
+        const products = kBulk.grains.map((g) => (g.v2Sum / (2 * kBulk.time)) * g.m);
+        const lo = Math.min(...products), hi = Math.max(...products);
+        add("uniform Var·M across grains (same effective T)", hi / lo <= 1.9,
+          "equal within statistics", products.map((p) => p.toFixed(0)).join(" / ") + " µm²·m0/s²", "max/min ≤ 1.9");
+      }
+
+      // -- 7. Diffusive scaling: for τ ≫ τv the MSD grows linearly, so
+      // MSD(12 s)/MSD(6 s) ≈ 2 (OU correction is negligible for the small
+      // grain, whose relaxation time is well under 1 s).
+      {
+        const r = kBulk.msdOf(0, 12) / kBulk.msdOf(0, 6);
+        add("diffusive scaling MSD(12)/MSD(6)", r > 1.7 && r < 2.4, "≈ 2.0", r.toFixed(3), "1.7 – 2.4");
+      }
+
+      // -- 8. Size ordering: smaller grains diffuse strictly farther; the
+      // OU structure predicts a small/large ratio of several ×.
+      {
+        const m0 = kBulk.msdOf(0, 6), m1 = kBulk.msdOf(1, 6), m2 = kBulk.msdOf(2, 6);
+        const ordered = m0 > m1 && m1 > m2 && m0 / m2 > 2.5;
+        add("size ordering MSD(small) > MSD(mid) > MSD(large)", ordered,
+          [m0, m1, m2].map((v) => v.toFixed(1)).join(" > ") + " µm²", ordered ? "ordered, ratio " + (m0 / m2).toFixed(2) : "not ordered", "ratio ≥ 2.5");
+      }
+
+      // -- 9. Temperature: hotter liquid, faster diffusion. Analytic OU at
+      // the two mapped thermal speeds predicts ≈3.6×; the band admits the
+      // friction-prefactor uncertainty while requiring a strong effect.
+      {
+        const kHot = createKernel({ bounds: "periodic", temperatureC: 75 });
+        for (let i = 0; i < 43200; i += 1) kHot.step();
+        const ratio = kHot.msdOf(0, 6) / kBulk.msdOf(0, 6);
+        add("MSD ratio 75°C/25°C (hot ≫ cold)", ratio > 2.6 && ratio < 4.6, "≈ 3.6 (analytic OU)", ratio.toFixed(3), "2.6 – 4.6");
+      }
+
+      // -- 10. Step-halving: statistics converge when dt is halved.
+      {
+        const kFine = createKernel({ bounds: "periodic", dt: 1 / 480 });
+        for (let i = 0; i < 43200; i += 1) kFine.step(); // 90 s at fine step
+        const coarse = kBulk.grains[0].v2Sum / (2 * kBulk.time);
+        const fine = kFine.grains[0].v2Sum / (2 * kFine.time);
+        add("step-halving convergence of <Vx²>", Math.abs(fine - coarse) / coarse < 0.25, coarse.toFixed(3) + " µm²/s²", fine.toFixed(3) + " µm²/s²", "±25%");
+      }
+
+      return results;
+    }
+
+    /* =====================================================================
+     * Page application. Everything below touches the DOM and is guarded so
+     * the kernel and runModelChecks stay runnable headless (e.g. in Node).
+     * ===================================================================== */
+
+    const HAS_DOM = typeof document !== "undefined" && !!document.getElementById("scene");
+
+    const GRAIN_COLORS = ["#ffd54a", "#ff9130", "#f0524f"];
+    const GRAIN_LABELS = ["小", "中", "大"];
+    const MOLECULE_COLOR = "77, 214, 230";
+    const DT = KERNEL_DEFAULTS.dt;
+    const MAX_SUBSTEPS = 20;
+
+    const parameterSchema = [
+      { key: "temperatureC", label: "温度", type: "slider", min: 0, max: 99, step: 1, default: 25, unit: "°C" },
+      { key: "speed", label: "时间倍率", type: "segmented", values: [0.5, 1, 2, 4], default: 1, unit: "×" }
+    ];
+
+    let kernel = createKernel({});
+    const state = {
+      running: false, t0Rendered: false,
+      temperatureC: 25, speed: 1, reveal: false,
+      acc: 0, lastTimestamp: null
+    };
+
+    const els = HAS_DOM ? {
+      status: document.getElementById("status"),
+      scene: document.getElementById("scene"),
+      chart: document.getElementById("msdChart"),
+      tempInput: document.getElementById("tempInput"),
+      tempOutput: document.getElementById("tempOutput"),
+      tempRead: document.getElementById("tempRead"),
+      vRead: document.getElementById("vRead"),
+      hitRead: document.getElementById("hitRead"),
+      timeRead: document.getElementById("timeRead"),
+      disp: [document.getElementById("g0Disp"), document.getElementById("g1Disp"), document.getElementById("g2Disp")],
+      insight: document.getElementById("insightText"),
+      startBtn: document.getElementById("startBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      revealBtn: document.getElementById("revealBtn"),
+      speedBtns: Array.from(document.querySelectorAll(".speed-btn"))
+    } : null;
+
+    function init() {
+      if (!HAS_DOM) return;
+      bindControls();
+      setParameters({ temperatureC: 25, speed: 1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      render();
+    }
+    function pause() {
+      state.running = false;
+      render();
+    }
+    function reset() {
+      state.running = false;
+      state.acc = 0;
+      state.lastTimestamp = null;
+      kernel = createKernel({ temperatureC: state.temperatureC }); // same seed: reproducible
+      render();
+    }
+    function clearTrails() {
+      kernel.clearTrails();
+      render();
+    }
+    function setReveal(on) {
+      state.reveal = !!on;
+      render();
+    }
+
+    function update(dtReal) {
+      if (!state.running) return;
+      const bounded = Math.min(Math.max(finiteOr(dtReal, 0), 0), 0.05);
+      state.acc += bounded * state.speed;
+      let n = Math.floor(state.acc / DT);
+      if (n > MAX_SUBSTEPS) { n = MAX_SUBSTEPS; state.acc = 0; } // drop backlog after suspension
+      else state.acc -= n * DT;
+      for (let i = 0; i < n; i += 1) kernel.step();
+    }
+
+    function setParameters(values) {
+      const tDef = parameterSchema[0];
+      if (values && values.temperatureC !== undefined) {
+        const t = Math.min(Math.max(finiteOr(Number(values.temperatureC), tDef.default), tDef.min), tDef.max);
+        state.temperatureC = t;
+        kernel.setTemperature(t);
+      }
+      if (values && values.speed !== undefined) {
+        const s = Number(values.speed);
+        state.speed = [0.5, 1, 2, 4].indexOf(s) >= 0 ? s : 1;
+      }
+      if (!HAS_DOM) return;
+      els.tempInput.value = String(Math.round(state.temperatureC));
+      for (const b of els.speedBtns) b.classList.toggle("active", Number(b.dataset.speed) === state.speed);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running, temperatureC: state.temperatureC, speed: state.speed,
+        reveal: state.reveal, time: kernel.time, steps: kernel.steps,
+        moleculeCount: kernel.molecules.length, vRms: kernel.vRms,
+        grains: kernel.grains.map((g) => ({ r: g.r, x: g.x, y: g.y, vx: g.vx, vy: g.vy, hits: g.hits, disp5s: g.dispEMA }))
+      };
+    }
+
+    function getReadouts() {
+      return {
+        time: kernel.time,
+        temperatureC: state.temperatureC,
+        vRmsMeasured: Math.sqrt(kernel.measuredV2),
+        hitRateTotal: kernel.grains.reduce((s, g) => s + g.hitRateEMA, 0),
+        grains: kernel.grains.map((g) => ({ r: g.r, disp5s: g.dispEMA, hitRate: g.hitRateEMA, hits: g.hits }))
+      };
+    }
+
+    // ---- rendering ------------------------------------------------------
+
+    function fitCanvas(canvas) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(80, Math.floor(rect.width)), h = Math.max(80, Math.floor(rect.height));
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w, h };
+    }
+
+    function drawScene() {
+      const { ctx, w, h } = fitCanvas(els.scene);
+      const cfg = kernel.config;
+      const cx = w / 2, cy = h / 2;
+      const scale = (Math.min(w, h) / 2) * 0.92 / cfg.fieldRadius;
+      const toX = (x) => cx + x * scale, toY = (y) => cy - y * scale;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Field of view: dark circular well with a subtle center illumination.
+      const fieldR = cfg.fieldRadius * scale;
+      const bg = ctx.createRadialGradient(cx, cy - fieldR * 0.25, fieldR * 0.1, cx, cy, fieldR);
+      bg.addColorStop(0, "#122433");
+      bg.addColorStop(0.55, "#0a1723");
+      bg.addColorStop(1, "#050b13");
+      ctx.beginPath(); ctx.arc(cx, cy, fieldR, 0, 2 * Math.PI);
+      ctx.fillStyle = bg; ctx.fill();
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, fieldR, 0, 2 * Math.PI); ctx.clip();
+
+      // Reticle: faint crosshair ticks + reference circle.
+      ctx.strokeStyle = "rgba(150, 195, 220, 0.14)";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, fieldR * 0.5, 0, 2 * Math.PI); ctx.stroke();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + dx * fieldR * 0.46, cy + dy * fieldR * 0.46);
+        ctx.lineTo(cx + dx * fieldR * 0.54, cy + dy * fieldR * 0.54);
+        ctx.stroke();
+      }
+
+      // Molecules (revealed on demand; rendering only, never physics).
+      if (state.reveal) {
+        ctx.fillStyle = `rgba(${MOLECULE_COLOR}, 0.8)`;
+        ctx.shadowColor = `rgba(${MOLECULE_COLOR}, 0.9)`;
+        ctx.shadowBlur = 5;
+        const rPix = Math.max(1.6, cfg.rMol * scale * 0.95);
+        ctx.beginPath();
+        for (const m of kernel.molecules) {
+          const x = toX(m.x), y = toY(m.y);
+          ctx.moveTo(x + rPix, y);
+          ctx.arc(x, y, rPix, 0, 2 * Math.PI);
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Trails: fading colored polylines sampled from model state.
+      for (let gi = 0; gi < kernel.grains.length; gi += 1) {
+        const g = kernel.grains[gi];
+        const tr = g.trail;
+        if (tr.length > 1) {
+          for (let i = 1; i < tr.length; i += 1) {
+            const f = i / tr.length;
+            ctx.strokeStyle = hexA(GRAIN_COLORS[gi], 0.06 + 0.82 * f * f);
+            ctx.lineWidth = 1.1 + 1.9 * f;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(toX(tr[i - 1].x), toY(tr[i - 1].y));
+            ctx.lineTo(toX(tr[i].x), toY(tr[i].y));
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Collision flashes: event annotations driven by kernel time.
+      for (const hitEv of kernel.recentHits) {
+        const age = kernel.time - hitEv.t;
+        if (age < 0 || age > 0.25) continue;
+        const a = 1 - age / 0.25;
+        ctx.strokeStyle = `rgba(190, 240, 250, ${(0.85 * a).toFixed(3)})`;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(toX(hitEv.x), toY(hitEv.y), 2.5 + age * 60, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
+      // Grains: shaded pollen particles with size labels.
+      ctx.font = '600 12px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = "center";
+      for (let gi = 0; gi < kernel.grains.length; gi += 1) {
+        const g = kernel.grains[gi];
+        const x = toX(g.x), y = toY(g.y), rp = Math.max(5, g.r * scale);
+        const grad = ctx.createRadialGradient(x - rp * 0.35, y - rp * 0.4, rp * 0.15, x, y, rp);
+        grad.addColorStop(0, lighten(GRAIN_COLORS[gi], 0.45));
+        grad.addColorStop(0.65, GRAIN_COLORS[gi]);
+        grad.addColorStop(1, darken(GRAIN_COLORS[gi], 0.25));
+        ctx.beginPath(); ctx.arc(x, y, rp, 0, 2 * Math.PI);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.beginPath(); ctx.arc(x - rp * 0.35, y - rp * 0.4, Math.max(1, rp * 0.16), 0, 2 * Math.PI); ctx.fill();
+        // Label with dark halo for projection legibility.
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(5, 12, 20, 0.75)";
+        ctx.strokeText(GRAIN_LABELS[gi], x, y - rp - 7);
+        ctx.fillStyle = GRAIN_COLORS[gi];
+        ctx.fillText(GRAIN_LABELS[gi], x, y - rp - 7);
+      }
+
+      // Scale bar, 10 µm.
+      const barY = cy + fieldR * 0.8, barX0 = cx - fieldR * 0.82;
+      ctx.strokeStyle = "rgba(220, 235, 245, 0.85)";
+      ctx.lineWidth = 2.5; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(barX0, barY); ctx.lineTo(barX0 + 10 * scale, barY);
+      ctx.stroke();
+      ctx.font = '600 11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(200, 222, 236, 0.9)";
+      ctx.fillText("10 µm", barX0, barY - 7);
+
+      // Bottom hint: states the invisible cause until it is revealed.
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(178, 205, 222, 0.6)";
+      ctx.font = '600 12px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(state.reveal ? "液体分子（青色）· 大小与速率均为示意放大" : "看不见的液体分子，正在不停地撞击这些颗粒", cx, cy + fieldR * 0.94);
+
+      ctx.restore();
+
+      // Eyepiece rim.
+      ctx.beginPath(); ctx.arc(cx, cy, fieldR, 0, 2 * Math.PI);
+      ctx.strokeStyle = "rgba(120, 170, 196, 0.35)";
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, fieldR + 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = "rgba(120, 170, 196, 0.12)";
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    function drawChart() {
+      const { ctx, w, h } = fitCanvas(els.chart);
+      ctx.clearRect(0, 0, w, h);
+      const pad = { l: 42, r: 10, t: 8, b: 24 };
+      const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      const tNow = Math.max(30, kernel.time);
+      const tMin = Math.max(0, tNow - 60);
+      let yMax = 10;
+      for (const g of kernel.grains) for (const p of g.history) if (p.disp > yMax) yMax = p.disp;
+      yMax *= 1.15;
+      const X = (t) => pad.l + ((t - tMin) / (tNow - tMin)) * pw;
+      const Y = (v) => pad.t + (1 - v / yMax) * ph;
+
+      ctx.font = '11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.strokeStyle = "#e8edf4"; ctx.fillStyle = "#7a8798"; ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const y = pad.t + (ph * i) / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText((yMax * (1 - i / 4)).toFixed(0), pad.l - 6, y);
+      }
+      for (let i = 0; i <= 6; i += 1) {
+        const x = pad.l + (pw * i) / 6;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText((tMin + ((tNow - tMin) * i) / 6).toFixed(0), x, pad.t + ph + 5);
+      }
+      ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.lineTo(w - pad.r, pad.t + ph); ctx.stroke();
+      ctx.fillStyle = "#657188";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("位移 / µm", 4, 4);
+      ctx.textAlign = "right";
+      ctx.fillText("t / s", w - pad.r, pad.t + ph + 5);
+
+      ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+      for (let gi = 0; gi < kernel.grains.length; gi += 1) {
+        const hist = kernel.grains[gi].history;
+        if (hist.length < 2) continue;
+        ctx.strokeStyle = GRAIN_COLORS[gi];
+        ctx.beginPath();
+        let started = false;
+        for (const p of hist) {
+          if (p.t < tMin) continue;
+          const x = X(p.t), y = Y(Math.max(0, p.disp));
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        const last = hist[hist.length - 1];
+        ctx.fillStyle = GRAIN_COLORS[gi];
+        ctx.beginPath(); ctx.arc(X(last.t), Y(Math.max(0, last.disp)), 2.6, 0, 2 * Math.PI); ctx.fill();
+      }
+      // Legend.
+      ctx.font = '600 11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      let lx = pad.l + 8;
+      for (let gi = 0; gi < 3; gi += 1) {
+        ctx.fillStyle = GRAIN_COLORS[gi];
+        ctx.beginPath(); ctx.arc(lx, pad.t + 10, 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = "#43506a";
+        ctx.fillText(GRAIN_LABELS[gi], lx + 8, pad.t + 10);
+        lx += 26;
+      }
+    }
+
+    function hexA(hex, a) {
+      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`;
+    }
+    function lighten(hex, f) {
+      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+      return `rgb(${Math.round(r + (255 - r) * f)}, ${Math.round(g + (255 - g) * f)}, ${Math.round(b + (255 - b) * f)})`;
+    }
+    function darken(hex, f) {
+      const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+      return `rgb(${Math.round(r * (1 - f))}, ${Math.round(g * (1 - f))}, ${Math.round(b * (1 - f))})`;
+    }
+
+    function insightText() {
+      if (!state.running && kernel.time === 0) return "按「开始」后盯住一颗颗粒：它的路线是无规则折线，而且永不停息。";
+      if (!state.running) return "已暂停：对比三条轨迹——小颗粒的折线又密又乱，大颗粒只是缓缓漂移。";
+      if (state.temperatureC >= 60) return "温度升高：分子速率增大，撞击更频繁、更猛——三条位移曲线一起抬升，折线更急促。";
+      if (state.temperatureC <= 10) return "温度较低：撞击变得温和，但颗粒仍在无规则地动——分子热运动永不停止。";
+      if (state.reveal) return "看见了吗？折线的每个转折，都发生在分子撞击之后——轨迹是被「撞」出来的。";
+      return "金色小颗粒明显更活跃：同样的撞击，对质量小的颗粒改变更大（对比右侧三条曲线）。";
+    }
+
+    function render() {
+      if (!HAS_DOM) return;
+      drawScene();
+      drawChart();
+
+      const r = getReadouts();
+      els.status.textContent = state.running ? "运行中" : (kernel.time === 0 ? "未开始" : "已暂停");
+      els.status.classList.toggle("running", state.running);
+      els.tempRead.textContent = String(Math.round(state.temperatureC));
+      els.tempOutput.textContent = `${Math.round(state.temperatureC)} °C`;
+      els.vRead.textContent = r.vRmsMeasured.toFixed(0);
+      els.hitRead.textContent = r.hitRateTotal.toFixed(1);
+      els.timeRead.textContent = kernel.time.toFixed(1);
+      for (let gi = 0; gi < 3; gi += 1) els.disp[gi].textContent = r.grains[gi].disp5s.toFixed(1);
+      els.insight.textContent = insightText();
+      els.revealBtn.textContent = state.reveal ? "👁 隐藏分子" : "👁 显示分子";
+      els.revealBtn.setAttribute("aria-pressed", state.reveal ? "true" : "false");
+      els.revealBtn.classList.toggle("toggled", state.reveal);
+    }
+
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      els.clearBtn.addEventListener("click", clearTrails);
+      els.revealBtn.addEventListener("click", () => setReveal(!state.reveal));
+      els.tempInput.addEventListener("input", () => setParameters({ temperatureC: els.tempInput.value }));
+      for (const b of els.speedBtns) b.addEventListener("click", () => setParameters({ speed: b.dataset.speed }));
+      window.addEventListener("resize", render);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks, clearTrails, setReveal, createKernel, vRmsFor };
+    init();
+  })();
+  </script>
+</body>
+</html>

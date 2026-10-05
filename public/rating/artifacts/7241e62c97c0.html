@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>简谐运动演示 · 弹簧振子与 x-t / v-t / a-t 图像</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2c; --panel2:#0f1729; --line:#24324e;
+    --txt:#e8edf7; --sub:#93a4c3;
+    --cx:#4dd0e1; --cv:#ffb74d; --ca:#f06292; --acc:#7c9cff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--txt);
+    background:radial-gradient(1200px 600px at 70% -10%, #16223c, var(--bg));
+    font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  header{max-width:1280px;margin:0 auto;padding:26px 18px 10px;}
+  h1{font-size:24px;margin:0 0 6px;}
+  .sub{color:var(--sub);font-size:14px;}
+  main{max-width:1280px;margin:0 auto;padding:0 18px 40px;}
+
+  .controls{
+    display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 18px;margin:14px 0;
+  }
+  .ctl{min-width:170px;flex:1;}
+  .ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--sub);margin-bottom:6px;}
+  .ctl b{color:var(--txt);font-family:ui-monospace,SFMono,Menlo,monospace;font-weight:600;}
+  input[type=range]{width:100%;accent-color:var(--acc);}
+  .btns{display:flex;gap:10px;}
+  button{
+    background:var(--acc);color:#0b1220;border:0;border-radius:9px;
+    padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  button.ghost{background:transparent;color:var(--txt);border:1px solid var(--line);}
+  .chks{display:flex;gap:18px;font-size:13px;color:var(--sub);align-items:center;flex-wrap:wrap;}
+  .chks label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+
+  .readouts{
+    display:flex;flex-wrap:wrap;gap:8px 10px;margin:0 0 12px;
+    font-family:ui-monospace,SFMono,Menlo,monospace;font-size:13px;
+  }
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;color:var(--sub);}
+  .pill b{color:var(--txt);font-weight:600;}
+  .pill b.ok{color:#69f0ae;}
+  canvas{width:100%;display:block;}
+
+  .tips{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:16px 20px;margin-top:16px;font-size:14px;line-height:1.8;color:#c6d2e8;
+  }
+  .tips h2{font-size:15px;margin:0 0 8px;color:var(--txt);}
+  .tips ol{margin:6px 0 10px;padding-left:22px;}
+  .tips .formula{font-family:ui-monospace,monospace;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:8px 14px;display:inline-block;}
+  .tag-x{color:var(--cx);font-weight:700;} .tag-v{color:var(--cv);font-weight:700;} .tag-a{color:var(--ca);font-weight:700;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>简谐运动：弹簧振子 + x-t / v-t / a-t 图像</h1>
+  <div class="sub">光滑水平面上的弹簧振子，右侧同步绘制位移、速度、加速度三条曲线。重点观察三条曲线的相位关系，并通过改变振幅验证「周期与振幅无关（等时性）」。</div>
+</header>
+
+<main>
+  <!-- ========== 控制面板 ========== -->
+  <section class="controls">
+    <div class="ctl">
+      <label>振幅 A（试试改我！）<b id="vA">1.20 m</b></label>
+      <input type="range" id="sA" min="0.2" max="2" step="0.05" value="1.2">
+    </div>
+    <div class="ctl">
+      <label>质量 m<b id="vM">1.0 kg</b></label>
+      <input type="range" id="sM" min="0.2" max="5" step="0.1" value="1">
+    </div>
+    <div class="ctl">
+      <label>劲度系数 k<b id="vK">16 N/m</b></label>
+      <input type="range" id="sK" min="1" max="100" step="1" value="16">
+    </div>
+    <div class="ctl">
+      <label>播放速度<b id="vSpd">1.0×</b></label>
+      <input type="range" id="sSpd" min="0.1" max="2" step="0.1" value="1">
+    </div>
+    <div class="btns">
+      <button id="btnPause">暂停</button>
+      <button id="btnReset" class="ghost">重置</button>
+    </div>
+    <div class="chks">
+      <label><input type="checkbox" id="ckPhase" checked>相位标注</label>
+      <label><input type="checkbox" id="ckVec" checked>速度 / 加速度矢量</label>
+    </div>
+  </section>
+
+  <!-- ========== 实时读数 ========== -->
+  <section class="readouts">
+    <span class="pill">t = <b id="rT">0.00 s</b></span>
+    <span class="pill">x = <b id="rX">+0.00 m</b></span>
+    <span class="pill">v = <b id="rV">+0.00 m/s</b></span>
+    <span class="pill">a = <b id="rA">+0.00 m/s²</b></span>
+    <span class="pill">理论周期 T = 2π√(m/k) = <b id="rTth">0.000 s</b></span>
+    <span class="pill">实测周期（过零法）= <b id="rTm">测量中…</b></span>
+  </section>
+
+  <canvas id="cv"></canvas>
+
+  <!-- ========== 教学提示 ========== -->
+  <section class="tips">
+    <h2>怎么看这个演示</h2>
+    <p><b>① 相位关系：</b><span class="tag-x">位移 x</span> 最大时 <span class="tag-v">速度 v</span> 恰好为零；
+      <span class="tag-x">x</span> 过平衡位置时 <span class="tag-v">v</span> 最大 —— 即
+      <span class="tag-v">v</span> 超前 <span class="tag-x">x</span> 四分之一周期（T/4，图中已标注）；
+      <span class="tag-a">加速度 a</span> 与 <span class="tag-x">位移 x</span> 同频<b>反相</b>（相差 π），体现了 a = −(k/m)·x。</p>
+    <h2>验证「周期与振幅无关」</h2>
+    <ol>
+      <li>先看当前「实测周期」读数（由 x 曲线相邻两次正向过零自动测出）。</li>
+      <li>拖动上方「振幅 A」滑块，任意调大或调小。</li>
+      <li>观察：曲线<b>高低</b>立刻变化（淡色是旧振幅的轨迹），但相邻两条「x 最大」虚线的<b>水平间距不变</b>，「实测周期」读数也<b>不变</b> —— 这就是简谐运动的等时性。</li>
+    </ol>
+    <p>周期只由系统本身决定：<span class="formula">T = 2π·√(m/k)</span>　（可再拖动 m、k 验证：质量越大越慢，劲度越大越快。）</p>
+  </section>
+</main>
+
+<script>
+/* ================================================================
+   简谐运动演示：解析解 x=A·cos(ωt)，ω=√(k/m)
+   曲线按固定步长 1/240 s 采样；改变振幅时保留旧轨迹（淡色）以作对比
+   ================================================================ */
+(function(){
+'use strict';
+const TAU   = Math.PI * 2;
+const WINDOW = 8;      // 曲线显示的时间窗口（秒）
+const DT     = 1/240;  // 采样步长（秒）
+
+const COL = { x:'#4dd0e1', v:'#ffb74d', a:'#f06292', grid:'rgba(255,255,255,.06)', txt:'#93a4c3' };
+
+const state = {
+  A:1.2, m:1.0, k:16, speed:1,
+  running:true, showPhase:true, showVec:true,
+  simT:0, lastT:0, phase:0, nextT:DT, curSeg:0,
+  cur:{x:1.2, v:0, a:0},
+  samples:[], peaksX:[], peaksV:[],
+  cross:[], measuredT:null,
+  axisV:1, axisA:1,
+};
+const omega   = () => Math.sqrt(state.k/state.m);
+const theoryT = () => TAU/omega();
+
+/* ---------------- 采样（解析解 + 事件检测） ---------------- */
+function sample(t){
+  const w  = omega();
+  const d  = t - state.lastT;
+  const p0 = state.phase;
+  state.phase += w*d;
+  state.lastT  = t;
+  const ph = state.phase, A = state.A;
+  const x =  A*Math.cos(ph);
+  const v = -A*w*Math.sin(ph);
+  const a = -A*w*w*Math.cos(ph);
+
+  // x 达正最大：相位跨过 2πn
+  if (Math.floor(p0/TAU) !== Math.floor(state.phase/TAU)) state.peaksX.push(t);
+  // v 达正最大：相位跨过 3π/2 + 2πn
+  const off = 1.5*Math.PI;
+  if (Math.floor((p0-off)/TAU) !== Math.floor((state.phase-off)/TAU)) state.peaksV.push(t);
+
+  // x 正向过零 → 测量周期（过零时刻与振幅无关，改 A 不清空此读数）
+  const n = state.samples.length;
+  const px = n ? state.samples[n-1].x : x;
+  if (px < 0 && x >= 0){
+    state.cross.push(t);
+    if (state.cross.length > 2) state.cross.shift();
+    if (state.cross.length === 2) state.measuredT = state.cross[1]-state.cross[0];
+  }
+
+  state.samples.push({t, x, v, a, seg:state.curSeg});
+  state.cur = {x, v, a};
+  state.simT = t;
+}
+
+function reset(){
+  state.simT=0; state.lastT=0; state.phase=0; state.nextT=DT; state.curSeg++;
+  state.samples.length=0; state.peaksX.length=0; state.peaksV.length=0;
+  state.cross.length=0; state.measuredT=null;
+  const w = omega();
+  state.axisV = state.A*w; state.axisA = state.A*w*w;
+  state.cur = {x:state.A, v:0, a:-state.A*w*w};
+  sample(0);
+}
+reset();
+
+/* ---------------- 画布与布局 ---------------- */
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W=0, H=0, dpr=1;
+const TOP=8, ANIM_H=230, CHART_H=150, GAP=16, AXIS_H=26;
+const TOTAL_H = TOP + ANIM_H + GAP + 3*CHART_H + 2*GAP + AXIS_H + 8;
+let PL=95, PR=900;
+
+function resize(){
+  const w = cv.clientWidth || cv.parentElement.clientWidth || 1000;
+  dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w*dpr), ph = Math.round(TOTAL_H*dpr);
+  if (cv.width!==pw || cv.height!==ph){ cv.width=pw; cv.height=ph; }
+  cv.style.height = TOTAL_H+'px';
+  W = w; H = TOTAL_H;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  PR = W - 115;
+}
+window.addEventListener('resize', resize);
+
+const chartY = i => TOP + ANIM_H + GAP + i*(CHART_H+GAP);
+const t2x    = t => PL + (t-(state.simT-WINDOW))/WINDOW*(PR-PL);
+const fmt    = v => (v>=0?'+':'')+v.toFixed(2);
+
+function rr(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function drawArrow(x1,y1,x2,y2,color,label){
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const an=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath(); ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-9*Math.cos(an-.42), y2-9*Math.sin(an-.42));
+  ctx.lineTo(x2-9*Math.cos(an+.42), y2-9*Math.sin(an+.42));
+  ctx.closePath(); ctx.fill();
+  if(label){ ctx.font='12px ui-monospace,monospace'; ctx.fillText(label, x2+7, y2-5); }
+}
+
+/* ---------------- 振子动画区 ---------------- */
+function drawSpring(x0,x1,y){
+  const lead=14, coils=11, amp=17, n=coils*2, seg=(x1-x0-2*lead)/n;
+  ctx.strokeStyle='#9fb2d4'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+lead,y);
+  let dir=-1;
+  for(let i=1;i<=n;i++){ ctx.lineTo(x0+lead+seg*i, y+dir*amp); dir=-dir; }
+  ctx.lineTo(x1,y); ctx.stroke();
+}
+
+function drawOscillator(){
+  const x0=12, y0=TOP, w=W-24, h=ANIM_H, R=17;
+  rr(x0,y0,w,h,12); ctx.fillStyle='#0f1729'; ctx.fill();
+  ctx.strokeStyle='#24324e'; ctx.lineWidth=1; ctx.stroke();
+
+  const gy = y0+h-56;                      // 地面（光滑水平面）
+  const wallX = x0+40;
+  const equX  = Math.round(x0 + w*0.44);   // 平衡位置像素
+  const scaleX = (W-46-equX-70)/2.15;      // 像素/米
+
+  // 地面与斜纹
+  ctx.fillStyle='#1c2a44'; ctx.fillRect(x0+8, gy, w-16, 9);
+  ctx.strokeStyle='rgba(147,164,195,.35)'; ctx.lineWidth=1;
+  for(let gx=x0+16; gx<x0+w-10; gx+=9){
+    ctx.beginPath(); ctx.moveTo(gx,gy+9); ctx.lineTo(gx-7,gy+1); ctx.stroke();
+  }
+  ctx.font='12px system-ui'; ctx.fillStyle=COL.txt;
+  ctx.textAlign='left'; ctx.fillText('光滑水平面', x0+w-108, gy+24);
+
+  // 墙与斜纹
+  ctx.fillStyle='#1c2a44'; ctx.fillRect(wallX-12, gy-118, 12, 118);
+  for(let yy=gy-112; yy<gy-4; yy+=9){
+    ctx.beginPath(); ctx.moveTo(wallX-1,yy); ctx.lineTo(wallX-11,yy+7); ctx.stroke();
+  }
+
+  // 平衡位置 O 与 ±A 标记
+  ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(232,237,247,.35)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(equX,gy-136); ctx.lineTo(equX,gy+14); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle=COL.txt; ctx.textAlign='center'; ctx.font='12px ui-monospace,monospace';
+  ctx.fillText('O', equX, gy+28);
+  for(const [s,lb] of [[1,'+A'],[-1,'−A']]){
+    const px = equX + s*state.A*scaleX;
+    ctx.strokeStyle='rgba(77,208,225,.5)';
+    ctx.beginPath(); ctx.moveTo(px,gy-40); ctx.lineTo(px,gy+14); ctx.stroke();
+    ctx.fillStyle='rgba(77,208,225,.9)'; ctx.fillText(lb, px, gy+28);
+  }
+
+  // 弹簧与振子
+  const bx = equX + state.cur.x*scaleX, by = gy-R;
+  drawSpring(wallX, bx-R+2, by);
+  const grad = ctx.createRadialGradient(bx-6,by-6,2, bx,by,R+2);
+  grad.addColorStop(0,'#b6f3fb'); grad.addColorStop(.45,'#4dd0e1'); grad.addColorStop(1,'#1b7f8e');
+  ctx.beginPath(); ctx.arc(bx,by,R,0,TAU); ctx.fillStyle=grad; ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1; ctx.stroke();
+
+  // 位移指示（O → 球，青色）
+  if (Math.abs(state.cur.x)*scaleX > 3){
+    drawArrow(equX, gy+42, bx, gy+42, 'rgba(77,208,225,.9)', null);
+    ctx.fillStyle=COL.x; ctx.font='12px ui-monospace,monospace'; ctx.textAlign='center';
+    ctx.fillText('x', (equX+bx)/2, gy+58);
+  }
+
+  // 速度 / 加速度矢量（长度与右侧曲线刻度同步）
+  if (state.showVec){
+    const lv = Math.max(-1,Math.min(1, state.cur.v/state.axisV))*62;
+    const la = Math.max(-1,Math.min(1, state.cur.a/state.axisA))*62;
+    if (Math.abs(lv)>4) drawArrow(bx,by-44,bx+lv,by-44,COL.v,'v');
+    else { ctx.fillStyle=COL.v; ctx.font='12px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillText('v=0',bx,by-40); }
+    if (Math.abs(la)>4) drawArrow(bx,by-72,bx+la,by-72,COL.a,'a');
+    else { ctx.fillStyle=COL.a; ctx.font='12px ui-monospace,monospace'; ctx.textAlign='center'; ctx.fillText('a=0',bx,by-68); }
+  }
+
+  // 标题与公式
+  ctx.fillStyle='#e8edf7'; ctx.font='600 13px system-ui'; ctx.textAlign='left';
+  ctx.fillText('弹簧振子（光滑水平面）', x0+16, y0+22);
+  ctx.fillStyle=COL.txt; ctx.font='12px ui-monospace,monospace'; ctx.textAlign='right';
+  ctx.fillText('ω = √(k/m) = '+omega().toFixed(2)+' rad/s ，T = 2π√(m/k) = '+theoryT().toFixed(2)+' s', x0+w-16, y0+22);
+}
+
+/* ---------------- 三条曲线图 ---------------- */
+function drawChart(i, key, color, title, axisMax){
+  const y0=chartY(i), h=CHART_H, cy=y0+h/2;
+  rr(12,y0,W-24,h,10); ctx.fillStyle='#0f1729'; ctx.fill();
+  ctx.strokeStyle='#24324e'; ctx.lineWidth=1; ctx.stroke();
+
+  // 中线 + 整秒竖网格
+  ctx.strokeStyle=COL.grid;
+  ctx.beginPath(); ctx.moveTo(PL,cy); ctx.lineTo(PR,cy); ctx.stroke();
+  for(let s=Math.ceil(state.simT-WINDOW); s<=Math.floor(state.simT); s++){
+    if (s<0) continue;
+    const gx=t2x(s);
+    ctx.beginPath(); ctx.moveTo(gx,y0+3); ctx.lineTo(gx,y0+h-3); ctx.stroke();
+  }
+
+  // 曲线（分段：旧参数轨迹淡色，当前段高亮）
+  ctx.save();
+  ctx.beginPath(); ctx.rect(PL,y0+1,PR-PL,h-2); ctx.clip();
+  let prevSeg=-1;
+  for(const s of state.samples){
+    if (s.t < state.simT-WINDOW-0.01) continue;
+    const X=t2x(s.t), Y=cy-(s[key]/axisMax)*(h/2-13);
+    if (prevSeg!==s.seg){
+      ctx.stroke();
+      const cur = s.seg===state.curSeg;
+      ctx.globalAlpha = cur?1:0.38;
+      ctx.strokeStyle = color; ctx.lineWidth = cur?2.4:1.6;
+      ctx.beginPath(); ctx.moveTo(X,Y);
+      prevSeg=s.seg;
+    } else ctx.lineTo(X,Y);
+  }
+  ctx.stroke(); ctx.restore();
+  ctx.globalAlpha=1;
+
+  // 当前值动点 + 右侧数值
+  const last=state.samples[state.samples.length-1];
+  if (last){
+    const Y=cy-(last[key]/axisMax)*(h/2-13);
+    ctx.beginPath(); ctx.arc(PR,Y,4.5,0,TAU);
+    ctx.fillStyle=color; ctx.fill();
+    ctx.strokeStyle='#0f1729'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.font='12px ui-monospace,monospace'; ctx.textAlign='left'; ctx.fillStyle=color;
+    ctx.fillText(key+'='+fmt(last[key]), PR+10, Y+4);
+  }
+
+  // 纵轴刻度
+  ctx.fillStyle=COL.txt; ctx.font='11px ui-monospace,monospace'; ctx.textAlign='right';
+  ctx.fillText('+'+axisMax.toFixed(1), PL-8, y0+16);
+  ctx.fillText('0', PL-8, cy+4);
+  ctx.fillText('−'+axisMax.toFixed(1), PL-8, y0+h-8);
+
+  // 图例色块与标题
+  ctx.fillStyle=color; rr(PL+10,y0+11,10,10,2); ctx.fill();
+  ctx.fillStyle='#e8edf7'; ctx.font='600 12.5px system-ui'; ctx.textAlign='left';
+  ctx.fillText(title, PL+27, y0+21);
+}
+
+/* ---------------- 相位标注：峰线、T/4 ---------------- */
+function drawPhaseMarks(){
+  if (!state.showPhase) return;
+  const top=chartY(0)+24, bot=chartY(2)+CHART_H-8;
+  const tMin=state.simT-WINDOW;
+
+  ctx.setLineDash([4,4]); ctx.lineWidth=1;
+  for(const t of state.peaksX){ if(t<tMin) continue;
+    const X=t2x(t);
+    ctx.strokeStyle='rgba(77,208,225,.32)';
+    ctx.beginPath(); ctx.moveTo(X,top); ctx.lineTo(X,bot); ctx.stroke();
+  }
+  for(const t of state.peaksV){ if(t<tMin) continue;
+    const X=t2x(t);
+    ctx.strokeStyle='rgba(255,183,77,.32)';
+    ctx.beginPath(); ctx.moveTo(X,top); ctx.lineTo(X,bot); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 文字标签（各取窗口内最后一条）
+  ctx.font='11.5px system-ui'; ctx.textAlign='left';
+  const lx=state.peaksX.filter(t=>t>=tMin).pop();
+  if (lx!==undefined && t2x(lx)<PR-56){
+    ctx.fillStyle='rgba(77,208,225,.85)'; ctx.fillText('x 最大', t2x(lx)+4, chartY(0)+16);
+  }
+  const lv=state.peaksV.filter(t=>t>=tMin).pop();
+  if (lv!==undefined && t2x(lv)<PR-56){
+    ctx.fillStyle='rgba(255,183,77,.85)'; ctx.fillText('v 最大', t2x(lv)+4, chartY(1)+16);
+  }
+
+  // v 峰与其后最近 x 峰之间 → T/4（v 超前 x 四分之一周期）
+  if (lv!==undefined){
+    const nx=state.peaksX.find(t=>t>lv);
+    if (nx!==undefined){
+      const X1=t2x(lv), X2=t2x(nx), Y=chartY(1)-GAP/2;
+      ctx.strokeStyle='rgba(232,237,247,.75)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(X1,Y); ctx.lineTo(X2,Y); ctx.stroke();
+      ctx.fillStyle='rgba(232,237,247,.75)';
+      for(const [X,dir] of [[X1,1],[X2,-1]]){
+        ctx.beginPath(); ctx.moveTo(X+5*dir,Y);
+        ctx.lineTo(X-3*dir,Y-4); ctx.lineTo(X-3*dir,Y+4); ctx.closePath(); ctx.fill();
+      }
+      ctx.font='600 12px ui-monospace,monospace'; ctx.textAlign='center';
+      ctx.fillText('T/4', (X1+X2)/2, Y-6);
+    }
+  }
+}
+
+/* ---------------- 时间轴刻度 ---------------- */
+function drawTimeAxis(){
+  const y=chartY(2)+CHART_H+17;
+  ctx.fillStyle=COL.txt; ctx.font='11px ui-monospace,monospace'; ctx.textAlign='center';
+  for(let s=Math.ceil(state.simT-WINDOW); s<=Math.floor(state.simT); s++){
+    if (s<0) continue;
+    const X=Math.max(PL+14,Math.min(PR-14,t2x(s)));
+    ctx.fillText(s+' s', X, y);
+  }
+}
+
+/* ---------------- 读数与渲染 ---------------- */
+const $=id=>document.getElementById(id);
+function updateReadouts(){
+  $('rT').textContent  = state.simT.toFixed(2)+' s';
+  $('rX').textContent  = fmt(state.cur.x)+' m';
+  $('rV').textContent  = fmt(state.cur.v)+' m/s';
+  $('rA').textContent  = fmt(state.cur.a)+' m/s²';
+  $('rTth').textContent= theoryT().toFixed(3)+' s';
+  const el=$('rTm');
+  if (state.measuredT!=null){
+    el.textContent = state.measuredT.toFixed(3)+' s';
+    el.classList.toggle('ok', Math.abs(state.measuredT-theoryT())/theoryT()<0.03);
+  } else { el.textContent='测量中…'; el.classList.remove('ok'); }
+}
+
+function trim(){
+  const lim=state.simT-WINDOW-0.5;
+  while(state.samples.length && state.samples[0].t<lim) state.samples.shift();
+  while(state.peaksX.length && state.peaksX[0]<lim) state.peaksX.shift();
+  while(state.peaksV.length && state.peaksV[0]<lim) state.peaksV.shift();
+}
+
+function render(){
+  resize();
+  ctx.clearRect(0,0,W,H);
+
+  // v、a 图纵轴自适应（平滑过渡，避免跳变）
+  let mV=0,mA=0;
+  for(const s of state.samples){
+    if (s.v>mV) mV=s.v; if (-s.v>mV) mV=-s.v;
+    if (s.a>mA) mA=s.a; if (-s.a>mA) mA=-s.a;
+  }
+  const tv=Math.max(mV*1.2, state.A*omega()*1.05, 0.05);
+  const ta=Math.max(mA*1.2, state.A*omega()*state.A*0+state.A*omega()*omega()*1.05, 0.05);
+  state.axisV += (tv-state.axisV)*0.08;
+  state.axisA += (ta-state.axisA)*0.08;
+
+  drawOscillator();
+  drawChart(0,'x',COL.x,'位移 x（m）', 2.1);
+  drawChart(1,'v',COL.v,'速度 v（m/s）', state.axisV);
+  drawChart(2,'a',COL.a,'加速度 a（m/s²）', state.axisA);
+  drawPhaseMarks();
+  drawTimeAxis();
+}
+
+/* ---------------- 主循环 ---------------- */
+let lastTs=0;
+function loop(ts){
+  const rdt=Math.min(0.05, (ts-lastTs)/1000||0); lastTs=ts;
+  if (state.running){
+    const end=state.simT+rdt*state.speed;
+    let guard=0;
+    while(state.nextT<=end+1e-9 && guard++<3000){ sample(state.nextT); state.nextT+=DT; }
+  }
+  trim(); updateReadouts(); render();
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- UI 绑定 ---------------- */
+$('sA').addEventListener('input', e=>{
+  state.A=+e.target.value;
+  $('vA').textContent=state.A.toFixed(2)+' m';
+  state.curSeg++;                        // 断笔：旧轨迹淡色保留，形成新旧对比
+});
+function paramChanged(){                 // m / k 改变 → 周期改变，重测
+  state.curSeg++; state.cross.length=0; state.measuredT=null;
+  const w=omega(); state.axisV=state.A*w; state.axisA=state.A*w*w;
+}
+$('sM').addEventListener('input', e=>{
+  state.m=+e.target.value; $('vM').textContent=state.m.toFixed(1)+' kg'; paramChanged();
+});
+$('sK').addEventListener('input', e=>{
+  state.k=+e.target.value; $('vK').textContent=state.k+' N/m'; paramChanged();
+});
+$('sSpd').addEventListener('input', e=>{
+  state.speed=+e.target.value; $('vSpd').textContent=state.speed.toFixed(1)+'×';
+});
+$('btnPause').addEventListener('click', ()=>{
+  state.running=!state.running;
+  $('btnPause').textContent=state.running?'暂停':'继续';
+});
+$('btnReset').addEventListener('click', reset);
+$('ckPhase').addEventListener('change', e=>state.showPhase=e.target.checked);
+$('ckVec').addEventListener('change',  e=>state.showVec  =e.target.checked);
+
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

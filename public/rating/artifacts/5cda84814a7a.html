@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>气体分子速率分布（麦克斯韦分布）</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-gas-b: #0f9fba;   /* heavier / primary gas (O2, N2) */
+      --sim-gas-b-deep: #08758a;
+      --sim-gas-a: #f59e0b;   /* hydrogen */
+      --sim-gas-a-deep: #b45309;
+      --sim-vp: #08758a;      /* most probable speed marker */
+      --sim-vmean: #d97706;   /* mean speed marker */
+      --sim-vrms: #dc2626;    /* rms speed marker */
+      --sim-chamber-bg: #f2f8fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.38); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; }
+    .status.paused { background: #eef2f7; color: #536071; border-color: var(--sim-border); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(300px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .chart-panel { min-height: 420px; padding: 14px 16px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1.02rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.76rem; }
+    .chart-wrap { min-height: 0; position: relative; }
+    #chart { width: 100%; height: 100%; min-height: 320px; display: block; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .chamber-panel { padding: 13px 14px 11px; display: grid; grid-template-rows: auto auto minmax(120px, 1fr) auto; gap: 8px; overflow: hidden; }
+    .chamber-panel h2 { margin: 0; font-size: 0.95rem; }
+    #chamberMeta { color: var(--sim-muted); font-size: 0.75rem; }
+    #chamber { width: 100%; height: 100%; min-height: 130px; display: block; border: 1px solid rgba(15,159,186,.14); border-radius: 14px; background: var(--sim-chamber-bg); }
+    .legend { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--sim-muted); }
+    .legend .ramp { flex: 1; height: 9px; border-radius: 6px; margin: 0 6px; background: linear-gradient(90deg, #3b6fe0, #0f9fba 45%, #f59e0b 78%, #dc2626); }
+    .legend .chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .readouts { padding: 13px 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.22rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric strong .unit { font-size: 0.72rem; color: var(--sim-muted); font-weight: 600; margin-left: 2px; }
+    .metric.vp strong { color: var(--sim-vp); }
+    .metric.vmean strong { color: var(--sim-vmean); }
+    .metric.vrms strong { color: var(--sim-vrms); }
+    .model-note { padding: 12px 14px; display: grid; align-content: start; gap: 8px; }
+    .insight { padding: 11px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.88rem; line-height: 1.5; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.5; font-size: 0.78rem; }
+    .controls { padding: 11px 14px; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .16s ease, background .16s ease, border-color .16s ease, opacity .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .seg { display: inline-flex; gap: 5px; padding: 4px; border: 1px solid var(--sim-border); border-radius: 12px; background: var(--sim-surface-soft); }
+    .seg button { border: none; background: transparent; padding: 6px 12px; border-radius: 9px; color: var(--sim-muted); }
+    .seg button[aria-pressed="true"] { background: #ffffff; color: var(--sim-accent-deep); box-shadow: 0 2px 8px rgba(28,43,70,.10); font-weight: 780; }
+    .seg.gas button[aria-pressed="true"][data-gas="H2"] { color: var(--sim-gas-a-deep); }
+    .control { min-width: 250px; flex: 1; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .ctl-group { display: flex; align-items: center; gap: 9px; }
+    .ctl-group > .glabel { font-size: 0.78rem; font-weight: 700; color: var(--sim-muted); }
+    /* chart svg classes */
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 13px; }
+    .tick-label { fill: var(--sim-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .curve-main { fill: none; stroke: var(--sim-gas-b); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    .curve-main.gasA { stroke: var(--sim-gas-a); }
+    .curve-area { fill: rgba(15, 159, 186, 0.07); stroke: none; }
+    .curve-area.gasA { fill: rgba(245, 158, 11, 0.07); }
+    .curve-ghost { fill: none; stroke: #8a97ab; stroke-width: 2.5; stroke-dasharray: 8 7; stroke-linecap: round; }
+    .hist-bar { fill: rgba(15, 159, 186, 0.34); stroke: rgba(8, 117, 138, 0.35); stroke-width: 0.6; }
+    .marker-line { stroke-width: 2.5; }
+    .marker-line.vp { stroke: var(--sim-vp); stroke-dasharray: none; }
+    .marker-line.vmean { stroke: var(--sim-vmean); stroke-dasharray: 7 5; }
+    .marker-line.vrms { stroke: var(--sim-vrms); stroke-dasharray: 2 5; }
+    .marker-tag { font-size: 13.5px; font-weight: 750; }
+    .marker-tag.vp { fill: var(--sim-vp); }
+    .marker-tag.vmean { fill: var(--sim-vmean); }
+    .marker-tag.vrms { fill: var(--sim-vrms); }
+    .legend-chart { font-size: 13px; }
+    .legend-chart text { fill: #334155; }
+    .legend-chart .sw { stroke-width: 4; stroke-linecap: round; }
+    @media (max-width: 920px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .chart-panel { min-height: 0; }
+      #chart { min-height: 0; height: auto; aspect-ratio: 920 / 520; }
+      .controls { flex-direction: column; align-items: stretch; }
+      .side { grid-template-rows: auto auto auto; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: visualization-first layout, analytic model tier. -->
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>气体分子速率分布（麦克斯韦分布）</h1>
+        <p>升温后分子并不是"一起变快"：峰移动、变形，慢分子与快分子始终同时存在。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel chart-panel" data-zone="stage" aria-labelledby="chart-title">
+        <div class="panel-head">
+          <h2 id="chart-title">速率分布曲线</h2>
+          <span id="chartMeta">氧气 O₂ · 300 K · 理论曲线与样本直方图</span>
+        </div>
+        <div class="chart-wrap">
+          <svg id="chart" viewBox="0 0 920 520" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="chart-title chart-desc">
+            <desc id="chart-desc">分子速率分布图：横轴为分子速率（米每秒），纵轴为单位速率区间内的分子数占比。曲线呈单峰形，标注最概然速率、平均速率与方均根速率。</desc>
+            <g id="gGrid"></g>
+            <g id="gHist"></g>
+            <g id="gCurves"></g>
+            <g id="gMarkers"></g>
+            <g id="gAxes"></g>
+            <g id="gLegend"></g>
+          </svg>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chamber-panel" aria-labelledby="chamber-title">
+          <h2 id="chamber-title">分子运动箱</h2>
+          <span id="chamberMeta">150 个分子 · 颜色按速率着色</span>
+          <canvas id="chamber" aria-label="分子运动箱：分子按当前温度下的速率分布运动，颜色表示速率快慢"></canvas>
+          <div class="legend" id="chamberLegend">
+            <span class="chip"><span class="dot" style="background:#3b6fe0"></span>慢</span>
+            <span class="ramp" aria-hidden="true"></span>
+            <span class="chip">快<span class="dot" style="background:#dc2626"></span></span>
+          </div>
+        </section>
+        <section class="panel readouts" aria-label="特征速率读数">
+          <div class="readout-grid" id="readoutGrid">
+            <div class="metric vp"><small>最概然速率 v<sub>p</sub></small><strong id="roVp">—<span class="unit">m/s</span></strong></div>
+            <div class="metric vmean"><small>平均速率 v̄</small><strong id="roVmean">—<span class="unit">m/s</span></strong></div>
+            <div class="metric vrms"><small>方均根速率 v<sub>rms</sub></small><strong id="roVrms">—<span class="unit">m/s</span></strong></div>
+            <div class="metric"><small id="roSampleLabel">样本平均速率</small><strong id="roSample">—<span class="unit">m/s</span></strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-zone="insight">
+          <div id="insight" class="insight">点击"开始"：直方图会逐渐长成单峰，并收敛到光滑的理论曲线。</div>
+          <p>教学视图：分子速率严格取自当前温度的麦克斯韦分布 f(v)；箱内像素速度按比例缩放（1 m/s ≈ 0.08 像素/秒）。恒有 v<sub>p</sub> &lt; v̄ &lt; v<sub>rms</sub>。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="ctl-group">
+        <span class="glabel">模式</span>
+        <div class="seg" role="group" aria-label="观察模式">
+          <button id="modeTempBtn" type="button" aria-pressed="true">温度研究</button>
+          <button id="modeGasBtn" type="button" aria-pressed="false">气体对比</button>
+        </div>
+      </div>
+      <div class="ctl-group" id="gasGroup">
+        <span class="glabel">气体</span>
+        <div class="seg gas" role="group" aria-label="气体选择">
+          <button id="gasO2Btn" type="button" data-gas="O2" aria-pressed="true">氧气 O₂</button>
+          <button id="gasN2Btn" type="button" data-gas="N2" aria-pressed="false">氮气 N₂</button>
+          <button id="gasH2Btn" type="button" data-gas="H2" aria-pressed="false">氢气 H₂</button>
+        </div>
+      </div>
+      <div class="control">
+        <label for="tempInput">温度 <output id="tempOutput">300 K（约 27 ℃）</output></label>
+        <input id="tempInput" type="range" min="200" max="900" step="10" value="300">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // ================= physics kernel (DOM-free, single source of truth) =================
+    // Maxwell-Boltzmann speed distribution, molar form: f(v) = 4/pi^0.5 * a^1.5 * v^2 * exp(-a v^2),
+    // a = M/(2RT).  Units: v [m/s], M [kg/mol], T [K], f [s/m].
+    const R_GAS = 8.314462618;
+    const MOLAR = { O2: 0.031998, N2: 0.028014, H2: 0.002016 };
+    const T_MIN = 200, T_MAX = 900, T_REF = 300, T_DEFAULT = 300;
+    const PX_PER_MS = 0.08;      // teaching view: pixel speed per (m/s)
+    const BOX_REF = 320;         // reference chamber width (px) for normalized [0,1] motion
+    const RESAMPLE_TAU = 2.0;    // s; collision-mediated re-randomization timescale
+    const N_PARTICLES = 150;
+    const N_BINS = 40;
+    const CHECK_SEED = 20260929;
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const runtimeRng = mulberry32(CHECK_SEED);
+
+    function vMostProbable(T, M) { return Math.sqrt(2 * R_GAS * T / M); }
+    function vMeanFn(T, M) { return Math.sqrt(8 * R_GAS * T / (Math.PI * M)); }
+    function vRmsFn(T, M) { return Math.sqrt(3 * R_GAS * T / M); }
+    function mbPdf(v, T, M) {
+      const a = M / (2 * R_GAS * T);
+      return (4 / Math.sqrt(Math.PI)) * Math.pow(a, 1.5) * v * v * Math.exp(-a * v * v);
+    }
+    function peakPdf(T, M) { return (4 / Math.E) / (Math.sqrt(Math.PI) * vMostProbable(T, M)); }
+    function simpson(fn, lo, hi, n) {
+      if (n % 2 === 1) n += 1;
+      const h = (hi - lo) / n;
+      let s = fn(lo) + fn(hi);
+      for (let i = 1; i < n; i += 1) s += fn(lo + i * h) * (i % 2 ? 4 : 2);
+      return s * h / 3;
+    }
+    // Inverse-CDF sampler: tabulated CDF on [0, 10 vp], binary search + linear interp.
+    function buildCdf(T, M) {
+      const n = 4096, vp = vMostProbable(T, M), vTop = 10 * vp, h = vTop / n;
+      const xs = new Float64Array(n + 1), cdf = new Float64Array(n + 1);
+      let acc = 0;
+      for (let i = 0; i <= n; i += 1) {
+        const v = i * h;
+        xs[i] = v;
+        if (i > 0) acc += 0.5 * (mbPdf(xs[i - 1], T, M) + mbPdf(v, T, M)) * h;
+        cdf[i] = acc;
+      }
+      const total = acc || 1;
+      for (let i = 0; i <= n; i += 1) cdf[i] /= total;
+      return { xs, cdf, vTop };
+    }
+    function sampleFromCdf(rng, table) {
+      const u = rng();
+      let lo = 0, hi = table.cdf.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (table.cdf[mid] <= u) lo = mid; else hi = mid; }
+      const c0 = table.cdf[lo], c1 = table.cdf[hi];
+      const frac = c1 > c0 ? (u - c0) / (c1 - c0) : 0;
+      return table.xs[lo] + frac * (table.xs[hi] - table.xs[lo]);
+    }
+    function niceCeil(x) {
+      const ladder = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+      if (!(x > 0) || !Number.isFinite(x)) return 1;
+      const p = Math.pow(10, Math.floor(Math.log10(x)));
+      const d = x / p;
+      for (const m of ladder) if (d <= m + 1e-9) return m * p;
+      return 10 * p;
+    }
+    // Fixed axis per gas across the whole T range (mode "temp"): height changes stay honest.
+    function axisTempMode(gas) {
+      const M = MOLAR[gas];
+      return { vMax: niceCeil(3.45 * vMostProbable(T_MAX, M)), yMax: 1.08 * peakPdf(T_MIN, M) };
+    }
+    // Mode "gas": shared axis for H2 vs O2 at the current T (horizontal-position lesson).
+    function axisGasMode(T) {
+      return { vMax: niceCeil(3.2 * vMostProbable(T, MOLAR.H2)), yMax: 1.15 * peakPdf(T, MOLAR.O2) };
+    }
+
+    // ================= authoritative state =================
+    const state = {
+      running: false, mode: "temp", gas: "O2", T: T_DEFAULT,
+      particles: [], hist: new Array(N_BINS).fill(0), histSum: 0, histSamples: 0,
+      simTime: 0, lastTimestamp: null, view: null, cdfs: {}, reducedMotion: false,
+    };
+    function clampNum(v, lo, hi, fallback) { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : fallback; }
+    function cdfFor(T, M) {
+      const key = `${T.toFixed(1)}|${M}`;
+      if (!state.cdfs[key]) state.cdfs[key] = buildCdf(T, M);
+      if (Object.keys(state.cdfs).length > 24) state.cdfs = { [key]: state.cdfs[key] };
+      return state.cdfs[key];
+    }
+    function axisFor() { return state.mode === "temp" ? axisTempMode(state.gas) : axisGasMode(state.T); }
+    function speciesOf(i) {
+      if (state.mode === "gas") return i < N_PARTICLES / 2 ? "H2" : "O2";
+      return state.gas;
+    }
+    function targetSpeedOf(i) {
+      const sp = speciesOf(i);
+      return sampleFromCdf(runtimeRng, cdfFor(state.T, MOLAR[sp]));
+    }
+    function resetHistogram() { state.hist = new Array(N_BINS).fill(0); state.histSum = 0; state.histSamples = 0; }
+    function rebuildParticles() {
+      const view = axisFor();
+      state.view = view;
+      state.particles = [];
+      for (let i = 0; i < N_PARTICLES; i += 1) {
+        const p = {
+          x: runtimeRng(), y: runtimeRng(), dir: runtimeRng() * Math.PI * 2,
+          v: targetSpeedOf(i), species: speciesOf(i),
+        };
+        state.particles.push(p);
+        recordSpeed(p.v);
+      }
+    }
+    function recordSpeed(v) {
+      const view = state.view || axisFor();
+      const b = Math.min(N_BINS - 1, Math.max(0, Math.floor((v / view.vMax) * N_BINS)));
+      state.hist[b] += 1; state.histSum += v; state.histSamples += 1;
+    }
+    function sampleMean() { return state.histSamples > 0 ? state.histSum / state.histSamples : NaN; }
+
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clampNum(dt, 0, 0.05, 0);
+      state.simTime += bounded;
+      const pResample = bounded / RESAMPLE_TAU;
+      // respect prefers-reduced-motion: freeze drift, keep resampling
+      const moveScale = (state.reducedMotion ? 0 : PX_PER_MS * bounded / BOX_REF);
+      for (let i = 0; i < state.particles.length; i += 1) {
+        const p = state.particles[i];
+        p.x += Math.cos(p.dir) * p.v * moveScale;
+        p.y += Math.sin(p.dir) * p.v * moveScale;
+        if (p.x < 0) { p.x = -p.x; p.dir = Math.PI - p.dir; }
+        if (p.x > 1) { p.x = 2 - p.x; p.dir = Math.PI - p.dir; }
+        if (p.y < 0) { p.y = -p.y; p.dir = -p.dir; }
+        if (p.y > 1) { p.y = 2 - p.y; p.dir = -p.dir; }
+        if (runtimeRng() < pResample) resampleParticle(p, i);
+      }
+    }
+    function resampleParticle(p, i) { p.v = targetSpeedOf(i); recordSpeed(p.v); }
+
+    function runModelChecks() {
+      const M = MOLAR.O2, MH = MOLAR.H2;
+      const cases = [];
+      const push = (name, pass, expected, actual, tolerance) => cases.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+      // 1. normalization (ordinary)
+      const T1 = 300, norm = simpson((v) => mbPdf(v, T1, M), 0, 10 * vMostProbable(T1, M), 4000);
+      push("normalization O2 300K", Math.abs(norm - 1) < 1e-6, 1, norm.toPrecision(8), "1e-6");
+      // 2. numeric argmax equals closed-form vp (ordinary)
+      let bestV = 0, bestF = -1;
+      for (let i = 0; i <= 20000; i += 1) {
+        const v = (i / 20000) * 3 * vMostProbable(T1, M), f = mbPdf(v, T1, M);
+        if (f > bestF) { bestF = f; bestV = v; }
+      }
+      const vpExact = vMostProbable(T1, M);
+      push("argmax equals vp O2 300K", Math.abs(bestV - vpExact) / vpExact < 2e-3, vpExact.toFixed(3), bestV.toFixed(3), "0.2% of vp");
+      // 3. mean speed integral vs closed form (ordinary)
+      const vMeanNum = simpson((v) => v * mbPdf(v, T1, M), 0, 10 * vpExact, 4000);
+      const vMeanEx = vMeanFn(T1, M);
+      push("mean speed integral O2 300K", Math.abs(vMeanNum - vMeanEx) / vMeanEx < 1e-4, vMeanEx.toFixed(4), vMeanNum.toFixed(4), "0.01% relative");
+      // 4. rms integral vs closed form (ordinary)
+      const vRmsNum = Math.sqrt(simpson((v) => v * v * mbPdf(v, T1, M), 0, 10 * vpExact, 4000));
+      const vRmsEx = vRmsFn(T1, M);
+      push("rms speed integral O2 300K", Math.abs(vRmsNum - vRmsEx) / vRmsEx < 1e-4, vRmsEx.toFixed(4), vRmsNum.toFixed(4), "0.01% relative");
+      // 5. heating doubles vp scaling: f(vp(2T),2T) = f(vp(T),T)/sqrt(2) -> peak drops when heated (threshold)
+      const p300 = peakPdf(300, M), p600 = peakPdf(600, M);
+      push("peak drops by 1/sqrt(2) on 2x T", Math.abs(p600 - p300 / Math.SQRT2) / p300 < 1e-9, (p300 / Math.SQRT2).toExponential(6), p600.toExponential(6), "1e-9 relative");
+      // 6. ordering invariant vp < vmean < vrms with constant ratios across range and gases (boundary/symmetry)
+      let orderOk = true, ratioOk = true;
+      for (const g of ["O2", "N2", "H2"]) for (const T of [T_MIN, 300, 600, T_MAX]) {
+        const a = vMostProbable(T, MOLAR[g]), b = vMeanFn(T, MOLAR[g]), c = vRmsFn(T, MOLAR[g]);
+        if (!(a < b && b < c)) orderOk = false;
+        if (Math.abs(b / a - 2 / Math.sqrt(Math.PI)) > 1e-9 || Math.abs(c / a - Math.sqrt(1.5)) > 1e-9) ratioOk = false;
+      }
+      push("vp < vmean < vrms across range", orderOk, "strict ordering for 3 gases x 4 temperatures", orderOk ? "ordering holds" : "ordering broken", "exact");
+      push("ratio vmean/vp=2/sqrt(pi), vrms/vp=sqrt(3/2)", ratioOk, "1.1284, 1.2247", ratioOk ? "ratios hold" : "ratios broken", "1e-9");
+      // 7. same T, lighter gas peaks faster: vp(H2)/vp(O2) = sqrt(MO2/MH2) (opposite-extreme case)
+      const ratioEx = Math.sqrt(M / MH), ratioGot = vMostProbable(300, MH) / vMostProbable(300, M);
+      push("vp(H2)/vp(O2) = sqrt(M ratio)", Math.abs(ratioGot - ratioEx) / ratioEx < 1e-9, ratioEx.toFixed(6), ratioGot.toFixed(6), "1e-9 relative");
+      // 8. seeded sampler reproduces the distribution mean (sampler correctness, deterministic)
+      const rng = mulberry32(CHECK_SEED), tbl = buildCdf(300, M);
+      const N = 20000; let acc = 0;
+      for (let i = 0; i < N; i += 1) acc += sampleFromCdf(rng, tbl);
+      const sMean = acc / N;
+      push("seeded sampler mean O2 300K", Math.abs(sMean - vMeanEx) / vMeanEx < 0.02, vMeanEx.toFixed(2), sMean.toFixed(2), "2% relative, N=20000, seed=20260929");
+      // 9. stability: axis functions finite and positive (boundary)
+      let axisOk = true;
+      for (const g of ["O2", "N2", "H2"]) { const a1 = axisTempMode(g); if (!(a1.vMax > 0 && a1.yMax > 0 && Number.isFinite(a1.vMax) && Number.isFinite(a1.yMax))) axisOk = false; }
+      for (const T of [T_MIN, 300, T_MAX]) { const a2 = axisGasMode(T); if (!(a2.vMax > 0 && a2.yMax > 0)) axisOk = false; }
+      push("axis extents finite & positive", axisOk, "vMax,yMax > 0 for all gases/temps", axisOk ? "all finite" : "non-finite found", "exact");
+      return cases;
+    }
+    // ================= view + controls =================
+    const GAS_NAME = { O2: "氧气 O₂", N2: "氮气 N₂", H2: "氢气 H₂" };
+    const GAS_HEX = { O2: "#0f9fba", N2: "#0f9fba", H2: "#f59e0b" };
+    const CAM_STOPS = [[0, [59, 111, 224]], [0.5, [15, 159, 186]], [0.8, [245, 158, 11]], [1, [220, 38, 38]]];
+    const hasDocument = typeof document !== "undefined";
+    const elements = hasDocument ? {
+      status: document.querySelector("#status"), chart: document.querySelector("#chart"),
+      gGrid: document.querySelector("#gGrid"), gHist: document.querySelector("#gHist"), gCurves: document.querySelector("#gCurves"),
+      gMarkers: document.querySelector("#gMarkers"), gAxes: document.querySelector("#gAxes"), gLegend: document.querySelector("#gLegend"),
+      chamber: document.querySelector("#chamber"), chamberMeta: document.querySelector("#chamberMeta"), chamberLegend: document.querySelector("#chamberLegend"),
+      chartMeta: document.querySelector("#chartMeta"), insight: document.querySelector("#insight"),
+      roVp: document.querySelector("#roVp"), roVmean: document.querySelector("#roVmean"), roVrms: document.querySelector("#roVrms"),
+      roSample: document.querySelector("#roSample"), roSampleLabel: document.querySelector("#roSampleLabel"),
+      tempInput: document.querySelector("#tempInput"), tempOutput: document.querySelector("#tempOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      modeTempBtn: document.querySelector("#modeTempBtn"), modeGasBtn: document.querySelector("#modeGasBtn"),
+      gasBtns: Array.from(document.querySelectorAll(".seg.gas button")), gasGroup: document.querySelector("#gasGroup"),
+    } : null;
+    let chartDirty = true, lastChartRender = -1;
+    // viewBox 920x520 geometry
+    const G = { L: 78, R: 26, T: 34, B: 58, W: 920, H: 520 };
+    G.pw = G.W - G.L - G.R; G.ph = G.H - G.T - G.B;
+    const vx = (v, vMax) => G.L + (v / vMax) * G.pw;
+    const fy = (f, yMax) => G.T + (1 - Math.min(f, yMax) / yMax) * G.ph;
+    function colormap(t) {
+      const x = Math.min(1, Math.max(0, t));
+      for (let i = 1; i < CAM_STOPS.length; i += 1) {
+        if (x <= CAM_STOPS[i][0]) {
+          const [t0, c0] = CAM_STOPS[i - 1], [t1, c1] = CAM_STOPS[i];
+          const u = (x - t0) / (t1 - t0);
+          const c = c0.map((v, k) => Math.round(v + u * (c1[k] - v)));
+          return `rgb(${c[0]},${c[1]},${c[2]})`;
+        }
+      }
+      return "rgb(220,38,38)";
+    }
+    function tickStep(vMax) { return niceCeil(vMax / 6); }
+    function curvePath(T, M, vMax, yMax) {
+      const n = 240, h = vMax / n;
+      let d = "";
+      for (let i = 0; i <= n; i += 1) {
+        const v = i * h, x = vx(v, vMax).toFixed(1), y = fy(mbPdf(v, T, M), yMax).toFixed(1);
+        d += (i === 0 ? "M" : "L") + x + " " + y;
+      }
+      return d;
+    }
+    function curveAreaPath(T, M, vMax, yMax) {
+      return curvePath(T, M, vMax, yMax) + `L${(G.L + G.pw).toFixed(1)} ${G.T + G.ph}L${G.L} ${G.T + G.ph}Z`;
+    }
+    function renderChart() {
+      if (!elements) return;
+      const { T, mode, gas } = state;
+      const view = state.view || axisFor();
+      const { vMax, yMax } = view;
+      // grid + axes
+      const grid = [], axes = [];
+      const st = tickStep(vMax);
+      for (let v = 0; v <= vMax + st / 2; v += st) {
+        const x = vx(v, vMax);
+        grid.push(`<line class="grid-line" x1="${x.toFixed(1)}" y1="${G.T}" x2="${x.toFixed(1)}" y2="${G.T + G.ph}"></line>`);
+        axes.push(`<text class="tick-label" x="${x.toFixed(1)}" y="${G.T + G.ph + 22}" text-anchor="middle">${Math.round(v)}</text>`);
+      }
+      for (let k = 0; k <= 5; k += 1) {
+        const f = yMax * k / 5, y = fy(f, yMax);
+        grid.push(`<line class="grid-line" x1="${G.L}" y1="${y.toFixed(1)}" x2="${G.L + G.pw}" y2="${y.toFixed(1)}"></line>`);
+        axes.push(`<text class="tick-label" x="${G.L - 10}" y="${(y + 4).toFixed(1)}" text-anchor="end">${(f * 1000).toFixed(1)}</text>`);
+      }
+      axes.push(`<line class="axis" x1="${G.L}" y1="${G.T + G.ph}" x2="${G.L + G.pw}" y2="${G.T + G.ph}"></line>`);
+      axes.push(`<line class="axis" x1="${G.L}" y1="${G.T}" x2="${G.L}" y2="${G.T + G.ph}"></line>`);
+      axes.push(`<text class="axis-label" x="${G.L + G.pw}" y="${G.H - 14}" text-anchor="end">分子速率 v /（m·s⁻¹）</text>`);
+      axes.push(`<text class="axis-label" transform="translate(20 ${G.T + G.ph / 2}) rotate(-90)" text-anchor="middle">占比 f(v) /（10⁻³·s·m⁻¹）</text>`);
+      elements.gGrid.innerHTML = grid.join("");
+      elements.gAxes.innerHTML = axes.join("");
+      // histogram (mode temp only)
+      let hist = "";
+      if (mode === "temp" && state.histSamples > 0) {
+        const binW = vMax / N_BINS, bw = (G.pw / N_BINS) - 1.2;
+        for (let b = 0; b < N_BINS; b += 1) {
+          if (!state.hist[b]) continue;
+          const fh = state.hist[b] / (state.histSamples * binW);
+          const x = vx(b * binW, vMax), y = fy(fh, yMax);
+          if (G.T + G.ph - y < 1) continue;
+          hist += `<rect class="hist-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(G.T + G.ph - y).toFixed(1)}"></rect>`;
+        }
+      }
+      elements.gHist.innerHTML = hist;
+      // curves + markers + legend
+      let curves = "", markers = "", legend = "";
+      const tagX = (v) => Math.min(G.L + G.pw - 46, Math.max(G.L + 46, vx(v, vMax)));
+      if (mode === "temp") {
+        const M = MOLAR[gas];
+        curves += `<path class="curve-area" d="${curveAreaPath(T, M, vMax, yMax)}"></path>`;
+        curves += `<path class="curve-main" d="${curvePath(T, M, vMax, yMax)}"></path>`;
+        if (Math.abs(T - T_REF) > 5) {
+          curves += `<path class="curve-ghost" d="${curvePath(T_REF, M, vMax, yMax)}"></path>`;
+          curves += `<text class="tick-label" x="${vx(vMostProbable(T_REF, M), vMax).toFixed(1)}" y="${(fy(peakPdf(T_REF, M), yMax) - 12).toFixed(1)}" text-anchor="middle" fill="#8a97ab">${T_REF} K</text>`;
+        }
+        const vp = vMostProbable(T, M), vm = vMeanFn(T, M), vr = vRmsFn(T, M);
+        const rows = [["vp", vp, "v_p " + Math.round(vp)], ["vmean", vm, "v̄ " + Math.round(vm)], ["vrms", vr, "v_rms " + Math.round(vr)]];
+        rows.forEach(([cls, v, label], i) => {
+          const x = vx(v, vMax);
+          markers += `<line class="marker-line ${cls}" x1="${x.toFixed(1)}" y1="${G.T + 6}" x2="${x.toFixed(1)}" y2="${G.T + G.ph}"></line>`;
+          markers += `<text class="marker-tag ${cls}" x="${tagX(v).toFixed(1)}" y="${20 + i * 20}" text-anchor="middle">${label}</text>`;
+        });
+        legend = [
+          `<line class="sw" x1="0" y1="-4" x2="26" y2="-4" stroke="${GAS_HEX[gas]}" stroke-width="4"></line><text x="33" y="0">${GAS_NAME[gas]} ${T} K</text>`,
+          Math.abs(T - T_REF) > 5 ? `<line x1="0" y1="-4" x2="26" y2="-4" stroke="#8a97ab" stroke-width="2.5" stroke-dasharray="7 6"></line><text x="33" y="0">${T_REF} K 参考</text>` : "",
+          `<rect x="2" y="-10" width="22" height="11" rx="2" fill="rgba(15,159,186,.34)" stroke="rgba(8,117,138,.35)"></rect><text x="33" y="0">样本直方图</text>`,
+        ].filter(Boolean);
+      } else {
+        const MH = MOLAR.H2, MO = MOLAR.O2;
+        curves += `<path class="curve-area gasA" d="${curveAreaPath(T, MH, vMax, yMax)}"></path>`;
+        curves += `<path class="curve-main gasA" d="${curvePath(T, MH, vMax, yMax)}"></path>`;
+        curves += `<path class="curve-main" d="${curvePath(T, MO, vMax, yMax)}"></path>`;
+        const vpH = vMostProbable(T, MH), vpO = vMostProbable(T, MO);
+        markers += `<line class="marker-line" x1="${vx(vpH, vMax).toFixed(1)}" y1="${G.T + 6}" x2="${vx(vpH, vMax).toFixed(1)}" y2="${G.T + G.ph}" stroke="${GAS_HEX.H2}"></line>`;
+        markers += `<text class="marker-tag" x="${tagX(vpH).toFixed(1)}" y="20" text-anchor="middle" fill="${GAS_HEX.H2}">v_p(H₂) ${Math.round(vpH)}</text>`;
+        markers += `<line class="marker-line vp" x1="${vx(vpO, vMax).toFixed(1)}" y1="${G.T + 6}" x2="${vx(vpO, vMax).toFixed(1)}" y2="${G.T + G.ph}"></line>`;
+        markers += `<text class="marker-tag" x="${tagX(vpO).toFixed(1)}" y="40" text-anchor="middle" fill="#08758a">v_p(O₂) ${Math.round(vpO)}</text>`;
+        legend = [
+          `<line x1="0" y1="-4" x2="26" y2="-4" stroke="${GAS_HEX.H2}" stroke-width="4"></line><text x="33" y="0">氢气 H₂（M=2 g/mol）</text>`,
+          `<line x1="0" y1="-4" x2="26" y2="-4" stroke="${GAS_HEX.O2}" stroke-width="4"></line><text x="33" y="0">氧气 O₂（M=32 g/mol）</text>`,
+        ];
+      }
+      elements.gCurves.innerHTML = curves;
+      elements.gMarkers.innerHTML = markers;
+      const lx = G.L + G.pw - 205;
+      elements.gLegend.innerHTML = legend.map((row, i) => `<g transform="translate(${lx} ${58 + i * 21})" class="legend-chart">${row}</g>`).join("");
+      elements.gLegend.setAttribute("font-size", "13");
+      lastChartRender = state.simTime;
+      chartDirty = false;
+    }
+    // ---- chamber canvas ----
+    let ctx = null, dpr = 1;
+    function sizeChamber() {
+      if (!elements) return;
+      const rect = elements.chamber.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      elements.chamber.width = Math.max(80, Math.round(rect.width * dpr));
+      elements.chamber.height = Math.max(70, Math.round(rect.height * dpr));
+      ctx = elements.chamber.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function renderChamber() {
+      if (!ctx) return;
+      const w = elements.chamber.width / dpr, h = elements.chamber.height / dpr, pad = 6;
+      ctx.clearRect(0, 0, w, h);
+      const vpNow = vMostProbable(state.T, MOLAR[state.mode === "temp" ? state.gas : "O2"]);
+      for (const p of state.particles) {
+        const px = pad + p.x * (w - 2 * pad), py = pad + p.y * (h - 2 * pad);
+        let r, color;
+        if (state.mode === "gas") {
+          const isH2 = p.species === "H2";
+          r = isH2 ? 3.2 : 4.6;
+          color = isH2 ? GAS_HEX.H2 : GAS_HEX.O2;
+        } else {
+          r = 4.2;
+          color = colormap(p.v / (2 * vpNow));
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.88;
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    function renderReadouts() {
+      if (!elements) return;
+      const set = (el, val) => { el.innerHTML = `${val}<span class="unit">m/s</span>`; };
+      if (state.mode === "temp") {
+        const M = MOLAR[state.gas];
+        set(elements.roVp, Math.round(vMostProbable(state.T, M)));
+        set(elements.roVmean, Math.round(vMeanFn(state.T, M)));
+        set(elements.roVrms, Math.round(vRmsFn(state.T, M)));
+        elements.roSampleLabel.textContent = `样本平均速率（n=${state.histSamples}）`;
+        const sm = sampleMean();
+        set(elements.roSample, Number.isFinite(sm) ? Math.round(sm) : "—");
+      } else {
+        const vpH = vMostProbable(state.T, MOLAR.H2), vpO = vMostProbable(state.T, MOLAR.O2);
+        set(elements.roVp, Math.round(vpH));
+        elements.roVp.parentElement.querySelector("small").innerHTML = "最概然速率 v<sub>p</sub>（H₂）";
+        set(elements.roVmean, Math.round(vpO));
+        elements.roVmean.parentElement.querySelector("small").textContent = "最概然速率 v_p（O₂）";
+        set(elements.roVrms, (vpH / vpO).toFixed(2));
+        elements.roVrms.parentElement.querySelector("small").textContent = "v_p(H₂) ÷ v_p(O₂)";
+        elements.roSampleLabel.textContent = "理论比值 √(32/2)";
+        elements.roSample.innerHTML = `≈ ${Math.sqrt(MOLAR.O2 / MOLAR.H2).toFixed(2)}`;
+      }
+    }
+    function insightText() {
+      if (state.simTime === 0 && !state.running) return "点击「开始」：分子开始运动后，直方图会逐渐长成单峰，并收敛到光滑的理论曲线。";
+      if (state.mode === "gas") return "同一温度下：氢气摩尔质量小，峰明显偏向高速端且更矮更宽；氧气峰又高又窄，集中在低速区。";
+      if (Math.abs(state.T - T_REF) <= 10) return "单峰、中间多、两头少：速率特别小或特别大的分子都很少，大多数分子集中在中间速率。";
+      if (state.T > T_REF) return `升温到 ${state.T} K：峰向右移、变矮、变宽——分子并非全都变快，运动箱里仍能看到蓝色的慢分子。`;
+      return `降温到 ${state.T} K：峰向左移、变高、变窄，分子速率整体向低速集中，但高速分子并未消失。`;
+    }
+    function renderShell() {
+      if (!elements) return;
+      elements.status.textContent = state.running ? "运行中" : "已暂停";
+      elements.status.classList.toggle("paused", !state.running);
+      elements.startBtn.setAttribute("aria-pressed", String(state.running));
+      elements.chartMeta.textContent = state.mode === "temp"
+        ? `${GAS_NAME[state.gas]} · ${state.T} K · 理论曲线 + 样本直方图（n=${state.histSamples}）`
+        : `同温对比 · ${state.T} K · 氢气 H₂ 与 氧气 O₂`;
+      elements.chamberMeta.textContent = state.mode === "temp"
+        ? `${N_PARTICLES} 个 ${GAS_NAME[state.gas]}分子 · 颜色按速率着色`
+        : `各 ${N_PARTICLES / 2} 个 H₂ / O₂ 分子 · 同温度，氢气明显更快`;
+      elements.chamberLegend.innerHTML = state.mode === "temp"
+        ? `<span class="chip"><span class="dot" style="background:#3b6fe0"></span>慢</span><span class="ramp" aria-hidden="true"></span><span class="chip">快<span class="dot" style="background:#dc2626"></span></span>`
+        : `<span class="chip"><span class="dot" style="background:#f59e0b"></span>氢气 H₂（快·轻）</span><span class="chip"><span class="dot" style="background:#0f9fba"></span>氧气 O₂（慢·重）</span>`;
+      if (state.mode === "temp") {
+        elements.roVp.parentElement.querySelector("small").innerHTML = "最概然速率 v<sub>p</sub>";
+        elements.roVmean.parentElement.querySelector("small").innerHTML = "平均速率 v̄";
+        elements.roVrms.parentElement.querySelector("small").innerHTML = "方均根速率 v<sub>rms</sub>";
+      }
+      elements.modeTempBtn.setAttribute("aria-pressed", String(state.mode === "temp"));
+      elements.modeGasBtn.setAttribute("aria-pressed", String(state.mode === "gas"));
+      elements.gasBtns.forEach((b) => {
+        b.setAttribute("aria-pressed", String(state.mode === "temp" && b.dataset.gas === state.gas));
+        b.disabled = state.mode !== "temp";
+      });
+      elements.gasGroup.style.opacity = state.mode === "temp" ? "1" : "0.45";
+      elements.tempInput.value = String(state.T);
+      elements.tempOutput.textContent = `${state.T} K（约 ${Math.round(state.T - 273.15)} ℃）`;
+      elements.insight.textContent = insightText();
+    }
+    function render() {
+      if (!elements) return;
+      if (chartDirty || (state.running && state.simTime - lastChartRender > 0.15)) renderChart();
+      renderChamber();
+      renderReadouts();
+    }
+    // ---- lifecycle ----
+    function init() {
+      if (!elements) return;
+      sizeChamber();
+      window.addEventListener("resize", sizeChamber);
+      if (window.matchMedia) state.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.modeTempBtn.addEventListener("click", () => setParameters({ mode: "temp" }));
+      elements.modeGasBtn.addEventListener("click", () => setParameters({ mode: "gas" }));
+      elements.gasBtns.forEach((b) => b.addEventListener("click", () => setParameters({ gas: b.dataset.gas })));
+      elements.tempInput.addEventListener("input", () => setParameters({ T: elements.tempInput.value }));
+      state.view = axisFor();
+      reset();
+      requestAnimationFrame(frame);
+    }
+    function start() { state.running = true; state.lastTimestamp = null; renderShell(); render(); }
+    function pause() { state.running = false; renderShell(); render(); }
+    function reset() {
+      state.running = false; state.T = T_DEFAULT; state.gas = "O2"; state.mode = "temp";
+      state.simTime = 0; state.lastTimestamp = null; state.view = axisFor();
+      resetHistogram(); rebuildParticles(); chartDirty = true; renderShell(); render();
+    }
+    function setParameters(values) {
+      const prev = { mode: state.mode, gas: state.gas };
+      if (values.mode !== undefined) state.mode = values.mode === "gas" ? "gas" : "temp";
+      if (values.gas !== undefined && MOLAR[values.gas]) state.gas = values.gas;
+      if (values.T !== undefined) state.T = clampNum(values.T, T_MIN, T_MAX, T_DEFAULT);
+      state.view = axisFor();
+      if (state.mode !== prev.mode || state.gas !== prev.gas) { resetHistogram(); rebuildParticles(); }
+      else if (values.T !== undefined) resetHistogram();
+      chartDirty = true; renderShell(); render();
+    }
+    function getState() {
+      return {
+        running: state.running, mode: state.mode, gas: state.gas, T: state.T, simTime: state.simTime,
+        histSamples: state.histSamples, sampleMean: sampleMean(),
+        particles: state.particles.map((p) => ({ x: p.x, y: p.y, v: p.v, species: p.species })),
+      };
+    }
+    function getReadouts() {
+      if (state.mode === "temp") {
+        const M = MOLAR[state.gas];
+        return { mode: "temp", gas: state.gas, T: state.T, vp: vMostProbable(state.T, M), vmean: vMeanFn(state.T, M), vrms: vRmsFn(state.T, M), sampleMean: sampleMean(), histSamples: state.histSamples };
+      }
+      return {
+        mode: "gas", T: state.T,
+        vpH2: vMostProbable(state.T, MOLAR.H2), vpO2: vMostProbable(state.T, MOLAR.O2),
+        ratio: vMostProbable(state.T, MOLAR.H2) / vMostProbable(state.T, MOLAR.O2),
+      };
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt); render(); requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (hasDocument) init();
+  })();
+  </script>
+</body>
+</html>

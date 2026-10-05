@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>受迫振动与共振仿真</title>
+<style>
+  :root{--bg:#10141c;--panel:#1a212e;--card:#161d29;--line:#2a3446;--tx:#dbe4f0;--dim:#8fa0b8;
+        --hi:#4fc3f7;--force:#ffb74d;--ok:#81c784;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--tx);font:14px/1.6 system-ui,"PingFang SC","Microsoft YaHei",sans-serif;padding:14px}
+  .wrap{max-width:1180px;margin:0 auto}
+  header{margin-bottom:10px}
+  h1{font-size:20px}
+  .sub{color:var(--dim);font-size:13px}
+  .layout{display:grid;grid-template-columns:290px 1fr;gap:12px}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}}
+  .panel,.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  main{display:flex;flex-direction:column;gap:12px}
+  h2{font-size:14px;color:var(--dim);font-weight:600;margin-bottom:8px}
+  label{display:block;font-size:13px;margin:10px 0 2px}
+  label b{color:var(--hi)}
+  input[type=range]{width:100%;accent-color:var(--hi)}
+  .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  button,select{background:#22304a;color:var(--tx);border:1px solid var(--line);border-radius:6px;
+    padding:6px 14px;font-size:13px;cursor:pointer}
+  button:hover{background:#2c3d5c}
+  #readout{margin-top:12px;font-size:13px;background:var(--card);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;line-height:1.9}
+  #readout b{color:var(--hi)}
+  #readout .st-ok{color:var(--ok)} #readout .st-wait{color:var(--force)}
+  canvas{width:100%;display:block;background:#0d1118;border:1px solid var(--line);border-radius:8px}
+  #cvScene{height:200px}#cvWave{height:250px}#cvResp{height:280px}
+  hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+  .teach{margin-top:12px;font-size:13px;color:var(--dim);background:var(--card);
+    border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .teach li{margin-left:18px;margin-top:3px}
+  .teach b{color:var(--tx)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>受迫振动与共振</h1>
+    <div class="sub">弹簧振子：m = 1 kg，k = 100 N/m → ω₀ = √(k/m) = 10 rad/s（f₀ ≈ 1.59 Hz）；驱动力 F = F₀·sin(ωt)，F₀ = 0.2 N；阻尼 F<sub>d</sub> = −bv</div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <label>驱动角频率 ω = <b id="vW">5.00</b> rad/s　(f = <span id="vF">0.80</span> Hz)</label>
+      <input type="range" id="inW" min="1" max="20" step="0.05" value="5">
+
+      <label>阻尼系数 b = <b id="vB">0.50</b> kg/s</label>
+      <input type="range" id="inB" min="0.1" max="2" step="0.05" value="0.5">
+
+      <div class="btns">
+        <button id="btnPlay">⏸ 暂停</button>
+        <button id="btnReset">↺ 重置</button>
+        <select id="inSpd" title="仿真速度">
+          <option value="1">1×</option><option value="2">2×</option><option value="4">4×</option>
+        </select>
+      </div>
+
+      <hr>
+      <label>扫频速度 = <b id="vSwp">6</b> 点/秒（每步 Δω = 0.25）</label>
+      <input type="range" id="inSwp" min="1" max="20" step="1" value="6">
+      <div class="btns">
+        <button id="btnSweep">▶ 开始扫频</button>
+        <button id="btnClear">清除叠加曲线</button>
+      </div>
+
+      <div id="readout">
+        <div>理论稳态振幅 A = <b id="rA">—</b> m</div>
+        <div>实测稳态振幅 = <b id="rAm">—</b> m</div>
+        <div>位移滞后驱动力 φ = <b id="rPhi">—</b></div>
+        <div>状态：<b id="rState" class="st-wait">暂态</b></div>
+      </div>
+    </aside>
+
+    <main>
+      <section class="card"><h2>振子运动（绿色虚线为平衡位置，橙色箭头为当前驱动力）</h2><canvas id="cvScene"></canvas></section>
+      <section class="card"><h2>波形对比：位移 x(t)（蓝）与驱动力 F(t)（橙）—— 同频率，位移相位滞后</h2><canvas id="cvWave"></canvas></section>
+      <section class="card"><h2>幅频响应曲线 A–ω（虚线为当前 b 的理论曲线，实线为扫频记录，可叠加不同 b）</h2><canvas id="cvResp"></canvas></section>
+    </main>
+  </div>
+
+  <div class="teach"><b>教学要点</b>
+    <li><b>稳态频率 = 驱动频率</b>：观察两波形始终同频，稳态振动频率只由 ω 决定，与固有频率 ω₀ 无关。</li>
+    <li><b>共振</b>：当 ω → ω₀ = 10 rad/s 时振幅最大（扫频曲线出现尖峰）。</li>
+    <li><b>阻尼的影响</b>：b 增大使峰值降低、曲线变宽（改变 b 后重新扫频，多条曲线叠加对比）。</li>
+    <li><b>相位</b>：ω ≪ ω₀ 时位移与力近似同相；ω = ω₀ 时滞后 90°；ω ≫ ω₀ 时滞后趋于 180°。</li>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------- 物理常数与状态 ---------- */
+const M=1, K=100, F0=0.2, W0=Math.sqrt(K/M);   // ω0=10 rad/s
+let w=5, b=0.5, simSpeed=1, running=true;
+let t=0, x=0, v=0, t0=0, tss=tssOf(b);        // t0: 上次参数改变时刻, tss: 暂态时长
+const buf={t:[],x:[],f:[]}, WIN=12, DT_SAMPLE=0.004;
+let lastSample=-1;
+
+function tssOf(b){ return Math.min(10, 9.2*M/b); }        // 暂态估计时长
+function Aof(w,b){ return F0/Math.sqrt((K-M*w*w)**2+(b*w)**2); }
+function phiof(w,b){ return Math.atan2(b*w, K-M*w*w); }
+
+/* ---------- 数值积分（RK4） ---------- */
+function deriv(x,v,tt){ return [v,(F0*Math.sin(w*tt)-b*v-K*x)/M]; }
+function rk4(h){
+  const k1=deriv(x,v,t),
+        k2=deriv(x+h/2*k1[0], v+h/2*k1[1], t+h/2),
+        k3=deriv(x+h/2*k2[0], v+h/2*k2[1], t+h/2),
+        k4=deriv(x+h*k3[0],  v+h*k3[1],  t+h);
+  x+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
+  v+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
+  t+=h;
+}
+function simulate(dt){
+  const h=0.001; let n=Math.min(6000,Math.round(dt/h));
+  for(let i=0;i<n;i++){
+    rk4(h);
+    if(t-lastSample>=DT_SAMPLE){
+      lastSample=t;
+      buf.t.push(t); buf.x.push(x); buf.f.push(F0*Math.sin(w*t));
+    }
+  }
+  while(buf.t.length&&buf.t[0]<t-WIN-0.5){buf.t.shift();buf.x.shift();buf.f.shift();}
+}
+
+/* ---------- 扫频 ---------- */
+const PAL=['#4fc3f7','#ffb74d','#81c784','#ba68c8','#ffd54f','#f06292'];
+const sweep={on:false,w:1,acc:0,pts:[]};
+const curves=[];                    // 已完成的叠加曲线 {b, pts[]}
+const inW=$('inW'), inB=$('inB');
+
+function stepSweep(dt){
+  sweep.acc+=dt*(+$('inSwp').value);
+  while(sweep.acc>=1&&sweep.on){
+    sweep.acc--;
+    sweep.pts.push({w:sweep.w,A:Aof(sweep.w,b)});
+    sweep.w=Math.round((sweep.w+0.25)*100)/100;
+    if(sweep.w>20){ finishSweep(); return; }
+    inW.value=sweep.w; syncParamLabels(); t0=t;   // 实时场景跟随扫频
+  }
+}
+function finishSweep(){
+  if(sweep.pts.length>1){ curves.push({b:b,pts:sweep.pts}); if(curves.length>6)curves.shift(); }
+  sweep.on=false; sweep.pts=[]; sweep.w=1;
+  $('btnSweep').textContent='▶ 开始扫频';
+}
+$('btnSweep').onclick=()=>{
+  if(sweep.on){finishSweep();}
+  else{sweep.on=true;sweep.w=1;sweep.pts=[];sweep.acc=0;$('btnSweep').textContent='⏹ 停止并记录';}
+};
+$('btnClear').onclick=()=>{curves.length=0;};
+
+/* ---------- 画布与绘图 ---------- */
+const dpr=window.devicePixelRatio||1;
+const cvs={scene:setup('cvScene'),wave:setup('cvWave'),resp:setup('cvResp')};
+function setup(id){const c=$(id);return{el:c,ctx:c.getContext('2d'),w:0,h:0};}
+function $(id){return document.getElementById(id);}
+function fitAll(){for(const k in cvs){const c=cvs[k],r=c.el.getBoundingClientRect();
+  c.w=r.width;c.h=r.height;c.el.width=r.width*dpr;c.el.height=r.height*dpr;
+  c.ctx.setTransform(dpr,0,0,dpr,0,0);}}
+window.addEventListener('resize',fitAll);fitAll();
+
+function drawScene(){
+  const {ctx,w:W,h:H}=cvs.scene; ctx.clearRect(0,0,W,H);
+  const cy=H*0.55, wallX=46, L0=150, scale=420, eqX=wallX+L0;
+  ctx.strokeStyle='#3a4vestab'; // placeholder removed below
+  ctx.strokeStyle='#3a4a63';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(wallX,cy-70);ctx.lineTo(wallX,cy+70);ctx.stroke(); // 墙
+  ctx.strokeStyle='#2a3446';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(wallX-30,cy+70);ctx.lineTo(W-10,cy+70);ctx.stroke(); // 地面
+  // 平衡位置
+  ctx.strokeStyle='#81c784';ctx.setLineDash([5,5]);ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(eqX,cy-60);ctx.lineTo(eqX,cy+68);ctx.stroke();ctx.setLineDash([]);
+  // 弹簧（锯齿）
+  const mx=eqX+x*scale, n=12, sw=(mx-wallX-22)/(n*2);
+  ctx.strokeStyle='#9fb4d0';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(wallX,cy);
+  for(let i=0;i<n*2;i++)ctx.lineTo(wallX+11+sw*(i+1),cy+(i%2?14:2-14));
+  ctx.lineTo(mx-21,cy);ctx.stroke();
+  ctx.strokeStyle='#9fb4d0';ctx.beginPath();ctx.moveTo(eqX-21,cy);ctx.lineTo(eqX+21,cy);ctx.stroke();
+  // 物块
+  ctx.fillStyle='#2c3d5c';ctx.strokeStyle='#4fc3f7';ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(mx-21,cy-21,42,42,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#dbe4f0';ctx.font='11px system-ui';ctx.textAlign='center';
+  ctx.fillText('1 kg',mx,cy+4);
+  // 驱动力箭头
+  const F=F0*Math.sin(w*t), al=36*F/F0;
+  if(Math.abs(al)>2){
+    ctx.strokeStyle=ctx.fillStyle='#ffb74d';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(mx,cy);ctx.lineTo(mx+al,cy);ctx.stroke();
+    const s=Math.sign(al);
+    ctx.beginPath();ctx.moveTo(mx+al,cy);ctx.lineTo(mx+al-7*s,cy-5);ctx.lineTo(mx+al-7*s,cy+5);ctx.closePath();ctx.fill();
+    ctx.font='12px system-ui';ctx.fillText('F',mx+al-10*s,cy-10);
+  }
+  ctx.fillStyle='#8fa0b8';ctx.textAlign='left';ctx.font='12px system-ui';
+  ctx.fillText(`x = ${x.toFixed(4)} m    F = ${F.toFixed(3)} N    t = ${t.toFixed(1)} s`,12,18);
+}
+
+function drawWave(){
+  const {ctx,w:W,h:H}=cvs.wave; ctx.clearRect(0,0,W,H);
+  if(buf.t.length<2)return;
+  const t1=t, ta=t-WIN, thr=t0+tss;                 // thr 之前为暂态
+  const pad=26, mid=H/2, half=H/2-pad;
+  let xmax=0.02; for(let i=0;i<buf.x.length;i++){const a=Math.abs(buf.x[i]);if(a>xmax)xmax=a;}
+  const xs=xmax*1.15;
+  const X=tt=>(tt-ta)/WIN*(W-8)+4;
+  // 暂态背景带
+  const xe=Math.min(X(thr),W);
+  if(X(ta)<xe){ctx.fillStyle='rgba(255,255,255,0.045)';ctx.fillRect(X(ta),0,xe-X(ta),H);
+    ctx.fillStyle='#8fa0b8';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText('暂态（衰减的自由振动成分）',X(ta)+8,16);}
+  if(thr<t1){ctx.fillStyle='#81c78499';ctx.font='11px system-ui';
+    ctx.fillText('稳态（频率 = ω）',Math.max(X(thr)+8,xe+8),16);}
+  // 零轴
+  ctx.strokeStyle='#2a3446';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(W,mid);ctx.stroke();
+  // F(t)（归一化，橙色）
+  pathSplit(i=>buf.f[i]/F0*0.85*half,'#8a6a3a','#ffb74d',1.4);
+  // x(t)（蓝色）
+  pathSplit(i=>-buf.x[i]/xs*half,'#55627a','#4fc3f7',2.2);
+  // 图例与标尺
+  ctx.font='12px system-ui';ctx.textAlign='left';
+  ctx.fillStyle='#4fc3f7';ctx.fillText('━ x(t)',W-190,H-30);
+  ctx.fillStyle='#ffb74d';ctx.fillText('━ F(t)',W-120,H-30);
+  ctx.fillStyle='#8fa0b8';
+  ctx.fillText(`±${xs.toFixed(3)} m`,6,mid-half+10);
+  ctx.textAlign='right';ctx.fillText(`${WIN} s 窗口`,W-8,H-8);
+  function pathSplit(val,dim,hi,lw){
+    ctx.lineWidth=lw;
+    for(const st of [0,1]){
+      ctx.strokeStyle=st?hi:dim;ctx.beginPath();let pen=false;
+      for(let i=0;i<buf.t.length;i++){
+        const isHi=buf.t[i]>=thr;
+        if(isHi!==!!st){pen=false;continue;}
+        const px=X(buf.t[i]),py=mid+val(i);
+        pen?ctx.lineTo(px,py):ctx.moveTo(px,py);pen=true;
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawResp(){
+  const {ctx,w:W,h:H}=cvs.resp; ctx.clearRect(0,0,W,H);
+  const pl=44,pr=14,pt=14,pb=30, cw=W-pl-pr, ch=H-pt-pb;
+  const X=wv=>pl+(wv-1)/19*cw, Y=A=>pt+(0.24-A)/0.24*ch;
+  // 网格
+  ctx.font='11px system-ui';ctx.textAlign='center';
+  for(let g=1;g<=20;g+=1.5){ctx.strokeStyle=g%3<0.01?'#2a3446':'#1c2432';
+    ctx.beginPath();ctx.moveTo(X(g),pt);ctx.lineTo(X(g),pt+ch);ctx.stroke();}
+  ctx.strokeStyle='#2a3446';
+  for(let g=2;g<=20;g+=2){ctx.fillStyle='#8fa0b8';ctx.fillText(g,X(g),H-10);}
+  for(let A=0;A<=0.24+1e-9;A+=0.04){ctx.strokeStyle='#1c2432';
+    ctx.beginPath();ctx.moveTo(pl,Y(A));ctx.lineTo(pl+cw,Y(A));ctx.stroke();
+    ctx.fillStyle='#8fa0b8';ctx.textAlign='right';ctx.fillText(A.toFixed(2),pl-6,Y(A)+4);ctx.textAlign='center';}
+  ctx.fillStyle='#8fa0b8';ctx.fillText('ω (rad/s)',pl+cw/2,H-1+0);
+  ctx.save();ctx.translate(11,pt+ch/2);ctx.rotate(-Math.PI/2);ctx.fillText('A (m)',0,0);ctx.restore();
+  // ω0 竖线
+  ctx.strokeStyle='#f06292aa';ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(X(10),pt);ctx.lineTo(X(10),pt+ch);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#f06292';ctx.textAlign='center';ctx.fillText('ω₀=10',X(10),pt+10);
+  // 当前 b 理论曲线（虚线）
+  ctx.strokeStyle='#5b6b85';ctx.setLineDash([5,4]);ctx.lineWidth=1.5;ctx.beginPath();
+  for(let i=0;i<=190;i++){const wv=1+i*0.1,px=X(wv),py=Y(Math.min(0.24,Aof(wv,b)));
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  ctx.stroke();ctx.setLineDash([]);
+  // 叠加曲线
+  curves.forEach((c,ci)=>{ctx.strokeStyle=PAL[ci%PAL.length];ctx.lineWidth=2;ctx.beginPath();
+    c.pts.forEach((p,i)=>{const px=X(p.w),py=Y(Math.min(0.24,p.A));i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.stroke();});
+  // 进行中的扫频
+  if(sweep.pts.length){ctx.strokeStyle='#ffffffcc';ctx.lineWidth=2;ctx.beginPath();
+    sweep.pts.forEach((p,i)=>{const px=X(p.w),py=Y(Math.min(0.24,p.A));i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.stroke();
+    const lp=sweep.pts[sweep.pts.length-1];
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(X(lp.w),Y(Math.min(0.24,lp.A)),3.5,0,7);ctx.fill();}
+  // 当前 ω 游标
+  ctx.strokeStyle='#4fc3f788';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(X(w),pt);ctx.lineTo(X(w),pt+ch);ctx.stroke();
+  // 图例
+  ctx.textAlign='left';
+  curves.forEach((c,i)=>{ctx.fillStyle=PAL[i%PAL.length];ctx.fillText(`━ b=${c.b.toFixed(2)}`,pl+8,pt+16+i*15);});
+  if(!curves.length){ctx.fillStyle='#5b6b85';ctx.fillText('─ ─ 当前 b 理论曲线（改变 b 后点“开始扫频”记录并叠加）',pl+8,pt+16);}
+}
+
+/* ---------- 读数更新 ---------- */
+function updateReadout(){
+  $('rA').textContent=Aof(w,b).toFixed(4);
+  $('rPhi').textContent=(phiof(w,b)*180/Math.PI).toFixed(1)+'°';
+  let lo=Math.max(t-3,t0+tss),mx=-1e9,mn=1e9,ok=false;
+  for(let i=buf.t.length-1;i>=0;i--){if(buf.t[i]<lo)break;
+    if(buf.x[i]>mx)mx=buf.x[i];if(buf.x[i]<mn)mn=buf.x[i];ok=true;}
+  $('rAm').textContent=(ok&&t>t0+tss)?((mx-mn)/2).toFixed(4):'（暂态中…）';
+  const st=$('rState');
+  if(t-t0>=tss){st.textContent='稳态 ✓';st.className='st-ok';}
+  else{st.textContent=`暂态（约需 ${tss.toFixed(1)} s）`;st.className='st-wait';}
+}
+
+/* ---------- 控件绑定 ---------- */
+function syncParamLabels(){
+  $('vW').textContent=(+inW.value).toFixed(2);
+  $('vF').textContent=(+inW.value/(2*Math.PI)).toFixed(2);
+  $('vB').textContent=(+inB.value).toFixed(2);
+}
+inW.addEventListener('input',()=>{w=+inW.value;syncParamLabels();t0=t;});
+inB.addEventListener('input',()=>{b=+inB.value;tss=tssOf(b);syncParamLabels();t0=t;});
+$('inSwp').addEventListener('input',()=>$('vSwp').textContent=$('inSwp').value);
+$('btnPlay').onclick=()=>{running=!running;$('btnPlay').textContent=running?'⏸ 暂停':'▶ 播放';};
+$('btnReset').onclick=()=>{t=0;x=0;v=0;t0=0;lastSample=-1;
+  buf.t.length=buf.x.length=buf.f.length=0;};
+$('inSpd').addEventListener('change',()=>simSpeed=+$('inSpd').value);
+syncParamLabels();
+
+/* ---------- 主循环 ---------- */
+let lastFrame=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-lastFrame)/1000);lastFrame=now;
+  if(running)simulate(dt*simSpeed);
+  if(sweep.on)stepSweep(dt);
+  drawScene();drawWave();drawResp();updateReadout();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

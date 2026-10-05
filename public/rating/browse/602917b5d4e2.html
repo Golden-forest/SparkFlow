@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>水波槽:干涉与衍射</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-water: #0a1a2c;        /* stage water backdrop */
+      --sim-crest: #eefcff;        /* wave crest (bright, projection style) */
+      --sim-trough: #04090f;       /* wave trough (dark) */
+      --sim-node: #38bdf8;         /* 减弱 / nodal semantics (cyan) */
+      --sim-anti: #f59e0b;         /* 加强 / antinodal semantics (amber) */
+      --sim-probe1: #0e7490;       /* probe ① trace on light panel */
+      --sim-probe2: #b45309;       /* probe ② trace on light panel */
+      --sim-strip: #0d1a2b;        /* probe strip screen background */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.12), transparent 26%),
+        radial-gradient(circle at 94% 6%, rgba(245, 158, 11, 0.09), transparent 24%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+
+    .app { width: min(1560px, 100%); height: 100vh; min-height: 640px; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(300px, 0.62fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+
+    /* ---- stage: dark shadow-projection ripple tank ---- */
+    .scene-panel { min-height: 0; padding: 12px 14px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    .stage-wrap { position: relative; width: 100%; max-width: min(100%, calc((100vh - 258px) * 40 / 26)); aspect-ratio: 40 / 26; margin: 0 auto; }
+    #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 16px; border: 1px solid rgba(15,159,186,.28); background: #050d18; cursor: crosshair; touch-action: none; }
+    .stage-legend { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 22px); pointer-events: none; }
+    .stage-legend .chip { font-size: 12px; font-weight: 600; color: #dcebf8; background: rgba(5, 13, 24, 0.74); border: 1px solid rgba(148,183,209,.28); border-radius: 999px; padding: 3px 10px; display: inline-flex; align-items: center; gap: 6px; }
+    .sw { width: 15px; height: 0; border-top: 3px solid #bfe9ff; border-radius: 2px; display: inline-block; }
+    .sw.env { border-color: #ffb14a; box-shadow: 0 0 7px rgba(255,177,74,.85); }
+    .sw.lineA { border-color: #f5a623; }
+    .sw.lineN { border-color: #38bdf8; border-top-style: dashed; }
+    .stage-legend[data-scene] .only-interference { display: none; }
+    .stage-legend[data-scene="interference"] .only-interference { display: inline-flex; }
+
+    /* ---- evidence: probe cards, screen profile, insight ---- */
+    .side { min-height: 0; display: grid; gap: 12px; align-content: start; overflow-y: auto; padding-right: 2px; }
+    .probe-card { padding: 11px 12px 10px; }
+    .probe-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .probe-tag { font-weight: 800; font-size: 0.84rem; padding: 3px 9px; border-radius: 999px; color: #fff; }
+    .probe-tag.p1 { background: var(--sim-probe1); }
+    .probe-tag.p2 { background: var(--sim-probe2); }
+    .verdict { font-size: 0.78rem; font-weight: 750; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .verdict.node { background: #e0f2fe; color: #075985; }
+    .verdict.anti { background: #fef3c7; color: #92400e; }
+    .verdict.mid { background: #eef2f7; color: #475569; }
+    .probe-card canvas { width: 100%; height: auto; display: block; border-radius: 10px; }
+    .probe-read { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; font-size: 0.78rem; color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .probe-read b { color: var(--sim-text); font-weight: 750; }
+    .profile-card { padding: 11px 12px 8px; }
+    .profile-card canvas { width: 100%; height: auto; display: block; }
+    .model-note { padding: 12px 14px; display: grid; align-content: start; gap: 9px; }
+    .insight { margin: 0; padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.86rem; line-height: 1.5; }
+    .model-note .note { margin: 0; color: var(--sim-muted); font-size: 0.74rem; line-height: 1.5; }
+
+    /* ---- controls dock ---- */
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto minmax(150px, 0.95fr) minmax(150px, 0.95fr) minmax(120px, 0.6fr) auto; gap: 14px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; flex-direction: column; gap: 8px; }
+    .tabs { display: flex; gap: 6px; }
+    .tab { padding: 6px 11px; border-radius: 9px; font-size: 0.82rem; }
+    .tab.active { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 6px 14px rgba(15,159,186,.22); }
+    .run { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 730; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .toggles { display: grid; grid-template-columns: repeat(2, auto); gap: 6px; justify-items: stretch; }
+    .toggle { font-size: 0.78rem; padding: 7px 10px; }
+    .toggle.on { border-color: rgba(8,117,138,.55); color: var(--sim-accent-deep); background: var(--sim-accent-soft); }
+    .toggle:disabled { opacity: .45; cursor: not-allowed; }
+
+    @media (max-width: 980px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .actions { grid-column: 1 / -1; }
+      .stage-wrap { max-width: 100%; }
+      .side { overflow: visible; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>水波槽:干涉与衍射</h1>
+        <p>两个同步(同相)振源 → 原地不动的加强与减弱区;波遇到小孔或障碍物会绕过去。看清:减弱点真的始终不动。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停 · 双源干涉</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">水槽(俯视 · 类比投影式水波槽)</h2>
+          <span>40 cm × 26 cm · 波速 v = 12 cm/s · 波峰亮、波谷暗</span>
+        </div>
+        <div class="stage-wrap">
+          <canvas id="scene" width="1440" height="936" role="img" aria-label="水面波动图:两个同步振源的干涉,或波通过缝隙、绕过障碍物的衍射"></canvas>
+          <div class="stage-legend" id="stageLegend" data-scene="interference" aria-hidden="true">
+            <span class="chip"><i class="sw"></i>亮=波峰 · 暗=波谷</span>
+            <span class="chip"><i class="sw env"></i>琥珀带 = 加强区(长时间曝光)</span>
+            <span class="chip only-interference"><i class="sw lineA"></i>橙实线 = 加强线 Δr = mλ</span>
+            <span class="chip only-interference"><i class="sw lineN"></i>青虚线 = 减弱线 Δr = (m+½)λ · 始终静止</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel probe-card" aria-label="探测点①证据">
+          <div class="probe-head">
+            <span class="probe-tag p1">探测点 ①</span>
+            <span id="verdict1" class="verdict node">减弱点 · 始终静止</span>
+          </div>
+          <canvas id="trace1" width="640" height="150" aria-label="探测点①的水面位移随时间曲线"></canvas>
+          <div class="probe-read"><span id="geo1">Δr = 1.50 cm(0.50 λ)</span><span id="amp1">振幅 <b>0.00</b> A₀</span></div>
+        </section>
+
+        <section class="panel probe-card" aria-label="探测点②证据">
+          <div class="probe-head">
+            <span class="probe-tag p2">探测点 ②</span>
+            <span id="verdict2" class="verdict anti">加强点 · 原地最强</span>
+          </div>
+          <canvas id="trace2" width="640" height="150" aria-label="探测点②的水面位移随时间曲线"></canvas>
+          <div class="probe-read"><span id="geo2">Δr = 0.00 cm(0.00 λ)</span><span id="amp2">振幅 <b>2.00</b> A₀</span></div>
+        </section>
+
+        <section class="panel profile-card" aria-label="屏幕振幅分布">
+          <div class="probe-head">
+            <span class="probe-tag" style="background:#475569;">屏幕(x = 35 cm)上的振幅分布 A(y)</span>
+          </div>
+          <canvas id="profile" width="640" height="300" aria-label="屏幕上振幅沿竖直方向的分布曲线"></canvas>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">按「开始」:看波纹向外跑,而琥珀色加强带与青色减弱线原地不动——它们的位置只由路程差 Δr 决定。</p>
+          <p class="note">教学模型:同频同相子波按叠加原理合成(惠更斯原理);理想等幅、无衰减;波长相对水槽已放大便于观察。点击水面放置探测点①,拖动可移动探测点。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="模拟控制">
+      <div class="actions">
+        <div class="tabs" role="tablist" aria-label="演示场景">
+          <button id="tabInterference" class="tab active" role="tab" aria-selected="true" type="button">双源干涉</button>
+          <button id="tabSlit" class="tab" role="tab" aria-selected="false" type="button">单缝衍射</button>
+          <button id="tabObstacle" class="tab" role="tab" aria-selected="false" type="button">障碍物绕射</button>
+        </div>
+        <div class="run">
+          <button id="startBtn" class="primary" type="button">开始</button>
+          <button id="pauseBtn" type="button">暂停</button>
+          <button id="resetBtn" type="button">重置</button>
+        </div>
+      </div>
+      <div class="control">
+        <label for="lambdaInput">波长 λ <output id="lambdaOutput">3.00 cm · f = 4.0 Hz</output></label>
+        <input id="lambdaInput" type="range" min="1.5" max="5" step="0.25" value="3">
+      </div>
+      <div class="control">
+        <label for="geomInput" id="geomLabel">振源间距 d <output id="geomOutput">6.0 cm</output></label>
+        <input id="geomInput" type="range" min="1" max="12" step="0.5" value="6">
+      </div>
+      <div class="control">
+        <label for="speedInput">时间速率 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.1" max="2" step="0.05" value="1">
+      </div>
+      <div class="toggles">
+        <button id="envBtn" class="toggle on" aria-pressed="true" type="button">长时间曝光·振幅</button>
+        <button id="linesBtn" class="toggle on" aria-pressed="true" type="button">加强线/减弱线</button>
+        <button id="snapNodeBtn" class="toggle" type="button">① → 减弱点</button>
+        <button id="snapAntiBtn" class="toggle" type="button">② → 加强点</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ============================== constants ============================== */
+    const TANK_W = 40, TANK_H = 26;          // tank size in cm
+    const V_WAVE = 12;                        // wave speed cm/s (teaching value)
+    const GRID_W = 300, GRID_H = 195;         // field sampling grid (7.5 samples/cm)
+    const CANVAS_W = 1440, CANVAS_H = 936;    // stage backing pixels (36 px/cm)
+    const WALL_X0 = 13.6, WALL_X1 = 14.4;     // slit barrier x-slab (cm)
+    const SLIT_CY = 13;                       // slit center line y
+    const OBST_X = 14, OBST_CY = 13;          // obstacle center
+    const EDGE_AMP = 0.85;                    // total edge-source amplitude (obstacle)
+    const EDGE_DECAY_L = 0.45;                // edge wave decay length in units of λ
+    const MAX_GAP_SOURCES = 36, EDGE_SOURCES = 10;
+    const SCREEN_X = 35;                      // virtual screen for profile curve
+    const SCENE_NAME = { interference: "双源干涉", slit: "单缝衍射", obstacle: "障碍物绕射" };
+    const PROBE_MARK = ["#22d3ee", "#fbbf24"];     // on dark stage
+    const PROBE_TRACE = ["#22d3ee", "#fbbf24"];    // on dark strip
+
+    const parameterSchema = [
+      { key: "lambda", label: "波长 λ", type: "slider", min: 1.5, max: 5, step: 0.25, default: 3, unit: "cm" },
+      { key: "sep", label: "振源间距 d", type: "slider", min: 1, max: 12, step: 0.5, default: 6, unit: "cm" },
+      { key: "slit", label: "缝宽 a", type: "slider", min: 0.5, max: 8, step: 0.25, default: 3, unit: "cm" },
+      { key: "obstacle", label: "障碍物宽度 b", type: "slider", min: 0.5, max: 8, step: 0.25, default: 1.5, unit: "cm" },
+      { key: "timeScale", label: "时间速率", type: "slider", min: 0.1, max: 2, step: 0.05, default: 1, unit: "×" }
+    ];
+    const GEOM_BY_SCENE = {
+      interference: { key: "sep", label: "振源间距 d", min: 1, max: 12, step: 0.5, unit: "cm" },
+      slit: { key: "slit", label: "缝宽 a", min: 0.5, max: 8, step: 0.25, unit: "cm" },
+      obstacle: { key: "obstacle", label: "障碍物宽度 b", min: 0.5, max: 8, step: 0.25, unit: "cm" }
+    };
+
+    /* ============================== state ============================== */
+    const params = { scene: "interference", lambda: 3, sep: 6, slit: 3, obstacle: 1.5, timeScale: 1, showEnvelope: true, showLines: true };
+    const state = {
+      running: false, simTime: 0, lastTs: null, rebuildPending: true, envMax: 1e-9, profileMax: 2.2,
+      probes: [{ x: 31.25, y: 10 }, { x: 33, y: 13 }],
+      traces: [[], []],
+      dragIdx: -1
+    };
+    const field = {
+      C: new Float64Array(GRID_W * GRID_H),
+      S: new Float64Array(GRID_W * GRID_H),
+      env: new Float64Array(GRID_W * GRID_H),
+      mask: new Uint8Array(GRID_W * GRID_H)
+    };
+    let sceneCache = null, sceneKey = "";
+    let elements = null;   // DOM bindings; null when running headless (model checks)
+
+    /* ============================== physics kernel (DOM-free) ==============================
+       Model: coherent superposition. Every contribution is A·cos(k·L − ωt) with the SAME ω,
+       so the field at P collapses to one phasor: η(P,t) = C(P)·cos ωt + S(P)·sin ωt.
+       The envelope A_env(P) = √(C²+S²) is then EXACTLY the time-max displacement and is
+       strictly time-independent — the pattern cannot flicker by construction. */
+    const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finiteOr = (v, fb) => Number.isFinite(v) ? v : fb;
+    const waveNumber = () => 2 * Math.PI / params.lambda;                  // k, rad/cm
+    const omega = () => 2 * Math.PI * V_WAVE / params.lambda;              // rad/s
+    const period = () => params.lambda / V_WAVE;                           // s
+
+    function computeScene() {
+      const lam = params.lambda;
+      if (params.scene === "interference") {
+        const d = params.sep;
+        return {
+          kind: "interference", plane: false, sources: [
+            { x: 20, y: 13 - d / 2, amp: 1, ph: 0, oneSidedX: -1e9, decay: 0 },
+            { x: 20, y: 13 + d / 2, amp: 1, ph: 0, oneSidedX: -1e9, decay: 0 }
+          ],
+          gapBottom: 0, gapTop: 0, circle: null, clip: 2.05, aRef: 2
+        };
+      }
+      if (params.scene === "slit") {
+        const a = params.slit;
+        const N = clampNum(Math.floor(a / (lam / 4)) + 1, 3, MAX_GAP_SOURCES);
+        const row = [];
+        for (let j = 0; j < N; j++) {
+          const y = SLIT_CY - a / 2 + (j + 0.5) * a / N;   // cell-centred inside the gap
+          row.push({ x: WALL_X0, y, amp: 1 / N, ph: WALL_X0, oneSidedX: WALL_X0, decay: 0 });
+        }
+        return {
+          kind: "slit", plane: true, sources: row,
+          gapBottom: SLIT_CY - a / 2, gapTop: SLIT_CY + a / 2, circle: null, clip: 1.5, aRef: 1
+        };
+      }
+      const b = params.obstacle, rho = b / 2;
+      const row = [];
+      for (let j = 0; j < EDGE_SOURCES; j++) {
+        const th = (-90 + (j + 0.5) * 180 / EDGE_SOURCES) * Math.PI / 180;  // right semicircle
+        const ex = OBST_X + rho * Math.cos(th), ey = OBST_CY + rho * Math.sin(th);
+        row.push({ x: ex, y: ey, amp: EDGE_AMP / EDGE_SOURCES, ph: ex, oneSidedX: ex, decay: EDGE_DECAY_L });
+      }
+      return {
+        kind: "obstacle", plane: true, sources: row,
+        gapBottom: 0, gapTop: 0, circle: { x: OBST_X, y: OBST_CY, r: rho }, clip: 1.5, aRef: 1
+      };
+    }
+
+    function getScene() {
+      const key = params.scene + "|" + params.lambda + "|" + params.sep + "|" + params.slit + "|" + params.obstacle;
+      if (!sceneCache || key !== sceneKey) { sceneCache = computeScene(); sceneKey = key; }
+      return sceneCache;
+    }
+
+    // Incident plane wave exists only where its straight −x path is not interrupted.
+    function planeBlocked(sc, x, y) {
+      if (!sc.plane) return true;
+      if (sc.kind === "slit") return x > WALL_X0;               // Huygens replacement: right of the wall = secondary sources only
+      const c = sc.circle, dy = y - c.y;
+      if (Math.abs(dy) < c.r) {
+        const dxl = Math.sqrt(c.r * c.r - dy * dy);
+        if (x > c.x - dxl) return true;                          // geometric shadow of the disk
+      }
+      return false;
+    }
+
+    // Does the segment from a wall-line source to P cross either side wall? (slit scene)
+    function wallBlocks(sx, sy, px, py, sc) {
+      if (Math.max(sx, px) < WALL_X0 || Math.min(sx, px) > WALL_X1) return false;
+      let lo, hi;
+      if (px === sx) { lo = Math.min(sy, py); hi = Math.max(sy, py); }
+      else {
+        const tA = (WALL_X0 - sx) / (px - sx), tB = (WALL_X1 - sx) / (px - sx);
+        const yA = sy + tA * (py - sy), yB = sy + tB * (py - sy);
+        lo = Math.min(yA, yB); hi = Math.max(yA, yB);
+      }
+      return hi >= sc.gapTop || lo <= sc.gapBottom;              // crosses the upper or lower wall block
+    }
+
+    // Does the segment from a rim source to P pass through the obstacle body?
+    function circleBlocks(sx, sy, px, py, c) {
+      const dx = px - sx, dy = py - sy;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1e-12) return false;
+      let t = ((c.x - sx) * dx + (c.y - sy) * dy) / len2;
+      t = clampNum(t, 0.02, 1);
+      const qx = sx + t * dx - c.x, qy = sy + t * dy - c.y;
+      const rEff = c.r - 0.03;
+      return qx * qx + qy * qy < rEff * rEff;
+    }
+
+    function fieldPhasor(x, y) {
+      const sc = getScene(), k = waveNumber();
+      if (sc.circle) {
+        const dx = x - sc.circle.x, dy = y - sc.circle.y;
+        if (dx * dx + dy * dy < sc.circle.r * sc.circle.r) return { C: 0, S: 0, masked: true };
+      }
+      if (sc.kind === "slit" && x >= WALL_X0 && x <= WALL_X1 && (y <= sc.gapBottom || y >= sc.gapTop)) {
+        return { C: 0, S: 0, masked: true };
+      }
+      let C = 0, S = 0;
+      if (!planeBlocked(sc, x, y)) { C += Math.cos(k * x); S += Math.sin(k * x); }
+      for (let i = 0; i < sc.sources.length; i++) {
+        const s = sc.sources[i];
+        if (x < s.oneSidedX) continue;
+        const dx = x - s.x, dy = y - s.y;
+        if (sc.kind === "slit" && wallBlocks(s.x, s.y, x, y, sc)) continue;
+        if (sc.circle && circleBlocks(s.x, s.y, x, y, sc.circle)) continue;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        const a = s.decay ? s.amp / Math.sqrt(1 + r / (s.decay * params.lambda)) : s.amp;
+        const ph = k * (s.ph + r);        // arrival phase at the secondary source + travel to P
+        C += a * Math.cos(ph); S += a * Math.sin(ph);
+      }
+      return { C, S, masked: false };
+    }
+
+    function etaAt(x, y, t) {
+      const q = fieldPhasor(x, y), w = omega();
+      return q.C * Math.cos(w * t) + q.S * Math.sin(w * t);
+    }
+    function envAt(x, y) {
+      const q = fieldPhasor(x, y);
+      return Math.hypot(q.C, q.S);
+    }
+    function sourceBound(x, y) {  // Σ|amplitudes| at P — superposition upper bound
+      const sc = getScene();
+      let b = 0;
+      if (!planeBlocked(sc, x, y)) b += 1;
+      for (let i = 0; i < sc.sources.length; i++) {
+        const s = sc.sources[i];
+        if (x < s.oneSidedX) continue;
+        const dx = x - s.x, dy = y - s.y;
+        if (sc.kind === "slit" && wallBlocks(s.x, s.y, x, y, sc)) continue;
+        if (sc.circle && circleBlocks(s.x, s.y, x, y, sc.circle)) continue;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        b += s.decay ? s.amp / Math.sqrt(1 + r / (s.decay * params.lambda)) : s.amp;
+      }
+      return b;
+    }
+
+    function rebuildField() {   // authoritative grid snapshot of the same kernel
+      const sc = getScene();
+      state.envMax = 1e-9;
+      for (let gy = 0; gy < GRID_H; gy++) {
+        const y = TANK_H * (1 - (gy + 0.5) / GRID_H);
+        for (let gx = 0; gx < GRID_W; gx++) {
+          const x = TANK_W * (gx + 0.5) / GRID_W;
+          const idx = gy * GRID_W + gx;
+          const q = fieldPhasor(x, y);
+          if (q.masked) { field.C[idx] = 0; field.S[idx] = 0; field.env[idx] = 0; field.mask[idx] = 1; continue; }
+          field.C[idx] = q.C; field.S[idx] = q.S; field.mask[idx] = 0;
+          const e = Math.hypot(q.C, q.S);
+          field.env[idx] = e;
+          if (e > state.envMax) state.envMax = e;
+        }
+      }
+      state.profileMax = Math.max(state.envMax, sc.aRef) * 1.06;
+      state.rebuildPending = false;
+      if (elements) buildEnvOverlay(sc);
+    }
+
+    /* ============================== lifecycle (DOM-free parts) ============================== */
+    function update(dt) {
+      if (!state.running) return;
+      const d = clampNum(finiteOr(dt, 0), 0, 0.05);   // clamp long frame gaps (tab suspension)
+      state.simTime += d * params.timeScale;
+      for (let i = 0; i < 2; i++) {
+        const p = state.probes[i];
+        state.traces[i].push({ t: state.simTime, e: etaAt(p.x, p.y, state.simTime) });
+        if (state.traces[i].length > 760) state.traces[i].shift();
+      }
+    }
+
+    function probeDefaults() {
+      const sc = getScene();
+      if (sc.kind === "interference") {
+        const lam = params.lambda, d = params.sep;
+        let node = null;
+        if (d > lam / 2) {                      // closed-form first nodal crossing on the lower ray
+          const u = (d * d - lam * lam / 4) / lam;
+          const x = 20 + u;
+          if (x <= 38.8) node = { x, y: 13 - d / 2 };
+        }
+        if (!node) node = scanExtreme(SCREEN_X, true);
+        state.probes[0] = node;
+        state.probes[1] = { x: 33, y: 13 };     // on the bisector: Δr = 0, exact antinode
+      } else {
+        state.probes[0] = scanExtreme(SCREEN_X, true);
+        state.probes[1] = scanExtreme(SCREEN_X, false);
+      }
+      state.traces = [[], []];
+    }
+
+    function scanExtreme(xCol, wantMin) {       // min/max envelope along the screen column
+      let best = wantMin ? 1e9 : -1e9, by = 13;
+      for (let y = 0.6; y <= 25.4; y += 0.1) {
+        const q = fieldPhasor(xCol, y);
+        if (q.masked) continue;
+        const e = Math.hypot(q.C, q.S);
+        if (wantMin ? e < best : e > best) { best = e; by = y; }
+      }
+      return { x: xCol, y: by };
+    }
+    function scanFieldExtreme(wantMin) {        // fallback over the whole tank
+      let best = wantMin ? 1e9 : -1e9, bx = 20, by = 13;
+      for (let y = 1; y <= 25; y += 0.5) for (let x = 1; x <= 39; x += 0.5) {
+        const q = fieldPhasor(x, y);
+        if (q.masked) continue;
+        const e = Math.hypot(q.C, q.S);
+        if (wantMin ? e < best : e > best) { best = e; bx = x; by = y; }
+      }
+      return { x: bx, y: by };
+    }
+    function snapProbe(i, wantNode) {
+      const sc = getScene();
+      if (sc.kind === "interference" && wantNode) {
+        const lam = params.lambda, d = params.sep;
+        if (d > lam / 2) {
+          const u = (d * d - lam * lam / 4) / lam, x = 20 + u;
+          if (x <= 38.8) { state.probes[0] = { x, y: 13 - d / 2 }; return; }
+        }
+        state.probes[0] = scanFieldExtreme(true); return;
+      }
+      if (sc.kind === "interference" && !wantNode) { state.probes[1] = { x: 33, y: 13 }; return; }
+      state.probes[i] = scanExtreme(SCREEN_X, wantNode);
+    }
+
+    function setParameters(values) {
+      if (values.scene !== undefined && SCENE_NAME[values.scene]) params.scene = values.scene;
+      for (const def of parameterSchema) {
+        if (values[def.key] === undefined) continue;
+        const v = Number(values[def.key]);
+        if (Number.isFinite(v)) params[def.key] = clampNum(v, def.min, def.max);
+      }
+      if (typeof values.showEnvelope === "boolean") params.showEnvelope = values.showEnvelope;
+      if (typeof values.showLines === "boolean") params.showLines = values.showLines;
+      sceneCache = null;
+      state.rebuildPending = true;
+      const sceneChanged = values.scene !== undefined;
+      if (sceneChanged) probeDefaults();
+      if (elements) syncControls(sceneChanged);
+    }
+
+    function getState() {
+      return {
+        running: state.running, simTime: state.simTime, timeScale: params.timeScale,
+        scene: params.scene, lambda: params.lambda, probes: state.probes.map(p => ({ ...p })),
+        traceLengths: state.traces.map(a => a.length), envMax: state.envMax
+      };
+    }
+    function getReadouts() {
+      const sc = getScene();
+      const probes = state.probes.map(p => {
+        const e = envAt(p.x, p.y);
+        let deltaR = null;
+        if (sc.kind === "interference") {
+          const r1 = Math.hypot(p.x - sc.sources[0].x, p.y - sc.sources[0].y);
+          const r2 = Math.hypot(p.x - sc.sources[1].x, p.y - sc.sources[1].y);
+          deltaR = Math.abs(r1 - r2);
+        }
+        return { x: p.x, y: p.y, env: e, eta: etaAt(p.x, p.y, state.simTime), deltaR, rel: e / sc.aRef };
+      });
+      return { scene: sc.kind, sceneName: SCENE_NAME[params.scene], lambdaCm: params.lambda, fHz: V_WAVE / params.lambda, simTime: state.simTime, running: state.running, probes, envMax: state.envMax };
+    }
+
+    function start() { state.running = true; }
+    function pause() { state.running = false; }
+    function reset() {
+      state.running = false; state.simTime = 0; state.lastTs = null;
+      probeDefaults();
+      state.rebuildPending = true;
+      if (elements) render();
+    }
+
+    /* ============================== model checks (quantitative oracle) ============================== */
+    function runModelChecks() {
+      const saved = { ...params };
+      const savedTime = state.simTime, savedRunning = state.running, savedTraces = state.traces;
+      const out = [];
+      const T = period();
+      const maxAbs = (x, y, t0, t1, n) => {
+        let m = 0;
+        for (let i = 0; i < n; i++) m = Math.max(m, Math.abs(etaAt(x, y, t0 + (t1 - t0) * i / (n - 1))));
+        return m;
+      };
+      let seed = 20260928;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+
+      /* 1 — two-source: nodal point sits exactly still (closed-form hyperbola Δr = λ/2) */
+      setParameters({ scene: "interference", lambda: 3, sep: 6 });
+      {
+        const u = (36 - 9 / 4) / 3, nx = 20 + u, ny = 13 - 3;
+        const e = envAt(nx, ny), m = maxAbs(nx, ny, 0, 4 * T, 400);
+        out.push({ name: "双源·减弱点位移恒为零(解析定位 Δr=λ/2)", pass: e < 1e-9 && m < 1e-9, expected: "A_env < 1e-9 且 max|η| < 1e-9", actual: `A_env=${e.toExponential(2)}, max|η|=${m.toExponential(2)}`, tolerance: "1e-9" });
+      }
+      /* 2 — two-source: antinode on the bisector has amplitude exactly 2A (envelope exact to
+         machine precision; sampled max only resolves the crest to sampling resolution) */
+      {
+        const e = envAt(33, 13), m = maxAbs(33, 13, 0, 4 * T, 4000);
+        out.push({ name: "双源·加强点(中央线 Δr=0)振幅恰为 2A₀", pass: Math.abs(e - 2) < 1e-9 && Math.abs(m - 2) < 2e-5, expected: "A_env = 2 ±1e-9;max|η| = 2 ±2e-5(采样分辨)", actual: `A_env=${e.toFixed(9)}, max|η|=${m.toFixed(9)}`, tolerance: "包络 1e-9;采样 2e-5" });
+      }
+      /* 3 — two-source: envelope matches the analytic law A = 2A₀·|cos(kΔr/2)| everywhere */
+      {
+        let err = 0;
+        const k = waveNumber();
+        for (let i = 0; i < 200; i++) {
+          const x = 1 + rnd() * 38, y = 1 + rnd() * 24;
+          const r1 = Math.hypot(x - 20, y - 10), r2 = Math.hypot(x - 20, y - 16);
+          const formula = 2 * Math.abs(Math.cos(k * (r1 - r2) / 2));
+          err = Math.max(err, Math.abs(envAt(x, y) - formula));
+        }
+        out.push({ name: "双源·包络处处符合 A=2A₀|cos(kΔr/2)|", pass: err < 1e-9, expected: "max err < 1e-9", actual: `max err = ${err.toExponential(2)}`, tolerance: "1e-9" });
+      }
+      /* 4 — grid phasors are exactly the kernel evaluated at cell centres (3 scenes) */
+      {
+        let err = 0;
+        for (const cfg of [
+          { scene: "interference", lambda: 3, sep: 6 }, { scene: "slit", lambda: 3, slit: 3 }, { scene: "obstacle", lambda: 3, obstacle: 1.5 }
+        ]) {
+          setParameters(cfg); rebuildField();
+          for (let i = 0; i < 40; i++) {
+            const gx = Math.floor(rnd() * GRID_W), gy = Math.floor(rnd() * GRID_H);
+            const x = TANK_W * (gx + 0.5) / GRID_W, y = TANK_H * (1 - (gy + 0.5) / GRID_H);
+            const q = fieldPhasor(x, y), idx = gy * GRID_W + gx;
+            err = Math.max(err, Math.abs(field.C[idx] - q.C), Math.abs(field.S[idx] - q.S));
+            const w = omega(), t = rnd() * 4 * T;
+            err = Math.max(err, Math.abs(field.C[idx] * Math.cos(w * t) + field.S[idx] * Math.sin(w * t) - etaAt(x, y, t)));
+          }
+        }
+        out.push({ name: "网格相量 ≡ 解析核(三场景)", pass: err < 1e-9, expected: "max err < 1e-9", actual: `max err = ${err.toExponential(2)}`, tolerance: "1e-9" });
+      }
+      /* 5 — envelope is time-invariant and equals the true time-max of |η| (envelope exact;
+         sampled maxima agree to sampling resolution now and 20 s later) */
+      setParameters({ scene: "interference", lambda: 3, sep: 6 });
+      {
+        let err = 0;
+        for (let i = 0; i < 60; i++) {
+          const x = 2 + rnd() * 36, y = 2 + rnd() * 22;
+          const m1 = maxAbs(x, y, 0, 3 * T, 4000), m2 = maxAbs(x, y, 20, 20 + 3 * T, 4000);
+          err = Math.max(err, Math.abs(envAt(x, y) - m1), Math.abs(m1 - m2));
+        }
+        out.push({ name: "包络时间不变性(20 s 后仍等于 max|η|)", pass: err < 2e-5, expected: "max err < 2e-5(包络本身恒定)", actual: `max err = ${err.toExponential(2)}`, tolerance: "2e-5(采样分辨)" });
+      }
+      /* 6 — superposition bound |η| ≤ Σ|amplitudes| */
+      {
+        let worst = -1;
+        for (const cfg of [
+          { scene: "interference", lambda: 2, sep: 8 }, { scene: "slit", lambda: 3, slit: 6 }, { scene: "obstacle", lambda: 3, obstacle: 5 }
+        ]) {
+          setParameters(cfg);
+          for (let i = 0; i < 150; i++) {
+            const x = 1 + rnd() * 38, y = 1 + rnd() * 24;
+            for (let j = 0; j < 6; j++) {
+              const t = rnd() * 5;
+              worst = Math.max(worst, Math.abs(etaAt(x, y, t)) - sourceBound(x, y));
+            }
+          }
+        }
+        out.push({ name: "叠加有界性 |η| ≤ Σ|a|", pass: worst <= 1e-9, expected: "超出量 ≤ 1e-9", actual: `最大超出 = ${worst.toExponential(2)}`, tolerance: "1e-9" });
+      }
+      /* 7 — slit scene: left of the barrier is an exact unperturbed plane wave */
+      setParameters({ scene: "slit", lambda: 3, slit: 3 });
+      {
+        let err = 0;
+        const k = waveNumber(), w = omega();
+        for (let i = 0; i < 30; i++) {
+          const x = 1 + rnd() * 11.5, y = 1 + rnd() * 24;
+          for (let j = 0; j < 10; j++) {
+            const t = rnd() * 3;
+            err = Math.max(err, Math.abs(etaAt(x, y, t) - Math.cos(k * x - w * t)));
+          }
+        }
+        out.push({ name: "单缝·挡板左侧为标准平面波 A₀cos(kx−ωt)", pass: err < 1e-9, expected: "max err < 1e-9", actual: `max err = ${err.toExponential(2)}`, tolerance: "1e-9" });
+      }
+      /* 8 — slit: discrete Huygens row matches its closed form and converges to the
+         continuous gap integral (Simpson). Model row: N points, spacing ≤ λ/4; refined
+         row: 2N−1 points. Both apply the kernel's wall-occlusion rule: at large angles
+         the rays from top-of-gap sources clip the upper wall corner, so the visible
+         source set is the contiguous sub-interval actually integrated. */
+      {
+        const lam = 3, a = 6, R = 14, k = 2 * Math.PI / lam;
+        const N = clampNum(Math.floor(a / (lam / 4)) + 1, 3, MAX_GAP_SOURCES);
+        const rowAmp = (n, deg) => {
+          const th = deg * Math.PI / 180;
+          const px = WALL_X0 + R * Math.cos(th), py = SLIT_CY + R * Math.sin(th);
+          const sc = getScene();
+          let re = 0, im = 0;
+          for (let j = 0; j < n; j++) {
+            const y = SLIT_CY - a / 2 + (j + 0.5) * a / n;
+            if (wallBlocks(WALL_X0, y, px, py, sc)) continue;   // same occlusion rule as the kernel
+            const ph = k * (WALL_X0 + Math.hypot(px - WALL_X0, py - y));
+            re += Math.cos(ph) / n; im += Math.sin(ph) / n;
+          }
+          return { amp: Math.hypot(re, im), px, py };
+        };
+        const contAmp = (deg) => {
+          const th = deg * Math.PI / 180;
+          const px = WALL_X0 + R * Math.cos(th), py = SLIT_CY + R * Math.sin(th);
+          const sc = getScene();
+          let yCut = sc.gapTop;                       // visible sub-span top (occlusion)
+          for (let y = sc.gapTop - 1e-4; y > sc.gapBottom; y -= 1e-3) {
+            if (!wallBlocks(WALL_X0, y, px, py, sc)) { yCut = y; break; }
+          }
+          const span = yCut - sc.gapBottom, n = 2000; // Simpson over the visible span, density 1/a
+          let cRe = 0, cIm = 0;
+          for (let i = 0; i <= n; i++) {
+            const y = sc.gapBottom + span * i / n;
+            const ph = k * (WALL_X0 + Math.hypot(px - WALL_X0, py - y));
+            const wgt = (i === 0 || i === n) ? 1 : (i % 2 ? 4 : 2);
+            cRe += wgt * Math.cos(ph); cIm += wgt * Math.sin(ph);
+          }
+          return Math.hypot(cRe, cIm) * (span / a) * (1 / (3 * n));
+        };
+        let kernErr = 0, refinedErr = 0, modelErr = 0;
+        const detail = [];
+        for (const deg of [0, 15, 30, 45]) {
+          setParameters({ scene: "slit", lambda: lam, slit: a });
+          const model = rowAmp(N, deg), refined = rowAmp(2 * N - 1, deg), cont = contAmp(deg);
+          kernErr = Math.max(kernErr, Math.abs(envAt(model.px, model.py) - model.amp));
+          refinedErr = Math.max(refinedErr, Math.abs(refined.amp - cont));
+          modelErr = Math.max(modelErr, Math.abs(model.amp - cont));
+          detail.push(`${deg}°:模型${model.amp.toFixed(3)}/加密${refined.amp.toFixed(3)}/连续${cont.toFixed(3)}`);
+        }
+        const pass = kernErr < 1e-9 && refinedErr <= 0.02 && modelErr <= 0.06;
+        out.push({ name: "单缝·子波列收敛于连续惠更斯积分", pass, expected: "内核≡行式(1e-9);加密行≤0.02;模型行≤0.06", actual: detail.join("; ") + ` 加密最差${refinedErr.toFixed(4)}/模型最差${modelErr.toFixed(4)}/内核${kernErr.toExponential(1)}`, tolerance: "1e-9 / 0.02 / 0.06" });
+      }
+      /* 9 — slit: spreading law (a ≈ λ spreads widely, a ≫ λ directed forward) */
+      {
+        const lam = 3, R = 14;
+        const ratio = (a) => {
+          setParameters({ scene: "slit", lambda: lam, slit: a });
+          const p0 = envAt(WALL_X0 + R, SLIT_CY);
+          const p45 = envAt(WALL_X0 + R * Math.SQRT1_2, SLIT_CY + R * Math.SQRT1_2);
+          return p45 / p0;
+        };
+        const rNarrow = ratio(3), rWide = ratio(8);
+        out.push({ name: "单缝·绕射展宽规律(a=λ vs a≈2.7λ,45°)", pass: rNarrow >= 0.28 && rWide <= 0.20, expected: "a=λ: ≥0.28;a≈2.7λ: ≤0.20", actual: `a=λ: ${rNarrow.toFixed(3)}, a=8cm: ${rWide.toFixed(3)}`, tolerance: "阈值判定" });
+      }
+      /* 10/11 — obstacle: narrow disk lets waves wrap around; wide disk casts a shadow */
+      {
+        setParameters({ scene: "obstacle", lambda: 3, obstacle: 1.5 });
+        const narrow = envAt(16, 13);
+        setParameters({ scene: "obstacle", lambda: 3, obstacle: 7.5 });
+        const wide = envAt(16, 13);
+        out.push({ name: "障碍物·窄障碍(b=λ/2)波明显绕过", pass: narrow >= 0.25, expected: "后方 2 cm 处振幅 ≥ 0.25 A₀", actual: `${narrow.toFixed(3)} A₀`, tolerance: "≥0.25" });
+        out.push({ name: "障碍物·宽障碍(b=2.5λ)后方成影", pass: wide <= 0.30 && wide <= 0.65 * narrow, expected: "≤ 0.30 A₀ 且 ≤ 0.65×窄障碍值", actual: `${wide.toFixed(3)} A₀(窄:${narrow.toFixed(3)})`, tolerance: "≤0.30 且比值≤0.65" });
+      }
+      /* 12 — time accumulator: frame-rate independent, clamped */
+      {
+        state.traces = [[], []];
+        state.running = true; state.simTime = 0;
+        for (let i = 0; i < 600; i++) update(1 / 120);
+        for (let i = 0; i < 300; i++) update(1 / 240);
+        const t = state.simTime;
+        const clampOk = (() => { update(10); return state.simTime - t <= 0.05 * params.timeScale + 1e-9; })();
+        const pass = Math.abs(t - 6.25) < 1e-6 && clampOk;
+        out.push({ name: "时间累加器·帧率无关且钳制长帧", pass, expected: "600×1/120 + 300×1/240 = 6.25 s;单帧 ≤ 0.05 s", actual: `t=${t.toFixed(9)} s,单帧推进后 Δ=${(state.simTime - t).toExponential(2)}`, tolerance: "1e-6" });
+        state.running = savedRunning; state.simTime = savedTime; state.traces = savedTraces;
+      }
+      /* 13 — parameter extremes keep every field value finite */
+      {
+        let ok = true;
+        for (const scene of ["interference", "slit", "obstacle"]) {
+          const gkey = GEOM_BY_SCENE[scene].key;
+          for (const lam of [1.5, 5]) for (const gv of [GEOM_BY_SCENE[scene].min, GEOM_BY_SCENE[scene].max]) {
+            const cfg = { scene, lambda: lam }; cfg[gkey] = gv;
+            setParameters(cfg); rebuildField();
+            for (let i = 0; i < field.C.length; i++) {
+              if (!Number.isFinite(field.C[i]) || !Number.isFinite(field.S[i]) || !Number.isFinite(field.env[i])) { ok = false; break; }
+            }
+            if (!Number.isFinite(envAt(20, 13)) || !Number.isFinite(etaAt(20, 13, 3.21))) ok = false;
+          }
+        }
+        out.push({ name: "极端参数·全场有限(3场景×λ与几何端点)", pass: ok, expected: "所有 C/S/env/η 有限", actual: ok ? "全部有限" : "存在非有限值", tolerance: "Number.isFinite" });
+      }
+
+      setParameters(saved);
+      state.rebuildPending = true;
+      return out;
+    }
+
+    /* ============================== rendering (browser only) ============================== */
+    const PX = x => x / TANK_W * CANVAS_W;
+    const PY = y => (1 - y / TANK_H) * CANVAS_H;
+    const LUT = (() => {   // η/clip −1..1 → 0..255, projection-style ramp (bright crests)
+      const lut = new Uint8Array(768);
+      const stops = [[0, 4, 9, 18], [0.3, 9, 24, 44], [0.5, 26, 78, 118], [0.72, 118, 204, 232], [1, 238, 252, 255]];
+      for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        let s = 0;
+        while (s < stops.length - 2 && t > stops[s + 1][0]) s++;
+        const a = stops[s], b = stops[s + 1], f = (t - a[0]) / (b[0] - a[0]);
+        lut[i * 3] = a[1] + (b[1] - a[1]) * f;
+        lut[i * 3 + 1] = a[2] + (b[2] - a[2]) * f;
+        lut[i * 3 + 2] = a[3] + (b[3] - a[3]) * f;
+      }
+      return lut;
+    })();
+
+    function buildEnvOverlay(sc) {   // static amber "long exposure" map, rebuilt on geometry change only
+      const img = elements.envCtx.createImageData(GRID_W, GRID_H);
+      const d = img.data;
+      for (let i = 0; i < GRID_W * GRID_H; i++) {
+        const o = i * 4;
+        d[o] = 255; d[o + 1] = 178; d[o + 2] = 74;
+        d[o + 3] = field.mask[i] ? 0 : Math.round(150 * Math.min(1, field.env[i] / sc.aRef));
+      }
+      elements.envCtx.putImageData(img, 0, 0);
+    }
+
+    function drawBarrier(ctx, sc) {
+      ctx.fillStyle = "#93a7bb";
+      ctx.strokeStyle = "#c9d5e2"; ctx.lineWidth = 2;
+      if (sc.kind === "slit") {
+        const x0 = PX(WALL_X0), x1 = PX(WALL_X1);
+        for (const [y0, y1] of [[0.15, sc.gapBottom], [sc.gapTop, TANK_H - 0.15]]) {
+          const py0 = PY(y1), h = PY(y0) - PY(y1);
+          ctx.fillRect(x0, py0, x1 - x0, h);
+          ctx.strokeRect(x0, py0, x1 - x0, h);
+        }
+      }
+      if (sc.circle) {
+        ctx.beginPath();
+        ctx.arc(PX(sc.circle.x), PY(sc.circle.y), sc.circle.r / TANK_W * CANVAS_W, 0, 2 * Math.PI);
+        ctx.fill(); ctx.stroke();
+      }
+    }
+
+    function drawInterferenceLines(ctx) {
+      const lam = params.lambda, d = params.sep, half = d / 2;
+      // hyperbola family r2 − r1 = 2α: (y−13)²/α² − (x−20)²/β² = 1, β² = (d/2)² − α²
+      const drawBranches = (alphaN) => {
+        const beta2 = half * half - alphaN * alphaN;
+        if (beta2 <= 1e-9) return;
+        for (const sgn of [1, -1]) {
+          ctx.beginPath();
+          let pen = false;
+          for (let x = 0.3; x <= 39.7; x += 0.3) {
+            const y = 13 + sgn * alphaN * Math.sqrt(1 + ((x - 20) * (x - 20)) / beta2);
+            if (y < 0.1 || y > 25.9) { pen = false; continue; }
+            const px = PX(x), py = PY(y);
+            if (!pen) { ctx.moveTo(px, py); pen = true; } else ctx.lineTo(px, py);
+          }
+          ctx.stroke();
+        }
+      };
+      ctx.save();
+      ctx.lineWidth = 2.6; ctx.strokeStyle = "rgba(245,166,35,0.72)";
+      for (let m = 1; ; m++) { const a = m * lam / 2; if (a >= half) break; drawBranches(a); }
+      ctx.beginPath(); ctx.moveTo(PX(0.3), PY(13)); ctx.lineTo(PX(39.7), PY(13)); ctx.stroke();
+      ctx.setLineDash([11, 9]); ctx.lineWidth = 2.6; ctx.strokeStyle = "rgba(56,189,248,0.85)";
+      for (let m = 0; ; m++) { const a = (m + 0.5) * lam / 2; if (a >= half) break; drawBranches(a); }
+      ctx.restore();
+    }
+
+    function drawScene(ctx, sc) {
+      const c = Math.cos(omega() * state.simTime), s = Math.sin(omega() * state.simTime);
+      const d = elements.fieldImg.data, clip = sc.clip;
+      for (let i = 0; i < GRID_W * GRID_H; i++) {
+        const o = i * 4;
+        if (field.mask[i]) { d[o] = 14; d[o + 1] = 22; d[o + 2] = 34; d[o + 3] = 255; continue; }
+        let idx = (field.C[i] * c + field.S[i] * s) / clip;   // −1..1
+        idx = 128 + 118 * (idx > 1 ? 1 : idx < -1 ? -1 : idx);
+        const li = (idx | 0) * 3;
+        d[o] = LUT[li]; d[o + 1] = LUT[li + 1]; d[o + 2] = LUT[li + 2]; d[o + 3] = 255;
+      }
+      elements.fieldCtx.putImageData(elements.fieldImg, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(elements.fieldCanvas, 0, 0, CANVAS_W, CANVAS_H);
+      if (params.showEnvelope) ctx.drawImage(elements.envCanvas, 0, 0, CANVAS_W, CANVAS_H);
+
+      // screen reference line
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.16)"; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+      ctx.beginPath(); ctx.moveTo(PX(SCREEN_X), 0); ctx.lineTo(PX(SCREEN_X), CANVAS_H); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(203,213,225,0.65)"; ctx.font = "600 21px Inter, system-ui, sans-serif";
+      ctx.fillText("屏幕", PX(SCREEN_X) + 8, 30);
+      ctx.restore();
+
+      if (sc.kind === "interference" && params.showLines) drawInterferenceLines(ctx);
+      drawBarrier(ctx, sc);
+
+      if (sc.kind === "interference") {   // the two coherent sources, brightness = their own state
+        const pulse = 0.45 + 0.55 * (0.5 + 0.5 * c);
+        for (const s of sc.sources) {
+          ctx.beginPath(); ctx.arc(PX(s.x), PY(s.y), 17, 0, 2 * Math.PI);
+          ctx.fillStyle = `rgba(233,247,255,${(0.25 + 0.5 * pulse).toFixed(3)})`; ctx.fill();
+          ctx.lineWidth = 3; ctx.strokeStyle = "#7dd3fc"; ctx.stroke();
+        }
+        ctx.fillStyle = "#cfe8ff"; ctx.font = "700 24px Inter, system-ui, sans-serif";
+        ctx.fillText("S₁", PX(20) - 46, PY(13 - params.sep / 2) + 8);
+        ctx.fillText("S₂", PX(20) - 46, PY(13 + params.sep / 2) + 8);
+      } else {   // incident plane-wave indicator
+        ctx.save();
+        ctx.strokeStyle = "rgba(159,216,232,0.8)"; ctx.lineWidth = 3; ctx.lineCap = "round";
+        for (const y of [8, 13, 18]) {
+          for (let s2 = 0; s2 < 3; s2++) {
+            const bx = 42 + s2 * 26;
+            ctx.beginPath(); ctx.moveTo(bx, PY(y) - 10); ctx.lineTo(bx + 16, PY(y)); ctx.lineTo(bx, PY(y) + 10); ctx.stroke();
+          }
+        }
+        ctx.fillStyle = "rgba(191,233,255,0.85)"; ctx.font = "600 22px Inter, system-ui, sans-serif";
+        ctx.fillText("平面波(同频同相)", 36, PY(21.6) - 12);
+        ctx.restore();
+      }
+
+      // probes ① / ②
+      const tags = ["①", "②"];
+      for (let i = 0; i < 2; i++) {
+        const p = state.probes[i], px = PX(p.x), py = PY(p.y);
+        ctx.beginPath(); ctx.arc(px, py, 21, 0, 2 * Math.PI);
+        ctx.fillStyle = "rgba(5,13,24,0.55)"; ctx.fill();
+        ctx.lineWidth = 4; ctx.strokeStyle = PROBE_MARK[i]; ctx.stroke();
+        ctx.fillStyle = PROBE_MARK[i]; ctx.font = "700 23px Inter, system-ui, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(tags[i], px, py + 1);
+        ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
+      }
+    }
+
+    function drawStrip(i, sc) {
+      const ctx = elements.stripCtx[i], W = 640, H = 150;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "#0d1a2b"; ctx.fillRect(0, 0, W, H);
+      const T = period(), win = 4.2 * T;
+      const t1 = Math.max(state.simTime, win), t0 = t1 - win;
+      const X = t => (t - t0) / win * (W - 26) + 18;
+      const Y = e => H / 2 - e / sc.clip * (H / 2 - 14);
+      // time grid every T/2
+      ctx.strokeStyle = "rgba(148,163,184,0.16)"; ctx.lineWidth = 1;
+      for (let t = Math.ceil(t0 / (T / 2)) * (T / 2); t <= t1 + 1e-9; t += T / 2) {
+        ctx.beginPath(); ctx.moveTo(X(t), 8); ctx.lineTo(X(t), H - 8); ctx.stroke();
+      }
+      // zero axis
+      ctx.strokeStyle = "rgba(148,163,184,0.55)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(10, H / 2); ctx.lineTo(W - 8, H / 2); ctx.stroke();
+      // static amplitude guides ±A_env (the point's own constant amplitude)
+      const e0 = envAt(state.probes[i].x, state.probes[i].y);
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = PROBE_TRACE[i] + "88"; ctx.lineWidth = 1.5;
+      for (const g of [e0, -e0]) { ctx.beginPath(); ctx.moveTo(10, Y(g)); ctx.lineTo(W - 8, Y(g)); ctx.stroke(); }
+      ctx.setLineDash([]);
+      // trace
+      const pts = state.traces[i];
+      if (pts.length < 2) {
+        ctx.fillStyle = "#7f93b5"; ctx.font = "600 19px Inter, system-ui, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("按「开始」后记录该点的位移–时间曲线 η(t)", W / 2, H / 2 + 6);
+        ctx.textAlign = "start";
+      } else {
+        ctx.strokeStyle = PROBE_TRACE[i]; ctx.lineWidth = 3; ctx.lineJoin = "round";
+        ctx.beginPath();
+        for (let j = 0; j < pts.length; j++) {
+          const x = X(pts[j].t), y = clampNum(Y(pts[j].e), 4, H - 4);
+          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        const last = pts[pts.length - 1];
+        ctx.beginPath(); ctx.arc(X(last.t), clampNum(Y(last.e), 4, H - 4), 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = PROBE_TRACE[i]; ctx.fill();
+      }
+      ctx.fillStyle = "#7f93b5"; ctx.font = "600 17px Inter, system-ui, sans-serif";
+      ctx.fillText(`+${sc.clip > 2 ? 2 : 1.5}A₀`, 12, 18); ctx.fillText("0", 12, H / 2 - 5);
+      ctx.fillText(`t →`, W - 44, H - 10);
+    }
+
+    function drawProfile(sc) {
+      const ctx = elements.profileCtx, W = 640, H = 300, L = 46, R = 16, Tp = 10, B = 30;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+      const X = v => L + v / state.profileMax * (W - L - R);
+      const Y = y => Tp + (1 - y / TANK_H) * (H - Tp - B);
+      ctx.strokeStyle = "#e8edf4"; ctx.lineWidth = 1;
+      for (let y = 0; y <= 25; y += 5) { ctx.beginPath(); ctx.moveTo(L, Y(y)); ctx.lineTo(W - R, Y(y)); ctx.stroke(); }
+      ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(L, Tp - 2); ctx.lineTo(L, H - B); ctx.lineTo(W - R, H - B); ctx.stroke();
+      ctx.fillStyle = "#657188"; ctx.font = "500 15px Inter, system-ui, sans-serif";
+      for (let y = 0; y <= 25; y += 5) ctx.fillText(String(y), 24, Y(y) + 5);
+      ctx.fillText("y / cm", 8, Tp - 2 + 14);
+      for (let v = 0; v <= state.profileMax - 0.01; v += 0.5) {
+        if (v > state.profileMax) break;
+        ctx.fillText(v.toFixed(1), X(v) - 10, H - 9);
+      }
+      ctx.fillText("A / A₀", W - 62, Tp + 8);
+      // envelope curve along the screen column — static in time by construction
+      ctx.strokeStyle = "#d97706"; ctx.lineWidth = 3; ctx.lineJoin = "round";
+      ctx.beginPath();
+      let started = false;
+      const nodeRuns = [];
+      let runMin = null;
+      for (let y = 0.25; y <= 25.75; y += 0.12) {
+        const q = fieldPhasor(SCREEN_X, y);
+        if (q.masked) { started = false; continue; }
+        const e = Math.hypot(q.C, q.S);
+        const px = X(e), py = Y(y);
+        if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+        if (e < 0.07 * state.profileMax) {
+          if (!runMin) runMin = { y0: y, y1: y };
+          runMin.y1 = y;
+        } else if (runMin) { nodeRuns.push(runMin); runMin = null; }
+      }
+      if (runMin) nodeRuns.push(runMin);
+      ctx.stroke();
+      ctx.fillStyle = "#0e7490";
+      for (const rn of nodeRuns) {
+        if (rn.y1 - rn.y0 < 0.24) continue;
+        ctx.beginPath(); ctx.arc(X(0), Y((rn.y0 + rn.y1) / 2), 6, 0, 2 * Math.PI); ctx.fill();
+      }
+      // probe height markers
+      for (let i = 0; i < 2; i++) {
+        const p = state.probes[i], e = envAt(p.x, p.y);
+        ctx.beginPath(); ctx.arc(X(e), Y(p.y), 8, 0, 2 * Math.PI);
+        ctx.lineWidth = 3.5; ctx.strokeStyle = i === 0 ? "#0e7490" : "#b45309"; ctx.stroke();
+      }
+    }
+
+    function verdictOf(i, sc) {
+      const e = envAt(state.probes[i].x, state.probes[i].y);
+      const rel = e / sc.aRef;
+      if (sc.kind === "interference") {
+        if (rel < 0.04) return { cls: "node", txt: "减弱点 · 始终静止" };
+        if (rel > 0.96) return { cls: "anti", txt: "加强点 · 原地最强" };
+        return { cls: "mid", txt: "中间点 · 振幅同样恒定" };
+      }
+      if (rel < 0.35) return { cls: "node", txt: "安静区 · 振幅小而恒定" };
+      if (rel > 0.75) return { cls: "anti", txt: "振动强区 · 振幅大而恒定" };
+      return { cls: "mid", txt: "中间区 · 振幅恒定" };
+    }
+
+    function updateReadouts(sc) {
+      for (let i = 0; i < 2; i++) {
+        const v = verdictOf(i, sc);
+        const el = elements.verdict[i];
+        el.textContent = v.txt;
+        el.className = "verdict " + v.cls;
+        const p = state.probes[i];
+        if (sc.kind === "interference") {
+          const r1 = Math.hypot(p.x - sc.sources[0].x, p.y - sc.sources[0].y);
+          const r2 = Math.hypot(p.x - sc.sources[1].x, p.y - sc.sources[1].y);
+          const dr = Math.abs(r1 - r2);
+          elements.geo[i].textContent = `Δr = ${dr.toFixed(2)} cm(${(dr / params.lambda).toFixed(2)} λ)`;
+        } else {
+          elements.geo[i].textContent = `位置 (${p.x.toFixed(1)}, ${p.y.toFixed(1)}) cm`;
+        }
+        const amp = envAt(p.x, p.y);
+        elements.amp[i].innerHTML = `振幅 <b>${amp.toFixed(2)}</b> A₀`;
+      }
+      elements.lambdaOutput.textContent = `${params.lambda.toFixed(2)} cm · f = ${(V_WAVE / params.lambda).toFixed(1)} Hz`;
+      elements.geomOutput.textContent = `${params[GEOM_BY_SCENE[params.scene].key].toFixed(params.scene === "interference" ? 1 : 2)} ${GEOM_BY_SCENE[params.scene].unit}`;
+      elements.speedOutput.textContent = `${params.timeScale.toFixed(2).replace(/0$/, "")}×`;
+      elements.status.textContent = `${state.running ? "运行中" : "已暂停"} · ${SCENE_NAME[params.scene]}`;
+    }
+
+    function updateInsight(sc) {
+      let txt;
+      const p1 = envAt(state.probes[0].x, state.probes[0].y), p2 = envAt(state.probes[1].x, state.probes[1].y);
+      if (sc.kind === "interference") {
+        if (!state.running && state.simTime === 0) txt = "按「开始」:看波纹向外跑,而琥珀色加强带与青色减弱线原地不动——它们的位置只由路程差 Δr 决定。";
+        else if (!state.running) txt = "已暂停:整幅波纹定格。注意亮暗条纹本来就不随时间移动,移动的只是经过那里的波纹。";
+        else if (p1 / sc.aRef < 0.04 && p2 / sc.aRef > 0.96) txt = "① 在减弱点:曲线始终平直(位移恒为 0);② 在加强点:等幅正弦一直在摇。谁也不会“时强时弱”——每点的振幅只由位置决定。";
+        else txt = "波纹在传播,但每一点的振幅恒定不变:加强区稳定呆在原地最强振动,减弱点真的始终不动。";
+      } else if (sc.kind === "slit") {
+        txt = params.slit <= params.lambda * 1.2
+          ? "缝宽 a 与波长 λ 相当:波绕到挡板后方很大的范围(明显衍射)。把缝宽拉大,绕射变弱、波沿直线传播。"
+          : "缝宽 a ≫ λ:波几乎沿直线传播,后方出现安静区。把缝宽减小到与 λ 相当,波又会绕开去。";
+      } else {
+        txt = params.obstacle <= params.lambda
+          ? "障碍物宽度与 λ 相当:边缘的绕射波让波“绕过”障碍继续传播。"
+          : "障碍物较宽:后方出现稳定的安静区(阴影),只在边缘处有波绕入。";
+      }
+      elements.insight.textContent = txt;
+    }
+
+    function render() {
+      if (!elements) return;
+      if (state.rebuildPending) rebuildField();
+      const sc = getScene();
+      const ctx = elements.sceneCtx;
+      ctx.fillStyle = "#050d18"; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      drawScene(ctx, sc);
+      drawStrip(0, sc); drawStrip(1, sc);
+      drawProfile(sc);
+      updateReadouts(sc);
+      updateInsight(sc);
+    }
+
+    /* ============================== DOM wiring ============================== */
+    function syncControls(reconfigGeom) {
+      const g = GEOM_BY_SCENE[params.scene];
+      elements.lambdaInput.value = String(params.lambda);
+      if (reconfigGeom) {
+        elements.geomInput.min = String(g.min); elements.geomInput.max = String(g.max);
+        elements.geomInput.step = String(g.step);
+        elements.geomLabel.innerHTML = `${g.label} <output id="geomOutput"></output>`;
+        elements.geomOutput = document.getElementById("geomOutput");
+      }
+      elements.geomInput.value = String(params[g.key]);
+      elements.speedInput.value = String(params.timeScale);
+      elements.envBtn.setAttribute("aria-pressed", String(params.showEnvelope));
+      elements.envBtn.classList.toggle("on", params.showEnvelope);
+      elements.linesBtn.setAttribute("aria-pressed", String(params.showLines));
+      elements.linesBtn.classList.toggle("on", params.showLines);
+      const isA = params.scene === "interference";
+      elements.linesBtn.disabled = !isA;
+      elements.legend.setAttribute("data-scene", params.scene);
+      for (const [id, name] of [["tabInterference", "interference"], ["tabSlit", "slit"], ["tabObstacle", "obstacle"]]) {
+        elements[id].classList.toggle("active", params.scene === name);
+        elements[id].setAttribute("aria-selected", String(params.scene === name));
+      }
+      elements.startBtn.setAttribute("aria-pressed", String(state.running));
+    }
+
+    function canvasPoint(ev) {
+      const r = elements.scene.getBoundingClientRect();
+      return {
+        x: clampNum((ev.clientX - r.left) / r.width * TANK_W, 0.6, TANK_W - 0.6),
+        y: clampNum((1 - (ev.clientY - r.top) / r.height) * TANK_H, 0.6, TANK_H - 0.6)
+      };
+    }
+    function hitProbe(p) {
+      let best = -1, bd = 2.4;
+      for (let i = 0; i < 2; i++) {
+        const d2 = Math.hypot(state.probes[i].x - p.x, state.probes[i].y - p.y);
+        if (d2 < bd) { bd = d2; best = i; }
+      }
+      return best;
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", () => { start(); render(); });
+      elements.pauseBtn.addEventListener("click", () => { pause(); render(); });
+      elements.resetBtn.addEventListener("click", reset);
+      elements.lambdaInput.addEventListener("input", e => setParameters({ lambda: Number(e.target.value) }));
+      elements.geomInput.addEventListener("input", e => {
+        const cfg = { lambda: params.lambda };
+        cfg[GEOM_BY_SCENE[params.scene].key] = Number(e.target.value);
+        setParameters(cfg);
+      });
+      elements.speedInput.addEventListener("input", e => setParameters({ timeScale: Number(e.target.value) }));
+      elements.envBtn.addEventListener("click", () => setParameters({ showEnvelope: !params.showEnvelope }));
+      elements.linesBtn.addEventListener("click", () => setParameters({ showLines: !params.showLines }));
+      elements.snapNodeBtn.addEventListener("click", () => { snapProbe(0, true); render(); });
+      elements.snapAntiBtn.addEventListener("click", () => { snapProbe(1, false); render(); });
+      for (const [id, name] of [["tabInterference", "interference"], ["tabSlit", "slit"], ["tabObstacle", "obstacle"]]) {
+        elements[id].addEventListener("click", () => setParameters({ scene: name }));
+      }
+      const cv = elements.scene;
+      cv.addEventListener("pointerdown", ev => {
+        const p = canvasPoint(ev);
+        state.dragIdx = hitProbe(p);
+        if (state.dragIdx < 0) { state.dragIdx = 0; state.probes[0] = p; }
+        cv.setPointerCapture(ev.pointerId);
+        ev.preventDefault();
+      });
+      cv.addEventListener("pointermove", ev => {
+        if (state.dragIdx < 0) return;
+        state.probes[state.dragIdx] = canvasPoint(ev);
+      });
+      const endDrag = () => { state.dragIdx = -1; };
+      cv.addEventListener("pointerup", endDrag);
+      cv.addEventListener("pointercancel", endDrag);
+    }
+
+    function init() {
+      const fieldCanvas = document.createElement("canvas");
+      fieldCanvas.width = GRID_W; fieldCanvas.height = GRID_H;
+      const envCanvas = document.createElement("canvas");
+      envCanvas.width = GRID_W; envCanvas.height = GRID_H;
+      const sceneEl = document.getElementById("scene");
+      elements = {
+        scene: sceneEl,
+        sceneCtx: sceneEl.getContext("2d"),
+        fieldCanvas, fieldCtx: fieldCanvas.getContext("2d"),
+        fieldImg: fieldCanvas.getContext("2d").createImageData(GRID_W, GRID_H),
+        envCanvas, envCtx: envCanvas.getContext("2d"),
+        stripCtx: [document.getElementById("trace1").getContext("2d"), document.getElementById("trace2").getContext("2d")],
+        profileCtx: document.getElementById("profile").getContext("2d"),
+        status: document.getElementById("status"),
+        insight: document.getElementById("insight"),
+        verdict: [document.getElementById("verdict1"), document.getElementById("verdict2")],
+        geo: [document.getElementById("geo1"), document.getElementById("geo2")],
+        amp: [document.getElementById("amp1"), document.getElementById("amp2")],
+        legend: document.getElementById("stageLegend"),
+        lambdaInput: document.getElementById("lambdaInput"), lambdaOutput: document.getElementById("lambdaOutput"),
+        geomInput: document.getElementById("geomInput"), geomLabel: document.getElementById("geomLabel"), geomOutput: document.getElementById("geomOutput"),
+        speedInput: document.getElementById("speedInput"), speedOutput: document.getElementById("speedOutput"),
+        envBtn: document.getElementById("envBtn"), linesBtn: document.getElementById("linesBtn"),
+        snapNodeBtn: document.getElementById("snapNodeBtn"), snapAntiBtn: document.getElementById("snapAntiBtn"),
+        startBtn: document.getElementById("startBtn"), pauseBtn: document.getElementById("pauseBtn"), resetBtn: document.getElementById("resetBtn"),
+        tabInterference: document.getElementById("tabInterference"), tabSlit: document.getElementById("tabSlit"), tabObstacle: document.getElementById("tabObstacle")
+      };
+      bindControls();
+      setParameters({ scene: "interference", lambda: 3, sep: 6, timeScale: 1, showEnvelope: true, showLines: true });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (typeof document !== "undefined" && document.getElementById) init();
+  })();
+  </script>
+</body>
+</html>

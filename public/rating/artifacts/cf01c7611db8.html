@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>伏安法测电源电动势和内阻</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-wire: #2a3547;
+      --sim-ink-soft: #93a0b4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 11px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; transition: background .2s ease, color .2s ease, border-color .2s ease; }
+    .status.warn { background: #fdf1dc; border-color: rgba(217,119,6,.35); color: #9a5b04; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(340px, 0.9fr); gap: 11px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 0.98rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    .scene-panel { min-height: 0; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .scene-body { position: relative; min-height: 0; }
+    .hud { position: absolute; top: 8px; right: 10px; display: flex; gap: 8px; pointer-events: none; }
+    .hud .chip { background: rgba(255,255,255,.93); border: 1px solid rgba(15,159,186,.25); border-radius: 12px; padding: 6px 13px; text-align: right; }
+    .hud .chip small { display: block; font-size: 0.66rem; color: var(--sim-muted); font-weight: 600; }
+    .hud .chip strong { font-size: 1.12rem; letter-spacing: -.01em; color: var(--sim-accent-deep); font-variant-numeric: tabular-nums; }
+    .hud .chip strong i { font-style: normal; font-size: .78rem; color: var(--sim-muted); margin-left: 2px; }
+    .ghost-btn { border: 1px solid var(--sim-border); border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; font-weight: 700; color: var(--sim-muted); background: var(--sim-surface-soft); cursor: pointer; transition: border-color .16s ease, color .16s ease, background .16s ease; }
+    .ghost-btn:hover { border-color: #c7d2e2; background: #eef3f9; color: var(--sim-text); }
+    .ghost-btn[aria-pressed="true"] { border-color: rgba(15,159,186,.4); color: var(--sim-accent-deep); background: var(--sim-accent-soft); }
+    #scene { width: 100%; height: 100%; min-height: 0; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(148deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    #scene text { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif; }
+    .wire { stroke: var(--sim-wire); stroke-width: 3.4; fill: none; stroke-linecap: round; }
+    .wire.thin { stroke-width: 2.6; }
+    .plate { stroke: var(--sim-wire); stroke-width: 4.6; stroke-linecap: round; }
+    .node-dot { fill: var(--sim-wire); }
+    .meter-face { fill: #ffffff; stroke: var(--sim-wire); stroke-width: 3; }
+    .meter-arc { stroke: #c3cedd; stroke-width: 1.6; fill: none; }
+    .tick { stroke: var(--sim-ink-soft); stroke-width: 1.6; }
+    .needle { stroke: var(--sim-danger); stroke-width: 2.6; stroke-linecap: round; transition: transform .12s linear; }
+    .meter-letter { font-size: 19px; font-weight: 800; fill: var(--sim-wire); }
+    .digital { font-size: 15px; font-weight: 800; fill: var(--sim-accent-deep); font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .caption { font-size: 12.5px; fill: var(--sim-muted); }
+    .label-strong { font-size: 15px; font-weight: 700; fill: var(--sim-wire); }
+    .label-muted { font-size: 13px; fill: var(--sim-muted); }
+    .rheo-body { fill: #eef3f8; stroke: var(--sim-wire); stroke-width: 3; }
+    .rheo-hatch { stroke: #b9c6d6; stroke-width: 1.4; }
+    .wiper-arm { stroke: var(--sim-accent); stroke-width: 4; stroke-linecap: round; }
+    .wiper-head { fill: var(--sim-accent); }
+    .wiper-handle { fill: #ffffff; stroke: var(--sim-accent); stroke-width: 3; cursor: grab; }
+    .truth-box { fill: rgba(245, 158, 11, 0.05); stroke: var(--sim-warning); stroke-width: 1.8; stroke-dasharray: 6 5; }
+    .pole-mark { font-size: 14px; font-weight: 800; fill: var(--sim-wire); }
+    .particle { fill: var(--sim-accent); opacity: .92; pointer-events: none; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 11px; }
+    .chart-panel { padding: 12px 14px; }
+    .chart-wrap { position: relative; height: 252px; }
+    #chart { width: 100%; height: 100%; display: block; border: 1px solid var(--sim-border); border-radius: 14px; background: #ffffff; }
+    .table-panel { padding: 12px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .table-wrap { min-height: 0; overflow-y: auto; border: 1px solid var(--sim-grid); border-radius: 12px; }
+    table.records { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    table.records th { position: sticky; top: 0; background: var(--sim-surface-soft); color: var(--sim-muted); font-size: 0.74rem; font-weight: 700; text-align: right; padding: 7px 12px; border-bottom: 1px solid var(--sim-border); }
+    table.records td { font-size: 0.86rem; text-align: right; padding: 6px 12px; border-bottom: 1px solid var(--sim-grid); }
+    table.records tbody tr:nth-child(odd) { background: rgba(232, 237, 244, .38); }
+    table.records td.idx { color: var(--sim-muted); }
+    .empty-rows { padding: 14px 12px; color: var(--sim-muted); font-size: 0.82rem; }
+    .insight-panel { padding: 12px 14px; display: grid; align-content: start; gap: 10px; }
+    .fit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.14); border-radius: 13px; background: linear-gradient(150deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.68rem; font-weight: 600; line-height: 1.3; }
+    .metric strong { font-size: 1.06rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric strong i { font-style: normal; font-size: .72rem; color: var(--sim-muted); margin-left: 2px; }
+    .metric.short { font-size: .92rem; }
+    .insight { margin: 0; padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; font-size: 0.85rem; line-height: 1.5; }
+    .insight.warn { border-left-color: var(--sim-danger); background: #fdecec; color: #9b1c1c; }
+    .note { margin: 0; color: var(--sim-muted); font-size: 0.74rem; line-height: 1.5; }
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto minmax(220px, 1.05fr) minmax(220px, 1fr); gap: 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-accent-deep); font-variant-numeric: tabular-nums; }
+    .control input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .control .hint { display: block; margin-top: 4px; color: var(--sim-muted); font-size: 0.72rem; line-height: 1.45; }
+    .control .hint b { color: var(--sim-accent-deep); }
+    @media (max-width: 880px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-body { height: auto; }
+      #scene { height: auto; aspect-ratio: 780 / 470; }
+      .side { grid-template-rows: auto auto auto auto; }
+      .table-wrap { max-height: 220px; }
+      .controls { grid-template-columns: 1fr; }
+      .hud .chip strong { font-size: 1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .needle { transition: none; }
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>伏安法测电源电动势和内阻</h1>
+        <p>改变外阻 R，记录多组 (I, U)；由 U–I 图线的纵截距与斜率求电动势 E 和内阻 r</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">未记录 · 至少 2 组不同阻值</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">电路与仪表</h2>
+          <button id="flowBtn" class="ghost-btn" type="button" aria-pressed="true">电流演示：开</button>
+        </div>
+        <div class="scene-body">
+          <svg id="scene" viewBox="0 0 780 470" role="img" aria-labelledby="scene-title scene-desc">
+            <desc id="scene-desc">电源、电流表、滑动变阻器组成串联电路，电压表并联在电源两端。拖动变阻器滑片改变外阻，电流粒子随电流大小快慢流动。</desc>
+            <g id="wires">
+              <path class="wire" d="M 200 190 V 96 Q 200 78 218 78 H 360"></path>
+              <path class="wire" d="M 420 78 H 622 Q 640 78 640 96 V 374 Q 640 392 622 392 H 480"></path>
+              <path class="wire" d="M 300 392 H 218 Q 200 392 200 374 V 250"></path>
+              <path class="wire thin" d="M 200 190 H 96"></path>
+              <path class="wire thin" d="M 96 250 H 200"></path>
+            </g>
+            <g id="battery">
+              <rect class="truth-box" x="166" y="182" width="68" height="76" rx="10"></rect>
+              <line class="wire" x1="200" y1="190" x2="200" y2="200"></line>
+              <line class="plate" x1="178" y1="200" x2="222" y2="200"></line>
+              <line class="plate" x1="189" y1="209" x2="211" y2="209"></line>
+              <line class="plate" x1="178" y1="218" x2="222" y2="218"></line>
+              <line class="plate" x1="189" y1="227" x2="211" y2="227"></line>
+              <line class="wire" x1="200" y1="227" x2="200" y2="250"></line>
+              <circle class="node-dot" cx="200" cy="190" r="4.2"></circle>
+              <circle class="node-dot" cx="200" cy="250" r="4.2"></circle>
+              <text class="pole-mark" x="152" y="206" text-anchor="middle">+</text>
+              <text class="pole-mark" x="152" y="234" text-anchor="middle">−</text>
+              <text class="label-strong" x="248" y="213">电源</text>
+              <text class="label-muted" x="248" y="235">E、r 均未知</text>
+            </g>
+            <g id="rheostat">
+              <rect class="rheo-body" x="300" y="380" width="180" height="24" rx="5"></rect>
+              <g id="rheoHatch"></g>
+              <g id="wiper"></g>
+              <rect id="dragZone" x="276" y="318" width="228" height="102" fill="transparent" style="cursor: grab; touch-action: none;"></rect>
+            </g>
+            <g id="particles"></g>
+            <g id="meters">
+              <g id="voltmeter"></g>
+              <g id="ammeter"></g>
+            </g>
+            <g id="sceneLabels">
+              <text class="digital" id="digitalV" x="96" y="298" text-anchor="middle">U = — V</text>
+              <text class="caption" x="96" y="317" text-anchor="middle">电压表（并联在电源两端）</text>
+              <text class="digital" id="digitalA" x="390" y="134" text-anchor="middle">I = — A</text>
+              <text class="caption" x="390" y="154" text-anchor="middle">电流表（串联）</text>
+              <text class="digital" id="rLabel" x="390" y="436" text-anchor="middle">R = 5.0 Ω</text>
+              <text class="caption" x="390" y="455" text-anchor="middle">滑动变阻器（外电阻）· 拖动滑片</text>
+            </g>
+          </svg>
+          <div class="hud" aria-hidden="true">
+            <div class="chip"><small>电压表 U</small><strong><span id="liveU">—</span><i>V</i></strong></div>
+            <div class="chip"><small>电流表 I</small><strong><span id="liveI">—</span><i>A</i></strong></div>
+          </div>
+        </div>
+      </section>
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">U–I 图像</h2>
+            <span>描点 → 连线 → 外推</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart" role="img" aria-label="U-I 图像：数据点、拟合直线，以及外推到电压为零的短路电流"></canvas>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="table-title">
+          <div class="panel-head">
+            <h2 id="table-title">数据记录</h2>
+            <span id="recordCount">0 组</span>
+          </div>
+          <div class="table-wrap" id="tableWrap">
+            <table class="records">
+              <thead>
+                <tr><th>组</th><th>R / Ω</th><th>I / A</th><th>U / V</th></tr>
+              </thead>
+              <tbody id="recordRows"></tbody>
+            </table>
+            <p class="empty-rows" id="emptyRows">还没有数据：改变 R 后点「记录数据」。</p>
+          </div>
+        </section>
+
+        <section class="panel insight-panel" data-zone="insight" aria-labelledby="insight-title">
+          <div class="panel-head">
+            <h2 id="insight-title">结论与提示</h2>
+            <span>由图线读出</span>
+          </div>
+          <div class="fit-grid">
+            <div class="metric"><small>电动势 E（纵截距）</small><strong id="fitE">—</strong></div>
+            <div class="metric"><small>内阻 r（−斜率）</small><strong id="fitR">—</strong></div>
+            <div class="metric"><small>短路电流 I短 = E/r</small><strong id="fitIc">—</strong></div>
+          </div>
+          <p id="insight" class="insight">拖动滑片改变外阻 R，读出对应的 U 和 I，点「记录数据」。至少 2 组不同阻值才能连出图线。</p>
+          <p class="note">模型假设：理想电表、导线电阻为零，U = E − Ir 严格成立。短路电流只能由图线外推计算——绝不可真的短接电源。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验操作">
+      <div class="actions">
+        <button id="recordBtn" class="primary" type="button">记录数据</button>
+        <button id="undoBtn" type="button">撤销一组</button>
+        <button id="resetBtn" type="button">清空重测</button>
+        <button id="batteryBtn" type="button">换一组电池</button>
+      </div>
+      <div class="control">
+        <label for="rInput">外阻 R（滑动变阻器）<output id="rOutput">5.0 Ω</output></label>
+        <input id="rInput" type="range" min="2" max="20" step="0.1" value="5">
+        <small class="hint">滑杆与电路中的滑片同步联动</small>
+      </div>
+      <div class="control">
+        <label>图线法</label>
+        <small class="hint">多组 (I, U) 描点 → U–I 直线 → <b>E = 纵截距</b>、<b>r = −斜率</b>；R 差别越大、组数越多，图线越准。</small>
+      </div>
+    </section>
+  </div>
+  <script>
+  "use strict";
+  // Pure physics kernel: single-loop DC circuit, ideal meters, analytic closed form.
+  // No DOM access — validated headlessly through SimKernel.runModelChecks().
+  const SimKernel = (() => {
+    const LOAD_MIN = 2;      // rheostat residual resistance, keeps current far from short circuit
+    const LOAD_MAX = 20;
+    const EMF_MIN = 2.6, EMF_MAX = 4.6;      // hidden battery truth range
+    const RINT_MIN = 0.6, RINT_MAX = 2.4;
+
+    function solveCircuit(emf, internal, loadR) {
+      // I = E / (r + R);  U = E - I*r  (terminal voltage, ideal voltmeter)
+      const current = emf / (internal + loadR);
+      const terminalVoltage = emf - current * internal;
+      return { I: current, U: terminalVoltage };
+    }
+
+    function shortCircuitCurrent(emf, internal) {
+      // Computed only. Physically unreachable: the load can never go below LOAD_MIN ohms.
+      return emf / internal;
+    }
+
+    function fitUI(points) {
+      // Least squares U = intercept + slope * I over recorded points.
+      // Returns null for degenerate input (< 2 points, zero spread in I, non-positive r).
+      const n = points ? points.length : 0;
+      if (n < 2) return null;
+      let meanI = 0, meanU = 0;
+      for (const p of points) { meanI += p.I; meanU += p.U; }
+      meanI /= n; meanU /= n;
+      let sxx = 0, sxy = 0;
+      for (const p of points) {
+        sxx += (p.I - meanI) * (p.I - meanI);
+        sxy += (p.I - meanI) * (p.U - meanU);
+      }
+      if (!(sxx > 1e-15)) return null;
+      const slope = sxy / sxx;
+      const intercept = meanU - slope * meanI;
+      const internal = -slope;
+      if (!(internal > 0)) return null;
+      return { slope, intercept, emf: intercept, internal, iShort: intercept / internal, n };
+    }
+
+    function isDuplicateR(records, loadR) {
+      // One slider step is 0.1 Ω; anything closer than half a step counts as a repeat.
+      return records.some((rec) => Math.abs(rec.R - loadR) < 0.05);
+    }
+
+    function runModelChecks() {
+      const checks = [];
+      const emfs = []; for (let e = EMF_MIN; e <= EMF_MAX + 1e-9; e += 0.25) emfs.push(+e.toFixed(4));
+      const rints = []; for (let r = RINT_MIN; r <= RINT_MAX + 1e-9; r += 0.15) rints.push(+r.toFixed(4));
+      const loads = []; for (let R = LOAD_MIN; R <= LOAD_MAX + 1e-9; R += 0.25) loads.push(+R.toFixed(4));
+      const batteries = [[3.0, 1.0], [2.63, 0.87], [4.51, 2.38], [3.85, 0.62], [2.6, 2.4]];
+      const fitLoads = [2, 3.7, 5, 8.5, 14, 20];
+
+      // 1. analytic identity U = E - I*r over the full parameter grid
+      let worstResidual = 0;
+      for (const E of emfs) for (const r of rints) for (const R of loads) {
+        const { I, U } = solveCircuit(E, r, R);
+        worstResidual = Math.max(worstResidual, Math.abs(U - (E - I * r)));
+      }
+      checks.push({ name: "解析关系 U = E − I·r（全参数网格）", pass: worstResidual <= 1e-12, expected: "残差 ≤ 1e-12 V", actual: `最大残差 ${worstResidual.toExponential(2)} V`, tolerance: "1e-12 V" });
+
+      // 2. monotonicity: I strictly decreases with R, U strictly increases with R
+      let monotone = true, worstDelta = Infinity;
+      for (const E of emfs) for (const r of rints) {
+        let prev = solveCircuit(E, r, loads[0]);
+        for (const R of loads.slice(1)) {
+          const cur = solveCircuit(E, r, R);
+          if (!(cur.I < prev.I) || !(cur.U > prev.U)) monotone = false;
+          worstDelta = Math.min(worstDelta, prev.I - cur.I, cur.U - prev.U);
+          prev = cur;
+        }
+      }
+      checks.push({ name: "单调性：R 增大 → I 减小、U 增大", pass: monotone && worstDelta > 0, expected: "每步 I 严格减小且 U 严格增大", actual: `全网格最小改变量 ${worstDelta.toExponential(2)} A/V`, tolerance: "严格" });
+
+      // 3. physical bounds: 0 < I < I短 and 0 < U < E everywhere
+      let bounded = true, worstIRatio = 0, worstURatio = 0;
+      for (const E of emfs) for (const r of rints) for (const R of loads) {
+        const { I, U } = solveCircuit(E, r, R);
+        const iShort = shortCircuitCurrent(E, r);
+        if (!(I > 0 && I < iShort) || !(U > 0 && U < E)) bounded = false;
+        worstIRatio = Math.max(worstIRatio, I / iShort);
+        worstURatio = Math.max(worstURatio, U / E);
+      }
+      checks.push({ name: "物理界限：0 < I < I短，0 < U < E", pass: bounded && worstIRatio < 1 && worstURatio < 1, expected: "开区间严格成立", actual: `最大 I/I短 = ${worstIRatio.toFixed(3)}，最大 U/E = ${worstURatio.toFixed(3)}`, tolerance: "严格" });
+
+      // 4 + 5. least-squares fit recovers the hidden E and r from recorded groups
+      let worstE = 0, worstr = 0;
+      for (const [E, r] of batteries) {
+        const pts = fitLoads.map((R) => solveCircuit(E, r, R));
+        const fit = fitUI(pts);
+        if (!fit) { worstE = Infinity; worstr = Infinity; break; }
+        worstE = Math.max(worstE, Math.abs(fit.emf - E));
+        worstr = Math.max(worstr, Math.abs(fit.internal - r));
+      }
+      checks.push({ name: "图线法恢复电动势：拟合纵截距 = E", pass: worstE <= 1e-9, expected: "|ΔE| ≤ 1e-9 V", actual: `最大 |ΔE| = ${worstE.toExponential(2)} V`, tolerance: "1e-9 V" });
+      checks.push({ name: "图线法恢复内阻：拟合 −斜率 = r", pass: worstr <= 1e-9, expected: "|Δr| ≤ 1e-9 Ω", actual: `最大 |Δr| = ${worstr.toExponential(2)} Ω`, tolerance: "1e-9 Ω" });
+
+      // 6. the same fit extrapolates to the analytic short-circuit current
+      let worstShort = 0;
+      for (const [E, r] of batteries) {
+        const fit = fitUI(fitLoads.map((R) => solveCircuit(E, r, R)));
+        worstShort = Math.max(worstShort, Math.abs(fit.iShort - shortCircuitCurrent(E, r)));
+      }
+      checks.push({ name: "外推一致性：图线交 I 轴于 I短 = E/r", pass: worstShort <= 1e-9, expected: "|ΔI短| ≤ 1e-9 A", actual: `最大 |ΔI短| = ${worstShort.toExponential(2)} A`, tolerance: "1e-9 A" });
+
+      // 7. short circuit stays unreachable: legal current ceiling vs I短
+      let worstRatio = 0;
+      for (const E of emfs) for (const r of rints) {
+        const iLegalMax = solveCircuit(E, r, LOAD_MIN).I;
+        worstRatio = Math.max(worstRatio, iLegalMax / shortCircuitCurrent(E, r));
+      }
+      checks.push({ name: "短路不可达：最小负载下 I ≤ 0.6·I短", pass: worstRatio <= 0.6, expected: "I(E, r, R_min)/I短 = r/(r+R_min) ≤ 0.6", actual: `最坏比值 ${worstRatio.toFixed(3)}`, tolerance: "≤ 0.6" });
+
+      // 8. degenerate input guards: no fit from identical readings, duplicates detected
+      const degenerate = fitUI([{ I: 0.5, U: 3 }, { I: 0.5, U: 3 }]);
+      const single = fitUI([{ I: 0.5, U: 3 }]);
+      const dupCatches = isDuplicateR([{ R: 5.0, I: 0.5, U: 3.5 }], 5.0) && !isDuplicateR([{ R: 5.0, I: 0.5, U: 3.5 }], 5.1);
+      checks.push({ name: "退化输入防护（同阻值不拟合、查重有效）", pass: degenerate === null && single === null && dupCatches, expected: "重复读数 → null，单点 → null，查重正确", actual: `同值拟合 ${degenerate === null ? "null" : "非null"}，单点 ${single === null ? "null" : "非null"}，查重 ${dupCatches ? "正确" : "失效"}`, tolerance: "精确" });
+
+      // 9. finiteness sweep across the whole battery and load range
+      let allFinite = true, count = 0;
+      for (const E of emfs) for (const r of rints) for (const R of loads) {
+        const { I, U } = solveCircuit(E, r, R);
+        count += 1;
+        if (!Number.isFinite(I) || !Number.isFinite(U)) allFinite = false;
+      }
+      checks.push({ name: "有限性扫描（E × r × R 全组合）", pass: allFinite && count === emfs.length * rints.length * loads.length, expected: "所有组合 I、U 均为有限值", actual: `${count} 组合全部有限`, tolerance: "全部" });
+
+      return checks;
+    }
+
+    return { LOAD_MIN, LOAD_MAX, EMF_MIN, EMF_MAX, RINT_MIN, RINT_MAX, solveCircuit, shortCircuitCurrent, fitUI, isDuplicateR, runModelChecks };
+  })();
+  if (typeof globalThis !== "undefined") globalThis.SimKernel = SimKernel;
+  </script>
+  <script>
+  (() => {
+    "use strict";
+    const K = globalThis.SimKernel;
+    const $id = (name) => document.getElementById(name);
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const round1 = (v) => Math.round(v * 10) / 10;
+    const round2 = (v) => Math.round(v * 100) / 100;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const state = {
+      battery: { emf: 3, internal: 1 },
+      loadR: 5,
+      records: [],
+      animating: !reduceMotion.matches,
+      t: 0,
+      particleOffset: 0,
+      flash: null
+    };
+
+    const els = {};
+    ["status", "flowBtn", "digitalV", "digitalA", "rLabel", "rheoHatch", "wiper", "dragZone", "particles",
+     "voltmeter", "ammeter", "liveU", "liveI", "chart", "recordRows", "emptyRows", "recordCount",
+     "fitE", "fitR", "fitIc", "insight", "recordBtn", "undoBtn", "resetBtn", "batteryBtn",
+     "rInput", "rOutput", "chartWrap", "scene"].forEach((name) => { els[name] = $id(name); });
+
+    function el(tag, attrs, parent) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const key in attrs) node.setAttribute(key, attrs[key]);
+      if (parent) parent.appendChild(node);
+      return node;
+    }
+
+    // --- meters (analog face + needle) -----------------------------------
+    const METER_FS = { V: 5, A: 3 };
+    const needleEls = {};
+    function polar(cx, cy, deg, r) {
+      const rad = deg * Math.PI / 180;
+      return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
+    }
+    function buildMeter(gid, cx, cy, letter) {
+      const g = els[gid];
+      el("circle", { cx, cy, r: 30, class: "meter-face" }, g);
+      const [ax1, ay1] = polar(cx, cy, -50, 22);
+      const [ax2, ay2] = polar(cx, cy, 50, 22);
+      el("path", { class: "meter-arc", d: `M ${ax1} ${ay1} A 22 22 0 0 1 ${ax2} ${ay2}` }, g);
+      for (let k = 0; k <= 4; k += 1) {
+        const deg = -50 + 25 * k;
+        const [x1, y1] = polar(cx, cy, deg, 17.5);
+        const [x2, y2] = polar(cx, cy, deg, 22);
+        el("line", { class: "tick", x1, y1, x2, y2 }, g);
+      }
+      needleEls[gid] = el("line", { class: "needle", x1: cx, y1: cy, x2: cx, y2: cy - 21 }, g);
+      const t = el("text", { class: "meter-letter", x: cx, y: cy + 13, "text-anchor": "middle" }, g);
+      t.textContent = letter;
+    }
+
+    // --- rheostat ---------------------------------------------------------
+    function buildRheostat() {
+      for (let x = 310; x <= 470; x += 12) {
+        el("line", { class: "rheo-hatch", x1: x, y1: 401, x2: x + 5, y2: 383 }, els.rheoHatch);
+      }
+      el("line", { class: "wiper-arm", x1: 284, y1: 348, x2: 306, y2: 376 }, els.wiper);
+      el("polygon", { class: "wiper-head", points: "313,385 301.5,378.5 308,371.5" }, els.wiper);
+      el("circle", { class: "wiper-handle", cx: 284, cy: 348, r: 11 }, els.wiper);
+    }
+
+    // --- current particles (speed follows I; frozen when paused) ----------
+    const PATH_POINTS = [[200, 190], [200, 96], [218, 78], [622, 78], [640, 96], [640, 374], [622, 392], [218, 392], [200, 374], [200, 250], [200, 190]];
+    const SEGMENTS = [];
+    let PATH_LEN = 0;
+    for (let i = 0; i < PATH_POINTS.length - 1; i += 1) {
+      const [x1, y1] = PATH_POINTS[i], [x2, y2] = PATH_POINTS[i + 1];
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      SEGMENTS.push({ x1, y1, x2, y2, len, start: PATH_LEN });
+      PATH_LEN += len;
+    }
+    const PARTICLE_COUNT = 16;
+    const particleEls = [];
+    function buildParticles() {
+      for (let i = 0; i < PARTICLE_COUNT; i += 1) {
+        particleEls.push(el("circle", { class: "particle", r: 3 }, els.particles));
+      }
+    }
+    function pointAt(s) {
+      let d = ((s % PATH_LEN) + PATH_LEN) % PATH_LEN;
+      for (const seg of SEGMENTS) {
+        if (d <= seg.len + 1e-9) {
+          const f = seg.len === 0 ? 0 : d / seg.len;
+          return [seg.x1 + (seg.x2 - seg.x1) * f, seg.y1 + (seg.y2 - seg.y1) * f];
+        }
+        d -= seg.len;
+      }
+      return [PATH_POINTS[0][0], PATH_POINTS[0][1]];
+    }
+
+    function liveSolve() { return K.solveCircuit(state.battery.emf, state.battery.internal, state.loadR); }
+    function currentFit() { return K.fitUI(state.records.map((rec) => ({ I: rec.I, U: rec.U }))); }
+
+    // --- U–I chart ---------------------------------------------------------
+    function sizeChart() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = els.chartWrap.clientWidth || 320;
+      const h = els.chartWrap.clientHeight || 252;
+      els.chart.width = Math.round(w * dpr);
+      els.chart.height = Math.round(h * dpr);
+      els.chart.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function niceCeil(v) {
+      const steps = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10];
+      for (const s of steps) if (v / s <= 6.01) return s * Math.ceil(v / s - 1e-9);
+      return Math.ceil(v);
+    }
+    function drawChart(fit) {
+      const ctx = els.chart.getContext("2d");
+      const W = els.chart.clientWidth || 320, H = els.chart.clientHeight || 252;
+      ctx.clearRect(0, 0, W, H);
+      const live = liveSolve();
+      let iMaxData = live.I, uMaxData = live.U;
+      for (const rec of state.records) { iMaxData = Math.max(iMaxData, rec.I); uMaxData = Math.max(uMaxData, rec.U); }
+      let iTop, uTop;
+      if (fit) { iTop = Math.max(iMaxData * 1.05, fit.iShort * 1.06); uTop = Math.max(uMaxData * 1.05, fit.emf * 1.12); }
+      else { iTop = Math.max(iMaxData * 1.3, 0.4); uTop = Math.max(uMaxData * 1.3, 0.5); }
+      iTop = niceCeil(iTop); uTop = niceCeil(uTop);
+      const L = 50, Rm = 14, T = 20, B = 44;
+      const pw = W - L - Rm, ph = H - T - B;
+      const X = (i) => L + (i / iTop) * pw;
+      const Y = (u) => T + (1 - u / uTop) * ph;
+      const iStep = niceCeil(iTop / 4.5), uStep = niceCeil(uTop / 4.5);
+      const fmtTick = (v) => v.toFixed(2).replace(/\.?0+$/, "");
+
+      ctx.strokeStyle = "#e8edf4"; ctx.lineWidth = 1; ctx.font = "11px ui-monospace, Menlo, monospace"; ctx.fillStyle = "#657188";
+      for (let i = 0; i <= iTop + 1e-9; i += iStep) {
+        ctx.beginPath(); ctx.moveTo(X(i), T); ctx.lineTo(X(i), T + ph); ctx.stroke();
+        ctx.textAlign = "center"; ctx.fillText(fmtTick(i), X(i), T + ph + 15);
+      }
+      for (let u = 0; u <= uTop + 1e-9; u += uStep) {
+        ctx.beginPath(); ctx.moveTo(L, Y(u)); ctx.lineTo(L + pw, Y(u)); ctx.stroke();
+        ctx.textAlign = "right"; ctx.fillText(fmtTick(u), L - 7, Y(u) + 4);
+      }
+      ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(L, T + ph); ctx.lineTo(L, T - 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L, T + ph); ctx.lineTo(L + pw + 9, T + ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L, T - 6); ctx.lineTo(L - 3.5, T + 1); ctx.lineTo(L + 3.5, T + 1); ctx.closePath(); ctx.fillStyle = "#9aa7ba"; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(L + pw + 9, T + ph); ctx.lineTo(L + pw, T + ph - 3.5); ctx.lineTo(L + pw, T + ph + 3.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#657188"; ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "left"; ctx.fillText("U/V", L + 8, T + 2);
+      ctx.textAlign = "right"; ctx.fillText("I/A", L + pw + 8, T + ph - 8);
+
+      if (!state.records.length && !fit) {
+        ctx.fillStyle = "#93a0b4"; ctx.font = "13px ui-sans-serif, system-ui, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("记录数据后，各组 (I, U) 将在这里描点", L + pw / 2, T + ph / 2);
+        return;
+      }
+      const lineAt = (i) => fit.intercept + fit.slope * i;
+      if (fit) {
+        const iLo = Math.min(...state.records.map((r) => r.I));
+        const iHi = Math.max(...state.records.map((r) => r.I));
+        ctx.strokeStyle = "#0f9fba"; ctx.lineWidth = 2.6; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(X(iLo), Y(lineAt(iLo))); ctx.lineTo(X(iHi), Y(lineAt(iHi))); ctx.stroke();
+        ctx.strokeStyle = "#d97706"; ctx.lineWidth = 2.4; ctx.setLineDash([7, 6]);
+        ctx.beginPath(); ctx.moveTo(X(iHi), Y(lineAt(iHi))); ctx.lineTo(X(fit.iShort), Y(0)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(X(iLo), Y(lineAt(iLo))); ctx.lineTo(X(0), Y(fit.emf)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#0f9fba";
+        ctx.beginPath(); ctx.arc(X(0), Y(fit.emf), 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#08758a"; ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif"; ctx.textAlign = "right";
+        ctx.fillText(`E ≈ ${fit.emf.toFixed(2)} V`, X(0) - 8, Y(fit.emf) - 10);
+        ctx.fillStyle = "#d97706";
+        ctx.beginPath(); ctx.arc(X(fit.iShort), Y(0), 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#b45309"; ctx.textAlign = "center";
+        ctx.fillText(`I短 ≈ ${fit.iShort.toFixed(2)} A（只能计算）`, clamp(X(fit.iShort), L + 78, L + pw - 6), T + ph + 29);
+      }
+      state.records.forEach((rec, idx) => {
+        ctx.fillStyle = "#172033"; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(X(rec.I), Y(rec.U), 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (idx === state.records.length - 1 && state.lastRecordAt !== undefined) {
+          const age = state.t - state.lastRecordAt;
+          if (age >= 0 && age < 0.6) {
+            ctx.strokeStyle = `rgba(15,159,186,${(1 - age / 0.6).toFixed(3)})`; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(X(rec.I), Y(rec.U), 5 + (age / 0.6) * 10, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+      });
+      ctx.strokeStyle = "#0f9fba"; ctx.lineWidth = 2.2; ctx.fillStyle = "rgba(255,255,255,.85)";
+      ctx.beginPath(); ctx.arc(X(live.I), Y(live.U), 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // --- records / status / insight ---------------------------------------
+    function setFlash(msg, warn, seconds) {
+      state.flash = { msg, warn, until: state.t + (seconds || 2.6) };
+    }
+    function renderRecords() {
+      const n = state.records.length;
+      els.recordRows.innerHTML = state.records.map((rec, idx) =>
+        `<tr><td class="idx">${idx + 1}</td><td>${rec.R.toFixed(1)}</td><td>${rec.I.toFixed(2)}</td><td>${rec.U.toFixed(2)}</td></tr>`).join("");
+      els.emptyRows.style.display = n ? "none" : "block";
+      els.recordCount.textContent = `${n} 组`;
+      const fit = currentFit();
+      els.fitE.textContent = fit ? `${fit.emf.toFixed(2)} V` : "—";
+      els.fitR.textContent = fit ? `${fit.internal.toFixed(2)} Ω` : "—";
+      els.fitIc.textContent = fit ? `${fit.iShort.toFixed(2)} A` : "—";
+      els.fitIc.style.color = fit ? "#b45309" : "";
+    }
+    function renderStatus() {
+      const n = state.records.length;
+      const fit = currentFit();
+      const flashing = state.flash && state.t < state.flash.until;
+      let statusText, insightText, warn = false;
+      if (flashing) {
+        statusText = state.flash.msg; insightText = state.flash.msg; warn = state.flash.warn;
+      } else {
+        state.flash = null;
+        statusText = n === 0 ? "未记录 · 至少 2 组不同阻值" : n === 1 ? "已记录 1 组 · 继续改变 R" : `已记录 ${n} 组 · 拟合完成`;
+        insightText = n === 0
+          ? "拖动滑片改变外阻 R，读出对应的 U 和 I，点「记录数据」。至少 2 组不同阻值才能连出图线。"
+          : n === 1
+            ? "已有 1 组数据。改变 R 再多记几组——阻值差别越大，图线越可靠。"
+            : `图线拟合完成：纵截距 E ≈ ${fit.emf.toFixed(2)} V；斜率为负，内阻 r = −斜率 ≈ ${fit.internal.toFixed(2)} Ω。虚线外推与 I 轴的交点就是短路电流——只能算，不能短接。`;
+      }
+      els.status.textContent = statusText;
+      els.status.classList.toggle("warn", warn);
+      els.insight.textContent = insightText;
+      els.insight.classList.toggle("warn", warn);
+    }
+
+    // --- lifecycle ---------------------------------------------------------
+    function init() {
+      buildMeter("voltmeter", 96, 220, "V");
+      buildMeter("ammeter", 390, 78, "A");
+      buildRheostat();
+      buildParticles();
+      bindControls();
+      setAnimating(state.animating);
+      newBattery();
+      setParameters({ loadR: 5 });
+      renderRecords();
+      render();
+      requestAnimationFrame(frame);
+    }
+    function start() { setAnimating(true); }
+    function pause() { setAnimating(false); }
+    function setAnimating(on) {
+      state.animating = on;
+      els.flowBtn.setAttribute("aria-pressed", String(on));
+      els.flowBtn.textContent = on ? "电流演示：开" : "电流演示：关";
+    }
+    function reset() {
+      state.records = [];
+      state.loadR = 5;
+      els.rInput.value = "5";
+      setParameters({ loadR: 5 });
+      renderRecords();
+      setFlash("已清空数据，可重新测量", false);
+      render();
+    }
+    function newBattery() {
+      state.battery = { emf: round2(K.EMF_MIN + Math.random() * (K.EMF_MAX - K.EMF_MIN)), internal: round2(K.RINT_MIN + Math.random() * (K.RINT_MAX - K.RINT_MIN)) };
+    }
+    function changeBattery() {
+      newBattery();
+      state.records = [];
+      state.loadR = 5;
+      els.rInput.value = "5";
+      setParameters({ loadR: 5 });
+      renderRecords();
+      setFlash("已更换电池：E、r 重新隐藏，请重新测量", false, 3.2);
+      render();
+    }
+    function update(dt) {
+      const bounded = clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
+      state.t += bounded;
+      if (state.animating && !reduceMotion.matches) {
+        state.particleOffset += 90 * liveSolve().I * bounded;
+      }
+    }
+    function render() {
+      const { I, U } = liveSolve();
+      needleEls.voltmeter.setAttribute("transform", `rotate(${(-50 + 100 * clamp(U / METER_FS.V, 0, 1)).toFixed(2)} 96 220)`);
+      needleEls.ammeter.setAttribute("transform", `rotate(${(-50 + 100 * clamp(I / METER_FS.A, 0, 1)).toFixed(2)} 390 78)`);
+      els.digitalV.textContent = `U = ${U.toFixed(2)} V`;
+      els.digitalA.textContent = `I = ${I.toFixed(2)} A`;
+      els.rLabel.textContent = `R = ${state.loadR.toFixed(1)} Ω`;
+      els.liveU.textContent = U.toFixed(2);
+      els.liveI.textContent = I.toFixed(2);
+      els.rOutput.textContent = `${state.loadR.toFixed(1)} Ω`;
+      els.wiper.setAttribute("transform", `translate(${((state.loadR - K.LOAD_MIN) * 10).toFixed(2)} 0)`);
+      for (let i = 0; i < PARTICLE_COUNT; i += 1) {
+        const [px, py] = pointAt(state.particleOffset + (i * PATH_LEN) / PARTICLE_COUNT);
+        particleEls[i].setAttribute("cx", px.toFixed(1));
+        particleEls[i].setAttribute("cy", py.toFixed(1));
+      }
+      drawChart(currentFit());
+      renderStatus();
+    }
+    function setParameters(values) {
+      const R = Number(values && values.loadR);
+      state.loadR = clamp(Number.isFinite(R) ? R : 5, K.LOAD_MIN, K.LOAD_MAX);
+      state.loadR = round1(state.loadR);
+      if (String(state.loadR) !== els.rInput.value) els.rInput.value = String(state.loadR);
+      render();
+    }
+    function getState() {
+      return { battery: { ...state.battery }, loadR: state.loadR, animating: state.animating, records: state.records.map((r) => ({ ...r })), fit: currentFit() };
+    }
+    function getReadouts() {
+      const { I, U } = liveSolve();
+      const fit = currentFit();
+      return { U, I, R: state.loadR, groups: state.records.length, fitE: fit ? fit.emf : null, fitR: fit ? fit.internal : null, fitIShort: fit ? fit.iShort : null, emf: state.battery.emf, internal: state.battery.internal };
+    }
+
+    // --- interactions ------------------------------------------------------
+    function recordGroup() {
+      const R = round1(state.loadR);
+      if (K.isDuplicateR(state.records, R)) {
+        setFlash(`R = ${R.toFixed(1)} Ω 已记录过——转动滑片换个阻值再记录`, true);
+        render();
+        return;
+      }
+      const { I, U } = liveSolve();
+      state.records.push({ R, I, U });
+      state.lastRecordAt = state.t;
+      renderRecords();
+      setFlash(`已记录第 ${state.records.length} 组（R = ${R.toFixed(1)} Ω）`, false, 2);
+      render();
+    }
+    function undoGroup() {
+      if (!state.records.length) { setFlash("没有可撤销的记录", true); render(); return; }
+      state.records.pop();
+      renderRecords();
+      setFlash("已撤销最近一组", false, 2);
+      render();
+    }
+    function pointerToSvgX(event) {
+      try {
+        const ctm = els.scene.getScreenCTM();
+        if (ctm) {
+          const pt = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
+          if (Number.isFinite(pt.x)) return pt.x;
+        }
+      } catch (err) { /* fall through to bounding-box mapping */ }
+      const rect = els.scene.getBoundingClientRect();
+      return ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 780;
+    }
+    function bindControls() {
+      els.recordBtn.addEventListener("click", recordGroup);
+      els.undoBtn.addEventListener("click", undoGroup);
+      els.resetBtn.addEventListener("click", reset);
+      els.batteryBtn.addEventListener("click", changeBattery);
+      els.flowBtn.addEventListener("click", () => setAnimating(!state.animating));
+      els.rInput.addEventListener("input", () => setParameters({ loadR: els.rInput.value }));
+      let dragging = false;
+      els.dragZone.addEventListener("pointerdown", (event) => {
+        dragging = true;
+        els.dragZone.setPointerCapture(event.pointerId);
+        setParameters({ loadR: pointerToSvgX(event) });
+      });
+      els.dragZone.addEventListener("pointermove", (event) => {
+        if (dragging) setParameters({ loadR: pointerToSvgX(event) });
+      });
+      const endDrag = () => { dragging = false; };
+      els.dragZone.addEventListener("pointerup", endDrag);
+      els.dragZone.addEventListener("pointercancel", endDrag);
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(() => { sizeChart(); render(); }).observe(els.chartWrap);
+      } else {
+        window.addEventListener("resize", () => { sizeChart(); render(); });
+      }
+      reduceMotion.addEventListener("change", (event) => setAnimating(!event.matches));
+      sizeChart();
+    }
+    let lastTimestamp = null;
+    function frame(timestamp) {
+      if (lastTimestamp === null) lastTimestamp = timestamp;
+      const dt = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: () => globalThis.SimKernel.runModelChecks() };
+    init();
+  })();
+  </script>
+</body>
+</html>

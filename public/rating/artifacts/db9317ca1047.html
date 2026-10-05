@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>蹦极跳：从自由落体到弹性回弹</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic extensions */
+      --sim-vel: #0a9d5c;
+      --sim-vel-soft: rgba(10, 157, 92, 0.14);
+      --sim-acc: #e8590c;
+      --sim-acc-soft: rgba(232, 89, 12, 0.14);
+      --sim-rope-slack: #a8b3c4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; font-size: 0.92rem; }
+    .status.paused { background: #eef2f7; color: #536071; border-color: var(--sim-border); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.58fr) minmax(340px, 0.92fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 12px 12px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 2px 4px 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(180deg, #eaf6fb 0%, #f6fbfd 46%, #fdf9ef 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .chart-card { padding: 12px 12px 8px; }
+    #vChart { width: 100%; height: 224px; display: block; }
+    .readouts { padding: 14px 16px 12px; display: grid; gap: 12px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(150deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.7rem; }
+    .metric strong { font-size: 1.18rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric em { font-style: normal; font-size: 0.72rem; color: var(--sim-muted); margin-left: 2px; }
+    .energy { display: grid; gap: 6px; }
+    .energy .row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 84px; gap: 10px; align-items: center; font-size: 0.76rem; }
+    .energy .row label { color: var(--sim-muted); font-weight: 650; }
+    .energy .track { height: 12px; border-radius: 999px; background: var(--sim-grid); overflow: hidden; }
+    .energy .fill { height: 100%; width: 0%; border-radius: 999px; transition: width .08s linear; }
+    .energy .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--sim-text); font-weight: 650; }
+    .fill.ek { background: linear-gradient(90deg, #0a9d5c, #0bbd6d); }
+    .fill.ee { background: linear-gradient(90deg, #08758a, #0f9fba); }
+    .fill.ep { background: linear-gradient(90deg, #b45309, #d97706); }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; overflow: auto; }
+    .model-note h2 { margin: 0; font-size: 0.95rem; }
+    .insight { margin: 0; padding: 11px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 650; line-height: 1.5; font-size: 0.88rem; }
+    .model-note .note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    .speed-group { display: flex; gap: 5px; align-items: center; }
+    .speed-group .lbl { font-size: 0.76rem; color: var(--sim-muted); font-weight: 700; margin-right: 2px; }
+    .speed-group button { padding: 7px 10px; font-size: 0.8rem; }
+    .speed-group button.active { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.45); color: var(--sim-accent-deep); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    /* scene svg */
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .refline { stroke-width: 2; stroke-dasharray: 7 6; }
+    .refline.l0 { stroke: #8a97ab; }
+    .refline.leq { stroke: var(--sim-accent); }
+    .refline.llow { stroke: var(--sim-danger); }
+    .reflabel { font-size: 12.5px; font-weight: 700; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
+    .reflabel.l0 { fill: #64748b; }
+    .reflabel.leq { fill: var(--sim-accent-deep); }
+    .reflabel.llow { fill: var(--sim-danger); }
+    .tick { stroke: #b9c4d3; stroke-width: 1.2; }
+    .tick-major { stroke: #8a97ab; stroke-width: 1.6; }
+    .ticktext { fill: var(--sim-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .ruler-title { fill: var(--sim-muted); font-size: 11.5px; font-weight: 700; }
+    .rope { fill: none; stroke-linecap: round; }
+    .rope.taut { stroke: var(--sim-accent-deep); }
+    .rope.slack { stroke: var(--sim-rope-slack); stroke-width: 2.6; }
+    .person-part { fill: #1f2937; }
+    .person-limb { stroke: #1f2937; stroke-width: 4.4; stroke-linecap: round; fill: none; }
+    .arrow-line { stroke-width: 5; stroke-linecap: round; }
+    .arrow-vel { stroke: var(--sim-vel); }
+    .arrow-acc { stroke: var(--sim-acc); }
+    .arrow-head-vel { fill: var(--sim-vel); }
+    .arrow-head-acc { fill: var(--sim-acc); }
+    .arrow-label { font-size: 13.5px; font-weight: 800; paint-order: stroke; stroke: #ffffff; stroke-width: 4.5px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
+    .arrow-label.vel { fill: #067a47; }
+    .arrow-label.acc { fill: #b54708; }
+    .stage-chip-box { fill: rgba(23, 32, 51, 0.86); rx: 15px; }
+    .stage-chip-text { fill: #ffffff; font-size: 14.5px; font-weight: 700; }
+    .time-text { fill: var(--sim-muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .bridge-deck { fill: #7d8b9e; }
+    .bridge-post { fill: #98a6b8; }
+    .anchor-dot { fill: #344154; }
+    .canyon { fill: rgba(148, 163, 184, 0.16); }
+    .flag-text { fill: var(--sim-muted); font-size: 11px; font-weight: 700; paint-order: stroke; stroke: #ffffff; stroke-width: 3.5px; }
+    @media (max-width: 920px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; row-gap: 12px; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 620 / 660; }
+      .side { grid-template-rows: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>蹦极跳：从自由落体到弹性回弹</h1>
+        <p>绳绷紧后为什么还要继续加速？调绳长 L、劲度系数 k、质量 m，看各阶段速度与加速度的方向和大小。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">准备就绪 · 按「开始」起跳</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">跳台实景</h2><span>以起跳点为原点、向下为正 · 竖直刻度尺单位：米</span></div>
+        <svg id="scene" viewBox="0 0 620 660" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">蹦极者从桥面跳下：先自由落体，绳绷紧后先加速后减速到最低点，再被弹回。带速度、加速度箭头与参考线。</desc>
+          <defs>
+            <linearGradient id="skyWash" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#d9f0f8" stop-opacity=".55"></stop>
+              <stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="620" height="660" fill="url(#skyWash)"></rect>
+          <polygon class="canyon" points="0,60 96,60 40,660 0,660"></polygon>
+          <polygon class="canyon" points="620,60 540,60 596,660 620,660"></polygon>
+          <!-- 参考线与刻度 -->
+          <g id="refs"></g>
+          <g id="ruler"></g>
+          <!-- 桥 -->
+          <rect class="bridge-deck" x="150" y="58" width="284" height="16" rx="4"></rect>
+          <rect class="bridge-post" x="170" y="40" width="9" height="20" rx="2"></rect>
+          <rect class="bridge-post" x="404" y="40" width="9" height="20" rx="2"></rect>
+          <text class="flag-text" x="446" y="52">桥面（起跳点 y = 0）</text>
+          <circle class="anchor-dot" cx="300" cy="74" r="4.5"></circle>
+          <!-- 绳 -->
+          <path id="rope" class="rope slack" d=""></path>
+          <polyline id="ropeTail" points="" fill="none" stroke="var(--sim-rope-slack)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"></polyline>
+          <!-- 人 -->
+          <g id="jumper">
+            <circle class="person-part" cx="0" cy="-21" r="7.5"></circle>
+            <rect class="person-part" x="-6" y="-12" width="12" height="22" rx="5"></rect>
+            <line class="person-limb" x1="-6" y1="-6" x2="-17" y2="2"></line>
+            <line class="person-limb" x1="6" y1="-6" x2="17" y2="2"></line>
+            <line class="person-limb" x1="-3" y1="10" x2="-6" y2="24"></line>
+            <line class="person-limb" x1="3" y1="10" x2="6" y2="24"></line>
+          </g>
+          <!-- 矢量箭头：加速度（左）、速度（右） -->
+          <g id="accArrowG">
+            <line id="accLine" class="arrow-line arrow-acc" x1="252" y1="120" x2="252" y2="180"></line>
+            <polygon id="accHead" class="arrow-head-acc" points=""></polygon>
+            <text id="accLabel" class="arrow-label acc" x="244" y="150" text-anchor="end">a</text>
+          </g>
+          <g id="velArrowG">
+            <line id="velLine" class="arrow-line arrow-vel" x1="348" y1="120" x2="348" y2="180"></line>
+            <polygon id="velHead" class="arrow-head-vel" points=""></polygon>
+            <text id="velLabel" class="arrow-label vel" x="356" y="150" text-anchor="start">v</text>
+          </g>
+          <!-- 阶段徽章与时间 -->
+          <rect id="stageChipBox" class="stage-chip-box" x="16" y="16" width="356" height="32" rx="15"></rect>
+          <text id="stageChipText" class="stage-chip-text" x="34" y="37">当前阶段：准备起跳</text>
+          <text id="timeText" class="time-text" x="604" y="38" text-anchor="end">t = 0.00 s</text>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-card" aria-label="速度时间图">
+          <div class="panel-head"><h2>速度 v – t 图</h2><span>向下为正 · 绿＝下落 橙＝上升 · 阴影＝绳绷紧段</span></div>
+          <canvas id="vChart" width="600" height="224"></canvas>
+        </section>
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>下落距离 y</small><strong id="yRead">0.0</strong><em>m</em></div>
+            <div class="metric"><small>速度 v（↓正）</small><strong id="vRead">0.00</strong><em id="vDir">m/s</em></div>
+            <div class="metric"><small>加速度 a（↓正）</small><strong id="aRead">9.80</strong><em id="aDir">m/s²</em></div>
+            <div class="metric"><small>绳伸长量 x</small><strong id="xRead">0.00</strong><em>m</em></div>
+            <div class="metric"><small>绳弹力 T＝kx</small><strong id="tRead">0</strong><em>N</em></div>
+            <div class="metric"><small>重力 mg</small><strong id="gRead">588</strong><em>N</em></div>
+          </div>
+          <div class="energy">
+            <div class="row"><label>动能 Ek</label><div class="track"><div id="ekFill" class="fill ek"></div></div><span class="val" id="ekVal">0 J</span></div>
+            <div class="row"><label>弹性势能 Ee</label><div class="track"><div id="eeFill" class="fill ee"></div></div><span class="val" id="eeVal">0 J</span></div>
+            <div class="row"><label>重力势能 Ep</label><div class="track"><div id="epFill" class="fill ep"></div></div><span class="val" id="epVal">0 J</span></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-zone="insight" aria-label="阶段解读">
+          <h2>此刻发生了什么</h2>
+          <p id="insight" class="insight">按「开始」：人离开平台，绳还完全松弛——这是自由落体。</p>
+          <p class="note">理想教学模型：轻绳服从胡克定律且只能拉不能推（T = k·x，x 为超过原长 L 的伸长量）；忽略空气阻力与能量损耗，人视为质点，g = 9.8 m/s²。图中人的大小为示意（便于观察），刻度尺与所有数值均按真实比例。调节参数会重置演示。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="演示控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="speed-group" role="group" aria-label="播放速度">
+        <span class="lbl">慢放</span>
+        <button id="sp025" type="button">0.25×</button>
+        <button id="sp05" type="button">0.5×</button>
+        <button id="sp1" type="button" class="active">1×</button>
+        <button id="sp2" type="button">2×</button>
+      </div>
+      <div class="control">
+        <label for="lenInput">绳长 L（原长）<output id="lenOutput">12.0 m</output></label>
+        <input id="lenInput" type="range" min="5" max="25" step="0.5" value="12">
+      </div>
+      <div class="control">
+        <label for="kInput">劲度系数 k<output id="kOutput">40 N/m</output></label>
+        <input id="kInput" type="range" min="10" max="200" step="2" value="40">
+      </div>
+      <div class="control">
+        <label for="massInput">人的质量 m<output id="massOutput">60 kg</output></label>
+        <input id="massInput" type="range" min="40" max="120" step="1" value="60">
+      </div>
+    </section>
+  </div>
+
+  <script id="sim-kernel">
+  "use strict";
+  /* DOM-free event-contact kernel: exact piecewise analytic bungee dynamics.
+     Frame: y = distance below the jump point (downward positive, meters),
+     v and a use the same sign convention, t in seconds, g = 9.8 m/s^2.
+     Modes: "slack" (free flight, T = 0) and "taut" (unilateral Hooke spring
+     about equilibrium stretch xEq = m*g/k, exact SHM closed form).
+     Events are located exactly, so ensure(t) is frame-rate independent. */
+  const SimModel = (() => {
+    const G = 9.8;
+    const EPS = 1e-12;
+
+    function closedForm(p) {
+      const g = G;
+      const xEq = p.m * g / p.k;
+      const omega = Math.sqrt(p.k / p.m);
+      const vTaut = Math.sqrt(2 * g * p.L);
+      const xMax = (p.m * g + Math.sqrt(p.m * g * p.m * g + 2 * p.k * p.m * g * p.L)) / p.k;
+      const vMax = Math.sqrt(2 * g * p.L + g * xEq);
+      const aMaxUp = (p.k * xMax - p.m * g) / p.m;
+      const tFree = Math.sqrt(2 * p.L / g);
+      return {
+        g, xEq, omega, vTaut, xMax, vMax, aMaxUp, tFree,
+        yEq: p.L + xEq, yLowest: p.L + xMax,
+        ETotal: p.m * g * (p.L + xMax)
+      };
+    }
+
+    function createKernel(params) {
+      const p = { L: params.L, k: params.k, m: params.m };
+      const cf = closedForm(p);
+      const st = { t: 0, y: 0, v: 0, mode: "slack" };
+      const events = [{ t: 0, type: "jump" }];
+      let theta = 0;
+      let vEntry = 0;
+      let thetaExit = 0;
+
+      const beta = () => vEntry / cf.omega;
+      const tautX = (th) => cf.xEq * (1 - Math.cos(th)) + beta() * Math.sin(th);
+      const tautV = (th) => cf.xEq * cf.omega * Math.sin(th) + vEntry * Math.cos(th);
+
+      function enterTaut() {
+        vEntry = st.v;
+        theta = 0;
+        thetaExit = 2 * Math.PI - 2 * Math.atan2(beta(), cf.xEq);
+        st.mode = "taut";
+        st.y = p.L;
+        events.push({ t: st.t, type: "taut" });
+      }
+      function enterSlack() {
+        st.mode = "slack";
+        st.y = p.L;
+        st.v = -vEntry; /* exact by energy conservation at y = L */
+        events.push({ t: st.t, type: "slack" });
+      }
+
+      function ensure(tTarget) {
+        let guard = 0;
+        while (st.t < tTarget - EPS && guard++ < 100000) {
+          const remaining = tTarget - st.t;
+          if (st.mode === "slack") {
+            const A = 0.5 * cf.g, B = st.v, C = st.y - p.L;
+            let dtHit = Infinity;
+            const disc = B * B - 4 * A * C;
+            if (disc >= 0) {
+              const sq = Math.sqrt(disc);
+              const r1 = (-B - sq) / (2 * A);
+              const r2 = (-B + sq) / (2 * A);
+              if (r1 > EPS) dtHit = r1; else if (r2 > EPS) dtHit = r2;
+            }
+            if (dtHit <= remaining) {
+              st.y += st.v * dtHit + 0.5 * cf.g * dtHit * dtHit;
+              st.v += cf.g * dtHit;
+              st.t += dtHit;
+              enterTaut();
+            } else {
+              st.y += st.v * remaining + 0.5 * cf.g * remaining * remaining;
+              st.v += cf.g * remaining;
+              st.t = tTarget;
+            }
+          } else {
+            const tLeft = (thetaExit - theta) / cf.omega;
+            if (tLeft <= remaining) {
+              theta = thetaExit;
+              st.t += tLeft;
+              enterSlack();
+            } else {
+              theta += cf.omega * remaining;
+              st.t = tTarget;
+              st.y = p.L + tautX(theta);
+              st.v = tautV(theta);
+            }
+          }
+        }
+        if (st.mode === "slack" && st.y > p.L + 1e-9) st.y = p.L; /* rope never pushes */
+      }
+
+      function sample() {
+        const x = st.mode === "taut" ? st.y - p.L : 0;
+        const a = st.mode === "taut" ? cf.g - (p.k / p.m) * (st.y - p.L) : cf.g;
+        return {
+          t: st.t, y: st.y, v: st.v, a: a, mode: st.mode,
+          stretch: x, tension: p.k * x,
+          xEq: cf.xEq, yEq: cf.yEq, yLowest: cf.yLowest, vMax: cf.vMax, aMaxUp: cf.aMaxUp
+        };
+      }
+
+      return { ensure: ensure, sample: sample, events: events, closedForm: cf, params: p };
+    }
+
+    /* Presentation-level stage derivation (pure, shared by UI and checks). */
+    function stageOf(s) {
+      const nearZeroV = Math.abs(s.v) < 0.35;
+      const atEq = Math.abs(s.y - s.yEq) < Math.max(0.4, s.yEq * 0.012);
+      if (s.t < 1e-12) return { id: "ready", name: "准备起跳", hint: "按「开始」：人离开平台，绳还完全松弛——这是自由落体。" };
+      if (s.mode === "slack") {
+        if (nearZeroV && s.y < 1.2) return { id: "apex", name: "弹回最高点", hint: "无阻力理想情况下机械能守恒：人恰好回到起跳高度，速度为零，随后再次下落。" };
+        if (s.v > 0) return { id: "freefall", name: "自由落体（绳松弛）", hint: "绳未绷紧，张力 T = 0：只受重力，加速度恒为 g 向下，速度均匀增大。" };
+        return { id: "upflight", name: "绳松弛·竖直上抛", hint: "绳再次松弛（T = 0）：人凭惯性竖直上升，只受重力而减速。" };
+      }
+      if (nearZeroV) return { id: "lowest", name: "最低点", hint: "v = 0：动能全部转为弹性势能；此刻弹力最大、加速度最大，方向向上。" };
+      if (atEq) return { id: "equilibrium", name: "平衡位置·速度最大", hint: "kx = mg：弹力与重力平衡，加速度为 0，速度达到最大值。" };
+      if (s.y < s.yEq) {
+        return s.v > 0
+          ? { id: "taut-acc", name: "绳已绷紧·仍向下加速", hint: "绳开始拉伸但 kx < mg：合力仍向下——绳绷紧不等于立刻减速，人还在加速！" }
+          : { id: "rise-dec", name: "上升减速（合力向下）", hint: "回到平衡位置上方：kx < mg，合力向下与速度相反，向上的速度逐渐减小。" };
+      }
+      return s.v > 0
+        ? { id: "taut-dec", name: "越过平衡点·减速下降", hint: "kx > mg：合力向上、与速度方向相反——人开始减速，但速度方向仍向下，继续下降。" }
+        : { id: "rise-acc", name: "弹回上升·仍在加速", hint: "强大的弹力超过重力：合力向上与速度同向，人被加速弹回。" };
+    }
+
+    function runModelChecks() {
+      const out = [];
+      const add = (name, pass, expected, actual, tolerance) => out.push({ name: name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+      const P0 = { L: 12, k: 40, m: 60 };
+      const cf0 = closedForm(P0);
+      const thetaExitOf = (cf) => 2 * Math.PI - 2 * Math.atan2(cf.vTaut / cf.omega, cf.xEq);
+
+      /* A: ordinary case — free fall then exact taut event */
+      {
+        const kern = createKernel(P0);
+        kern.ensure(cf0.tFree * 0.999);
+        let s = kern.sample();
+        add("A1 绷紧前为自由落体（slack 且 y<L）", s.mode === "slack" && s.y < P0.L, "slack, y<12 m", s.mode + ", y=" + s.y.toFixed(4) + " m", "精确");
+        kern.ensure(cf0.tFree);
+        s = kern.sample();
+        add("A2 绷紧瞬间速度 v=√(2gL)", Math.abs(s.v - cf0.vTaut) < 1e-9, cf0.vTaut.toFixed(9) + " m/s", s.v.toFixed(9) + " m/s", "1e-9 m/s");
+        const ev = kern.events.find((e) => e.type === "taut");
+        add("A3 自由落体历时 t=√(2L/g)", Math.abs(ev.t - cf0.tFree) < 1e-9, cf0.tFree.toFixed(9) + " s", ev.t.toFixed(9) + " s", "1e-9 s");
+      }
+
+      /* B: lowest point against independent closed-form energy root */
+      {
+        const kern = createKernel(P0);
+        const thetaLow = Math.PI - Math.atan2(cf0.vTaut / cf0.omega, cf0.xEq);
+        kern.ensure(cf0.tFree + thetaLow / cf0.omega);
+        const s = kern.sample();
+        add("B1 最低点深度 y=L+x_max（能量法闭式解）", Math.abs(s.y - cf0.yLowest) < 1e-6, cf0.yLowest.toFixed(6) + " m", s.y.toFixed(6) + " m", "1e-6 m");
+        add("B2 最低点速度为 0", Math.abs(s.v) < 1e-6, "0 m/s", s.v.toFixed(9) + " m/s", "1e-6 m/s");
+        add("B3 最低点加速度向上最大 (k·x_max−mg)/m", Math.abs(s.a + cf0.aMaxUp) < 1e-6, (-cf0.aMaxUp).toFixed(6) + " m/s²", s.a.toFixed(6) + " m/s²", "1e-6 m/s²");
+      }
+
+      /* C: equilibrium crossing — max speed, zero acceleration */
+      {
+        const kern = createKernel(P0);
+        const thetaEq = Math.atan2(cf0.xEq, cf0.vTaut / cf0.omega);
+        kern.ensure(cf0.tFree + thetaEq / cf0.omega);
+        const s = kern.sample();
+        add("C1 平衡位置 y=L+mg/k", Math.abs(s.y - cf0.yEq) < 1e-6, cf0.yEq.toFixed(6) + " m", s.y.toFixed(6) + " m", "1e-6 m");
+        add("C2 平衡位置速度最大 v=√(2gL+g·mg/k)", Math.abs(s.v - cf0.vMax) < 1e-6, cf0.vMax.toFixed(6) + " m/s", s.v.toFixed(6) + " m/s", "1e-6 m/s");
+        add("C3 平衡位置加速度为 0（T=mg）", Math.abs(s.a) < 1e-6, "0 m/s²", s.a.toFixed(9) + " m/s²", "1e-6 m/s²");
+      }
+
+      /* D: long-run invariants over two full cycles (ordinary params) */
+      const walk = (p, duration, steps) => {
+        const kern = createKernel(p);
+        const cf = closedForm(p);
+        let maxRelE = 0, tensionOk = true, stretchOk = true, slackOk = true, orderOk = true, last = null;
+        for (let i = 1; i <= steps; i += 1) {
+          kern.ensure((duration * i) / steps);
+          const s = kern.sample();
+          last = s;
+          const E = 0.5 * p.m * s.v * s.v - p.m * G * s.y + 0.5 * p.k * s.stretch * s.stretch;
+          maxRelE = Math.max(maxRelE, Math.abs(E) / (p.m * G * p.L));
+          if (s.tension < -1e-9) tensionOk = false;
+          if (s.stretch < -1e-9) stretchOk = false;
+          if (s.mode === "slack" && s.y > p.L + 1e-7) slackOk = false;
+        }
+        for (let i = 1; i < kern.events.length; i += 1) {
+          if (kern.events[i].type === kern.events[i - 1].type) orderOk = false;
+          if (kern.events[i].t < kern.events[i - 1].t - 1e-12) orderOk = false;
+        }
+        return { maxRelE: maxRelE, tensionOk: tensionOk, stretchOk: stretchOk, slackOk: slackOk, orderOk: orderOk, last: last, nEvents: kern.events.length };
+      };
+      {
+        const period = 2 * cf0.tFree + thetaExitOf(cf0) / cf0.omega;
+        const w = walk(P0, period * 2.05, 480);
+        add("D1 机械能守恒（两个完整周期·480 采样）", w.maxRelE < 1e-9, "相对误差 < 1e-9", "maxRelE = " + w.maxRelE.toExponential(3), "1e-9（相对 mgL）");
+        add("D2 绳只拉不推（T≥0，x≥0，松弛段 y≤L）", w.tensionOk && w.stretchOk && w.slackOk, "全部成立", "T≥0:" + w.tensionOk + " x≥0:" + w.stretchOk + " y≤L:" + w.slackOk, "精确");
+        add("D3 事件序列严格交替且时间单调", w.orderOk, "taut/slack 交替", (w.orderOk ? "正常" : "异常") + "（共 " + w.nEvents + " 个事件）", "精确");
+      }
+
+      /* E: opposite-direction / symmetry — rebound apex returns to start */
+      {
+        const kern = createKernel(P0);
+        const tExit = cf0.tFree + thetaExitOf(cf0) / cf0.omega;
+        kern.ensure(tExit);
+        let s = kern.sample();
+        add("E1 绳松脱时回到 y=L 且速度向上", s.mode === "slack" && Math.abs(s.y - P0.L) < 1e-9 && s.v < 0, "slack, y=L, v<0", s.mode + ", y=" + s.y.toFixed(9) + " m, v=" + s.v.toFixed(6) + " m/s", "1e-9 m");
+        add("E2 松脱速率=绷紧速率（能量守恒）", Math.abs(s.v + cf0.vTaut) < 1e-9, (-cf0.vTaut).toFixed(9) + " m/s", s.v.toFixed(9) + " m/s", "1e-9 m/s");
+        kern.ensure(tExit + cf0.vTaut / cf0.g);
+        s = kern.sample();
+        add("E3 无阻尼弹回起跳高度（y=0, v=0）", Math.abs(s.y) < 1e-6 && Math.abs(s.v) < 1e-6, "y=0, v=0", "y=" + s.y.toFixed(9) + " m, v=" + s.v.toFixed(9) + " m/s", "1e-6");
+      }
+
+      /* F: frame-rate independence — irregular micro-steps vs one exact jump */
+      {
+        const T = (2 * cf0.tFree + thetaExitOf(cf0) / cf0.omega) * 1.37;
+        const k1 = createKernel(P0), k2 = createKernel(P0);
+        const steps = [0.013, 0.041, 0.007, 0.029, 0.05, 0.002, 0.017, 0.033];
+        let acc = 0, i = 0;
+        while (acc < T - 1e-15) {
+          const dt = Math.min(steps[i % steps.length], T - acc);
+          k1.ensure(acc + dt);
+          acc += dt;
+          i += 1;
+        }
+        k2.ensure(T);
+        const s1 = k1.sample(), s2 = k2.sample();
+        add("F1 帧率无关性：不规则步进 vs 单步直达", Math.abs(s1.y - s2.y) < 1e-12 && Math.abs(s1.v - s2.v) < 1e-12, "Δy, Δv < 1e-12", "Δy=" + Math.abs(s1.y - s2.y).toExponential(2) + " m, Δv=" + Math.abs(s1.v - s2.v).toExponential(2) + " m/s", "1e-12");
+      }
+
+      /* G: threshold / corner parameter cases */
+      const corners = [
+        { p: { L: 5, k: 200, m: 40 }, tag: "G1 短绳·硬弹簧·轻人（L=5,k=200,m=40）" },
+        { p: { L: 25, k: 10, m: 120 }, tag: "G2 长绳·软弹簧·重人（L=25,k=10,m=120）" }
+      ];
+      for (const c of corners) {
+        const cf = closedForm(c.p);
+        const period = 2 * cf.tFree + thetaExitOf(cf) / cf.omega;
+        const w = walk(c.p, Math.max(90, period * 2.05), 420);
+        const finiteOk = w.last && Number.isFinite(w.last.y) && Number.isFinite(w.last.v) && Number.isFinite(w.last.a);
+        add(c.tag + "：长时运行有限、守恒、事件交替", !!finiteOk && w.maxRelE < 1e-9 && w.tensionOk && w.stretchOk && w.slackOk && w.orderOk,
+          "有限且相对能量误差 < 1e-9", finiteOk ? "maxRelE=" + w.maxRelE.toExponential(3) + " 不变量均成立" : "出现非有限值", "1e-9（相对 mgL）");
+      }
+
+      return out;
+    }
+
+    return { G: G, closedForm: closedForm, createKernel: createKernel, stageOf: stageOf, runModelChecks: runModelChecks };
+  })();
+  </script>
+
+  <script>
+  (() => {
+    "use strict";
+    const Sim = SimModel;
+    const parameterSchema = [
+      { key: "L", label: "绳长 L（原长）", type: "slider", min: 5, max: 25, step: 0.5, default: 12, unit: "m" },
+      { key: "k", label: "劲度系数 k", type: "slider", min: 10, max: 200, step: 2, default: 40, unit: "N/m" },
+      { key: "m", label: "人的质量 m", type: "slider", min: 40, max: 120, step: 1, default: 60, unit: "kg" }
+    ];
+    const state = {
+      running: false, t: 0, speed: 1, lastTs: null,
+      params: { L: 12, k: 40, m: 60 },
+      kernel: null,
+      history: [{ t: 0, v: 0, mode: "slack" }],
+      lastSampleT: 0, sampleEvery: 0.04, maxHistory: 4200
+    };
+    const scene = { yFit: 53, topY: 110, bottomY: 636, anchorX: 300, anchorY: 74, rulerX: 478 };
+    const els = {
+      status: document.querySelector("#status"),
+      refs: document.querySelector("#refs"), ruler: document.querySelector("#ruler"),
+      rope: document.querySelector("#rope"), ropeTail: document.querySelector("#ropeTail"),
+      jumper: document.querySelector("#jumper"),
+      velLine: document.querySelector("#velLine"), velHead: document.querySelector("#velHead"), velLabel: document.querySelector("#velLabel"),
+      accLine: document.querySelector("#accLine"), accHead: document.querySelector("#accHead"), accLabel: document.querySelector("#accLabel"),
+      stageChipText: document.querySelector("#stageChipText"), timeText: document.querySelector("#timeText"),
+      vChart: document.querySelector("#vChart"),
+      yRead: document.querySelector("#yRead"), vRead: document.querySelector("#vRead"), aRead: document.querySelector("#aRead"),
+      xRead: document.querySelector("#xRead"), tRead: document.querySelector("#tRead"), gRead: document.querySelector("#gRead"),
+      vDir: document.querySelector("#vDir"), aDir: document.querySelector("#aDir"),
+      ekFill: document.querySelector("#ekFill"), eeFill: document.querySelector("#eeFill"), epFill: document.querySelector("#epFill"),
+      ekVal: document.querySelector("#ekVal"), eeVal: document.querySelector("#eeVal"), epVal: document.querySelector("#epVal"),
+      insight: document.querySelector("#insight"),
+      lenInput: document.querySelector("#lenInput"), lenOutput: document.querySelector("#lenOutput"),
+      kInput: document.querySelector("#kInput"), kOutput: document.querySelector("#kOutput"),
+      massInput: document.querySelector("#massInput"), massOutput: document.querySelector("#massOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      speedBtns: [document.querySelector("#sp025"), document.querySelector("#sp05"), document.querySelector("#sp1"), document.querySelector("#sp2")]
+    };
+    const speedValues = [0.25, 0.5, 1, 2];
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finiteOr = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const yToPx = (y) => scene.topY + (y / scene.yFit) * (scene.bottomY - scene.topY);
+
+    function layoutScene() {
+      const cf = state.kernel.closedForm;
+      scene.yFit = Math.max(cf.yLowest * 1.05, 10);
+      const parts = [];
+      const mk = (y, cls, label) => {
+        const py = yToPx(y).toFixed(1);
+        parts.push('<line class="refline ' + cls + '" x1="128" y1="' + py + '" x2="466" y2="' + py + '"></line>');
+        parts.push('<text class="reflabel ' + cls + '" x="134" y="' + (py - 5).toFixed(1) + '">' + label + '</text>');
+      };
+      mk(state.params.L, "l0", "绳原长 L = " + state.params.L.toFixed(1) + " m");
+      mk(cf.yEq, "leq", "平衡位置 L + mg/k = " + cf.yEq.toFixed(1) + " m");
+      mk(cf.yLowest, "llow", "最低点 L + x_max = " + cf.yLowest.toFixed(1) + " m");
+      els.refs.innerHTML = parts.join("");
+      const rl = [];
+      const major = [5, 10, 25, 50, 100].find((s) => scene.yFit / s <= 10) || 100;
+      rl.push('<text class="ruler-title" x="466" y="' + (scene.topY - 38) + '">刻度 / m</text>');
+      rl.push('<line class="tick tick-major" x1="478" y1="' + yToPx(0) + '" x2="478" y2="' + yToPx(scene.yFit) + '"></line>');
+      for (let y = 0; y <= scene.yFit + 1e-9; y += major) {
+        const py = yToPx(y).toFixed(1);
+        rl.push('<line class="tick tick-major" x1="470" y1="' + py + '" x2="486" y2="' + py + '"></line>');
+        rl.push('<text class="ticktext" x="492" y="' + (parseFloat(py) + 4).toFixed(1) + '">' + y.toFixed(0) + "</text>");
+      }
+      els.ruler.innerHTML = rl.join("");
+    }
+
+    function setArrow(line, head, label, x, yPx, value, refScale, isVel) {
+      const mag = Math.abs(value);
+      const show = mag > 0.05;
+      const dir = value >= 0 ? 1 : -1;
+      const len = 16 + 92 * clamp(mag / refScale, 0, 1);
+      const yTip = yPx + dir * len;
+      if (show) {
+        line.setAttribute("x1", x); line.setAttribute("y1", yPx);
+        line.setAttribute("x2", x); line.setAttribute("y2", (yTip - dir * 9).toFixed(1));
+        line.setAttribute("opacity", "1");
+        head.setAttribute("points", (x - 6) + "," + (yTip - dir * 9).toFixed(1) + " " + (x + 6) + "," + (yTip - dir * 9).toFixed(1) + " " + x + "," + yTip.toFixed(1));
+        head.setAttribute("opacity", "1");
+        const name = isVel ? "v" : "a";
+        const unit = isVel ? "m/s" : "m/s²";
+        label.textContent = name + " = " + mag.toFixed(isVel ? 1 : 1) + " " + unit + (dir > 0 ? " ↓" : " ↑");
+        label.setAttribute("y", (yPx + dir * len * 0.5 + 4).toFixed(1));
+        label.setAttribute("opacity", "1");
+      } else {
+        line.setAttribute("opacity", "0"); head.setAttribute("opacity", "0");
+        label.textContent = (isVel ? "v" : "a") + " ≈ 0";
+        label.setAttribute("y", (yPx + 4).toFixed(1));
+        label.setAttribute("opacity", "1");
+      }
+    }
+
+    function renderScene(s, stage) {
+      const cf = state.kernel.closedForm;
+      const yPx = yToPx(s.y);
+      const yTop = yPx - 28;
+      els.jumper.setAttribute("transform", "translate(300 " + yPx.toFixed(1) + ")");
+      if (s.mode === "taut") {
+        els.rope.setAttribute("class", "rope taut");
+        els.rope.setAttribute("d", "M300 74 L300 " + yTop.toFixed(1));
+        const tr = cf.xMax > 0 ? clamp(s.stretch / cf.xMax, 0, 1) : 0;
+        els.rope.setAttribute("stroke-width", (2.5 + 4.5 * tr).toFixed(2));
+        els.rope.setAttribute("opacity", (0.6 + 0.4 * tr).toFixed(2));
+        els.ropeTail.setAttribute("points", "");
+      } else {
+        els.rope.setAttribute("class", "rope slack");
+        els.rope.setAttribute("stroke-width", "2.6");
+        els.rope.setAttribute("opacity", "1");
+        const slackPx = clamp((state.params.L - s.y) / scene.yFit * (scene.bottomY - scene.topY), 0, 96);
+        const sag = clamp(6 + slackPx * 0.3, 6, 30);
+        const midY = (74 + yTop) / 2;
+        els.rope.setAttribute("d", "M300 74 Q" + (300 + sag).toFixed(1) + " " + midY.toFixed(1) + " 300 " + yTop.toFixed(1));
+        const tail = [];
+        const n = Math.floor(slackPx / 9);
+        for (let i = 0; i <= n; i += 1) {
+          tail.push((300 + (i % 2 === 0 ? -7 : 7)) + "," + (yPx + 26 + i * 9).toFixed(1));
+        }
+        els.ropeTail.setAttribute("points", tail.join(" "));
+      }
+      setArrow(els.velLine, els.velHead, els.velLabel, 348, yPx, s.v, cf.vMax * 1.05, true);
+      setArrow(els.accLine, els.accHead, els.accLabel, 252, yPx, s.a, Math.max(cf.g, cf.aMaxUp) * 1.05, false);
+      els.stageChipText.textContent = "当前阶段：" + stage.name;
+      els.timeText.textContent = "t = " + s.t.toFixed(2) + " s";
+    }
+
+    function drawChart() {
+      const canvas = els.vChart;
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(140, rect.width), h = Math.max(140, rect.height);
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      const cf = state.kernel.closedForm;
+      const pad = { l: 46, r: 14, t: 14, b: 30 };
+      const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      const vScale = Math.max(cf.vMax * 1.18, 1);
+      const tWin = Math.max(10, state.t * 1.06 + 0.4);
+      const X = (t) => pad.l + (t / tWin) * pw;
+      const Y = (v) => pad.t + ((vScale - v) / (2 * vScale)) * ph;
+      ctx.font = '11px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+      const evs = state.kernel.events;
+      ctx.fillStyle = "rgba(15,159,186,0.10)";
+      for (let i = 0; i < evs.length; i += 1) {
+        if (evs[i].type !== "taut") continue;
+        const t0 = evs[i].t;
+        const t1 = i + 1 < evs.length ? evs[i + 1].t : state.t;
+        const x0 = X(Math.min(t0, tWin)), x1 = X(Math.min(t1, tWin));
+        if (x1 > x0) ctx.fillRect(x0, pad.t, x1 - x0, ph);
+      }
+      ctx.strokeStyle = "#e8edf4"; ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const vv = vScale - (2 * vScale * i) / 4;
+        const y = Y(vv);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = "#7a8798"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText(vv.toFixed(0), pad.l - 6, y);
+      }
+      for (let i = 0; i <= 6; i += 1) {
+        const t = (tWin * i) / 6;
+        const x = X(t);
+        ctx.strokeStyle = "#e8edf4";
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        ctx.fillStyle = "#7a8798"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(t.toFixed(t < 10 ? 1 : 0), x, h - pad.b + 7);
+      }
+      ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(pad.l, Y(0)); ctx.lineTo(w - pad.r, Y(0)); ctx.stroke();
+      ctx.setLineDash([6, 5]); ctx.strokeStyle = "rgba(10,157,92,0.55)"; ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.moveTo(pad.l, Y(cf.vMax)); ctx.lineTo(w - pad.r, Y(cf.vMax)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(6,122,71,0.9)"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+      ctx.fillText("v最大 " + cf.vMax.toFixed(1) + "（平衡位置）", w - pad.r, Y(cf.vMax) - 2);
+      const hist = state.history;
+      if (hist.length > 1) {
+        ctx.lineWidth = 2.6; ctx.lineJoin = "round"; ctx.lineCap = "round";
+        for (let i = 1; i < hist.length; i += 1) {
+          const a = hist[i - 1], b = hist[i];
+          ctx.strokeStyle = (a.v + b.v) / 2 >= 0 ? "#0a9d5c" : "#d97706";
+          ctx.beginPath(); ctx.moveTo(X(a.t), Y(clamp(a.v, -vScale, vScale))); ctx.lineTo(X(b.t), Y(clamp(b.v, -vScale, vScale))); ctx.stroke();
+        }
+      }
+      const mark = (t, v, color, text, dy) => {
+        if (t > tWin) return;
+        const x = X(t), y = Y(v);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(x, y); ctx.lineTo(x - 5, y + dy); ctx.lineTo(x + 5, y + dy); ctx.closePath(); ctx.fill();
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(text, x, y + dy + (dy > 0 ? 11 : -11));
+      };
+      const eTaut = evs.find((e) => e.type === "taut");
+      if (eTaut) mark(eTaut.t, cf.vTaut, "#08758a", "绷紧", 7);
+      const eSlack = evs.find((e) => e.type === "slack");
+      if (eSlack) mark(eSlack.t, -cf.vTaut, "#b45309", "绳松", -7);
+      let lowIdx = -1;
+      for (let i = 1; i < hist.length; i += 1) {
+        if (hist[i - 1].v > 0 && hist[i].v <= 0) { lowIdx = i; break; }
+      }
+      if (lowIdx > 0) {
+        const x = X(hist[lowIdx].t), y = Y(0);
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillText("最低点", x, y - 12);
+      }
+      ctx.fillStyle = "#64748b"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("v / m·s⁻¹（向下为正）", 6, 4);
+      ctx.textAlign = "right";
+      ctx.fillText("t / s", w - 4, h - 18);
+    }
+
+    function render() {
+      const s = state.kernel.sample();
+      const stage = Sim.stageOf(s);
+      const cf = state.kernel.closedForm;
+      renderScene(s, stage);
+      drawChart();
+      els.yRead.textContent = s.y.toFixed(1);
+      els.vRead.textContent = s.v.toFixed(2);
+      els.aRead.textContent = s.a.toFixed(2);
+      els.xRead.textContent = s.stretch.toFixed(2);
+      els.tRead.textContent = s.tension.toFixed(0);
+      els.gRead.textContent = (state.params.m * cf.g).toFixed(0);
+      els.vDir.textContent = "m/s" + (s.v > 0.05 ? " ↓" : s.v < -0.05 ? " ↑" : "");
+      els.aDir.textContent = "m/s²" + (s.a > 0.05 ? " ↓" : s.a < -0.05 ? " ↑" : "");
+      const eTot = Math.max(cf.ETotal, 1e-9);
+      const ek = 0.5 * state.params.m * s.v * s.v;
+      const ee = 0.5 * state.params.k * s.stretch * s.stretch;
+      const ep = state.params.m * cf.g * Math.max(0, cf.yLowest - s.y);
+      els.ekFill.style.width = clamp((ek / eTot) * 100, 0, 100).toFixed(1) + "%";
+      els.eeFill.style.width = clamp((ee / eTot) * 100, 0, 100).toFixed(1) + "%";
+      els.epFill.style.width = clamp((ep / eTot) * 100, 0, 100).toFixed(1) + "%";
+      els.ekVal.textContent = Math.round(ek) + " J";
+      els.eeVal.textContent = Math.round(ee) + " J";
+      els.epVal.textContent = Math.round(ep) + " J";
+      els.insight.textContent = stage.hint;
+      if (state.t < 1e-12 && !state.running) {
+        els.status.textContent = "准备就绪 · 按「开始」起跳";
+        els.status.className = "status";
+      } else {
+        els.status.textContent = (state.running ? "运行中 · " : "已暂停 · ") + stage.name;
+        els.status.className = "status" + (state.running ? "" : " paused");
+      }
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clamp(finiteOr(dt, 0), 0, 0.05);
+      const simDt = bounded * state.speed;
+      state.t += simDt;
+      state.kernel.ensure(state.t);
+      const s = state.kernel.sample();
+      if (state.t - state.lastSampleT >= state.sampleEvery) {
+        state.history.push({ t: state.t, v: s.v, mode: s.mode });
+        state.lastSampleT = state.t;
+        if (state.history.length > state.maxHistory) state.history.shift();
+      }
+    }
+
+    function init() {
+      bindControls();
+      setParameters({ L: parameterSchema[0].default, k: parameterSchema[1].default, m: parameterSchema[2].default });
+      requestAnimationFrame(frame);
+    }
+    function start() { state.running = true; render(); }
+    function pause() { state.running = false; render(); }
+    function reset() {
+      state.running = false;
+      state.t = 0;
+      state.kernel = Sim.createKernel(state.params);
+      state.history = [{ t: 0, v: 0, mode: "slack" }];
+      state.lastSampleT = 0;
+      state.lastTs = null;
+      layoutScene();
+      render();
+    }
+    function setParameters(values) {
+      const defs = { L: parameterSchema[0], k: parameterSchema[1], m: parameterSchema[2] };
+      for (const key of ["L", "k", "m"]) {
+        const d = defs[key];
+        state.params[key] = clamp(finiteOr(Number(values[key]), d.default), d.min, d.max);
+      }
+      els.lenInput.value = String(state.params.L);
+      els.kInput.value = String(state.params.k);
+      els.massInput.value = String(state.params.m);
+      els.lenOutput.textContent = state.params.L.toFixed(1) + " m";
+      els.kOutput.textContent = state.params.k.toFixed(0) + " N/m";
+      els.massOutput.textContent = state.params.m.toFixed(0) + " kg";
+      reset();
+    }
+    function getState() {
+      const s = state.kernel.sample();
+      return { running: state.running, t: state.t, speed: state.speed, params: { ...state.params }, stage: Sim.stageOf(s).id, historyLength: state.history.length };
+    }
+    function getReadouts() {
+      const s = state.kernel.sample();
+      return { t: s.t, y: s.y, v: s.v, a: s.a, stretch: s.stretch, tension: s.tension, stage: Sim.stageOf(s).name };
+    }
+    const runModelChecks = () => Sim.runModelChecks();
+
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      els.lenInput.addEventListener("input", () => setParameters({ L: els.lenInput.value, k: state.params.k, m: state.params.m }));
+      els.kInput.addEventListener("input", () => setParameters({ L: state.params.L, k: els.kInput.value, m: state.params.m }));
+      els.massInput.addEventListener("input", () => setParameters({ L: state.params.L, k: state.params.k, m: els.massInput.value }));
+      els.speedBtns.forEach((btn, i) => {
+        btn.addEventListener("click", () => {
+          state.speed = speedValues[i];
+          els.speedBtns.forEach((b) => b.classList.toggle("active", b === btn));
+        });
+      });
+      window.addEventListener("resize", render);
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RC 电路充放电演示</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --line:#2a3550;
+    --txt:#dde6f5; --dim:#8fa0c0;
+    --charge:#4ade80; --discharge:#f87171; --accent:#60a5fa;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    padding:16px;
+  }
+  h1{font-size:20px; margin-bottom:12px; color:var(--accent);}
+  .layout{display:grid; grid-template-columns:300px 1fr; gap:14px; max-width:1180px; margin:0 auto;}
+  @media (max-width:860px){ .layout{grid-template-columns:1fr;} }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px;}
+  .panel h2{font-size:14px; color:var(--dim); margin-bottom:10px; letter-spacing:1px;}
+  .row{margin-bottom:14px;}
+  label{display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; color:var(--txt);}
+  label b{color:var(--accent); font-weight:600;}
+  input[type=range]{width:100%; accent-color:var(--accent);}
+  .btns{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  button{
+    background:#22304d; color:var(--txt); border:1px solid var(--line);
+    border-radius:8px; padding:8px 12px; font-size:13px; cursor:pointer;
+  }
+  button:hover{background:#2c3f66;}
+  button.primary{background:#1d4ed8; border-color:#3b82f6;}
+  button.danger{background:#7f1d1d; border-color:#b91c1c;}
+  .check{display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:10px; cursor:pointer;}
+  .reads{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .read{background:#0d1322; border:1px solid var(--line); border-radius:8px; padding:8px; text-align:center;}
+  .read .v{font-size:19px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums;}
+  .read .v.g{color:var(--charge);} .read .v.r{color:var(--discharge);}
+  .read .k{font-size:11px; color:var(--dim); margin-top:2px;}
+  canvas{width:100%; display:block; border-radius:8px; background:#0b101c;}
+  .eq{font-size:12px; color:var(--dim); margin-top:8px; line-height:1.7;}
+  .eq i{color:var(--charge); font-style:normal;} .eq em{color:var(--discharge); font-style:normal;}
+  .hint{font-size:11px; color:#5c6b8a; margin-top:10px;}
+  .cbox{margin-bottom:14px;}
+</style>
+</head>
+<body>
+<h1>⚡ RC 电路充放电演示（单刀双掷开关）</h1>
+<div class="layout">
+
+  <!-- 控制面板 -->
+  <div class="panel">
+    <h2>参数控制</h2>
+    <div class="row">
+      <label>电阻 R <b id="rVal">10 kΩ</b></label>
+      <input type="range" id="rSlider" min="1" max="200" step="1" value="10">
+    </div>
+    <div class="row">
+      <label>电容 C <b id="cVal">100 µF</b></label>
+      <input type="range" id="cSlider" min="1" max="1000" step="1" value="100">
+    </div>
+    <div class="row">
+      <label>时间倍率 <b id="sVal">1×</b></label>
+      <input type="range" id="sSlider" min="-1" max="2" step="0.05" value="0">
+    </div>
+
+    <div class="btns">
+      <button id="btnCharge" class="primary">掷向电源（充电）</button>
+      <button id="btnDischarge" class="danger">掷向灯泡（放电）</button>
+      <button id="btnPause">暂停</button>
+      <button id="btnReset">清空图像</button>
+    </div>
+    <label class="check"><input type="checkbox" id="autoChk"> 自动往返充放电</label>
+
+    <h2>实时读数</h2>
+    <div class="reads">
+      <div class="read"><div class="v" id="rdUc">0.00 V</div><div class="k">电容电压 Uc</div></div>
+      <div class="read"><div class="v" id="rdI">0.00 mA</div><div class="k">回路电流 I</div></div>
+      <div class="read"><div class="v" id="rdTau">1.00 s</div><div class="k">时间常数 τ=RC</div></div>
+      <div class="read"><div class="v" id="rdT">0.00 s</div><div class="k">计时 t</div></div>
+    </div>
+    <div class="hint">提示：按空格键可快速切换开关；放电瞬间灯泡最亮，随电荷减少而变暗。</div>
+  </div>
+
+  <!-- 电路 + 曲线 -->
+  <div>
+    <div class="panel cbox">
+      <h2>电路图（绿色=充电回路，红色=放电回路，亮点=电流）</h2>
+      <canvas id="circuit" width="640" height="340"></canvas>
+    </div>
+    <div class="panel">
+      <h2>充放电曲线（同一坐标系）</h2>
+      <canvas id="chart" width="640" height="330"></canvas>
+      <div class="eq">
+        <i>充电：U = E(1 − e<sup>−t/τ</sup>)</i>　
+        <em>放电：U = E·e<sup>−t/τ</sup></em>　
+        τ = RC，E = 10 V。虚线为 63.2% / 36.8% 参考线，竖虚线为换挡时刻，小三角标记 τ 位置。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ 物理状态 ============ */
+const E = 10;                 // 电源电动势 V
+let R = 10000, C = 100e-6;    // 电阻、电容
+let vc = 0, simT = 0;         // 电容电压、仿真时间
+let mode = "charge";          // charge / discharge
+let paused = false, autoRun = false, holdT = 0;
+let speed = 1;
+let Imax = E / R;             // 用于灯泡亮度归一化
+let currentI = 0;             // 当前电流(A)
+
+/* 开关刀片动画：端点沿贝塞尔弧从触点1扫到触点2 */
+let bladeFrac = 0;            // 0=充电触点, 1=放电触点
+let bladeTarget = 0;
+
+/* 曲线数据：按换挡切分成段 */
+let segments = [];            // {mode, pts:[{t,v}], tau0}
+function newSegment(){
+  segments.push({mode, pts:[{t:simT, v:vc}], tau0:R*C});
+}
+newSegment();
+
+/* ============ DOM ============ */
+const $ = id => document.getElementById(id);
+const cvC = $("circuit"), cvH = $("chart");
+const ctxC = cvC.getContext("2d"), ctxH = cvH.getContext("2d");
+
+function setupCanvas(cv){
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.getAttribute("width")*1, h = cv.getAttribute("height")*1;
+  cv.width = w*dpr; cv.height = h*dpr;
+  cv.style.aspectRatio = w + "/" + h;
+  cv.getContext("2d").setTransform(dpr,0,0,dpr,0,0);
+  return {w,h};
+}
+const SC = setupCanvas(cvC), SH = setupCanvas(cvH);
+
+/* ============ 控件 ============ */
+function fmtSpeed(x){ // -1..2 -> 0.1..100
+  return x<0 ? +(0.1*Math.pow(10, x+1)).toFixed(2) : Math.pow(10, x);
+}
+$("rSlider").oninput = e=>{ R = e.target.value*1000; Imax=E/R;
+  $("rVal").textContent = e.target.value + " kΩ"; updateTau(); };
+$("cSlider").oninput = e=>{ C = e.target.value*1e-6;
+  $("cVal").textContent = e.target.value + " µF"; updateTau(); };
+$("sSlider").oninput = e=>{ speed = fmtSpeed(+e.target.value);
+  $("sVal").textContent = (speed<1? speed.toFixed(2): speed.toFixed(0)) + "×"; };
+function updateTau(){ $("rdTau").textContent = fmtTime(R*C); }
+
+function switchTo(m){
+  if(mode===m) return;
+  mode = m; holdT = 0; newSegment();
+  bladeTarget = (m==="discharge") ? 1 : 0;
+}
+$("btnCharge").onclick   = ()=>switchTo("charge");
+$("btnDischarge").onclick= ()=>switchTo("discharge");
+$("btnPause").onclick = e=>{ paused=!paused; e.target.textContent = paused?"继续":"暂停"; };
+$("btnReset").onclick = ()=>{ vc=0; simT=0; segments=[]; newSegment(); holdT=0; };
+$("autoChk").onchange = e=> autoRun = e.target.checked;
+document.addEventListener("keydown", e=>{
+  if(e.code==="Space"){ e.preventDefault();
+    switchTo(mode==="charge" ? "discharge":"charge"); }
+});
+
+/* ============ 工具 ============ */
+function fmtTime(s){
+  if(s < 1e-3) return (s*1e6).toFixed(0)+" µs";
+  if(s < 1)    return (s*1e3).toFixed(1)+" ms";
+  return s.toFixed(2)+" s";
+}
+function niceCeil(x){ // 取 1/2/5×10^n 的“好看”上界
+  if(x<=0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(x)));
+  const m = x/p;
+  const n = m<=1?1 : m<=2?2 : m<=5?5 : 10;
+  return n*p;
+}
+
+/* ============ 仿真 ============ */
+function step(dtReal){
+  if(paused) return;
+  const tau = R*C;
+  let dt = dtReal * speed;
+  const n = Math.min(2000, Math.max(1, Math.ceil(dt/(tau/200))));
+  const h = dt/n;
+  for(let i=0;i<n;i++){
+    if(mode==="charge"){ currentI = (E-vc)/R; vc += currentI/C*h; }
+    else              { currentI = vc/R;      vc -= currentI/C*h; }
+    simT += h;
+  }
+  if(vc<0) vc=0; if(vc>E) vc=E;
+
+  /* 自动往返：充到 99.5% 或放到 0.5% 后停留 0.6s 再切换 */
+  if(autoRun){
+    const done = (mode==="charge" && vc>0.995*E) || (mode==="discharge" && vc<0.005*E);
+    if(done){ holdT += dt; if(holdT>0.6) switchTo(mode==="charge"?"discharge":"charge"); }
+    else holdT = 0;
+  }
+
+  /* 记录曲线点（限长，超限抽稀） */
+  const seg = segments[segments.length-1];
+  seg.pts.push({t:simT, v:vc});
+  if(seg.pts.length>4000) seg.pts = seg.pts.filter((_,i)=> i%2===0 || i===seg.pts.length-1);
+
+  /* 读数 */
+  $("rdUc").textContent = vc.toFixed(2)+" V";
+  $("rdI").textContent  = (currentI*1000).toFixed(2)+" mA";
+  $("rdT").textContent  = fmtTime(simT);
+}
+
+/* ============ 电路几何 ============ */
+const G = {
+  batX:70, topY:70, botY:280,
+  c1:{x:170,y:70},            // 充电触点
+  pivot:{x:250,y:70},         // 单刀公共端
+  c2:{x:335,y:105},           // 放电触点
+  capX:570, capTop:175, capBot:189,
+  rBranch:{x:335, top:125, bot:185},
+  bulb:{x:335, y:225, r:19}
+};
+function bladeEndPoint(f){
+  // 从 c1 沿上方弧线扫到 c2
+  const p0=G.c1, p2=G.c2, ctrl={x:G.pivot.x+4, y:G.topY-72};
+  const u=1-f;
+  return { x: u*u*p0.x + 2*u*f*ctrl.x + f*f*p2.x,
+           y: u*u*p0.y + 2*u*f*ctrl.y + f*f*p2.y };
+}
+/* 电流流动路径 */
+const chargePath = [
+  {x:G.batX,y:G.topY}, {x:G.pivot.x,y:G.topY}, {x:G.capX,y:G.topY},
+  {x:G.capX,y:G.capBot}, {x:G.capX,y:G.botY}, {x:G.batX,y:G.botY}, {x:G.batX,y:G.topY}
+];
+const disPath = [
+  {x:G.capX,y:G.capTop}, {x:G.capX,y:G.topY}, {x:G.pivot.x,y:G.topY},
+  G.c2, {x:G.rBranch.x,y:G.rBranch.top}, {x:G.rBranch.x,y:G.rBranch.bot},
+  {x:G.bulb.x,y:G.bulb.y+G.bulb.r}, {x:G.rBranch.x,y:G.botY},
+  {x:G.capX,y:G.botY}, {x:G.capX,y:G.capBot}
+];
+function pathLen(pts){ let L=0; for(let i=1;i<pts.length;i++)
+  L+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y); return L; }
+function pathPos(pts, s){
+  for(let i=1;i<pts.length;i++){
+    const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+    if(s<=d){ const k=d?s/d:0; return {
+      x:pts[i-1].x+(pts[i].x-pts[i-1].x)*k, y:pts[i-1].y+(pts[i].y-pts[i-1].y)*k }; }
+    s-=d;
+  }
+  return pts[pts.length-1];
+}
+let flowPhase = 0;
+
+/* ============ 电路绘制 ============ */
+function drawCircuit(){
+  const ctx = ctxC;
+  ctx.clearRect(0,0,SC.w,SC.h);
+  const active = mode, glow = Math.pow(Math.min(1, currentI/Imax), 0.6);
+  const col = active==="charge" ? "#4ade80" : "#f87171";
+  const wireOn = col, wireOff = "#41527a";
+
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  /* 灯泡光晕（放电且亮时） */
+  if(active==="discharge" && glow>0.03){
+    const gr = ctx.createRadialGradient(G.bulb.x,G.bulb.y,2, G.bulb.x,G.bulb.y,60);
+    gr.addColorStop(0,`rgba(255,220,110,${0.85*glow})`);
+    gr.addColorStop(0.4,`rgba(255,190,60,${0.35*glow})`);
+    gr.addColorStop(1,"rgba(255,190,60,0)");
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(G.bulb.x,G.bulb.y,60,0,7); ctx.fill();
+  }
+
+  /* 导线（先画公共部分） */
+  function wire(a,b,on,w=3){
+    ctx.strokeStyle = on?wireOn:wireOff; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
+  // 电池
+  wire({x:G.batX,y:G.botY},{x:G.batX,y:262}, active==="charge");
+  wire({x:G.batX,y:250},{x:G.batX,y:G.topY}, active==="charge");
+  // 顶线：电池→触点1
+  wire({x:G.batX,y:G.topY}, G.c1, active==="charge");
+  // 公共端→电容
+  wire(G.pivot, {x:G.capX,y:G.topY}, true, 3.5);
+  wire({x:G.capX,y:G.topY},{x:G.capX,y:G.capTop}, true);
+  wire({x:G.capX,y:G.capBot},{x:G.capX,y:G.botY}, true);
+  // 底轨
+  wire({x:G.batX,y:G.botY},{x:G.capX,y:G.botY}, true);
+  // 放电支路
+  wire(G.c2, {x:G.rBranch.x,y:G.rBranch.top}, active==="discharge");
+  wire({x:G.rBranch.x,y:G.rBranch.bot},{x:G.bulb.x,y:G.bulb.y-G.bulb.r}, active==="discharge");
+  wire({x:G.bulb.x,y:G.bulb.y+G.bulb.r},{x:G.rBranch.x,y:G.botY}, active==="discharge");
+
+  /* 电池符号 */
+  ctx.strokeStyle="#e8eefc"; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(G.batX-20,250); ctx.lineTo(G.batX+20,250); ctx.stroke();
+  ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(G.batX-9,262); ctx.lineTo(G.batX+9,262); ctx.stroke();
+  ctx.fillStyle="#e8eefc"; ctx.font="bold 14px sans-serif";
+  ctx.fillText("+", G.batX+26,248); ctx.fillText("−", G.batX+26,268);
+  ctx.fillStyle="#8fa0c0"; ctx.font="12px sans-serif";
+  ctx.fillText("E = 10 V", G.batX-32, 305);
+
+  /* 电容符号 */
+  ctx.strokeStyle="#e8eefc"; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(G.capX-19,G.capTop); ctx.lineTo(G.capX+19,G.capTop); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(G.capX-19,G.capBot); ctx.lineTo(G.capX+19,G.capBot); ctx.stroke();
+  const q = vc/E;
+  if(q>0.06){
+    ctx.fillStyle="#4ade80"; ctx.font="bold 15px sans-serif"; ctx.globalAlpha=q;
+    ctx.fillText("+ +", G.capX+26, G.capTop+4);
+    ctx.fillStyle="#f87171"; ctx.fillText("− −", G.capX+26, G.capBot+4);
+    ctx.globalAlpha=1;
+  }
+  ctx.fillStyle="#8fa0c0"; ctx.font="12px sans-serif";
+  ctx.fillText("C = " + (C*1e6).toFixed(0) + " µF", G.capX-70, 205);
+  ctx.fillStyle="#60a5fa"; ctx.font="bold 13px sans-serif";
+  ctx.fillText("Uc = " + vc.toFixed(2) + " V", G.capX-72, 160);
+
+  /* 电阻（竖排锯齿） */
+  const rb=G.rBranch, n=6, amp=9;
+  ctx.strokeStyle="#e8eefc"; ctx.lineWidth=3; ctx.beginPath();
+  ctx.moveTo(rb.x, rb.top);
+  const stepY=(rb.bot-rb.top)/n;
+  for(let i=0;i<n;i++){
+    ctx.lineTo(rb.x + (i%2? -amp:amp), rb.top+stepY*(i+0.5));
+    ctx.lineTo(rb.x, rb.top+stepY*(i+1));
+  }
+  ctx.stroke();
+  ctx.fillStyle="#8fa0c0"; ctx.font="12px sans-serif";
+  ctx.fillText("R = " + (R/1000).toFixed(0) + " kΩ", rb.x+18, (rb.top+rb.bot)/2+4);
+
+  /* 灯泡 */
+  ctx.strokeStyle="#e8eefc"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(G.bulb.x,G.bulb.y,G.bulb.r,0,7); ctx.stroke();
+  ctx.strokeStyle= glow>0.05 ? `rgba(255,225,130,${0.4+0.6*glow})` : "#6b7a99";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(G.bulb.x-10,G.bulb.y+8); ctx.lineTo(G.bulb.x-3,G.bulb.y-7);
+  ctx.lineTo(G.bulb.x+3,G.bulb.y+7); ctx.lineTo(G.bulb.x+10,G.bulb.y-8);
+  ctx.stroke();
+  ctx.fillStyle="#8fa0c0"; ctx.font="12px sans-serif";
+  ctx.fillText("灯泡", G.bulb.x-14, G.bulb.y+38);
+
+  /* 开关 */
+  const be = bladeEndPoint(bladeFrac);
+  ctx.strokeStyle="#facc15"; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(G.pivot.x,G.pivot.y); ctx.lineTo(be.x,be.y); ctx.stroke();
+  // 触点
+  for(const [pt,lab,col2] of [[G.c1,"充电","#4ade80"],[G.c2,"放电","#f87171"]]){
+    ctx.fillStyle="#facc15";
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,4.5,0,7); ctx.fill();
+    ctx.fillStyle=col2; ctx.font="bold 12px sans-serif";
+    ctx.fillText(lab, pt.x-(pt===G.c1?46:6), pt.y-(pt===G.c1?10:12));
+  }
+  ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(G.pivot.x,G.pivot.y,6,0,7); ctx.fill();
+  ctx.fillStyle="#8fa0c0"; ctx.font="12px sans-serif";
+  ctx.fillText("单刀双掷开关 S", G.pivot.x-30, G.topY-14);
+
+  /* 电流流动亮点 */
+  if(!paused && currentI > Imax*0.004){
+    const pts = active==="charge" ? chargePath : disPath;
+    const L = pathLen(pts);
+    const v = 40 + 700*(currentI/Imax);      // 像素速度 ∝ 电流
+    flowPhase = (flowPhase + v*0.016) % 34;
+    ctx.fillStyle = active==="charge" ? "#a7f3d0" : "#fecaca";
+    for(let s=flowPhase; s<L; s+=34){
+      const p = pathPos(pts, s);
+      ctx.beginPath(); ctx.arc(p.x,p.y,3.2,0,7); ctx.fill();
+    }
+  }
+
+  /* 状态角标 */
+  ctx.fillStyle = col; ctx.font="bold 15px sans-serif";
+  ctx.fillText(paused ? "⏸ 已暂停" : (active==="charge"?"▲ 充电中…":"▼ 放电中…"), 20, 28);
+}
+
+/* ============ 曲线绘制 ============ */
+function drawChart(){
+  const ctx = ctxH;
+  ctx.clearRect(0,0,SH.w,SH.h);
+  const mL=48, mR=14, mT=16, mB=32;
+  const pw = SH.w-mL-mR, ph = SH.h-mT-mB;
+  const yMax = 11;
+  const tMax = Math.max(niceCeil(simT*1.04), niceCeil(R*C)); // 至少显示一个 τ
+  const X = t=> mL + t/tMax*pw;
+  const Y = v=> mT + (1 - v/yMax)*ph;
+
+  /* 网格与坐标轴 */
+  ctx.font="11px sans-serif";
+  for(let v=0; v<=10; v+=2){
+    ctx.strokeStyle="#1c2740"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(mL,Y(v)); ctx.lineTo(SH.w-mR,Y(v)); ctx.stroke();
+    ctx.fillStyle="#6f80a3"; ctx.textAlign="right";
+    ctx.fillText(v+" V", mL-6, Y(v)+4);
+  }
+  const txStep = tMax/5;
+  for(let i=0;i<=5;i++){
+    const t=txStep*i;
+    ctx.strokeStyle="#1c2740";
+    ctx.beginPath(); ctx.moveTo(X(t),mT); ctx.lineTo(X(t),mT+ph); ctx.stroke();
+    ctx.fillStyle="#6f80a3"; ctx.textAlign="center";
+    ctx.fillText(fmtTime(t), X(t), mT+ph+16);
+  }
+  ctx.strokeStyle="#3a4a6e"; ctx.lineWidth=1.5;
+  ctx.strokeRect(mL,mT,pw,ph);
+
+  /* 63.2% / 36.8% 参考线 */
+  ctx.setLineDash([5,4]); ctx.lineWidth=1;
+  ctx.strokeStyle="rgba(148,163,184,.5)";
+  ctx.beginPath(); ctx.moveTo(mL,Y(6.32)); ctx.lineTo(SH.w-mR,Y(6.32)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(mL,Y(3.68)); ctx.lineTo(SH.w-mR,Y(3.68)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle="#7d8db0"; ctx.textAlign="left"; ctx.font="10px sans-serif";
+  ctx.fillText("63.2%", mL+4, Y(6.32)-3);
+  ctx.fillText("36.8%", mL+4, Y(3.68)-3);
+
+  /* 各段曲线 + 换挡标记 + τ 标记 */
+  segments.forEach((seg,i)=>{
+    const col = seg.mode==="charge" ? "#4ade80" : "#f87171";
+    if(i>0){ // 换挡竖线
+      ctx.setLineDash([4,4]); ctx.strokeStyle="rgba(160,175,200,.45)"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(X(seg.pts[0].t),mT); ctx.lineTo(X(seg.pts[0].t),mT+ph); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // τ 小三角
+    const tt = seg.pts[0].t + seg.tau0;
+    if(tt < tMax){
+      ctx.fillStyle=col; ctx.globalAlpha=.8;
+      ctx.beginPath();
+      ctx.moveTo(X(tt),mT+ph-1); ctx.lineTo(X(tt)-5,mT+ph+9); ctx.lineTo(X(tt)+5,mT+ph+9);
+      ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+    }
+    // 曲线
+    ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.beginPath();
+    seg.pts.forEach((p,j)=> j? ctx.lineTo(X(p.t),Y(p.v)) : ctx.moveTo(X(p.t),Y(p.v)));
+    ctx.stroke();
+  });
+
+  /* 图例 */
+  ctx.textAlign="left"; ctx.font="12px sans-serif";
+  ctx.fillStyle="#4ade80"; ctx.beginPath(); ctx.arc(SH.w-190,24,5,0,7); ctx.fill();
+  ctx.fillText("充电", SH.w-180, 28);
+  ctx.fillStyle="#f87171"; ctx.beginPath(); ctx.arc(SH.w-118,24,5,0,7); ctx.fill();
+  ctx.fillText("放电", SH.w-108, 28);
+}
+
+/* ============ 主循环 ============ */
+let last = performance.now();
+function loop(now){
+  const dtReal = Math.min(0.05, (now-last)/1000); last = now;
+  step(dtReal);
+  // 刀片动画
+  bladeFrac += (bladeTarget - bladeFrac) * Math.min(1, dtReal*12);
+  drawCircuit(); drawChart();
+  requestAnimationFrame(loop);
+}
+updateTau();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

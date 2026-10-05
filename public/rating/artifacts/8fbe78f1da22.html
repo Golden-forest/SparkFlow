@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>线性阻力下的下落仿真</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10141c;color:#dfe6ee;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid #26324a;background:#141a26}
+h1{font-size:17px;margin:0}
+h1 .sub{font-size:13px;color:#7dd3fc;font-weight:normal;margin-left:8px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-left:auto}
+button{padding:6px 14px;border-radius:6px;border:1px solid #3b4a63;background:#2a3547;color:#dfe6ee;cursor:pointer;font-size:13px}
+button:hover{filter:brightness(1.15)}
+.primary{background:#3b82f6;border-color:#3b82f6}
+select{background:#2a3547;color:#dfe6ee;border:1px solid #3b4a63;border-radius:6px;padding:5px 8px}
+.seg{display:flex;border:1px solid #3b4a63;border-radius:6px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;color:#aebccd;padding:6px 10px}
+.seg button.active{background:#3b82f6;color:#fff}
+.chk{font-size:13px;color:#aebccd;display:flex;align-items:center;gap:5px;cursor:pointer}
+main{max-width:1180px;margin:0 auto;padding:14px;display:grid;gap:14px}
+.card{background:#171e29;border:1px solid #2a3547;border-radius:10px;padding:12px 14px}
+.params,.anim,.charts,.panels{display:flex;gap:12px;flex-wrap:wrap}
+.params .card,.panels .card{flex:1;min-width:270px}
+h2{font-size:14px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.srow{margin:7px 0}
+.srow label{display:flex;justify-content:space-between;font-size:12px;color:#aebccd;margin-bottom:2px}
+.srow input[type=range]{width:100%;accent-color:#3b82f6}
+.info{font-size:12px;color:#8ea2bd;margin-top:6px}
+.lane,.chart{flex:1;min-width:300px}
+canvas{display:block;width:100%;background:#0d1117;border:1px solid #26324a;border-radius:10px}
+.lane canvas{height:340px}
+.chart canvas{height:240px}
+.chart h3{font-size:13px;margin:0 0 6px;color:#aebccd;font-weight:600}
+.caption{font-size:12px;color:#8ea2bd;margin-top:6px}
+.row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #223049;font-size:13px}
+.num{font-family:ui-monospace,Consolas,monospace;color:#e8eef7}
+.row.st{border:0;color:#7dd3fc;font-size:12px}
+.teach ul{margin:6px 0 0;padding-left:20px;font-size:13px;line-height:1.9;color:#c6d2e2}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>线性阻力下的下落<span class="sub">dv/dt = g − (k/m)·v</span></h1>
+  <div class="controls">
+    <button id="btnPlay" class="primary">▶ 播放</button>
+    <button id="btnReset">↺ 重置</button>
+    <label class="chk">时间加速
+      <select id="selSpeed">
+        <option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+      </select>
+    </label>
+    <div class="seg" id="segG">
+      <button data-g="10" class="active">g = 10</button>
+      <button data-g="9.8">g = 9.8</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="chkVt" checked> 收尾速度参考线</label>
+  </div>
+</header>
+<main>
+  <section class="params">
+    <div class="card">
+      <h2><span class="dot" style="background:#ffd54f"></span>小球 A</h2>
+      <div class="srow"><label>质量 m <span><span id="Am">1.0</span> kg（0.2–5）</span></label>
+        <input type="range" id="AmS" min="0.2" max="5" step="0.1" value="1"></div>
+      <div class="srow"><label>阻力系数 k <span><span id="Ak">0.50</span> kg/s（0.1–2）</span></label>
+        <input type="range" id="AkS" min="0.1" max="2" step="0.05" value="0.5"></div>
+      <div class="info">v∞ = mg/k = <span id="Avt">20.0</span> m/s　τ = m/k = <span id="Atau">2.0</span> s</div>
+    </div>
+    <div class="card">
+      <h2><span class="dot" style="background:#b388ff"></span>小球 B（对比）
+        <label class="chk" style="margin-left:auto"><input type="checkbox" id="chkB" checked> 启用对比</label></h2>
+      <div class="srow"><label>质量 m <span><span id="Bm">2.0</span> kg（0.2–5）</span></label>
+        <input type="range" id="BmS" min="0.2" max="5" step="0.1" value="2"></div>
+      <div class="srow"><label>阻力系数 k <span><span id="Bk">0.50</span> kg/s（0.1–2）</span></label>
+        <input type="range" id="BkS" min="0.1" max="2" step="0.05" value="0.5"></div>
+      <div class="info">v∞ = mg/k = <span id="Bvt">40.0</span> m/s　τ = m/k = <span id="Btau">4.0</span> s</div>
+    </div>
+  </section>
+
+  <section class="anim">
+    <div class="lane"><canvas id="cvA"></canvas></div>
+    <div class="lane"><canvas id="cvB"></canvas></div>
+  </section>
+  <div class="caption">箭头：橙 = 重力 mg（向下，恒定）· 粉 = 空气阻力 kv（向上，随 v 增大）· 蓝 = 速度 v。两栏共用同一比例尺，可直接对比下落快慢；镜头跟随小球，竖直刻度为已下落距离。</div>
+
+  <section class="charts">
+    <div class="chart"><h3>速度 v–t</h3><canvas id="cvV"></canvas></div>
+    <div class="chart"><h3>加速度 a–t</h3><canvas id="cvAcc"></canvas></div>
+  </section>
+
+  <section class="panels">
+    <div class="card panel" id="panelA">
+      <h2><span class="dot" style="background:#ffd54f"></span>小球 A · 数值面板</h2>
+      <div class="row"><span>时间 t</span><span class="num" id="At">0.00 s</span></div>
+      <div class="row"><span>速度 v</span><span class="num" id="Av">0.00 m/s</span></div>
+      <div class="row"><span>加速度 a</span><span class="num" id="Aa">10.00 m/s²</span></div>
+      <div class="row"><span>阻力 kv</span><span class="num" id="Akv">0.00 N</span></div>
+      <div class="row"><span>重力 mg</span><span class="num" id="Amg">10.0 N</span></div>
+      <div class="row"><span>收尾速度 v∞ = mg/k</span><span class="num" id="AvtP">20.0 m/s</span></div>
+      <div class="row"><span>v / v∞</span><span class="num" id="Apct">0%</span></div>
+      <div class="row st"><span id="Ast">静止释放，a = g</span></div>
+    </div>
+    <div class="card panel" id="panelB">
+      <h2><span class="dot" style="background:#b388ff"></span>小球 B · 数值面板</h2>
+      <div class="row"><span>时间 t</span><span class="num" id="Bt">0.00 s</span></div>
+      <div class="row"><span>速度 v</span><span class="num" id="Bv">0.00 m/s</span></div>
+      <div class="row"><span>加速度 a</span><span class="num" id="Ba">10.00 m/s²</span></div>
+      <div class="row"><span>阻力 kv</span><span class="num" id="Bkv">0.00 N</span></div>
+      <div class="row"><span>重力 mg</span><span class="num" id="Bmg">20.0 N</span></div>
+      <div class="row"><span>收尾速度 v∞ = mg/k</span><span class="num" id="BvtP">40.0 m/s</span></div>
+      <div class="row"><span>v / v∞</span><span class="num" id="Bpct">0%</span></div>
+      <div class="row st"><span id="Bst">静止释放，a = g</span></div>
+    </div>
+  </section>
+
+  <section class="teach card">
+    <h2>教学要点</h2>
+    <ul>
+      <li>v 增大 → 阻力 kv 增大 → 合力与加速度 a = g − (k/m)v 减小；当 kv = mg 时 a = 0，力箭头等长反向。</li>
+      <li>收尾速度 v∞ = mg/k（图中虚线由当前参数直接计算，并非拟合）：与质量成正比，与 k 成反比。</li>
+      <li>a(t) = g·e<sup>−kt/m</sup> 从 g 连续减小到 0；v(t) = v∞(1 − e<sup>−t/τ</sup>)，时间常数 τ = m/k。</li>
+      <li>对比：增大 m → v∞ 更大但达到收尾更慢（τ 更大）；增大 k → 更快趋于更小的 v∞。</li>
+      <li>本仿真按方程 dv/dt = g − (k/m)v 的解析解逐步推进，运行中改参数立即生效。</li>
+    </ul>
+  </section>
+</main>
+```
+
+**代码块 2 / 2**（JavaScript，紧跟代码块 1 之后拼接）：
+
+```html
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const dpr=window.devicePixelRatio||1;
+const state={t:0,playing:false,speed:1,g:10,showVt:true};
+const balls={
+  A:{key:'A',m:1,k:0.5,color:'#ffd54f',on:true, v:0,a:0,y:0,samples:[],lastS:-1},
+  B:{key:'B',m:2,k:0.5,color:'#b388ff',on:true, v:0,a:0,y:0,samples:[],lastS:-1}
+};
+function derived(b){b.vt=b.m*state.g/b.k;b.tau=b.m/b.k;}
+function active(){return Object.values(balls).filter(b=>b.on);}
+function fmtN(v){return v>=100?v.toFixed(0):v.toFixed(1);}
+function niceStep(range,n){const raw=range/n,p=Math.pow(10,Math.floor(Math.log10(raw)));
+  for(const m of[1,2,2.5,5,10]){if(m*p>=raw)return m*p;}return 10*p;}
+
+/* ---------- 物理推进（线性阻力解析解，精确无误差） ---------- */
+function step(dt){
+  let rem=dt;
+  while(rem>1e-9){
+    const h=Math.min(0.02,rem);state.t+=h;
+    for(const b of active()){
+      derived(b);
+      const d=Math.exp(-h/b.tau);
+      const vN=b.vt+(b.v-b.vt)*d;                 // v(t+h)
+      b.y+=b.vt*h+(b.v-b.vt)*b.tau*(1-d);         // ∫v dt
+      b.v=vN;b.a=state.g-(b.k/b.m)*b.v;
+      if(state.t-b.lastS>=0.04&&state.t<600){b.samples.push({t:state.t,v:b.v,a:b.a});b.lastS=state.t;}
+    }
+    rem-=h;
+  }
+}
+function resetSim(){
+  state.t=0;state.playing=false;$('btnPlay').textContent='▶ 播放';
+  for(const b of Object.values(balls)){b.v=0;b.a=state.g;b.y=0;b.samples=[];b.lastS=-1;}
+}
+
+/* ---------- 绘图工具 ---------- */
+function fit(cv){
+  const r=cv.getBoundingClientRect(),w=Math.round(r.width*dpr),h=Math.round(r.height*dpr);
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+  return[ctx,r.width,r.height];
+}
+function drawArrow(ctx,x,y0,y1,color,label){
+  if(Math.abs(y1-y0)<4)return;
+  const s=Math.sign(y1-y0),ah=Math.min(10,4+Math.abs(y1-y0)*0.25);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1-s*ah);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x-5,y1-s*ah);ctx.lineTo(x+5,y1-s*ah);
+  ctx.closePath();ctx.fill();
+  if(label){ctx.font='bold 12px sans-serif';ctx.fillText(label,x+8,(y0+y1)/2+4);}
+}
+const cap=(v,m)=>Math.max(-m,Math.min(m,v));
+
+/* ---------- 下落动画（镜头跟随 + 力/速度箭头） ---------- */
+function drawLane(cv,b){
+  const[ctx,W,H]=fit(cv);ctx.clearRect(0,0,W,H);
+  if(!b.on){ctx.fillStyle='#5b6b80';ctx.font='13px sans-serif';ctx.textAlign='center';
+    ctx.fillText('B 球未启用（勾选“启用对比”查看）',W/2,H/2);ctx.textAlign='left';return;}
+  const act=active(),maxVt=Math.max(5,...act.map(x=>x.vt));
+  const visM=Math.min(1000,Math.max(40,maxVt*6));
+  const ppm=(H-100)/visM, bx=W*0.52,by=H*0.58,r=13;
+  const yOf=d=>by+(d-b.y)*ppm;
+  // 距离刻度
+  const arr=[1,2,5,10,20,50,100,200,500];const st=arr.find(s=>s*ppm>=44)||1000;
+  const dMin=Math.max(0,b.y-(by-60)/ppm),dMax=b.y+(H-18-by)/ppm;
+  ctx.lineWidth=1;ctx.font='11px sans-serif';
+  for(let d=Math.ceil(dMin/st)*st;d<=dMax;d+=st){
+    const yy=yOf(d);
+    ctx.strokeStyle='#1c2637';ctx.beginPath();ctx.moveTo(38,yy);ctx.lineTo(W-8,yy);ctx.stroke();
+    ctx.fillStyle='#8ea2bd';ctx.fillText(d>=1000?(d/1000)+' km':d+' m',6,yy+4);
+  }
+  const yr=yOf(0);
+  if(yr>56){ctx.save();ctx.setLineDash([6,5]);ctx.strokeStyle='#4a5a75';
+    ctx.beginPath();ctx.moveTo(38,yr);ctx.lineTo(W-8,yr);ctx.stroke();ctx.restore();
+    ctx.fillStyle='#67788f';ctx.fillText('释放点 (0 m)',44,yr-5);}
+  // 参数信息
+  ctx.fillStyle=b.color;ctx.font='bold 13px sans-serif';ctx.fillText('小球 '+b.key,10,20);
+  ctx.fillStyle='#8ea2bd';ctx.font='11px sans-serif';
+  ctx.fillText('m='+b.m.toFixed(1)+' kg　k='+b.k.toFixed(2)+' kg/s',10,36);
+  ctx.fillText('v∞='+b.vt.toFixed(1)+' m/s',10,52);
+  // 小球
+  ctx.beginPath();ctx.arc(bx,by,r,0,7);ctx.fillStyle=b.color;ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#1b2230';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText(b.key,bx,by+4);ctx.textAlign='left';
+  // 箭头：两球共用力的比例尺，收尾时 mg 与 kv 箭头等长
+  const maxMg=Math.max(1,...act.map(x=>x.m*state.g)),pxN=56/maxMg,pxV=64/maxVt;
+  drawArrow(ctx,bx,by+r,by+r+cap(b.m*state.g*pxN,140),'#ff9800','mg');
+  drawArrow(ctx,bx,by-r,by-r-cap(b.k*b.v*pxN,140),'#ec4899','kv');
+  drawArrow(ctx,bx-48,by,by+cap(b.v*pxV,120),'#38bdf8','v');
+  ctx.fillStyle='#42506b';ctx.font='10px sans-serif';
+  ctx.fillText('镜头跟随小球 · 刻度 = 已下落距离',10,H-8);
+}
+
+/* ---------- v-t / a-t 曲线 ---------- */
+function drawChart(cv,key){
+  const[ctx,W,H]=fit(cv);ctx.clearRect(0,0,W,H);
+  const L=48,R=12,T=16,B=28,pw=W-L-R,ph=H-T-B;
+  const xmax=Math.max(12,Math.ceil((state.t+2)/4)*4);
+  let m=5;
+  if(key==='v'){for(const b of active()){m=Math.max(m,b.vt);
+    for(const s of b.samples)if(s.v>m)m=s.v;}}
+  const ymax=key==='v'?m*1.25:state.g*1.3;
+  const X=t=>L+t/xmax*pw, Y=v=>T+ph-v/ymax*ph;
+  // 网格与坐标
+  ctx.lineWidth=1;ctx.font='10px sans-serif';
+  const xs=niceStep(xmax,6),ys=niceStep(ymax,4);
+  for(let i=0;i<=xmax+1e-9;i+=xs){const xx=X(i);
+    ctx.strokeStyle='#1f2a3d';ctx.beginPath();ctx.moveTo(xx,T);ctx.lineTo(xx,T+ph);ctx.stroke();
+    ctx.fillStyle='#8ea2bd';ctx.fillText(i,xx-6,H-12);}
+  for(let j=0;j<=ymax+1e-9;j+=ys){const yy=Y(j);
+    ctx.strokeStyle='#1f2a3d';ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+pw,yy);ctx.stroke();
+    ctx.fillStyle='#8ea2bd';ctx.fillText(fmtN(j),8,yy+3);}
+  ctx.fillText('t/s',W-28,H-12);
+  ctx.fillText(key==='v'?'v/(m/s)':'a/(m/s²)',L+4,10);
+  // 收尾速度参考虚线（由参数计算 v∞ = mg/k）
+  if(key==='v'&&state.showVt){
+    for(const b of active()){ctx.save();ctx.setLineDash([7,5]);ctx.strokeStyle=b.color;
+      ctx.globalAlpha=.85;ctx.beginPath();ctx.moveTo(L,Y(b.vt));ctx.lineTo(W-R,Y(b.vt));
+      ctx.stroke();ctx.restore();
+      ctx.fillStyle=b.color;ctx.font='11px sans-serif';
+      ctx.fillText('v∞='+fmtN(b.vt),L+6,Y(b.vt)-4);}
+  }
+  // 曲线
+  for(const b of active()){
+    const n=b.samples.length;if(!n)continue;
+    ctx.strokeStyle=b.color;ctx.lineWidth=2;ctx.beginPath();
+    const stride=Math.max(1,Math.ceil(n/1500));
+    for(let i=0;i<n;i+=stride){const s=b.samples[i];
+      i===0?ctx.moveTo(X(s.t),Y(key==='v'?s.v:s.a)):ctx.lineTo(X(s.t),Y(key==='v'?s.v:s.a));}
+    const la=b.samples[n-1];ctx.lineTo(X(la.t),Y(key==='v'?la.v:la.a));ctx.stroke();
+    ctx.fillStyle=b.color;ctx.beginPath();
+    ctx.arc(X(la.t),Y(key==='v'?la.v:la.a),3,0,7);ctx.fill();
+  }
+  // 图例
+  let lx=W-R-6;ctx.font='bold 11px sans-serif';
+  for(const b of active()){ctx.fillStyle=b.color;
+    ctx.beginPath();ctx.arc(lx-8,T+4,4,0,7);ctx.fill();ctx.fillText(b.key,lx,T+8);lx-=24;}
+}
+
+/* ---------- 数值面板 ---------- */
+function updatePanels(){
+  for(const b of Object.values(balls)){
+    const p=$('panel'+b.key);
+    if(!b.on){p.classList.add('hidden');continue;}
+    p.classList.remove('hidden');
+    $(b.key+'t').textContent=state.t.toFixed(2)+' s';
+    $(b.key+'v').textContent=b.v.toFixed(2)+' m/s';
+    $(b.key+'a').textContent=b.a.toFixed(2)+' m/s²';
+    $(b.key+'kv').textContent=(b.k*b.v).toFixed(2)+' N';
+    $(b.key+'mg').textContent=(b.m*state.g).toFixed(1)+' N';
+    $(b.key+'vtP').textContent=b.vt.toFixed(1)+' m/s';
+    $(b.key+'pct').textContent=(b.v/b.vt*100).toFixed(0)+'%';
+    const ratio=b.k*b.v/(b.m*state.g);
+    $(b.key+'st').textContent=state.t===0?'静止释放，a = g':
+      ratio>0.95?'已达收尾状态：kv ≈ mg，a ≈ 0，匀速下落':
+      '加速中：kv/mg = '+(ratio*100).toFixed(0)+'%，a 正在减小';
+  }
+}
+function render(){drawLane($('cvA'),balls.A);drawLane($('cvB'),balls.B);
+  drawChart($('cvV'),'v');drawChart($('cvAcc'),'a');updatePanels();}
+
+/* ---------- 交互 ---------- */
+function refreshInfo(){for(const b of Object.values(balls)){derived(b);
+  $(b.key+'m').textContent=b.m.toFixed(1);$(b.key+'k').textContent=b.k.toFixed(2);
+  $(b.key+'vt').textContent=b.vt.toFixed(1);$(b.key+'tau').textContent=b.tau.toFixed(1);}}
+$('btnPlay').onclick=()=>{state.playing=!state.playing;
+  $('btnPlay').textContent=state.playing?'⏸ 暂停':'▶ 播放';};
+$('btnReset').onclick=()=>{resetSim();render();};
+$('selSpeed').onchange=e=>state.speed=+e.target.value;
+document.querySelectorAll('#segG button').forEach(btn=>btn.onclick=()=>{
+  state.g=+btn.dataset.g;
+  document.querySelectorAll('#segG button').forEach(x=>x.classList.toggle('active',x===btn));
+  refreshInfo();});
+$('chkVt').onchange=e=>state.showVt=e.target.checked;
+$('chkB').onchange=e=>{balls.B.on=e.target.checked;resetSim();};
+$('AmS').oninput=e=>{balls.A.m=+e.target.value;refreshInfo();};
+$('AkS').oninput=e=>{balls.A.k=+e.target.value;refreshInfo();};
+$('BmS').oninput=e=>{balls.B.m=+e.target.value;refreshInfo();};
+$('BkS').oninput=e=>{balls.B.k=+e.target.value;refreshInfo();};
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='SELECT'){
+    e.preventDefault();$('btnPlay').click();}});
+
+/* ---------- 主循环 ---------- */
+for(const b of Object.values(balls)){derived(b);b.a=state.g;}
+refreshInfo();
+let last=null;
+function loop(ts){
+  if(last===null)last=ts;
+  let dt=(ts-last)/1000;last=ts;
+  if(dt>0.05)dt=0.05;
+  if(state.playing)step(dt*state.speed);
+  render();requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

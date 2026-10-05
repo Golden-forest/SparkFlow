@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>弦上驻波演示</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "PingFang SC","Microsoft YaHei",sans-serif;
+    background:#101418; color:#e8e8e8; padding:16px;
+  }
+  .wrap { max-width:1000px; margin:0 auto; }
+  h1 { font-size:22px; margin-bottom:4px; }
+  .sub { color:#9fb0bd; font-size:13px; margin-bottom:12px; }
+  .card {
+    background:#1a2027; border-radius:10px; padding:14px;
+    margin-bottom:12px; box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  canvas { width:100%; display:block; background:#0c1013;
+           border-radius:8px; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+         margin-top:12px; }
+  .ctrl { display:flex; flex-direction:column; gap:4px; }
+  .ctrl label { font-size:13px; color:#9fb0bd; }
+  .ctrl .val { color:#ffd166; font-weight:bold; }
+  input[type=range] { width:180px; accent-color:#4fc3f7; }
+  .modes { display:flex; gap:6px; flex-wrap:wrap; }
+  .modes button, .views button {
+    background:#243040; color:#cfe3f0; border:1px solid #35485e;
+    border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px;
+  }
+  .modes button.on, .views button.on {
+    background:#4fc3f7; color:#0c1013; font-weight:bold;
+    border-color:#4fc3f7;
+  }
+  .info { display:flex; gap:24px; flex-wrap:wrap; margin-top:10px;
+          font-size:14px; }
+  .info b { color:#ffd166; }
+  .badges { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:999px; }
+  .b-antinode { background:rgba(255,86,86,.18); color:#ff8a8a;
+                border:1px solid #ff8a8a; }
+  .b-node { background:rgba(120,255,180,.14); color:#7dffb4;
+            border:1px solid #7dffb4; }
+  .note { font-size:13px; color:#9fb0bd; line-height:1.7; }
+  .note em { color:#ffd166; font-style:normal; }
+  .legend { font-size:12px; color:#9fb0bd; margin-top:6px; }
+  .legend span { margin-right:14px; }
+  .l-sum { color:#ffd166; }
+  .l-r { color:#4fc3f7; }
+  .l-l { color:#ff8a8a; }
+</style>
+```
+
+**第 2 部分（HTML 主体结构）**：
+
+```html
+</head>
+<body>
+<div class="wrap">
+  <h1>弦上驻波演示</h1>
+  <div class="sub">两端固定的弦 · 左端振动源驱动 · 驻波 = 两列反向行波的叠加</div>
+
+  <div class="card">
+    <canvas id="cv" width="960" height="420"></canvas>
+    <div class="legend">
+      <span class="l-sum">━ 合成波（驻波，实测弦形）</span>
+      <span class="l-r">╌ 向右行波 y₁</span>
+      <span class="l-l">╌ 向左行波 y₂</span>
+    </div>
+    <div class="badges">
+      <span class="badge b-node">● 绿色标记 = 波节（一动不动）</span>
+      <span class="badge b-antinode">▲ 红色标记 = 波腹（振幅最大）</span>
+    </div>
+    <div class="info">
+      <div>谐波次数 n = <b id="nVal">3</b></div>
+      <div>波长 λ = 2L/n = <b id="lamVal">—</b></div>
+      <div>波节数（含两端）= <b id="nodeCnt">4</b></div>
+      <div>波腹数 = <b id="anCnt">3</b></div>
+      <div>弦长 L = <b>1.2 m</b>（固定）</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="ctrl">
+        <label>驱动频率 f = <span class="val" id="fVal">—</span> Hz</label>
+        <input type="range" id="fSlider" min="1" max="9" step="0.05" value="3">
+      </div>
+      <div class="ctrl">
+        <label>快慢（时间倍率）<span class="val" id="spVal">1.0×</span></label>
+        <input type="range" id="spSlider" min="0.1" max="2" step="0.1" value="1">
+      </div>
+      <div class="ctrl">
+        <label>暂停/继续</label>
+        <button id="pauseBtn">⏸ 暂停</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="ctrl">
+        <label>直接选择谐波（共振）</label>
+        <div class="modes" id="modes"></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="ctrl">
+        <label>显示内容</label>
+        <div class="views">
+          <button id="vSum" class="on">仅驻波</button>
+          <button id="vBoth">驻波 + 两列行波（叠加分解）</button>
+          <button id="vWave">仅两列行波</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card note">
+    <b style="color:#ffd166">观察要点</b><br>
+    ① 驻波的<em>波形不向前跑</em>：整条弦的轮廓固定，只在原地振动。想确认的话，盯住任意一点，它只上下运动；盯住绿色节点，它<em>始终一动不动</em>。<br>
+    ② 共振（弦稳定分段跳动）只发生在特定频率：fₙ = n·f₁，此时弦长恰好容下 n 个半波，即 <em>L = n·λ/2</em>，波长与弦长的关系一目了然。<br>
+    ③ 切到"叠加分解"视图：蓝线向右传、红线向左传（都是真正跑动的行波），两条虚线<em>逐点相加</em>得到的黄实线就是驻波——节点处两波始终反相抵消，波腹处始终同相加强。<br>
+    ④ 频率偏离共振值时，弦上无法形成稳定的分段振动（振幅变小、波形混乱），这正是"调到合适的值才能分几段跳"的原因。
+  </div>
+</div>
+```
+
+**第 3 部分（全部 JavaScript，文件到此结束）**：
+
+```html
+<script>
+(function(){
+  const cv = document.getElementById('cv'), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const L_M = 1.2;                 // 弦长（米）
+  const V = 24;                    // 波速（米/秒），f1 = V/2L = 10 Hz
+  const F1 = V / (2 * L_M);
+  const X0 = 90, X1 = W - 60;      // 弦两端像素位置
+  const MID = H * 0.52;            // 平衡位置
+  const AMP = 70;                  // 振幅像素
+  const px = x => X0 + (x / L_M) * (X1 - X0); // 米→像素
+
+  let fRef = 3, speed = 1, paused = false, t = 0;
+  let view = 'sum';                // sum | both | wave
+  let last = performance.now();
+
+  // ---- 谐波按钮 ----
+  const modesBox = document.getElementById('modes');
+  for (let n = 1; n <= 6; n++) {
+    const b = document.createElement('button');
+    b.textContent = 'n=' + n;
+    b.onclick = () => { fRef = n; syncUI(); };
+    b.dataset.n = n;
+    modesBox.appendChild(b);
+  }
+
+  // ---- 控件 ----
+  const fS = document.getElementById('fSlider'),
+        spS = document.getElementById('spSlider');
+  fS.min = 0.3; fS.max = 6.5; fS.step = 0.02;
+  fS.oninput = () => { fRef = +fS.value; syncUI(); };
+  spS.oninput = () => {
+    speed = +spS.value;
+    document.getElementById('spVal').textContent = speed.toFixed(1) + '×';
+  };
+  document.getElementById('pauseBtn').onclick = function(){
+    paused = !paused;
+    this.textContent = paused ? '▶ 继续' : '⏸ 暂停';
+  };
+  const vBtns = { sum:'vSum', both:'vBoth', wave:'vWave' };
+  for (const k in vBtns)
+    document.getElementById(vBtns[k]).onclick = () => setView(k);
+  function setView(k){
+    view = k;
+    for (const j in vBtns)
+      document.getElementById(vBtns[j])
+        .classList.toggle('on', j === k);
+  }
+
+  // ---- 共振判断：离最近谐波多远 ----
+  function resonance(){
+    const nIdeal = fRef / F1;
+    const n = Math.round(nIdeal);
+    const dev = Math.abs(nIdeal - n);        // 0=完美共振
+    return { n: Math.max(1, n), dev };
+  }
+
+  function syncUI(){
+    fS.value = fRef;
+    const { n, dev } = resonance();
+    document.getElementById('fVal').textContent = fRef.toFixed(2);
+    document.getElementById('nVal').textContent = n;
+    document.getElementById('lamVal').textContent =
+      (2 * L_M / n).toFixed(3) + ' m';
+    document.getElementById('nodeCnt').textContent = n + 1;
+    document.getElementById('anCnt').textContent = n;
+    [...modesBox.children].forEach(b =>
+      b.classList.toggle('on', +b.dataset.n === n && dev < 0.03));
+  }
+
+  // ---- 绘制 ----
+  function drawWave(color, dash, fn, alpha){
+    g.save();
+    g.globalAlpha = alpha;
+    g.strokeStyle = color; g.lineWidth = 2.5;
+    g.setLineDash(dash);
+    g.beginPath();
+    const K = 2 * Math.PI * fRef / V;   // k = ω/v
+    const OM = 2 * Math.PI * fRef;
+    for (let p = 0; p <= 400; p++) {
+      const x = p / 400 * L_M;
+      const y = MID - AMP * fn(x, K, OM);
+      p ? g.lineTo(px(x), y) : g.moveTo(px(x), y);
+    }
+    g.stroke(); g.restore();
+  }
+
+  function drawDriver(){
+    // 左端振动源（小幅振动的驱动杆，节点仍在支架 x=0 处）
+    const a = 6 * Math.sin(2 * Math.PI * fRef * t);
+    g.strokeStyle = '#8fa3b5'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(X0 - 44, MID); g.lineTo(X0 - 10, MID - a);
+    g.stroke();
+    g.fillStyle = '#8fa3b5';
+    g.beginPath(); g.arc(X0 - 10, MID - a, 5, 0, 7); g.fill();
+    g.fillStyle = '#9fb0bd'; g.font = '11px sans-serif';
+    g.fillText('振动源', X0 - 60, MID + 60);
+    // 两端支架
+    g.strokeStyle = '#5a6b7a'; g.lineWidth = 3;
+    [[X0],[X1]].forEach(([x]) => {
+      g.beginPath(); g.moveTo(x, MID - 26); g.lineTo(x, MID + 26); g.stroke();
+    });
+  }
+
+  function drawMarkers(n){
+    for (let i = 0; i <= n; i++) {           // 波节
+      const x = px(i * L_M / n);
+      g.fillStyle = '#7dffb4';
+      g.beginPath(); g.arc(x, MID, 5, 0, 7); g.fill();
+      g.font = '11px sans-serif'; g.fillStyle = '#7dffb4';
+      g.fillText('N', x - 4, MID + 24);
+    }
+    for (let i = 0; i < n; i++) {            // 波腹
+      const x = px((i + 0.5) * L_M / n);
+      g.fillStyle = '#ff8a8a';
+      g.beginPath();
+      g.moveTo(x, MID - 8); g.lineTo(x + 5, MID - 15);
+      g.lineTo(x - 5, MID - 15); g.closePath(); g.fill();
+      g.fillText('A', x - 4, MID - 22);
+    }
+    // 半波标注
+    g.strokeStyle = '#5a6b7a'; g.lineWidth = 1;
+    g.setLineDash([4,4]);
+    g.beginPath(); g.moveTo(px(0), H - 40); g.lineTo(px(L_M), H - 40); g.stroke();
+    g.setLineDash([]);
+    const { dev } = resonance();
+    g.fillStyle = dev < 0.03 ? '#7dffb4' : '#ffb4a0';
+    g.font = '12px sans-serif';
+    g.fillText(dev < 0.03
+      ? `共振：L = n·λ/2 = ${resonance().n}·λ/2  ✓ 弦稳定分段`
+      : `f 偏离共振频率 n·f₁（f₁=${F1} Hz），弦不振出稳定驻波`,
+      px(0), H - 50);
+  }
+
+  function loop(now){
+    const dt = Math.min(0.04, (now - last) / 1000); last = now;
+    if (!paused) t += dt * speed;
+
+    g.clearRect(0, 0, W, H);
+    g.strokeStyle = '#2a3642'; g.lineWidth = 1;      // 平衡线
+    g.beginPath(); g.moveTo(X0, MID); g.lineTo(X1, MID); g.stroke();
+
+    const { n, dev } = resonance();
+    const env = Math.max(0.05, 1 - Math.min(1, dev / 0.25)); // 偏离→振幅骤减
+    drawDriver();
+
+    if (view !== 'sum') {
+      drawWave('#4fc3f7', [8,5], (x,k,om) => 0.5*env*Math.sin(k*x - om*t), 0.9);
+      drawWave('#ff8a8a', [8,5], (x,k,om) => 0.5*env*Math.sin(k*x + om*t), 0.9);
+    }
+    if (view !== 'wave')
+      drawWave('#ffd166', [], (x,k,om) => env*Math.sin(n*Math.PI*x/L_M)*Math.cos(om*t), 1);
+    else // 行波视图里也画出合成，便于对照“加出来=驻波”
+      drawWave('#ffd166', [2,4], (x,k,om) =>
+        0.5*env*(Math.sin(k*x-om*t) + Math.sin(k*x+om*t)), 0.85);
+
+    drawMarkers(n);
+    syncUI();
+    requestAnimationFrame(loop);
+  }
+  syncUI();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

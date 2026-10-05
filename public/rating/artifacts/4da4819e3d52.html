@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虚拟实验：描绘小灯泡的伏安特性曲线(滑动变阻器分压接法)</title>
+<style>
+  :root{
+    --ink:#1c2733; --sub:#5a6b7d; --line:#d7dee6; --accent:#c0392b;
+    --lcd-bg:#101a22; --lcd-fg:#57e389;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:#eef1f5; color:var(--ink); padding:18px;
+  }
+  header{max-width:1240px; margin:0 auto 14px;}
+  header h1{font-size:22px; letter-spacing:.5px;}
+  header p{color:var(--sub); font-size:13.5px; margin-top:6px; line-height:1.7;}
+  .layout{
+    max-width:1240px; margin:0 auto; display:grid;
+    grid-template-columns:560px 1fr; gap:16px; align-items:start;
+  }
+  @media (max-width:1080px){ .layout{grid-template-columns:1fr;} }
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; box-shadow:0 2px 8px rgba(20,40,60,.06);
+  }
+  .card h2{font-size:15px; margin-bottom:10px; color:var(--ink);
+    border-left:4px solid var(--accent); padding-left:8px;}
+  svg#circuit{width:100%; height:auto; display:block; touch-action:none; user-select:none;}
+  .wire{stroke:#2c3a48; stroke-width:2.4; fill:none; stroke-linecap:round;}
+  .comp{stroke:#2c3a48; stroke-width:2.4; fill:#fff;}
+  .comp-label{font-size:13px; fill:#2c3a48; font-weight:600;}
+  .small-label{font-size:11px; fill:#5a6b7d;}
+  .hitbox{fill:transparent; cursor:ew-resize;}
+  /* 控制区 */
+  .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px;}
+  button{
+    font-size:13.5px; padding:7px 14px; border-radius:8px; border:1px solid var(--line);
+    background:#f6f8fa; color:var(--ink); cursor:pointer; transition:.15s;
+  }
+  button:hover{background:#e8edf2;}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  button.primary:hover{background:#a93226;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .step-btn{padding:7px 11px; font-size:15px; line-height:1;}
+  /* 读数区 */
+  .readouts{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px;}
+  .lcd{
+    background:var(--lcd-bg); color:var(--lcd-fg); border-radius:8px;
+    padding:8px 10px; text-align:center; font-family:"SF Mono",Consolas,monospace;
+  }
+  .lcd .name{font-size:11px; color:#8aa4b8; letter-spacing:1px;}
+  .lcd .val{font-size:20px; font-weight:700; margin-top:2px;}
+  .lcd .val small{font-size:12px; font-weight:400;}
+  .status{display:flex; gap:10px; align-items:center; margin-top:10px; font-size:12.5px; color:var(--sub);}
+  .dot{width:10px; height:10px; border-radius:50%; background:#b8c4cf; display:inline-block; margin-right:4px; vertical-align:-1px;}
+  .dot.on{background:#27ae60; box-shadow:0 0 6px #27ae60aa;}
+  .warn{color:#d35400; font-weight:600;}
+  /* 右列 */
+  .right-col{display:flex; flex-direction:column; gap:16px;}
+  .chart-tools{display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px; color:var(--sub); margin-bottom:8px;}
+  .chart-tools select{padding:4px 6px; border:1px solid var(--line); border-radius:6px;}
+  .chart-tools label{display:flex; align-items:center; gap:4px; cursor:pointer;}
+  canvas#chart{width:100%; height:300px; display:block;}
+  .hint{font-size:12.5px; color:var(--sub); line-height:1.7; margin-top:8px; padding:8px 10px; background:#f6f8fa; border-radius:8px;}
+  .hint b{color:var(--accent);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{border-bottom:1px solid var(--line); padding:6px 8px; text-align:center; font-family:Consolas,monospace;}
+  th{color:var(--sub); font-weight:600; font-family:inherit;}
+  td button{border:none; background:none; color:#999; font-size:14px; padding:0 4px;}
+  td button:hover{color:var(--accent);}
+  .tbl-wrap{max-height:240px; overflow:auto;}
+  #toast{
+    position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px);
+    background:rgba(20,30,40,.92); color:#fff; font-size:13.5px; padding:9px 18px;
+    border-radius:20px; opacity:0; pointer-events:none; transition:.25s; z-index:99;
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+```
+
+**代码块 2/5 —— 页面骨架与电路 SVG(分压接法)：**
+
+```html
+<body>
+<header>
+  <h1>虚拟实验 · 描绘小灯泡的伏安特性曲线</h1>
+  <p>滑动变阻器采用<b>分压接法</b>:拖动滑片 P(或点击变阻器、用 ←→ 微调),灯泡电压从 0 开始逐渐调高;待读数稳定后记录 U、I,与<b>定值电阻的 U–I 直线</b>对比,观察灯丝电阻的变化。灯泡额定:3.8 V,0.3 A。</p>
+</header>
+<main class="layout">
+  <section class="card">
+    <h2>实验电路(电流表外接 · 分压接法)</h2>
+    <svg id="circuit" viewBox="0 0 560 470" tabindex="0">
+      <defs>
+        <pattern id="winding" width="10" height="28" patternUnits="userSpaceOnUse">
+          <rect width="10" height="28" fill="#e9eef3"/>
+          <path d="M-2,28 L8,0" stroke="#9fb0bf" stroke-width="2.2"/>
+          <path d="M3,28 L13,0" stroke="#9fb0bf" stroke-width="2.2"/>
+        </pattern>
+        <radialGradient id="glowGrad">
+          <stop offset="0%"  stop-color="#fffbe8"/>
+          <stop offset="30%" stop-color="#ffd766" stop-opacity=".9"/>
+          <stop offset="65%" stop-color="#ff9d2e" stop-opacity=".45"/>
+          <stop offset="100%" stop-color="#ff7a00" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- 导线(固定部分) -->
+      <path class="wire" d="M60,130 V100 H444 V440 H420"/>            <!-- 电池正极 → 变阻器 B 端 -->
+      <path class="wire" d="M60,270 V460 H490 V330"/>                  <!-- 电池负极 → A 端公共线 → 灯泡下端 -->
+      <path class="wire" d="M180,460 V440"/>                           <!-- 左接线柱 → A 端 -->
+      <path class="wire" d="M490,240 H450 A6,6 0 0 1 438,240 H424 V300"/>  <!-- 灯泡上端 → 电压表右 -->
+      <path class="wire" d="M490,330 H450 A6,6 0 0 1 438,330 H376 V300"/>  <!-- 灯泡下端 → 电压表左 -->
+      <path class="wire" d="M490,150 V164"/>
+      <path class="wire" d="M490,216 V240"/>
+      <!-- 滑片 → 电流表 → 灯泡(动态,x=444 处跳线) -->
+      <path id="dynWire" class="wire" d=""/>
+
+      <!-- 电池组(3×1.5 V,画两节符号) -->
+      <g id="battery">
+        <line x1="44" y1="210" x2="76" y2="210" stroke="#2c3a48" stroke-width="3"/>
+        <line x1="52" y1="226" x2="68" y2="226" stroke="#2c3a48" stroke-width="5"/>
+        <line x1="44" y1="252" x2="76" y2="252" stroke="#2c3a48" stroke-width="3"/>
+        <line x1="52" y1="268" x2="68" y2="268" stroke="#2c3a48" stroke-width="5"/>
+        <text class="small-label" x="88" y="206">E = 4.5 V</text>
+        <text class="small-label" x="88" y="222">(3 × 1.5 V)</text>
+        <text class="small-label" x="40" y="122">+</text>
+      </g>
+
+      <!-- 滑动变阻器(下方,水平放置) -->
+      <g id="rheostat">
+        <rect x="180" y="406" width="240" height="28" fill="url(#winding)" stroke="#7c8b99" stroke-width="1.6" rx="3"/>
+        <line x1="180" y1="406" x2="420" y2="406" stroke="#f4b183" stroke-width="3"/>
+        <line x1="180" y1="434" x2="180" y2="440" class="wire"/>
+        <line x1="420" y1="434" x2="420" y2="440" class="wire"/>
+        <circle cx="180" cy="440" r="4.5" class="comp"/>
+        <circle cx="420" cy="440" r="4.5" class="comp"/>
+        <text class="comp-label" x="168" y="459">A</text>
+        <text class="comp-label" x="424" y="459">B</text>
+        <text class="small-label" x="252" y="459">滑动变阻器 R₀ = 20 Ω</text>
+        <!-- 滑片(由 JS 移动) -->
+        <g id="sliderG">
+          <line id="sliderRod" x1="180" y1="406" x2="180" y2="350" stroke="#34495e" stroke-width="4"/>
+          <line x1="166" y1="350" x2="194" y2="350" stroke="#34495e" stroke-width="5" stroke-linecap="round"/>
+          <circle id="sliderTip" cx="180" cy="406" r="5" fill="#c0392b"/>
+          <text id="sliderTag" class="comp-label" x="180" y="342" text-anchor="middle">P</text>
+        </g>
+        <rect class="hitbox" x="168" y="390" width="264" height="76"/>
+      </g>
+
+      <!-- 灯泡 -->
+      <g id="bulb">
+        <circle id="glow" cx="490" cy="300" r="52" fill="url(#glowGrad)" opacity="0"/>
+        <circle cx="490" cy="300" r="30" class="comp" fill="#fdfefe"/>
+        <path id="filament" d="M477,300 L483,290 L489,300 L495,290 L501,300"
+              stroke="#3a2f28" stroke-width="2" fill="none"/>
+        <text class="small-label" x="522" y="304">3.8 V</text>
+        <text class="small-label" x="522" y="318">0.3 A</text>
+      </g>
+
+      <!-- 电表表盘(由 JS 生成) -->
+      <g id="meterA"></g>
+      <g id="meterV"></g>
+    </svg>
+
+    <div class="controls">
+      <button class="step-btn" id="btnLeft" title="向 A 端微调">‹</button>
+      <button class="step-btn" id="btnRight" title="向 B 端微调">›</button>
+      <button class="primary" id="btnRec">记录数据点 (U, I)</button>
+      <button id="btnAuto">自动描点</button>
+      <button id="btnClear">清除数据</button>
+    </div>
+    <div class="readouts">
+      <div class="lcd"><div class="name">电压 U</div><div class="val"><span id="rdU">0.00</span> <small>V</small></div></div>
+      <div class="lcd"><div class="name">电流 I</div><div class="val"><span id="rdI">0.000</span> <small>A</small></div></div>
+      <div class="lcd"><div class="name">灯丝电阻 U/I</div><div class="val"><span id="rdR">—</span> <small>Ω</small></div></div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="stableDot"></span><span id="stableTxt">读数稳定后记录</span></span>
+      <span class="warn" id="warnTxt"></span>
+    </div>
+  </section>
+```
+
+**代码块 3/5 —— 右侧图表与数据区 + 物理模型：**
+
+```html
+  <section class="right-col">
+    <div class="card">
+      <h2>U–I 图像:灯泡曲线 vs 定值电阻直线</h2>
+      <div class="chart-tools">
+        <label>对比定值电阻 R =
+          <select id="refR">
+            <option value="10">10 Ω</option>
+            <option value="13" selected>13 Ω(接近灯泡正常发光电阻)</option>
+            <option value="16">16 Ω</option>
+            <option value="20">20 Ω</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="showRef" checked> 显示定值电阻直线</label>
+        <label><input type="checkbox" id="showRated" checked> 标记额定工作点</label>
+      </div>
+      <canvas id="chart"></canvas>
+      <p class="hint" id="chartHint">
+        拖动滑片时注意<b>橙色实时工作点</b>的移动轨迹:它与定值电阻直线(过原点的直线)越来越"分道扬镳"。
+        低压段曲线在直线的<b>上方</b>——同样的电压下电流偏大,说明灯丝电阻<b>较小</b>;
+        电压升高后曲线弯到直线的<b>下方</b>——电流增大得比欧姆定律慢,说明灯丝电阻<b>变大</b>。
+        原因:电流通过灯丝生热,温度升高使钨丝电阻增大,所以小灯泡的 U–I 曲线是一条<b>曲线</b>而非直线。
+      </p>
+    </div>
+    <div class="card">
+      <h2>数据记录</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>序号</th><th>U / V</th><th>I / A</th><th>R = U/I / Ω</th><th></th></tr></thead>
+          <tbody id="tbody"><tr><td colspan="5" style="color:#98a6b3;font-family:inherit">暂无数据,请调节滑片并点击「记录数据点」</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+/* ================= 物理模型 ================= */
+// 灯泡额定 3.8 V / 0.3 A;冷态电阻 R0,电阻随温升线性增大,散热以辐射为主(T^4)
+const E  = 4.5;        // 电源电动势 V
+const RV = 20;         // 滑动变阻器总阻 Ω
+const R0 = 1.5;        // 灯丝冷态电阻 Ω
+const AL = 0.0045;     // 钨丝温度系数 /K
+const K2 = 7.82e-14;   // 辐射散热系数 W/K^4(校准:3.8V → 0.3A)
+const CTH = 1.17e-3;   // 灯丝热容 J/K(热时间常数约 0.5 s,升温可见)
+const U_RATED = 3.8, I_RATED = 0.3, P_RATED = U_RATED * I_RATED;
+
+const state = { p: 0, dT: 0, U: 0, I: 0, stable: false }; // p:滑片位置0~1, dT:温升K
+let records = [];        // {u, i}
+let scanning = false;    // 自动描点中
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const bulbR = dT => R0 * (1 + AL * clamp(dT, 0, 3000));
+const ploss = dT => { const T = 300 + dT; return K2 * (T*T*T*T - 300**4); };
+
+// 分压电路:灯泡(R)并联在变阻器下段,再与上段串联
+function circuit(p, R) {
+  const rb = p * RV, rt = (1 - p) * RV;
+  if (rb < 1e-9) return { U: 0, I: 0 };
+  const par = rb * R / (rb + R);
+  const U = E * par / (rt + par);
+  return { U, I: U / R };
+}
+
+// 稳态解(自动描点用):二分求热平衡温升
+function solveSteady(p) {
+  let lo = 0, hi = 3000;
+  for (let k = 0; k < 60; k++) {
+    const m = (lo + hi) / 2;
+    const c = circuit(p, bulbR(m));
+    (c.U * c.I > ploss(m)) ? lo = m : hi = m;
+  }
+  const m = (lo + hi) / 2, c = circuit(p, bulbR(m));
+  return { dT: m, U: c.U, I: c.I };
+}
+
+// 灯丝颜色随温度:暗红 → 橙 → 金黄 → 近白
+function tempColor(dT) {
+  const stops = [
+    [300,  '#3a2f28'], [800, '#8a2f1d'], [1200, '#d5551e'],
+    [1600, '#ffa128'], [2000, '#ffd35e'], [2500, '#fff3c4']
+  ];
+  if (dT <= stops[0][0]) return stops[0][1];
+  for (let i = 1; i < stops.length; i++) {
+    if (dT <= stops[i][0]) {
+      const t = (dT - stops[i-1][0]) / (stops[i][0] - stops[i-1][0]);
+      const a = parseInt(stops[i-1][1].slice(1),16), b = parseInt(stops[i][1].slice(1),16);
+      const mix = s => Math.round(((a>>s)&255)*(1-t) + ((b>>s)&255)*t);
+      return `rgb(${mix(16)},${mix(8)},${mix(0)})`;
+    }
+  }
+  return stops[stops.length-1][1];
+}
+```
+
+**代码块 4/5 —— 表盘生成、界面刷新、滑片交互与主循环：**
+
+```javascript
+/* ================= SVG 电表表盘 ================= */
+function mkMeter(gid, cx, cy, label, fs, unit) {
+  const NS = "http://www.w3.org/2000/svg";
+  const g = document.getElementById(gid);
+  const mk = (t, at) => { const e = document.createElementNS(NS, t);
+    for (const k in at) e.setAttribute(k, at[k]); g.appendChild(e); return e; };
+  mk("circle", { cx, cy, r: 26, class: "comp" });
+  for (let k = 0; k <= 4; k++) {                      // 刻度 -60°~60°
+    const a = (-60 + 30*k) * Math.PI / 180;
+    mk("line", { x1: cx + 19*Math.sin(a), y1: cy - 19*Math.cos(a),
+                 x2: cx + 23*Math.sin(a), y2: cy - 23*Math.cos(a),
+                 stroke: "#5a6b7d", "stroke-width": 1.4 });
+  }
+  mk("circle", { cx, cy, r: 2.6, fill: "#2c3a48" });
+  const needle = mk("line", { x1: cx, y1: cy, x2: cx, y2: cy - 20,
+                 stroke: "#c0392b", "stroke-width": 2, "stroke-linecap": "round" });
+  mk("text", { x: cx, y: cy + 14, "text-anchor": "middle", class: "small-label",
+               "font-weight": 700, fill: "#c0392b" }).textContent = label;
+  mk("text", { x: cx, y: cy + 44, "text-anchor": "middle", class: "small-label" })
+    .textContent = `0~${fs} ${unit}`;
+  return {
+    set(v) {                                          // 指针角度,超量程钳制在满偏
+      const a = -60 + 120 * clamp(v / fs, 0, 1.02);
+      needle.setAttribute("transform", `rotate(${a} ${cx} ${cy})`);
+    }
+  };
+}
+const meterA = mkMeter("meterA", 490, 190, "A", 0.6, "A");
+const meterV = mkMeter("meterV", 400, 300, "V", 5, "V");
+
+/* ================= 界面刷新 ================= */
+const $ = id => document.getElementById(id);
+function updateUI() {
+  $("rdU").textContent = state.U.toFixed(2);
+  $("rdI").textContent = state.I.toFixed(3);
+  $("rdR").textContent = state.I > 1e-4 ? (state.U / state.I).toFixed(1) : "—";
+  meterA.set(state.I);
+  meterV.set(state.U);
+
+  // 滑片与动态导线
+  const tx = 180 + state.p * 240;
+  $("sliderG").querySelectorAll("line, circle, text").forEach(el => {
+    if (el.tagName === "line" && +el.getAttribute("y2") !== 350) return;
+  });
+  $("sliderRod").setAttribute("x1", tx); $("sliderRod").setAttribute("x2", tx);
+  $("sliderTip").setAttribute("cx", tx);
+  $("sliderTag").setAttribute("x", tx);
+  $("dynWire").setAttribute("d",
+    `M ${tx.toFixed(1)} 350 V 150 H 450 A 6,6 0 0 0 438,150 H 458 V 150 L 490 150`);
+
+  // 灯泡发光与灯丝颜色
+  const P = state.U * state.I, dT = state.dT;
+  $("glow").setAttribute("opacity", clamp(Math.sqrt(P / P_RATED), 0, 1).toFixed(3));
+  $("glow").setAttribute("r", 44 + 14 * clamp(P / P_RATED, 0, 1.4));
+  $("filament").setAttribute("stroke", tempColor(dT));
+
+  // 稳定指示与警告
+  $("stableDot").classList.toggle("on", state.stable);
+  $("stableTxt").textContent = state.p < 0.005 ? "请将滑片 P 从 A 端逐渐滑向 B 端"
+    : (state.stable ? "读数已稳定,可记录" : "灯丝温度变化中,请稍等…");
+  $("warnTxt").textContent = state.U > 3.95 ? "⚠ 电压超过额定值 3.8 V!" : "";
+}
+
+/* ================= 滑片交互 ================= */
+const svg = $("circuit");
+let dragging = false;
+function setPfromEvent(e) {
+  const r = svg.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 560;
+  state.p = clamp((x - 180) / 240, 0, 1);
+}
+svg.addEventListener("pointerdown", e => {
+  if (scanning) return;
+  const r = svg.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 560, y = (e.clientY - r.top) / r.height * 470;
+  if (x > 155 && x < 445 && y > 330) { dragging = true; svg.setPointerCapture(e.pointerId); setPfromEvent(e); }
+});
+svg.addEventListener("pointermove", e => { if (dragging) setPfromEvent(e); });
+svg.addEventListener("pointerup",   () => dragging = false);
+$("btnLeft").onclick  = () => state.p = clamp(state.p - 0.01, 0, 1);
+$("btnRight").onclick = () => state.p = clamp(state.p + 0.01, 0, 1);
+svg.addEventListener("keydown", e => {
+  if (e.key === "ArrowLeft")  { state.p = clamp(state.p - 0.005, 0, 1); e.preventDefault(); }
+  if (e.key === "ArrowRight") { state.p = clamp(state.p + 0.005, 0, 1); e.preventDefault(); }
+});
+
+/* ================= 主循环(动态热平衡) ================= */
+let lastT = performance.now();
+function frame(now) {
+  const dt = clamp((now - lastT) / 1000, 0, 0.05); lastT = now;
+  if (!scanning) {
+    const n = Math.max(1, Math.ceil(dt / 0.01)), h = dt / n;
+    for (let i = 0; i < n; i++) {
+      const c = circuit(state.p, bulbR(state.dT));
+      state.dT += (c.U * c.I - ploss(state.dT)) / CTH * h;
+    }
+    state.dT = clamp(state.dT, 0, 3000);
+  }
+  const c = circuit(state.p, bulbR(state.dT));
+  state.U = c.U; state.I = c.I;
+  state.stable = state.U > 0.001 && Math.abs(state.U * state.I - ploss(state.dT)) < 0.003;
+  updateUI();
+  drawChart();
+  requestAnimationFrame(frame);
+}
+```
+
+**代码块 5/5 —— 图表绘制、数据管理与初始化：**
+
+```javascript
+/* ================= U–I 图表 ================= */
+const cv = $("chart"), g2 = cv.getContext("2d");
+const UMAX = 5, IMAX = 0.5;
+function drawChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w*dpr)) { cv.width = w*dpr; cv.height = h*dpr; }
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g2.clearRect(0, 0, w, h);
+  const L = 46, Rp = 12, T = 12, B = 34, pw = w-L-Rp, ph = h-T-B;
+  const X = u => L + u/UMAX*pw, Y = i => T + ph - i/IMAX*ph;
+
+  // 网格与坐标轴
+  g2.strokeStyle = "#e4e9ef"; g2.lineWidth = 1; g2.beginPath();
+  for (let u = 0; u <= UMAX; u += 0.5) { g2.moveTo(X(u), T); g2.lineTo(X(u), T+ph); }
+  for (let i = 0; i <= IMAX + 1e-9; i += 0.05) { g2.moveTo(L, Y(i)); g2.lineTo(L+pw, Y(i)); }
+  g2.stroke();
+  g2.strokeStyle = "#5a6b7d"; g2.lineWidth = 1.6; g2.beginPath();
+  g2.moveTo(L, T); g2.lineTo(L, T+ph); g2.lineTo(L+pw, T+ph); g2.stroke();
+  g2.fillStyle = "#5a6b7d"; g2.font = "11px sans-serif"; g2.textAlign = "center";
+  for (let u = 0; u <= UMAX; u += 1) g2.fillText(u, X(u), T+ph+16);
+  g2.textAlign = "right";
+  for (let i = 0; i <= IMAX + 1e-9; i += 0.1) g2.fillText(i.toFixed(1), L-6, Y(i)+4);
+  g2.textAlign = "left"; g2.font = "12.5px sans-serif"; g2.fillStyle = "#1c2733";
+  g2.fillText("U / V", L+pw-32, T+ph+30);
+  g2.save(); g2.translate(14, T+52); g2.rotate(-Math.PI/2); g2.fillText("I / A", 0, 0); g2.restore();
+
+  // 定值电阻直线 I = U/R
+  if ($("showRef").checked) {
+    const Rf = +$("refR").value;
+    g2.strokeStyle = "#5b7fa6"; g2.lineWidth = 2; g2.setLineDash([7, 5]);
+    g2.beginPath(); g2.moveTo(X(0), Y(0)); g2.lineTo(X(UMAX), Y(UMAX/Rf)); g2.stroke();
+    g2.setLineDash([]);
+    g2.fillStyle = "#5b7fa6"; g2.font = "11.5px sans-serif";
+    g2.fillText(`定值电阻 ${Rf} Ω`, X(UMAX/Rf*0.42)+8, Y(UMAX/Rf*0.42)-8);
+  }
+
+  // 额定工作点
+  if ($("showRated").checked) {
+    g2.strokeStyle = "#b0892d"; g2.lineWidth = 1.4;
+    const x = X(U_RATED), y = Y(I_RATED);
+    g2.beginPath(); g2.moveTo(x-5,y); g2.lineTo(x+5,y); g2.moveTo(x,y-5); g2.lineTo(x,y+5); g2.stroke();
+    g2.fillStyle = "#b0892d"; g2.font = "11px sans-serif";
+    g2.fillText("额定 3.8V, 0.3A", x+8, y+4);
+  }
+
+  // 灯泡实测点(按 U 排序连线)
+  if (records.length) {
+    const pts = [...records].sort((a, b) => a.u - b.u);
+    g2.strokeStyle = "#c0392b"; g2.lineWidth = 2.2; g2.beginPath();
+    pts.forEach((q, i) => i ? g2.lineTo(X(q.u), Y(q.i)) : g2.moveTo(X(q.u), Y(q.i)));
+    g2.stroke();
+    g2.fillStyle = "#c0392b";
+    pts.forEach(q => { g2.beginPath(); g2.arc(X(q.u), Y(q.i), 3.4, 0, 7); g2.fill(); });
+  }
+
+  // 实时工作点
+  if (state.I > 0.002) {
+    g2.strokeStyle = "#e67e22"; g2.lineWidth = 2.4;
+    g2.beginPath(); g2.arc(X(state.U), Y(state.I), 6, 0, 7); g2.stroke();
+    g2.fillStyle = "rgba(230,126,34,.25)"; g2.fill();
+  }
+}
+
+/* ================= 数据管理 ================= */
+function renderTable() {
+  const tb = $("tbody");
+  if (!records.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:#98a6b3;font-family:inherit">暂无数据,请调节滑片并点击「记录数据点」</td></tr>';
+    return;
+  }
+  tb.innerHTML = records.map((q, k) =>
+    `<tr><td>${k+1}</td><td>${q.u.toFixed(2)}</td><td>${q.i.toFixed(3)}</td>` +
+    `<td>${(q.u/q.i).toFixed(1)}</td><td><button data-del="${k}" title="删除">✕</button></td></tr>`).join("");
+}
+$("tbody").addEventListener("click", e => {
+  const b = e.target.closest("button[data-del]");
+  if (b) { records.splice(+b.dataset.del, 1); renderTable(); }
+});
+$("btnRec").onclick = () => {
+  if (scanning) return;
+  if (state.U < 0.02) { toast("电压接近 0,请先把滑片 P 向 B 端移动"); return; }
+  records.push({ u: state.U, i: state.I });
+  renderTable();
+  toast(`已记录:U = ${state.U.toFixed(2)} V,I = ${state.I.toFixed(3)} A`);
+};
+$("btnClear").onclick = () => { records = []; renderTable(); toast("已清除全部数据"); };
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+$("btnAuto").onclick = async function () {
+  if (scanning) return;
+  scanning = true; this.disabled = true; records = []; renderTable();
+  toast("自动描点:滑片从 A 端匀速滑向 B 端…");
+  state.p = 0; await sleep(350);
+  for (let p = 0.05; p <= 1.0001; p += 0.05) {
+    state.p = Math.min(p, 1);
+    const s = solveSteady(state.p);
+    state.dT = s.dT; state.U = s.U; state.I = s.I;   // 展示稳态值
+    await sleep(330);
+    records.push({ u: s.U, i: s.I }); renderTable();
+  }
+  scanning = false; this.disabled = false;
+  toast("自动描点完成,可继续手动补充数据点");
+};
+
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+["refR", "showRef", "showRated"].forEach(id => $(id).addEventListener("change", drawChart));
+window.addEventListener("resize", drawChart);
+
+renderTable();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>水路类比电路：串并联的流量与水压</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject palette: per-pipe colors + water tones */
+      --pipe-1: #0e96b0;
+      --pipe-2: #4f6dd0;
+      --pipe-3: #e08a00;
+      --pipe-4: #d0567c;
+      --water: #2ba3ba;
+      --water-soft: #d3edf3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    svg text { font-family: inherit; }
+
+    .app { width: min(1560px, 100%); height: 100vh; min-height: 640px; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .header p b { color: var(--sim-accent-deep); font-weight: 700; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; font-size: 0.92rem; }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(330px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 0; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1.02rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.78rem; }
+    #scene { width: 100%; height: 100%; min-height: 0; display: block; border: 1px solid rgba(15,159,186,.14); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f8fa 55%, #fbf7ee 100%); }
+
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px 12px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 12px 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.74rem; }
+    .metric strong { font-size: 1.5rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric .unit { font-size: .85rem; color: var(--sim-muted); font-weight: 600; margin-left: 2px; }
+    .equiv { margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; background: var(--sim-surface-soft); border: 1px dashed var(--sim-border); color: var(--sim-muted); font-size: 0.8rem; text-align: center; }
+    .equiv b { color: var(--sim-text); font-variant-numeric: tabular-nums; }
+
+    .alloc { padding: 12px 16px 10px; }
+    .alloc h2 { margin: 0 0 6px; font-size: 1.02rem; }
+    .alloc .hint { color: var(--sim-muted); font-size: 0.76rem; margin: 0 0 6px; }
+    #allocSvg { width: 100%; height: auto; display: block; }
+    .legend { display: grid; gap: 5px; margin-top: 6px; }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--sim-text); font-variant-numeric: tabular-nums; padding: 5px 8px; border-radius: 9px; background: var(--sim-surface-soft); border: 1px solid var(--sim-grid); }
+    .legend-row .chip { flex: none; }
+    .legend-row.off { opacity: .55; }
+    .legend-row .lbl { color: var(--sim-muted); }
+    .legend-row .q { color: var(--pipe-1); font-weight: 700; }
+    .legend-row .dp { color: var(--sim-warning); font-weight: 700; }
+
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; overflow: auto; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; font-size: 0.88rem; line-height: 1.5; margin: 0; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.5; font-size: 0.78rem; }
+    .model-note p b { color: var(--sim-text); }
+
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto auto minmax(150px, 1fr) minmax(120px, .8fr); gap: 14px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 7px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 730; font-size: .9rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .mode-group { display: flex; gap: 6px; }
+    .mode-group button { padding: 9px 16px; }
+    .mode-group button.active { background: var(--sim-accent-soft); border-color: var(--sim-accent); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(15,159,186,.35); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+
+    .pipe-cluster { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 9px; border-top: 1px dashed var(--sim-border); }
+    .pipe-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 8px 10px; border: 1px solid var(--sim-grid); border-radius: 13px; background: var(--sim-surface-soft); }
+    .pipe-card[hidden] { display: none; }
+    .pipe-card .dwrap { min-width: 0; }
+    .pipe-card .dwrap label { display: flex; justify-content: space-between; font-size: 0.74rem; font-weight: 700; margin-bottom: 2px; }
+    .pipe-card .dwrap output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .pipe-card input[type="range"] { display: block; height: 18px; }
+    .valve-btn { padding: 7px 10px; font-size: 0.78rem; white-space: nowrap; }
+    .valve-btn.closed { border-color: rgba(220,38,38,.4); background: #fdeeee; color: var(--sim-danger); }
+    .chip { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 26px; border-radius: 8px; color: #fff; font-size: 0.76rem; font-weight: 760; letter-spacing: .02em; }
+    .chip.c1 { background: var(--pipe-1); }
+    .chip.c2 { background: var(--pipe-2); }
+    .chip.c3 { background: var(--pipe-3); }
+    .chip.c4 { background: var(--pipe-4); }
+
+    /* ── scene styles ─────────────────────────────── */
+    .trunk-wall { fill: none; stroke: #cfe4ea; stroke-width: 15; stroke-linecap: round; stroke-linejoin: round; }
+    .trunk-water { fill: none; stroke: var(--water); stroke-width: 9.5; stroke-linecap: round; stroke-linejoin: round; transition: stroke .25s; }
+    .trunk-water.dry { stroke: #b9c9d1; }
+    .trunk-flow { fill: none; stroke: #eafafc; stroke-width: 4.5; stroke-linecap: round; stroke-dasharray: 5 26; opacity: .95; }
+    .trunk-flow.flowing { animation: dashflow 1.4s linear infinite; }
+    .trunk-flow.dry { display: none; }
+    @keyframes dashflow { to { stroke-dashoffset: -31; } }
+    .pipe-wall { fill: #eef6f8; stroke: #3d4b5e; stroke-width: 2.5; rx: 10; }
+    .pipe-water { fill: var(--water); transition: fill .2s, opacity .2s; }
+    .pipe-water.closed { fill: #c4cfd6; opacity: .5; }
+    .pipe-frame { fill: none; stroke: #3d4b5e; stroke-width: 2.5; }
+    .valve { cursor: pointer; }
+    .valve .body { fill: #fff; stroke: #3d4b5e; stroke-width: 2.5; }
+    .valve .handle { stroke: #3d4b5e; stroke-width: 3.5; stroke-linecap: round; }
+    .valve.closed .body { stroke: var(--sim-danger); fill: #fdeeee; }
+    .valve.closed .handle { stroke: var(--sim-danger); }
+    .valve:hover .body { stroke-width: 3.5; }
+    .mano-tube { fill: #eef6f8; stroke: #8ea3b0; stroke-width: 1.6; }
+    .mano-water { fill: var(--water); transition: y .35s ease, height .35s ease; }
+    .mano-zero { fill: #c4cfd6; }
+    .mano-val { font-size: 12.5px; font-weight: 760; fill: var(--sim-warning); font-variant-numeric: tabular-nums; }
+    .mano-cap { font-size: 10.5px; fill: var(--sim-muted); }
+    .q-label { font-size: 13px; font-weight: 750; fill: var(--pipe-1); font-variant-numeric: tabular-nums; }
+    .dp-label { font-size: 11.5px; font-weight: 700; fill: var(--sim-warning); font-variant-numeric: tabular-nums; }
+    .badge-text { font-size: 12px; font-weight: 800; fill: #fff; }
+    .pump-body { fill: #ffffff; stroke: #3d4b5e; stroke-width: 3.5; }
+    .pump-blade { stroke: var(--sim-accent-deep); stroke-width: 4; fill: none; stroke-linecap: round; }
+    .pump-hub { fill: #3d4b5e; }
+    .pump-label { font-size: 14px; font-weight: 750; fill: #33465c; }
+    .pump-sub { font-size: 11px; fill: var(--sim-muted); }
+    .pump-tag { font-size: 13px; font-weight: 780; fill: var(--sim-warning); font-variant-numeric: tabular-nums; }
+    .dir-arrow { fill: #6f8496; }
+    .scene-note { font-size: 11px; fill: var(--sim-muted); }
+    .break-mark { stroke: var(--sim-danger); stroke-width: 3.5; stroke-linecap: round; }
+    .dpbar-frame { fill: #eef6f8; stroke: #8ea3b0; stroke-width: 1.4; }
+    .dpbar-fill { fill: var(--sim-warning); opacity: .85; transition: y .35s ease, height .35s ease; }
+    .dpbar-val { font-size: 11px; font-weight: 730; fill: var(--sim-warning); font-variant-numeric: tabular-nums; }
+    .junction { fill: #3d4b5e; }
+    .alloc-title { font-size: 12px; font-weight: 720; fill: var(--sim-text); }
+    .alloc-unit { font-size: 10.5px; fill: var(--sim-muted); }
+    .alloc-seg { stroke: #fff; stroke-width: 1.5; }
+    .alloc-empty { font-size: 11px; fill: var(--sim-muted); }
+
+    @media (max-width: 960px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .pipe-cluster { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .scene-panel { min-height: 0; }
+      #scene { height: auto; aspect-ratio: 920 / 560; }
+    }
+    @media (max-width: 640px) {
+      .pipe-cluster { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>水路类比电路：串并联的流量与水压</h1>
+        <p><b>水泵=电源 · 水压=电压 · 流量=电流 · 细管=电阻</b> —— 调管子粗细、增减支路、断开支路，看各处流量与水压如何分配。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">水路演示板</h2><span id="sceneHint">点击管上的阀门可开 / 关；竖管是水压计（示数 kPa）</span></div>
+        <svg id="scene" viewBox="0 0 920 560" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">一个闭合水路：左侧水泵驱动水流循环，管段可串联或并联布置；水压计与每段管的流量、压降标签实时显示当前分配。</desc>
+          <g id="gSeries" aria-hidden="false"></g>
+          <g id="gParallel" aria-hidden="true" style="display:none"></g>
+          <text class="scene-note" id="sceneNote" x="906" y="548" text-anchor="end"></text>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>总流量 Q<sub>总</sub>（=电流）</small><strong id="qRead">0.00</strong><span class="unit">L/s</span></div>
+            <div class="metric"><small>等效水阻 R<sub>eq</sub>（=电阻）</small><strong id="rRead">0.0</strong><span class="unit">kPa·s/L</span></div>
+          </div>
+          <p class="equiv" id="equivRead">相当于电路：U = <b>20.0 V</b> ｜ I = <b>0.00 A</b> ｜ R = <b>0.0 Ω</b></p>
+        </section>
+
+        <section class="panel alloc" aria-label="分配图">
+          <h2>各管的分配</h2>
+          <p class="hint">上：水压（压降）分配 ｜ 下：流量分配（占总量比例）</p>
+          <svg id="allocSvg" viewBox="0 0 340 128" role="img" aria-label="压降与流量分配条形图"></svg>
+          <div class="legend" id="legend"></div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">按「开始」抽水：水在水路里循环流动，观察各处流量与水压。</p>
+          <p><b>类比与单位：</b>水泵=电源（理想源，忽略内阻）；水压（kPa）↔ 电压（V），1 kPa 记作 1 V；流量（L/s）↔ 电流（A）。</p>
+          <p><b>模型：</b>细管水阻 R = 8μL / (πr⁴)（泊肃叶公式，管长 1 m，水温 20 ℃），细一点阻力就大得多。数值为真实单位换算；粒子与虚线的快慢仅示意方向和相对大小，未按真实流速比例。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">▶ 开始</button>
+        <button id="pauseBtn" type="button">Ⅱ 暂停</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="mode-group" role="group" aria-label="连接方式">
+        <button id="modeSeriesBtn" class="active" type="button" aria-pressed="true">串联</button>
+        <button id="modeParallelBtn" type="button" aria-pressed="false">并联</button>
+      </div>
+      <div class="control">
+        <label for="p0Input">水泵压力 P₀（=电压 U）<output id="p0Output">20 kPa</output></label>
+        <input id="p0Input" type="range" min="6" max="30" step="1" value="20">
+      </div>
+      <div class="control">
+        <label for="countInput">水管条数 <output id="countOutput">3</output></label>
+        <input id="countInput" type="range" min="2" max="4" step="1" value="3">
+      </div>
+      <div class="pipe-cluster" id="pipeCluster"></div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // __MODEL_START__ — pure analytic model, no DOM access (extracted for headless checks)
+    // Poiseuille pipe resistance: R = 8·μ·L / (π·r⁴). μ(20°C water)=1 mPa·s, L=1 m.
+    // Units: P kPa (gauge, pump inlet = 0), Q L/s, R kPa·s/L. Electric map: 1 kPa↔1 V, 1 L/s↔1 A, R↔Ω.
+    const P_MAX = 30; // kPa, slider maximum (manometer full scale)
+    const MU = 0.001, PIPE_LEN = 1.0;
+    function pipeResistance(dmm) {
+      const r = dmm / 2000; // mm → m radius
+      return (8 * MU * PIPE_LEN) / (Math.PI * r * r * r * r) / 1e6; // kPa·s/L
+    }
+    // Series chain: pipes[i] between node i (upstream, near pump outlet) and node i+1 (return side).
+    function solveSeries(P0, pipes) {
+      const Rs = pipes.map((p) => pipeResistance(p.d));
+      const anyClosed = pipes.some((p) => !p.open);
+      const Rsum = Rs.reduce((s, R, i) => s + (pipes[i].open ? R : 0), 0);
+      const Q = !anyClosed && Rsum > 0 ? P0 / Rsum : 0;
+      const Req = anyClosed ? Infinity : Rsum;
+      const nodes = new Array(pipes.length + 1).fill(0);
+      if (anyClosed) {
+        const brk = pipes.findIndex((p) => !p.open); // first closed valve takes the full drop
+        for (let i = 0; i <= brk; i++) nodes[i] = P0; // static column upstream of break
+      } else {
+        nodes[0] = P0;
+        for (let i = 0; i < pipes.length; i++) nodes[i + 1] = nodes[i] - Q * Rs[i];
+        nodes[pipes.length] = 0;
+      }
+      const drops = pipes.map((p, i) => nodes[i] - nodes[i + 1]);
+      const flows = pipes.map(() => Q);
+      return { mode: "series", P0, Q, Req, nodes, drops, flows, Rs };
+    }
+    // Parallel: every open branch sees the full pump pressure; branches are independent.
+    function solveParallel(P0, pipes) {
+      const Rs = pipes.map((p) => pipeResistance(p.d));
+      const G = Rs.reduce((s, R, i) => s + (pipes[i].open ? 1 / R : 0), 0);
+      const Req = G > 0 ? 1 / G : Infinity;
+      const Q = G > 0 ? P0 * G : 0;
+      const flows = Rs.map((R, i) => (pipes[i].open ? P0 / R : 0));
+      const drops = Rs.map(() => P0); // open branch: full pump pressure; closed valve also holds full pressure across it
+      return { mode: "parallel", P0, Q, Req, drops, flows, Rs };
+    }
+    function solve(P0, mode, pipes) {
+      return mode === "series" ? solveSeries(P0, pipes) : solveParallel(P0, pipes);
+    }
+    function closeTo(a, b, rel) {
+      return Math.abs(a - b) <= rel * Math.max(1, Math.abs(a), Math.abs(b));
+    }
+    function modelChecks() {
+      const out = [];
+      const pk = (name, pass, expected, actual, tolerance) => out.push({ name, pass: !!pass, expected, actual, tolerance });
+      // 1 ordinary series: ohm law + equal flow
+      const p2 = [{ d: 10, open: true }, { d: 10, open: true }];
+      const R1 = pipeResistance(10);
+      const s1 = solveSeries(24, p2);
+      pk("串联总流量 = P0/(R1+R2)", closeTo(s1.Q, 24 / (2 * R1), 1e-9), (24 / (2 * R1)).toFixed(9), s1.Q.toFixed(9), "rel 1e-9");
+      pk("串联流量处处相等", s1.flows[0] === s1.flows[1] && s1.flows[0] === s1.Q, "Q1=Q2=Q总", `${s1.flows[0].toFixed(9)}=${s1.flows[1].toFixed(9)}`, "exact");
+      // 2 series voltage division: conservation + proportionality
+      const s2 = solveSeries(20, [{ d: 10, open: true }, { d: 6, open: true }]);
+      pk("串联压降之和守恒 = P0", closeTo(s2.drops[0] + s2.drops[1], 20, 1e-9), "20", (s2.drops[0] + s2.drops[1]).toFixed(9), "rel 1e-9");
+      pk("串联压降比 = 水阻比", closeTo(s2.drops[0] / s2.drops[1], pipeResistance(10) / pipeResistance(6), 1e-9), (pipeResistance(10) / pipeResistance(6)).toFixed(6), (s2.drops[0] / s2.drops[1]).toFixed(6), "rel 1e-9");
+      // 3 series broken → open circuit, break takes full pressure
+      const s3 = solveSeries(20, [{ d: 10, open: true }, { d: 10, open: false }, { d: 10, open: true }]);
+      pk("串联断路:Q=0", s3.Q === 0, "0", String(s3.Q), "exact");
+      pk("串联断路:断口承担全部水压", s3.drops[1] === 20 && s3.drops[0] === 0 && s3.drops[2] === 0, "ΔP=[0,20,0]", JSON.stringify(s3.drops), "exact");
+      // 4 parallel: equal pressure, independent branches
+      const q4 = solveParallel(24, [{ d: 10, open: true }, { d: 16, open: true }]);
+      pk("并联各支路压降 = P0", q4.drops[0] === 24 && q4.drops[1] === 24, "24/24", JSON.stringify(q4.drops), "exact");
+      pk("并联支路流量独立 Qj=P0/Rj", closeTo(q4.flows[0], 24 / pipeResistance(10), 1e-9) && closeTo(q4.flows[1], 24 / pipeResistance(16), 1e-9), "P0/Rj", JSON.stringify(q4.flows.map((v) => +v.toFixed(9))), "rel 1e-9");
+      pk("并联总流量 = 支路之和", closeTo(q4.Q, q4.flows[0] + q4.flows[1], 1e-12), "ΣQj", (q4.flows[0] + q4.flows[1]).toFixed(9), "rel 1e-12");
+      // 5 equal parallel pipes: N× flow
+      const q5a = solveParallel(20, [{ d: 10, open: true }]);
+      const q5b = solveParallel(20, [{ d: 10, open: true }, { d: 10, open: true }, { d: 10, open: true }]);
+      pk("并联等管:3条=3×单条", closeTo(q5b.Q, 3 * q5a.Q, 1e-9), (3 * q5a.Q).toFixed(9), q5b.Q.toFixed(9), "rel 1e-9");
+      // 6 closing one parallel branch leaves the others untouched
+      const q6a = solveParallel(20, [{ d: 10, open: true }, { d: 6, open: true }]);
+      const q6b = solveParallel(20, [{ d: 10, open: true }, { d: 6, open: false }]);
+      pk("并联关闭一条:其余支路流量不变", q6a.flows[0] === q6b.flows[0], `${q6a.flows[0].toFixed(9)}`, q6b.flows[0].toFixed(9), "exact");
+      pk("并联关闭一条:该支路流量为0", q6b.flows[1] === 0, "0", String(q6b.flows[1]), "exact");
+      const q6c = solveParallel(20, [{ d: 10, open: false }, { d: 6, open: false }]);
+      pk("并联全断:总流量为0,Req=∞", q6c.Q === 0 && q6c.Req === Infinity, "0 / ∞", `${q6c.Q} / ${q6c.Req}`, "exact");
+      // 7 Poiseuille d⁴ law: halving d multiplies R by 16 (R ∝ 1/d⁴)
+      pk("泊肃叶 d⁴ 律:管径减半,R×16", closeTo(pipeResistance(6) / pipeResistance(12), 16, 1e-9), "16", (pipeResistance(6) / pipeResistance(12)).toFixed(9), "rel 1e-9");
+      // 8 series symmetry: swapping pipe order swaps drops, keeps Q
+      const s8a = solveSeries(20, [{ d: 10, open: true }, { d: 6, open: true }]);
+      const s8b = solveSeries(20, [{ d: 6, open: true }, { d: 10, open: true }]);
+      pk("串联对称:交换顺序 Q 不变", s8a.Q === s8b.Q, `${s8a.Q.toFixed(9)}`, s8b.Q.toFixed(9), "exact");
+      pk("串联对称:压降随之互换", closeTo(s8a.drops[0], s8b.drops[1], 1e-12), `${s8a.drops[0].toFixed(9)}`, s8b.drops[1].toFixed(9), "rel 1e-12");
+      // 9 boundary: thinnest pipes in series stay finite
+      const s9 = solveSeries(6, [{ d: 6, open: true }, { d: 6, open: true }, { d: 6, open: true }]);
+      pk("边界:最细三管串联仍有限", Number.isFinite(s9.Q) && s9.Q > 0, "finite Q>0", s9.Q.toFixed(9), "finite");
+      return out;
+    }
+    globalThis.__simExports = { pipeResistance, solveSeries, solveParallel, solve, modelChecks, P_MAX };
+    // __MODEL_END__
+
+    // ── UI wiring ───────────────────────────────────────────────
+    const CN = ["①", "②", "③", "④"];
+    const SUB = ["₁", "₂", "₃", "₄"];
+    const PCOLOR = ["#0e96b0", "#4f6dd0", "#e08a00", "#d0567c"];
+    const QREF = 16; // L/s reference for motion compression
+    const DEFAULTS = { P0: 20, mode: "series", count: 3, d: [10, 10, 10, 10], open: [true, true, true, true] };
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const finite = (v, f) => (Number.isFinite(v) ? v : f);
+    const fmt = (v, n) => (Number.isFinite(v) ? v.toFixed(n) : "∞");
+    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const state = {
+      running: false, t: 0, rot: 0, lastTs: null,
+      P0: DEFAULTS.P0, mode: DEFAULTS.mode, count: DEFAULTS.count,
+      d: DEFAULTS.d.slice(), open: DEFAULTS.open.slice(),
+      phases: [0.1, 0.35, 0.6, 0.85],
+      solution: null
+    };
+    const els = {};
+    const $ = (sel) => document.querySelector(sel);
+    const sceneRefs = { groups: [], pipes: [], manos: [], dpbars: [], rotors: [], flows: [], trunkWaters: [], ptag: null };
+
+    function activePipes() {
+      const out = [];
+      for (let i = 0; i < state.count; i++) out.push({ d: state.d[i], open: state.open[i] });
+      return out;
+    }
+    function solveNow() { state.solution = solve(state.P0, state.mode, activePipes()); }
+
+    // ── scene construction (rebuilt when mode / count changes) ──
+    const pipeHalf = (d) => (14 + 1.5 * d) / 2;
+    function manoMarkup(x, key, baseY) {
+      const top = baseY - 106;
+      return `<g class="manoG" data-mano="${key}">` +
+        `<rect class="mano-tube" x="${x - 6}" y="${top}" width="12" height="106" rx="5"></rect>` +
+        `<rect class="mano-water" data-r="w" x="${x - 4.5}" y="${baseY}" width="9" height="0" rx="3"></rect>` +
+        `<text class="mano-val" data-r="v" x="${x}" y="${top - 6}" text-anchor="middle">0.0</text>` +
+        `</g>`;
+    }
+    function valveMarkup(cx, cy, i) {
+      return `<g class="valve" data-r="valve" data-i="${i}" role="button" tabindex="0" aria-label="管${CN[i]} 阀门，点击开关">` +
+        `<circle class="body" cx="${cx}" cy="${cy}" r="11.5"></circle>` +
+        `<line class="handle" data-r="handle" x1="${cx - 8}" y1="${cy}" x2="${cx + 8}" y2="${cy}"></line>` +
+        `<g data-r="xmark" style="display:none"><line class="break-mark" x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}"></line><line class="break-mark" x1="${cx - 5}" y1="${cy + 5}" x2="${cx + 5}" y2="${cy - 5}"></line></g>` +
+        `</g>`;
+    }
+    function pipeGMarkup(x0, w, cy, i, isBranch) {
+      const half = pipeHalf(state.d[i]);
+      const chipY = cy - half - 30;
+      return `<g class="pipeG" data-i="${i}">` +
+        `<rect class="pipe-wall" data-r="wall" x="${x0}" y="${cy - half}" width="${w}" height="${2 * half}" rx="${half}"></rect>` +
+        `<rect class="pipe-water" data-r="water" x="${x0 + 4}" y="${cy - half + 4}" width="${w - 8}" height="${2 * half - 8}" rx="${Math.max(2, half - 4)}"></rect>` +
+        valveMarkup(x0 + w / 2, cy, i) +
+        `<g data-r="pts"></g>` +
+        `<rect data-r="chip" x="${x0 + 2}" y="${chipY}" width="40" height="24" rx="7" fill="${PCOLOR[i]}"></rect>` +
+        `<text class="badge-text" data-r="badge" x="${x0 + 22}" y="${chipY + 16}" text-anchor="middle">管${CN[i]}</text>` +
+        `<text class="dp-label" data-r="dp" x="${x0 + w - 4}" y="${chipY + 16}" text-anchor="end"></text>` +
+        `<text class="q-label" data-r="q" x="${x0 + w / 2}" y="${cy + half + 18}" text-anchor="middle"></text>` +
+        `</g>`;
+    }
+    function pumpMarkup() {
+      let blades = "";
+      for (let a = 0; a < 3; a++) blades += `<line class="pump-blade" x1="108" y1="300" x2="108" y2="272" transform="rotate(${a * 120},108,300)"></line>`;
+      return `<circle class="pump-body" cx="108" cy="300" r="42"></circle>` +
+        `<g data-r="rotor">${blades}</g><circle class="pump-hub" cx="108" cy="300" r="6"></circle>` +
+        `<text class="pump-label" x="108" y="368" text-anchor="middle">水泵 ≈ 电源</text>` +
+        `<text class="pump-tag" data-r="ptag" x="124" y="252" text-anchor="start"></text>`;
+    }
+    function arrowMarkup(x, y, dir) {
+      const p = { up: `${x},${y - 9} ${x - 6},${y + 5} ${x + 6},${y + 5}`, down: `${x},${y + 9} ${x - 6},${y - 5} ${x + 6},${y - 5}`, right: `${x + 9},${y} ${x - 5},${y - 6} ${x - 5},${y + 6}`, left: `${x - 9},${y} ${x + 5},${y - 6} ${x + 5},${y + 6}` };
+      return `<polygon class="dir-arrow" points="${p[dir]}"></polygon>`;
+    }
+    function trunkMarkup(d) {
+      return `<path class="trunk-wall" d="${d}"></path><path class="trunk-water" data-r="tw" d="${d}"></path><path class="trunk-flow" data-r="flow" d="${d}"></path>`;
+    }
+    function buildSeriesScene() {
+      const N = state.count, X0 = 210, X1 = 762, GAP = 34, CY = 140;
+      const w = (X1 - X0 - (N - 1) * GAP) / N;
+      let mid = "", manos = "", pipes = "";
+      let x = X0;
+      const ends = [];
+      for (let i = 0; i < N; i++) {
+        ends.push([x, x + w]);
+        x += w;
+        if (i < N - 1) { mid += ` M${x},${CY} H${x + GAP}`; x += GAP; }
+      }
+      for (let i = 0; i < N; i++) pipes += pipeGMarkup(ends[i][0], w, CY, i, false);
+      manos += manoMarkup(150, "n0", 138);
+      let mx = X0 + w;
+      for (let i = 0; i < N - 1; i++) { manos += manoMarkup(mx + GAP / 2, "n" + (i + 1), 138); mx += w + GAP; }
+      manos += manoMarkup(790, "n" + N, 138);
+      let dots = "";
+      mx = X0 + w;
+      for (let i = 0; i < N - 1; i++) { dots += `<circle class="junction" cx="${mx + GAP / 2}" cy="${CY}" r="4.5"></circle>`; mx += w + GAP; }
+      const out = trunkMarkup(`M108,258 V140 H${X0}`) + trunkMarkup(mid) + trunkMarkup(`M${X1},140 H822 V470 H108 V342`) +
+        manos + dots + pipes + pumpMarkup() + arrowMarkup(108, 202, "up") + arrowMarkup(180, 140, "right") + arrowMarkup(822, 300, "down") + arrowMarkup(460, 470, "left");
+      $("#gSeries").innerHTML = out;
+    }
+    function buildParallelScene() {
+      const N = state.count, LX = 200, RX = 760, BX0 = 236, BX1 = 706;
+      const ys = [];
+      for (let i = 0; i < N; i++) ys.push(N === 1 ? 300 : 165 + i * (270 / (N - 1)));
+      let pipes = "", bars = "", dots = "";
+      for (let i = 0; i < N; i++) {
+        pipes += pipeGMarkup(BX0, BX1 - BX0, ys[i], i, true);
+        dots += `<circle class="junction" cx="${LX}" cy="${ys[i]}" r="4.5"></circle><circle class="junction" cx="${RX}" cy="${ys[i]}" r="4.5"></circle>`;
+        bars += `<g class="dpbarG" data-bar="${i}">` +
+          `<rect class="dpbar-frame" x="712" y="${ys[i] - 74}" width="16" height="72" rx="5"></rect>` +
+          `<rect class="dpbar-fill" data-r="f" x="714" y="${ys[i]}" width="12" height="0" rx="3"></rect>` +
+          `<text class="dpbar-val" data-r="v" x="720" y="${ys[i] - 80}" text-anchor="middle"></text></g>`;
+      }
+      const out = trunkMarkup(`M108,258 V120 H${LX}`) + trunkMarkup(`M${LX},120 V480`) + trunkMarkup(`M${RX},120 V480`) + trunkMarkup(`M${RX},480 H108 V342`) +
+        manoMarkup(150, "hi", 118) + manoMarkup(RX, "lo", 118) + dots + pipes + bars + pumpMarkup() +
+        arrowMarkup(108, 202, "up") + arrowMarkup(152, 120, "right") + arrowMarkup(LX, 300, "down") + arrowMarkup(RX, 300, "down") + arrowMarkup(430, 470, "left");
+      $("#gParallel").innerHTML = out;
+    }
+    function buildScene() {
+      const series = state.mode === "series";
+      $("#gSeries").style.display = series ? "" : "none";
+      $("#gParallel").style.display = series ? "none" : "";
+      $("#gSeries").setAttribute("aria-hidden", String(!series));
+      $("#gParallel").setAttribute("aria-hidden", String(series));
+      if (series) buildSeriesScene(); else buildParallelScene();
+      collectSceneRefs();
+      buildParticles();
+      $("#sceneNote").textContent = series
+        ? "串联：只有一条路 —— 流量处处相同，水压被各管按水阻分掉"
+        : "并联：条条支路同接两根母管 —— 各支路两端水压相同，流量按管粗细分流";
+      $("#sceneHint").textContent = series
+        ? "点击管上的阀门可开 / 关；竖管是水压计（示数 kPa，越高水压越大）"
+        : "点击管上的阀门可开 / 关；管右侧小柱是压差计（支路两端水压差）";
+    }
+    function collectSceneRefs() {
+      const g = state.mode === "series" ? $("#gSeries") : $("#gParallel");
+      sceneRefs.group = g;
+      sceneRefs.pipes = [...g.querySelectorAll(".pipeG")].map((node) => ({
+        wall: node.querySelector('[data-r="wall"]'), water: node.querySelector('[data-r="water"]'),
+        valve: node.querySelector('[data-r="valve"]'), handle: node.querySelector('[data-r="handle"]'),
+        xmark: node.querySelector('[data-r="xmark"]'), q: node.querySelector('[data-r="q"]'),
+        dp: node.querySelector('[data-r="dp"]'), pts: node.querySelector('[data-r="pts"]'),
+        chip: node.querySelector('[data-r="chip"]'), badge: node.querySelector('[data-r="badge"]'),
+        el: node
+      }));
+      sceneRefs.manos = [...g.querySelectorAll(".manoG")].map((node) => ({ key: node.dataset.mano, w: node.querySelector('[data-r="w"]'), v: node.querySelector('[data-r="v"]') }));
+      sceneRefs.bars = [...g.querySelectorAll(".dpbarG")].map((node) => ({ i: +node.dataset.bar, f: node.querySelector('[data-r="f"]'), v: node.querySelector('[data-r="v"]') }));
+      sceneRefs.rotor = g.querySelector('[data-r="rotor"]');
+      sceneRefs.ptag = g.querySelector('[data-r="ptag"]');
+      sceneRefs.flows = [...g.querySelectorAll('[data-r="flow"]')];
+      sceneRefs.trunkWaters = [...g.querySelectorAll('[data-r="tw"]')];
+    }
+    function buildParticles() {
+      sceneRefs.pipes.forEach((p) => {
+        let html = "";
+        for (let k = 0; k < 5; k++) html += `<circle data-k="${k}" r="3.2" fill="#f2fbfd" opacity="0.95"></circle>`;
+        p.pts.innerHTML = html;
+      });
+    }
+
+    // ── static scene update (after any solve) ────────────────────
+    function updateSceneStatic() {
+      const sol = state.solution, series = state.mode === "series";
+      sceneRefs.pipes.forEach((p, i) => {
+        const cy = series ? 140 : branchY(i);
+        const half = pipeHalf(state.d[i]);
+        const x = +p.wall.getAttribute("x");
+        const w = +p.wall.getAttribute("width");
+        const cx = x + w / 2;
+        p.wall.setAttribute("y", cy - half); p.wall.setAttribute("height", 2 * half); p.wall.setAttribute("rx", half);
+        p.water.setAttribute("y", cy - half + 4); p.water.setAttribute("height", Math.max(2, 2 * half - 8)); p.water.setAttribute("rx", Math.max(2, half - 4));
+        const chipY = cy - half - 30;
+        p.chip.setAttribute("y", chipY); p.badge.setAttribute("y", chipY + 16); p.dp.setAttribute("y", chipY + 16);
+        p.q.setAttribute("y", cy + half + 18);
+        const open = state.open[i];
+        const qi = series ? (open ? sol.Q : 0) : sol.flows[i];
+        p.water.classList.toggle("closed", !open);
+        p.valve.classList.toggle("closed", !open);
+        if (open) {
+          p.handle.setAttribute("x1", cx - 8); p.handle.setAttribute("y1", cy);
+          p.handle.setAttribute("x2", cx + 8); p.handle.setAttribute("y2", cy);
+        } else {
+          p.handle.setAttribute("x1", cx); p.handle.setAttribute("y1", cy - 8);
+          p.handle.setAttribute("x2", cx); p.handle.setAttribute("y2", cy + 8);
+        }
+        p.xmark.style.display = open ? "none" : "";
+        p.q.textContent = `Q${SUB[i]} ${fmt(qi, 2)} L/s`;
+        p.dp.textContent = `ΔP ${fmt(sol.drops[i], 1)} kPa`;
+        [...p.pts.children].forEach((c) => (c.style.display = open && qi > 0 ? "" : "none"));
+      });
+      if (series) {
+        sceneRefs.manos.forEach((m) => {
+          const P = sol.nodes[+m.key.slice(1)];
+          const h = clamp(P / P_MAX, 0, 1) * 102;
+          m.w.setAttribute("y", 138 - h); m.w.setAttribute("height", h);
+          m.v.setAttribute("y", Math.max(24, 138 - h - 7));
+          m.v.textContent = P.toFixed(1);
+          m.w.setAttribute("class", P > 0.05 ? "mano-water" : "mano-water mano-zero");
+        });
+      } else {
+        sceneRefs.manos.forEach((m) => {
+          const P = m.key === "hi" ? state.P0 : 0;
+          const h = clamp(P / P_MAX, 0, 1) * 102;
+          m.w.setAttribute("y", 118 - h); m.w.setAttribute("height", h);
+          m.v.setAttribute("y", 136); // below the rail: value labels never clip the svg top
+          m.v.textContent = P.toFixed(1);
+          m.w.setAttribute("class", P > 0.05 ? "mano-water" : "mano-water mano-zero");
+        });
+        sceneRefs.bars.forEach((b) => {
+          const dp = sol.drops[b.i], h = clamp(dp / P_MAX, 0, 1) * 68;
+          const cy = branchY(b.i);
+          b.f.setAttribute("y", cy - h); b.f.setAttribute("height", h);
+          b.v.setAttribute("y", Math.min(cy - h - 8, cy - 78));
+          b.v.textContent = fmt(dp, 1);
+        });
+      }
+      const flowing = state.running && sol.Q > 0;
+      const dur = clamp(2.8 / (0.25 + Math.sqrt(Math.min(sol.Q / QREF, 1))), 0.35, 5);
+      sceneRefs.flows.forEach((f) => {
+        f.classList.toggle("flowing", flowing && !reducedMotion);
+        f.classList.toggle("dry", sol.Q <= 0);
+        f.style.animationDuration = dur + "s";
+      });
+      sceneRefs.trunkWaters.forEach((t) => t.classList.toggle("dry", sol.Q <= 0));
+      if (sceneRefs.ptag) sceneRefs.ptag.textContent = `P₀ ${state.P0} kPa`;
+    }
+    function branchY(i) {
+      const N = state.count;
+      return N === 1 ? 300 : 165 + i * (270 / (N - 1));
+    }
+
+    // ── evidence panel ──────────────────────────────────────────
+    function refreshEvidence() {
+      const sol = state.solution;
+      $("#qRead").textContent = fmt(sol.Q, 2);
+      $("#rRead").textContent = fmt(sol.Req, sol.Req === Infinity ? 0 : 1);
+      $("#equivRead").innerHTML = `相当于电路：U = <b>${state.P0.toFixed(1)} V</b> ｜ I = <b>${fmt(sol.Q, 2)} A</b> ｜ R = <b>${fmt(sol.Req, 1)} Ω</b>`;
+      buildAlloc(sol);
+      buildLegend(sol);
+      $("#insight").textContent = insightText(sol);
+      $("#status").textContent = (state.running ? "运行中" : "已暂停") + (isBroken() ? " · 断路" : "");
+    }
+    function isBroken() { return state.open.slice(0, state.count).some((o) => !o) && (state.mode === "series" || state.open.slice(0, state.count).every((o) => !o)); }
+    function buildAlloc(sol) {
+      const n = state.count;
+      const dpSum = sol.drops.slice(0, n).reduce((s, v) => s + v, 0);
+      const qSum = sol.flows.slice(0, n).reduce((s, v) => s + v, 0);
+      let dpSegs = "", qSegs = "";
+      if (dpSum > 0) {
+        let x = 2;
+        for (let i = 0; i < n; i++) {
+          const wv = (sol.drops[i] / dpSum) * 336;
+          dpSegs += `<rect class="alloc-seg" x="${x}" y="22" width="${wv}" height="20" fill="${PCOLOR[i]}"></rect>`;
+          if (wv > 34) dpSegs += `<text x="${x + wv / 2}" y="36" text-anchor="middle" font-size="11.5" font-weight="740" fill="#fff">${sol.drops[i].toFixed(1)}</text>`;
+          x += wv;
+        }
+      }
+      if (qSum > 0) {
+        let x = 2;
+        for (let i = 0; i < n; i++) {
+          const wv = (sol.flows[i] / qSum) * 336;
+          qSegs += `<rect class="alloc-seg" x="${x}" y="86" width="${wv}" height="20" fill="${PCOLOR[i]}"></rect>`;
+          if (wv > 34) qSegs += `<text x="${x + wv / 2}" y="100" text-anchor="middle" font-size="11.5" font-weight="740" fill="#fff">${sol.flows[i].toFixed(2)}</text>`;
+          x += wv;
+        }
+      }
+      $("#allocSvg").innerHTML =
+        `<text class="alloc-title" x="2" y="13">压降分配 ΔP</text><text class="alloc-unit" x="338" y="13" text-anchor="end">kPa · 断路时断口占满</text>` +
+        `<rect x="2" y="22" width="336" height="20" rx="6" fill="#f3f7f9" stroke="#e2e9f0"></rect>` + dpSegs +
+        `<text class="alloc-title" x="2" y="77">流量分配 Q</text><text class="alloc-unit" x="338" y="77" text-anchor="end">L/s · 占总流量比例</text>` +
+        `<rect x="2" y="86" width="336" height="20" rx="6" fill="#f3f7f9" stroke="#e2e9f0"></rect>` +
+        (qSum > 0 ? qSegs : `<text class="alloc-empty" x="170" y="100" text-anchor="middle">无流量（断路）</text>`);
+    }
+    function buildLegend(sol) {
+      let html = "";
+      for (let i = 0; i < state.count; i++) {
+        const open = state.open[i], R = pipeResistance(state.d[i]);
+        html += `<div class="legend-row${open ? "" : " off"}"><span class="chip c${i + 1}">管${CN[i]}</span>` +
+          `<span>d <b>${state.d[i]}</b> mm</span><span>R <b>${R.toFixed(1)}</b> <span class="lbl">kPa·s/L</span></span>` +
+          `<span>ΔP <span class="dp">${fmt(sol.drops[i], 1)}</span></span><span>Q <span class="q">${fmt(sol.flows[i], 2)}</span> <span class="lbl">L/s</span></span></div>`;
+      }
+      $("#legend").innerHTML = html;
+    }
+    function insightText(sol) {
+      const n = state.count, P0 = state.P0;
+      if (state.mode === "series") {
+        const closed = state.open.slice(0, n).findIndex((o) => !o);
+        if (closed >= 0) return `管${CN[closed]}的阀门关闭 → 整条水路断开：总流量为 0，断口两端承担全部水压 ${P0.toFixed(1)} kPa（其余各管压降为 0，水压计在同一水平线上）。相当于电路断路：I = 0，断点电压 = 电源电压。`;
+        const drops = sol.drops.slice(0, n).map((v) => v.toFixed(1)).join(" + ");
+        return `串联：流量处处相等，都是 ${sol.Q.toFixed(2)} L/s（电流不分流）；水压按水阻比例分配：${drops} = ${P0.toFixed(1)} kPa。管越细（R 越大），分到的水压越多 —— 串联分压。`;
+      }
+      const closedList = [];
+      for (let i = 0; i < n; i++) if (!state.open[i]) closedList.push(CN[i]);
+      if (closedList.length === n) return `全部支路关闭 → 总流量为 0，等效水阻无穷大；每个断口两端都承担全部水压 ${P0.toFixed(1)} kPa。`;
+      if (closedList.length > 0) {
+        const rest = sol.flows.slice(0, n).filter((v, i) => state.open[i]);
+        return `支路 ${closedList.join("、")} 关闭：它们流量为 0，其余支路两端水压仍是 ${P0.toFixed(1)} kPa、流量不变（互不影响）；总流量 ${sol.Q.toFixed(2)} L/s = 剩余支路之和。断哪条，哪条就没水，别的照常 —— 这就是并联。`;
+      }
+      const flows = sol.flows.slice(0, n).map((v) => v.toFixed(2)).join(" + ");
+      return `并联：每条支路两端水压都等于泵压 ${P0.toFixed(1)} kPa（并联等压）；管越粗（R 越小）流量越大。总流量 ${sol.Q.toFixed(2)} L/s = ${flows} —— 并联分流，且总水阻小于任何一条支路。`;
+    }
+
+    // ── per-frame motion ────────────────────────────────────────
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clamp(finite(dt, 0), 0, 0.05);
+      const sol = state.solution;
+      state.t += bounded;
+      if (!reducedMotion) {
+        state.rot = (state.rot + bounded * (40 + 240 * Math.sqrt(Math.min(sol.Q / QREF, 1)))) % 360;
+        sceneRefs.pipes.forEach((p, i) => {
+          const qi = state.mode === "series" ? (state.open[i] ? sol.Q : 0) : sol.flows[i];
+          if (qi <= 0) return;
+          const len = +p.wall.getAttribute("width");
+          const v = 26 + 300 * Math.sqrt(Math.min(qi / QREF, 1));
+          state.phases[i] = (state.phases[i] + (v * bounded) / len) % 1;
+        });
+      }
+    }
+    function renderDynamic() {
+      if (sceneRefs.rotor) sceneRefs.rotor.setAttribute("transform", `rotate(${state.rot},108,300)`);
+      sceneRefs.pipes.forEach((p, i) => {
+        const len = +p.wall.getAttribute("width"), x0 = +p.wall.getAttribute("x");
+        const cy = state.mode === "series" ? 140 : branchY(i);
+        [...p.pts.children].forEach((c, k) => {
+          c.setAttribute("cx", x0 + 10 + (((k + state.phases[i]) % 5) / 5) * (len - 20));
+          c.setAttribute("cy", cy);
+        });
+      });
+    }
+    function render() { solveNow(); updateSceneStatic(); refreshEvidence(); renderDynamic(); }
+
+    // ── lifecycle ───────────────────────────────────────────────
+    function syncControls() {
+      $("#p0Input").value = String(state.P0); $("#p0Output").textContent = `${state.P0} kPa`;
+      const maxCount = state.mode === "series" ? 3 : 4;
+      $("#countInput").max = String(maxCount);
+      $("#countInput").value = String(Math.min(state.count, maxCount)); $("#countOutput").textContent = String(Math.min(state.count, maxCount));
+      const series = state.mode === "series";
+      $("#modeSeriesBtn").classList.toggle("active", series); $("#modeParallelBtn").classList.toggle("active", !series);
+      $("#modeSeriesBtn").setAttribute("aria-pressed", String(series)); $("#modeParallelBtn").setAttribute("aria-pressed", String(!series));
+      for (let i = 0; i < 4; i++) {
+        $(`#d${i + 1}Input`).value = String(state.d[i]); $(`#d${i + 1}Output`).textContent = `${state.d[i]} mm`;
+        const vb = $(`#v${i + 1}Btn`);
+        vb.textContent = state.open[i] ? "阀门 开" : "阀门 关";
+        vb.setAttribute("aria-pressed", String(state.open[i]));
+        vb.classList.toggle("closed", !state.open[i]);
+        $(`#pipeCard${i + 1}`).hidden = i >= state.count;
+      }
+    }
+    function updateAll() { solveNow(); updateSceneStatic(); refreshEvidence(); renderDynamic(); }
+    function setParameters(values) {
+      const v = values || {};
+      let rebuild = false;
+      if (v.mode !== undefined && (v.mode === "series" || v.mode === "parallel") && v.mode !== state.mode) { state.mode = v.mode; rebuild = true; }
+      if (v.P0 !== undefined) state.P0 = clamp(Math.round(finite(Number(v.P0), DEFAULTS.P0)), 6, 30);
+      const maxCount = state.mode === "series" ? 3 : 4;
+      if (v.count !== undefined) { const nc = clamp(Math.round(finite(Number(v.count), DEFAULTS.count)), 2, maxCount); if (nc !== state.count) { state.count = nc; rebuild = true; } }
+      else if (state.count > maxCount) { state.count = maxCount; rebuild = true; }
+      if (Array.isArray(v.d)) for (let i = 0; i < 4; i++) if (v.d[i] !== undefined) state.d[i] = clamp(Math.round(finite(Number(v.d[i]), 10)), 6, 16);
+      if (Array.isArray(v.open)) for (let i = 0; i < 4; i++) if (v.open[i] !== undefined) state.open[i] = !!v.open[i];
+      if (rebuild) buildScene();
+      syncControls();
+      updateAll();
+    }
+    function toggleValve(i) {
+      state.open[i] = !state.open[i];
+      syncControls(); updateAll();
+    }
+    function init() {
+      buildPipeCards(); bindControls();
+      setParameters({ mode: DEFAULTS.mode, P0: DEFAULTS.P0, count: DEFAULTS.count, d: DEFAULTS.d.slice(), open: DEFAULTS.open.slice() });
+      state.running = false;
+      requestAnimationFrame(frame);
+    }
+    function start() { state.running = true; state.lastTs = null; refreshEvidence(); updateSceneStatic(); }
+    function pause() { state.running = false; refreshEvidence(); updateSceneStatic(); }
+    function reset() {
+      state.running = false; state.t = 0; state.rot = 0;
+      state.phases = [0.1, 0.35, 0.6, 0.85];
+      setParameters({ mode: DEFAULTS.mode, P0: DEFAULTS.P0, count: DEFAULTS.count, d: DEFAULTS.d.slice(), open: DEFAULTS.open.slice() });
+    }
+    function getState() {
+      return { running: state.running, t: state.t, P0: state.P0, mode: state.mode, count: state.count, d: state.d.slice(), open: state.open.slice(), Q: state.solution ? state.solution.Q : null, Req: state.solution ? state.solution.Req : null };
+    }
+    function getReadouts() {
+      const sol = state.solution;
+      const pipes = [];
+      for (let i = 0; i < state.count; i++) pipes.push({ d: state.d[i], open: state.open[i], R: pipeResistance(state.d[i]), Q: sol.flows[i], drop: sol.drops[i] });
+      return { mode: state.mode, P0: state.P0, Q: sol.Q, Req: sol.Req, U_V: state.P0, I_A: sol.Q, R_ohm: sol.Req, pipes };
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt); renderDynamic();
+      requestAnimationFrame(frame);
+    }
+    function buildPipeCards() {
+      let html = "";
+      for (let i = 0; i < 4; i++) {
+        html += `<div class="pipe-card" id="pipeCard${i + 1}">` +
+          `<span class="chip c${i + 1}">管${CN[i]}</span>` +
+          `<div class="dwrap"><label for="d${i + 1}Input">粗细 d<output id="d${i + 1}Output">10 mm</output></label>` +
+          `<input id="d${i + 1}Input" type="range" min="6" max="16" step="1" value="10"></div>` +
+          `<button class="valve-btn" id="v${i + 1}Btn" type="button" aria-pressed="true">阀门 开</button></div>`;
+      }
+      $("#pipeCluster").innerHTML = html;
+    }
+    function bindControls() {
+      $("#startBtn").addEventListener("click", start);
+      $("#pauseBtn").addEventListener("click", pause);
+      $("#resetBtn").addEventListener("click", reset);
+      $("#modeSeriesBtn").addEventListener("click", () => setParameters({ mode: "series" }));
+      $("#modeParallelBtn").addEventListener("click", () => setParameters({ mode: "parallel" }));
+      $("#p0Input").addEventListener("input", () => { state.P0 = clamp(Math.round(Number($("#p0Input").value)), 6, 30); syncControls(); updateAll(); });
+      $("#countInput").addEventListener("input", () => setParameters({ count: Number($("#countInput").value) }));
+      for (let i = 0; i < 4; i++) {
+        $(`#d${i + 1}Input`).addEventListener("input", () => { state.d[i] = clamp(Math.round(Number($(`#d${i + 1}Input`).value)), 6, 16); syncControls(); updateAll(); });
+        $(`#v${i + 1}Btn`).addEventListener("click", () => toggleValve(i));
+      }
+      const onScene = (ev) => {
+        const v = ev.target && ev.target.closest ? ev.target.closest('[data-r="valve"]') : null;
+        if (v) toggleValve(+v.dataset.i);
+      };
+      $("#scene").addEventListener("click", onScene);
+      $("#scene").addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const v = ev.target && ev.target.closest ? ev.target.closest('[data-r="valve"]') : null;
+        if (v) { ev.preventDefault(); toggleValve(+v.dataset.i); }
+      });
+    }
+
+    const runModelChecks = modelChecks;
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

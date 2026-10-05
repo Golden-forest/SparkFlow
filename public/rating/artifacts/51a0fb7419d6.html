@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RC 放电测电容 · 虚拟实验</title>
+<style>
+:root{--ink:#1e293b;--mut:#64748b;--line:#e2e8f0;--pri:#4f46e5;--red:#dc2626;}
+*{box-sizing:border-box}
+body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#f1f5f9;color:var(--ink);}
+.wrap{max-width:1280px;margin:0 auto;padding:18px 16px 40px;}
+header h1{margin:0 0 4px;font-size:22px}
+header p{margin:0 0 16px;color:var(--mut);font-size:13px}
+.grid{display:grid;grid-template-columns:400px 1fr;gap:16px;align-items:start}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;align-items:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.card h3{margin:0 0 10px;font-size:15px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.row label{font-size:13px;color:var(--ink)}
+input[type=number]{width:64px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font:inherit}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--mut)}
+.chip.active{background:var(--pri);border-color:var(--pri);color:#fff}
+.chip:disabled{opacity:.4;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 13px;font-size:13px;cursor:pointer}
+.btn.primary{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.ghost{background:transparent}
+.opts{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut);margin:6px 0}
+.hint{font-size:13px;color:#4338ca;background:#eef2ff;border-radius:8px;padding:8px 10px;margin:8px 0 0}
+.meters{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px}
+.meter{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:8px 6px;text-align:center}
+.meter .lb{font-size:11px;color:#94a3b8}
+.meter .vl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;margin-top:2px}
+.tabs{display:flex;gap:6px;margin-bottom:10px}
+.tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--mut)}
+.tab.active{background:#0f172a;color:#fff;border-color:#0f172a}
+#chart{width:100%;height:340px;display:block}
+.res{font-size:13px;margin-top:10px}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
+.stat{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:7px 9px}
+.stat .k{font-size:11px;color:var(--mut)}
+.stat .v{font-family:ui-monospace,monospace;font-size:15px;margin-top:2px;white-space:nowrap}
+.note{font-size:12px;color:var(--mut);margin-top:8px;line-height:1.6}
+.tblwrap{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:9px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:5px 8px;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap}
+th{position:sticky;top:0;background:#f8fafc;color:var(--mut);font-weight:600}
+td.mono{font-family:ui-monospace,monospace}
+.del{border:none;background:none;color:var(--red);cursor:pointer;font-size:12px}
+.head-flex{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.head-flex h3{margin:0}
+.mini{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer}
+details{margin-top:16px;font-size:13px;color:var(--mut)}
+details summary{cursor:pointer;color:var(--ink);font-weight:600}
+details p{line-height:1.8}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.25s}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.flow{stroke-dasharray:10 22;animation:flowdash .3s linear infinite}
+@keyframes flowdash{to{stroke-dashoffset:-32}}
+@media(max-width:960px){.grid,.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>⚡ RC 放电法测电容</h1>
+<p>先把电容充满，再只通过电阻放电：U = U₀·e^(−t/RC)。用「半衰期法」或「lnU–t 直线化」求出 C；换不同电阻重复，观察 T½ ∝ R。</p>
+</header>
+
+<div class="grid">
+  <!-- 左：电路 + 控制 -->
+  <div class="card">
+    <svg viewBox="0 0 380 300" style="width:100%;height:auto" id="circuit">
+      <!-- 电压表引线 -->
+      <path d="M120,55 V20 H225 M240,55 V36 H225" stroke="#94a3b8" stroke-width="1.5" fill="none"/>
+      <!-- 导线 -->
+      <g stroke="#334155" stroke-width="2" fill="none">
+        <path d="M70,55 H170 M182,55 H320 M70,55 V105 M320,55 V110 M320,174 V240 M30,240 H320 M110,150 V240 M30,150 V182 M30,190 V240"/>
+      </g>
+      <!-- 电容 -->
+      <g stroke="#0f172a" stroke-width="3.5">
+        <line x1="170" y1="40" x2="170" y2="70"/><line x1="182" y1="40" x2="182" y2="70"/>
+      </g>
+      <text id="cLabel" x="176" y="90" text-anchor="middle" font-size="13" fill="#0f172a">C = ?</text>
+      <!-- 电阻（锯齿） -->
+      <path d="M320,110 v8 l10,6 l-20,9 l20,9 l-20,9 l20,9 l-10,6 v8" stroke="#0f172a" stroke-width="2" fill="none"/>
+      <text x="344" y="132" font-size="13" fill="#0f172a">R</text>
+      <text id="rLabel" x="344" y="148" font-size="11.5" fill="#475569">10 kΩ</text>
+      <!-- 电池 -->
+      <line x1="18" y1="182" x2="42" y2="182" stroke="#0f172a" stroke-width="2.5"/>
+      <line x1="24" y1="190" x2="36" y2="190" stroke="#0f172a" stroke-width="4"/>
+      <text x="6" y="192" font-size="12" fill="#475569">U₀</text>
+      <text id="eLabel" x="30" y="258" text-anchor="middle" font-size="11.5" fill="#475569">10.0 V</text>
+      <!-- 换向开关 -->
+      <circle cx="30" cy="150" r="3" fill="#0f172a"/><circle cx="110" cy="150" r="3" fill="#0f172a"/><circle cx="70" cy="105" r="3.5" fill="#4f46e5"/>
+      <line id="swArm" x1="70" y1="105" x2="70" y2="155" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="30" y="138" text-anchor="middle" font-size="10.5" fill="#64748b">充电</text>
+      <text x="110" y="138" text-anchor="middle" font-size="10.5" fill="#64748b">放电</text>
+      <!-- 数字电压表 -->
+      <rect x="225" y="8" width="125" height="40" rx="7" fill="#0f172a"/>
+      <text id="svgVolt" x="282" y="27" text-anchor="middle" font-size="15" fill="#a5f3fc" font-family="ui-monospace,monospace">0.000</text>
+      <text x="282" y="42" text-anchor="middle" font-size="10" fill="#94a3b8">电压表 / V</text>
+      <text x="232" y="20" font-size="10" fill="#94a3b8">+</text><text x="232" y="40" font-size="12" fill="#94a3b8">−</text>
+      <!-- 电流流动动画 -->
+      <path id="flowCharge" class="flow" d="M30,182 V150 L70,105 V55 H170 M182,55 H320 V240 H30 V190" stroke="#f59e0b" stroke-width="2.5" fill="none" style="display:none"/>
+      <path id="flowDis" class="flow" d="M170,55 H70 V105 L110,150 V240 H320 V55 H182" stroke="#f59e0b" stroke-width="2.5" fill="none" style="display:none"/>
+    </svg>
+
+    <div class="meters">
+      <div class="meter"><div class="lb">电压 U</div><div class="vl" id="meterU">0.000 V</div></div>
+      <div class="meter"><div class="lb">时间 t</div><div class="vl" id="meterT">0.00 s</div></div>
+      <div class="meter"><div class="lb">电流 I=U/R</div><div class="vl" id="meterI">0.0 µA</div></div>
+    </div>
+
+    <div class="row">
+      <label>U₀ <input id="u0" type="number" min="5" max="12" step="0.5" value="10"> V</label>
+      <span style="margin-left:8px;font-size:13px">倍速</span>
+      <button class="chip schip" data-s="1">×1</button><button class="chip schip active" data-s="2">×2</button><button class="chip schip" data-s="5">×5</button><button class="chip schip" data-s="10">×10</button>
+    </div>
+    <div class="row"><label style="min-width:28px">R</label>
+      <button class="chip rchip" data-r="2000">2 kΩ</button><button class="chip rchip" data-r="5000">5 kΩ</button><button class="chip rchip active" data-r="10000">10 kΩ</button><button class="chip rchip" data-r="20000">20 kΩ</button><button class="chip rchip" data-r="50000">50 kΩ</button>
+    </div>
+    <div class="btns">
+      <button id="btnCharge" class="btn">⚡ 充电</button>
+      <button id="btnDischarge" class="btn primary">▶ 开始放电</button>
+      <button id="btnPause" class="btn">⏸ 暂停</button>
+      <button id="btnRecord" class="btn">● 记录数据点</button>
+      <button id="btnEnd" class="btn">■ 结束并记入</button>
+      <button id="btnReset" class="btn ghost">↺ 复位</button>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="autoRec" checked> 自动记录（每 <span id="autoIntTxt">0.20</span> s）</label>
+      <label><input type="checkbox" id="showTrue"> 显示真实 U–t 曲线</label>
+      <label><input type="checkbox" id="showTrueC"> 显示真实 C 值（教师用）</label>
+    </div>
+    <p id="hint" class="hint"></p>
+  </div>
+
+  <!-- 右：图表 + 结果 -->
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" data-t="ut">U–t 曲线</button>
+      <button class="tab" data-t="ln">ln U – t 直线化</button>
+      <button class="tab" data-t="half">T½ – R 对比</button>
+    </div>
+    <canvas id="chart"></canvas>
+    <div id="resCurrent" class="res"></div>
+    <div id="resAll" class="res"></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="head-flex"><h3>各组结果汇总</h3>
+      <div><button class="mini" id="btnCsvAll">导出汇总 CSV</button></div>
+    </div>
+    <div class="tblwrap">
+      <table><thead><tr><th>组</th><th>R/kΩ</th><th>N</th><th>T½/s</th><th>T½/R /ms</th><th>C 半衰期法/µF</th><th>k /(s⁻¹)</th><th>C 拟合法/µF</th><th>r²</th><th></th></tr></thead>
+      <tbody id="runsBody"></tbody></table>
+    </div>
+    <div class="note" id="resNote">换一个不同的电阻再测一组，看看半衰期 T½ 怎么变。</div>
+  </div>
+  <div class="card">
+    <div class="head-flex"><h3>本组原始数据</h3>
+      <div><button class="mini" id="btnCsvRun">导出本组 CSV</button></div>
+    </div>
+    <div class="tblwrap">
+      <table><thead><tr><th>i</th><th>t /s</th><th>U /V</th><th>ln U</th></tr></thead>
+      <tbody id="dataBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<details>
+<summary>原理与方法（点开）</summary>
+<p>放电：U = U₀e^(−t/RC)。① 半衰期法：U 降到 U₀/2 所需时间 T½ = RC·ln2，故 C = T½/(R·ln2)。② 直线化：lnU = lnU₀ − t/(RC)，以 lnU 对 t 作图得直线，斜率 k = −1/(RC)，C = −1/(kR)。拟合自动剔除 U&lt;0.2 V 的点（低端电表噪声占比大）。多次实验可见 T½ ∝ R，且各组算出的 C 基本一致。电压表含模拟噪声（约 0.2% 读数 + 数 mV），数据更接近真实实验。</p>
+</details>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const C_TRUE=99.4e-6, LN2=Math.LN2, FIT_MIN_U=0.2;
+const state={phase:'idle',U0:10,R:10000,speed:2,t:0,U:0,samples:[],halfTime:null,halfTarget:null,fitCache:null,runs:[],runSeq:0,auto:true,autoInt:0.2,nextAuto:0,showTrue:false,showTrueC:false,dispU:0,chargeAnim:0};
+
+const HINTS={idle:'① 选好电阻 R → ② 点【充电】',charging:'正在充电……',charged:'充电完成！③ 点【开始放电】，观察电压按指数衰减',discharging:'放电中……电压一路往下掉；随时可点【记录数据点】',paused:'已暂停（计时也暂停）。可补记数据点，或【继续】',done:'本组完成 ✓ 换一个大/小电阻，再来一组，对比 T½！'};
+
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+const noiseSig=U=>0.006+0.002*U;
+const reading=U=>Math.max(0,U+gauss()*noiseSig(U));
+const tau=()=>state.R*C_TRUE;
+const fmt=(x,d=2)=>(x==null||!isFinite(x))?'—':(+x).toFixed(d);
+function meanSd(a){if(!a.length)return[null,null];const m=a.reduce((s,x)=>s+x,0)/a.length;if(a.length<2)return[m,null];return[m,Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1))];}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400);}
+
+/* ---------- 仿真核心 ---------- */
+function pushSample(t,U){
+  const s=state.samples, prev=s[s.length-1];
+  if(prev&&Math.abs(prev.t-t)<1e-9)return;
+  if(!state.halfTime&&prev&&U<=state.halfTarget&&prev.U>state.halfTarget)
+    state.halfTime=prev.t+(prev.U-state.halfTarget)/(prev.U-U)*(t-prev.t);
+  s.push({t,U}); state.fitCache=null;
+  renderTable(); renderResults(); drawChart();
+}
+function recordAt(t){pushSample(t,reading(state.U0*Math.exp(-t/tau())));}
+function advance(dt){
+  state.t+=dt; state.U=state.U0*Math.exp(-state.t/tau());
+  if(state.auto){while(state.t>=state.nextAuto){recordAt(state.nextAuto);state.nextAuto+=state.autoInt;}}
+  if(state.U<=0.02||state.t>6*tau()){finalizeRun();setPhase('done');}
+}
+function startDischarge(){
+  state.autoInt=Math.max(0.02,Math.min(0.2,tau()/8));
+  $('autoIntTxt').textContent=state.autoInt.toFixed(2);
+  state.t=0;state.U=state.U0;state.samples=[];state.halfTime=null;state.halfTarget=state.U0/2;state.nextAuto=state.autoInt;state.fitCache=null;
+  pushSample(0,reading(state.U0));
+  setPhase('discharging');
+}
+function computeFit(samples){
+  const pts=samples.filter(p=>p.U>=FIT_MIN_U);
+  if(pts.length<3)return null;
+  const n=pts.length;let sx=0,sy=0,sxx=0,sxy=0;
+  for(const p of pts){const y=Math.log(p.U);sx+=p.t;sy+=y;sxx+=p.t*p.t;sxy+=p.t*y;}
+  const k=(n*sxy-sx*sy)/(n*sxx-sx*sx), b=(sy-k*sx)/n, ym=sy/n;
+  let sst=0,sse=0;
+  for(const p of pts){const y=Math.log(p.U);sst+=(y-ym)**2;sse+=(y-(k*p.t+b))**2;}
+  return {k,b,r2:sst>0?1-sse/sst:1,n};
+}
+const getFit=()=>state.fitCache||(state.fitCache=computeFit(state.samples));
+function finalizeRun(){
+  const n=state.samples.length;
+  if(n<5){toast('数据点太少（'+n+' 个），本组未记入结果');return false;}
+  const f=computeFit(state.samples);
+  const run={id:++state.runSeq,R:state.R,U0:state.U0,n,halfTime:state.halfTime,
+    C_half:state.halfTime?state.halfTime/(state.R*LN2):null,
+    k:f?f.k:null,b:f?f.b:null,r2:f?f.r2:null,
+    C_fit:(f&&f.k<0)?-1/(f.k*state.R):null};
+  state.runs.push(run); renderRuns(); renderResults(); drawChart();
+  toast('第 '+run.id+' 组已记入：'+(run.C_fit?'C ≈ '+fmt(run.C_fit*1e6,1)+' µF':'T½ = '+fmt(run.halfTime,3)+' s'));
+  return true;
+}
+function hardReset(){state.t=0;state.U=0;state.samples=[];state.halfTime=null;state.halfTarget=null;state.fitCache=null;renderTable();renderResults();setPhase('idle');drawChart();}
+
+/* ---------- 状态机与界面 ---------- */
+function setSwitch(mode){
+  const a=$('swArm'), p={charge:[30,150],discharge:[110,150],off:[70,155]}[mode];
+  a.setAttribute('x2',p[0]);a.setAttribute('y2',p[1]);
+}
+function setPhase(p){
+  state.phase=p;
+  $('btnCharge').disabled=!(p==='idle'||p==='done');
+  $('btnDischarge').disabled=p!=='charged';
+  $('btnPause').disabled=!(p==='discharging'||p==='paused');
+  $('btnPause').textContent=p==='paused'?'▶ 继续':'⏸ 暂停';
+  $('btnRecord').disabled=!(p==='discharging'||p==='paused');
+  $('btnEnd').disabled=!(p==='discharging'||p==='paused');
+  const lock=(p==='discharging'||p==='paused'||p==='charging');
+  document.querySelectorAll('.rchip').forEach(b=>b.disabled=lock);
+  $('u0').disabled=lock;
+  setSwitch((p==='charging'||p==='charged')?'charge':(p==='discharging'||p==='paused')?'discharge':'off');
+  $('flowCharge').style.display=(p==='charging')?'':'none';
+  $('flowDis').style.display=(p==='discharging')?'':'none';
+  $('hint').textContent=HINTS[p];
+  drawChart();
+}
+
+let lastT=performance.now(), lastFlow=0, lastMeter=0;
+function loop(now){
+  const dtR=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  if(state.phase==='charging'){
+    state.chargeAnim=Math.min(1,state.chargeAnim+dtR/0.9);
+    state.U=state.U0*(1-(1-state.chargeAnim)**2);
+    if(state.chargeAnim>=1){state.U=state.U0;setPhase('charged');}
+  }else if(state.phase==='discharging'){advance(dtR*state.speed);}
+  if(now-lastFlow>200){lastFlow=now;
+    const fD=$('flowDis');
+    if(state.phase==='discharging'){const fr=state.U/state.U0;
+      fD.style.animationDuration=(0.15+1.2*(1-fr)).toFixed(2)+'s';fD.style.opacity=(0.25+0.75*fr).toFixed(2);}
+  }
+  if(now-lastMeter>120){lastMeter=now;
+    state.dispU=reading(state.U);
+    $('meterU').textContent=state.dispU.toFixed(3)+' V';
+    $('meterT').textContent=state.t.toFixed(2)+' s';
+    const I=(state.phase==='discharging'||state.phase==='paused')?state.U/state.R*1e6:0;
+    $('meterI').textContent=I.toFixed(1)+' µA';
+    $('svgVolt').textContent=state.dispU.toFixed(3);
+    if(state.phase==='discharging')drawChart();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 绘图 ---------- */
+let chartType='ut';
+function setupCanvas(cv){const dpr=window.devicePixelRatio||1,r=cv.getBoundingClientRect();if(r.width<10)return null;
+  cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);
+  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return{ctx,W:r.width,H:r.height};}
+function niceStep(range,n){const raw=range/n,mag=10**Math.floor(Math.log10(raw)),r=raw/mag;return(r<1.5?1:r<3?2:r<7?5:10)*mag;}
+function ticks(a,b,n){const step=niceStep(b-a,n),arr=[];for(let v=Math.ceil(a/step)*step;v<=b+1e-9;v+=step)arr.push(+v.toFixed(10));arr.step=step;return arr;}
+function fmtTick(v,step){const d=Math.max(0,Math.min(4,Math.ceil(-Math.log10(step))));return v.toFixed(d);}
+function makePlot(ctx,W,H,o){
+  const L=56,R=14,T=12,B=42;
+  const X=x=>L+(x-o.xmin)/(o.xmax-o.xmin)*(W-L-R);
+  const Y=y=>H-B-(y-o.ymin)/(o.ymax-o.ymin)*(H-T-B);
+  ctx.strokeStyle='#e2e8f0';ctx.fillStyle='#64748b';ctx.font='11px system-ui';ctx.lineWidth=1;
+  const xs=ticks(o.xmin,o.xmax,6),ys=ticks(o.ymin,o.ymax,5);
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(const v of xs){const px=X(v);ctx.beginPath();ctx.moveTo(px,T);ctx.lineTo(px,H-B);ctx.stroke();ctx.fillText(fmtTick(v,xs.step),px,H-B+6);}
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(const v of ys){const py=Y(v);ctx.beginPath();ctx.moveTo(L,py);ctx.lineTo(W-R,py);ctx.stroke();ctx.fillText(fmtTick(v,ys.step),L-6,py);}
+  ctx.strokeStyle='#94a3b8';ctx.beginPath();ctx.moveTo(L,T);ctx.lineTo(L,H-B);ctx.lineTo(W-R,H-B);ctx.stroke();
+  ctx.fillStyle='#334155';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText(o.xlabel,(L+W-R)/2,H-22);
+  ctx.save();ctx.translate(13,(T+H-B)/2);ctx.rotate(-Math.PI/2);ctx.fillText(o.ylabel,0,0);ctx.restore();
+  return {X,Y,L,T,B};
+}
+function legend(ctx,W,items){
+  ctx.font='11px system-ui';let y=T0=18;
+  for(const [col,lab] of items){
+    const w=ctx.measureText(lab).width;
+    ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(W-14-w-26,y-4);ctx.lineTo(W-14-w-8,y-4);ctx.stroke();ctx.lineWidth=1;
+    ctx.fillStyle='#334155';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(lab,W-14-w,y-4);y+=16;
+  }
+}
+function drawChart(){
+  const c=setupCanvas($('chart'));if(!c)return;const {ctx,W,H}=c,s=state;
+  if(chartType==='ut'){
+    const ts=s.samples.map(p=>p.t),tmax=Math.max(1,...ts)*1.06;
+    const ymax=Math.max(s.U0,...(s.samples.length?s.samples.map(p=>p.U):[0]),1)*1.08;
+    const P=makePlot(ctx,W,H,{xmin:0,xmax:tmax,ymin:0,ymax,xlabel:'t / s',ylabel:'U / V'});
+    const tt=tau();
+    if(s.showTrue){ctx.strokeStyle='#94a3b8';ctx.setLineDash([5,4]);ctx.beginPath();
+      for(let i=0;i<=240;i++){const t=i/240*tmax,y=s.U0*Math.exp(-t/tt);i?ctx.lineTo(P.X(t),P.Y(y)):ctx.moveTo(P.X(t),P.Y(y));}ctx.stroke();ctx.setLineDash([]);}
+    const f=getFit();
+    if(f&&f.k<0){ctx.strokeStyle='#7c3aed';ctx.lineWidth=2;ctx.beginPath();
+      for(let i=0;i<=200;i++){const t=i/200*tmax,y=Math.exp(f.b+f.k*t);i?ctx.lineTo(P.X(t),P.Y(y)):ctx.moveTo(P.X(t),P.Y(y));}ctx.stroke();ctx.lineWidth=1;}
+    ctx.fillStyle='#1d4ed8';
+    for(const p of s.samples){ctx.beginPath();ctx.arc(P.X(p.t),P.Y(p.U),3,0,7);ctx.fill();}
+    if(s.halfTime){const x=P.X(s.halfTime),y=P.Y(s.halfTarget);
+      ctx.strokeStyle='#dc2626';ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,H-P.B);ctx.moveTo(P.L,y);ctx.lineTo(x,y);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#dc2626';ctx.textAlign='left';ctx.textBaseline='bottom';
+      ctx.fillText('T½ = '+s.halfTime.toFixed(3)+' s',Math.min(x+6,W-110),Math.max(y-5,16));}
+    legend(ctx,W,[['#1d4ed8','数据点'],['#7c3aed','拟合 U=U₀e^{kt}'],...(s.showTrue?[['#94a3b8','真实曲线']]:[])]);
+  }
+  else if(chartType==='ln'){
+    const inF=s.samples.filter(p=>p.U>=FIT_MIN_U), out=s.samples.filter(p=>p.U<FIT_MIN_U&&p.U>0);
+    const tmax=Math.max(1,...s.samples.map(p=>p.t))*1.05;
+    const yv=inF.length?inF.map(p=>Math.log(p.U)):[Math.log(Math.max(s.U0,1))];
+    let ymin=Math.min(...yv),ymax=Math.max(...yv);
+    const pad=(ymax-ymin)*0.12||0.5; ymin-=pad;ymax+=pad;
+    const P=makePlot(ctx,W,H,{xmin:0,xmax:tmax,ymin,ymax,xlabel:'t / s',ylabel:'ln U'});
+    const f=getFit();
+    if(f&&f.k<0){ctx.strokeStyle='#7c3aed';ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(P.X(0),P.Y(f.b));ctx.lineTo(P.X(tmax),P.Y(f.b+f.k*tmax));ctx.stroke();ctx.lineWidth=1;}
+    ctx.fillStyle='#1d4ed8';
+    for(const p of inF){ctx.beginPath();ctx.arc(P.X(p.t),P.Y(Math.log(p.U)),3.2,0,7);ctx.fill();}
+    ctx.strokeStyle='#94a3b8';ctx.fillStyle='#fff';
+    for(const p of out){ctx.beginPath();ctx.arc(P.X(p.t),P.Y(Math.log(p.U)),3,0,7);ctx.fill();ctx.stroke();}
+    if(f&&f.k<0){
+      const lines=['ln U = '+f.k.toFixed(4)+'·t + '+f.b.toFixed(3),'r² = '+f.r2.toFixed(4)+'   n = '+f.n,
+        'τ = −1/k = '+(-1/f.k).toFixed(3)+' s','C = τ/R = '+(-1/(f.k*s.R)*1e6).toFixed(2)+' µF'];
+      ctx.font='12px ui-monospace,monospace';
+      const bw=Math.max(...lines.map(l=>ctx.measureText(l).width))+18;
+      ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(P.L+8,P.T+6,bw,lines.length*17+10);
+      ctx.fillStyle='#0f172a';ctx.textAlign='left';ctx.textBaseline='top';
+      lines.forEach((l,i)=>ctx.fillText(l,P.L+17,P.T+12+i*17));
+    }
+    const lg=[['#1d4ed8','参与拟合'],['#7c3aed','回归直线']];
+    if(out.length)lg.push(['#94a3b8','已剔除 (U<0.2V)']);
+    legend(ctx,W,lg);
+  }
+  else{
+    const rs=s.runs.filter(r=>r.halfTime);
+    ctx.clearRect(0,0,W,H);
+    if(rs.length<1){ctx.fillStyle='#94a3b8';ctx.font='14px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('完成多组测量后，这里显示 T½–R 关系（验证 T½ ∝ R）',W/2,H/2);return;}
+    const xs=rs.map(r=>r.R/1000),ys=rs.map(r=>r.halfTime);
+    const xmax=Math.max(...xs)*1.15,ymax=Math.max(...ys)*1.18;
+    const P=makePlot(ctx,W,H,{xmin:0,xmax,ymin:0,ymax,xlabel:'R / kΩ',ylabel:'T½ / s'});
+    let sxy=0,sxx=0;rs.forEach(r=>{sxy+=r.R*r.halfTime;sxx+=r.R*r.R;});
+    const S=sxy/sxx, C=S/LN2;
+    ctx.strokeStyle='#0891b2';ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(P.X(0),P.Y(0));ctx.lineTo(P.X(xmax),P.Y(S*xmax));ctx.stroke();ctx.lineWidth=1;
+    ctx.fillStyle='#0f172a';
+    rs.forEach((r,i)=>{const x=P.X(r.R/1000),y=P.Y(r.halfTime);
+      ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();
+      ctx.fillStyle='#475569';ctx.font='10.5px system-ui';ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText('第'+r.id+'组 '+fmt(r.R/1000,0)+'kΩ',x,y-7);ctx.fillStyle='#0f172a';});
+    const lines=['T½ = '+(S*1000).toFixed(2)+'×10⁻³ · R   （过原点直线拟合）','⇒ C = 斜率/ln2 = '+(C*1e6).toFixed(1)+' µF'];
+    ctx.font='12.5px ui-monospace,monospace';
+    const bw=Math.max(...lines.map(l=>ctx.measureText(l).width))+18;
+    ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(P.L+8,P.T+6,bw,lines.length*18+10);
+    ctx.fillStyle='#0f172a';ctx.textAlign='left';ctx.textBaseline='top';
+    lines.forEach((l,i)=>ctx.fillText(l,P.L+17,P.T+12+i*18));
+  }
+}
+
+/* ---------- 表格与结果 ---------- */
+function renderTable(){
+  const tb=$('dataBody');let h='';
+  state.samples.forEach((p,i)=>{h+='<tr><td>'+(i+1)+'</td><td class="mono">'+p.t.toFixed(3)+'</td><td class="mono">'+p.U.toFixed(3)+'</td><td class="mono">'+(p.U>0?Math.log(p.U).toFixed(4):'—')+'</td></tr>';});
+  tb.innerHTML=h||'<tr><td colspan="4" style="color:#94a3b8">尚无数据（充电 → 放电后自动记录）</td></tr>';
+  tb.parentElement.parentElement.scrollTop=1e6;
+}
+function renderRuns(){
+  const tb=$('runsBody');let h='';
+  state.runs.forEach(r=>{
+    h+='<tr><td>'+r.id+'</td><td>'+fmt(r.R/1000,r.R%1000?1:0)+'</td><td>'+r.n+'</td><td class="mono">'+fmt(r.halfTime,3)+'</td><td class="mono">'+(r.halfTime?fmt(r.halfTime/r.R*1000,2):'—')+'</td><td class="mono">'+fmt(r.C_half&&r.C_half*1e6,2)+'</td><td class="mono">'+fmt(r.k,4)+'</td><td class="mono">'+fmt(r.C_fit&&r.C_fit*1e6,2)+'</td><td class="mono">'+fmt(r.r2,4)+'</td><td><button class="del" data-del="'+r.id+'">删除</button></td></tr>';
+  });
+  tb.innerHTML=h||'<tr><td colspan="10" style="color:#94a3b8">还没有完成的组</td></tr>';
+}
+function renderResults(){
+  const f=getFit(), s=state;
+  $('resCurrent').innerHTML=
+   '<b>本组</b>（R = '+fmt(s.R/1000,s.R%1000?1:0)+' kΩ，N = '+s.samples.length+' 点，τ ≈ '+tau().toFixed(2)+' s）'+
+   '<div class="stats">'+
+   stat('半衰期 T½',s.halfTime?s.halfTime.toFixed(3)+' s':'—')+
+   stat('C = T½/(R·ln2)',s.halfTime?(s.halfTime/(s.R*LN2)*1e6).toFixed(2)+' µF':'—')+
+   stat('斜率 k',f?f.k.toFixed(4)+' s⁻¹':'—')+
+   stat('r²',f?f.r2.toFixed(4):'—')+
+   stat('C = −1/(kR)',(f&&f.k<0)?(-1/(f.k*s.R)*1e6).toFixed(2)+' µF':'—')+
+   '</div>';
+  const rs=state.runs;
+  if(!rs.length){$('resAll').innerHTML='<div class="note">测完一组（放电自然结束，或点【结束并记入】）后，这里会汇总多组结果。</div>';}
+  else{
+    const [mh,sh]=meanSd(rs.filter(r=>r.C_half).map(r=>r.C_half));
+    const [mf,sf]=meanSd(rs.filter(r=>r.C_fit).map(r=>r.C_fit));
+    const dev=(mh&&mf)?Math.abs(mh-mf)/((mh+mf)/2)*100:null;
+    let html='<b>汇总</b>（'+rs.length+' 组）<div class="stats">'+
+      stat('C 半衰期法',mh?fmt(mh*1e6,2)+(sh?' ± '+fmt(sh*1e6,2):'')+' µF':'—')+
+      stat('C 拟合法',mf?fmt(mf*1e6,2)+(sf?' ± '+fmt(sf*1e6,2):'')+' µF':'—')+
+      stat('两法相对差',dev!=null?dev.toFixed(1)+' %':'—')+
+      (state.showTrueC?stat('真实值 / 偏差','99.4 µF / '+(mf?((mf-99.4e-6)/99.4e-6*100).toFixed(1):'?')+' %'):'')+
+      '</div>';
+    const ratios=rs.filter(r=>r.halfTime).map(r=>r.halfTime/r.R*1000);
+    html+='<div class="note">'+(ratios.length>1?('各组 T½/R = '+Math.min(...ratios).toFixed(1)+'~'+Math.max(...ratios).toFixed(1)+' ms，基本不变 → <b>T½ ∝ R</b> 得到验证。'):'再测一组不同 R，即可检验 T½ ∝ R。')+'</div>';
+    $('resAll').innerHTML=html;
+  }
+}
+function stat(k,v){return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';}
+
+/* ---------- 事件绑定 ---------- */
+$('btnCharge').onclick=()=>{state.chargeAnim=0;setPhase('charging');};
+$('btnDischarge').onclick=()=>startDischarge();
+$('btnPause').onclick=()=>setPhase(state.phase==='paused'?'discharging':'paused');
+$('btnRecord').onclick=()=>{if(state.phase==='discharging'||state.phase==='paused')pushSample(state.t,reading(state.U));};
+$('btnEnd').onclick=()=>{finalizeRun();setPhase('done');};
+$('btnReset').onclick=()=>hardReset();
+
+document.querySelectorAll('.rchip').forEach(b=>b.onclick=()=>{
+  if(b.disabled)return;
+  document.querySelectorAll('.rchip').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  state.R=+b.dataset.r;$('rLabel').textContent=(state.R/1000)+' kΩ';drawChart();renderResults();
+});
+document.querySelectorAll('.schip').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.schip').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  state.speed=+b.dataset.s;
+});
+$('u0').onchange=e=>{
+  let v=parseFloat(e.target.value);if(!isFinite(v))v=10;v=Math.min(12,Math.max(5,v));e.target.value=v;
+  state.U0=v;$('eLabel').textContent=v.toFixed(1)+' V';hardReset();
+};
+$('autoRec').onchange=e=>state.auto=e.target.checked;
+$('showTrue').onchange=e=>{state.showTrue=e.target.checked;drawChart();};
+$('showTrueC').onchange=e=>{state.showTrueC=e.target.checked;$('cLabel').textContent=e.target.checked?'C = 99.4 µF':'C = ?';renderResults();};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  chartType=b.dataset.t;drawChart();
+});
+$('runsBody').addEventListener('click',e=>{
+  const id=e.target.dataset&&e.target.dataset.del;if(!id)return;
+  state.runs=state.runs.filter(r=>r.id!==+id);renderRuns();renderResults();drawChart();
+});
+function download(name,text){const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/csv'}));a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+$('btnCsvRun').onclick=()=>{
+  let c='t/s,U/V,lnU\n';
+  state.samples.forEach(p=>{c+=p.t.toFixed(3)+','+p.U.toFixed(4)+','+(p.U>0?Math.log(p.U).toFixed(5):'')+'\n';});
+  download('RC_run_data.csv',c);
+};
+$('btnCsvAll').onclick=()=>{
+  let c='组号,R(ohm),U0(V),N,T_half(s),C_half(uF),k(1/s),C_fit(uF),r2\n';
+  state.runs.forEach(r=>{c+=[r.id,r.R,r.U0,r.n,fmt(r.halfTime,4),fmt(r.C_half&&r.C_half*1e6,3),fmt(r.k,5),fmt(r.C_fit&&r.C_fit*1e6,3),fmt(r.r2,5)].join(',')+'\n';});
+  download('RC_runs_summary.csv',c);
+};
+window.addEventListener('resize',drawChart);
+
+/* ---------- 初始化 ---------- */
+renderTable();renderRuns();renderResults();setPhase('idle');drawChart();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

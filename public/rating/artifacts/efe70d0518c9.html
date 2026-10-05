@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>误差可视化：系统误差 · 偶然误差 · 精密度与准确度</title>
+<style>
+  :root{
+    --ink:#1f2933; --muted:#5f6b76; --line:#d9e2ec;
+    --teal:#0f766e; --red:#dc2626; --blue:#2563eb; --amber:#b45309;
+    --bg:#f5f7fa; --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+       color:var(--ink);background:var(--bg);line-height:1.65}
+  header{background:linear-gradient(135deg,#0f766e,#115e59);color:#fff;padding:26px 18px 20px;text-align:center}
+  header h1{margin:0;font-size:24px;letter-spacing:1px}
+  header p{margin:6px 0 0;opacity:.9;font-size:14px}
+  .wrap{max-width:1080px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:8px;justify-content:center;margin:-26px auto 16px;max-width:1080px;flex-wrap:wrap}
+  .tab-btn{border:none;cursor:pointer;padding:10px 18px;border-radius:999px;font-size:15px;
+    background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.15);font-weight:600}
+  .tab-btn.active{background:#0f766e;color:#fff}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px;
+        box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .card h2{margin:0 0 10px;font-size:18px;color:var(--teal)}
+  .card h3{margin:0 0 8px;font-size:15px}
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .controls{flex:1 1 300px;min-width:280px}
+  .viz{flex:2 1 560px;min-width:300px}
+  label{display:block;font-size:14px;margin:10px 0 2px;font-weight:600}
+  .slider-row{display:flex;align-items:center;gap:10px}
+  input[type=range]{flex:1;accent-color:var(--teal)}
+  .val{font-variant-numeric:tabular-nums;font-weight:700;color:var(--teal);min-width:86px}
+  .btn{border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:8px;
+       padding:8px 14px;font-size:14px;cursor:pointer;margin:4px 6px 0 0}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:#fff;color:var(--teal)}
+  .btn.warn{background:var(--red);border-color:var(--red)}
+  .preset{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .preset button{border:1px solid var(--line);background:#eef4f3;color:var(--ink);border-radius:8px;
+       padding:6px 10px;font-size:13px;cursor:pointer}
+  .preset button.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0}
+  .chip{background:#f0f7f6;border:1px solid #cfe5e2;border-radius:8px;padding:6px 12px;font-size:14px}
+  .chip b{color:var(--teal);font-variant-numeric:tabular-nums}
+  .hint{font-size:13px;color:var(--muted)}
+  .insight{border-left:4px solid var(--amber);background:#fffbeb;padding:10px 14px;border-radius:0 8px 8px 0;
+           font-size:14px;margin-top:8px}
+  .formula{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px 14px;font-family:"SF Mono",Consolas,monospace;
+           font-size:14px;overflow-x:auto;white-space:nowrap}
+  .formula .g{color:#6ee7b7}.formula .r{color:#fca5a5}.formula .b{color:#93c5fd}
+  canvas{width:100%;height:auto;display:block}
+  .svgbox{width:100%;overflow-x:auto}
+  .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .tcard{border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;background:#fff;cursor:pointer}
+  .tcard:hover{box-shadow:0 3px 10px rgba(16,24,40,.12)}
+  .tcard svg{width:100%;height:auto}
+  .tcard .tag{display:inline-block;font-size:12px;padding:2px 10px;border-radius:999px;margin:2px}
+  .tag.good{background:#dcfce7;color:#166534}.tag.bad{background:#fee2e2;color:#991b1b}
+  ol{padding-left:20px}ol li{margin:6px 0}
+  .read-input{font-size:18px;padding:8px 10px;width:140px;border:2px solid var(--line);border-radius:8px;font-variant-numeric:tabular-nums}
+  .feedback{margin-top:8px;font-size:15px;min-height:26px;font-weight:600}
+  .ok{color:#15803d}.no{color:var(--red)}
+  table{border-collapse:collapse;font-size:14px;margin:8px 0}
+  td,th{border:1px solid var(--line);padding:5px 10px;text-align:center}
+  th{background:#f0f7f6}
+  footer{max-width:1080px;margin:8px auto 30px;padding:0 16px}
+  .summary li{margin:8px 0}
+  .kbd{background:#e2e8f0;border-radius:4px;padding:1px 6px;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>把误差“画”出来：系统误差 vs 偶然误差</h1>
+  <p>同一把尺子 · 同一个长度 —— 偏一边的和乱散的，取平均效果完全不同</p>
+</header>
+
+<div class="tabs" style="padding:0 10px">
+  <button class="tab-btn active" data-tab="ruler">① 尺子实验：取平均有用吗？</button>
+  <button class="tab-btn" data-tab="target">② 打靶四象限：密 ≠ 准</button>
+  <button class="tab-btn" data-tab="sigfig">③ 有效数字记到哪一位</button>
+</div>
+
+<main class="wrap">
+
+<!-- ================= 第 1 页：尺子实验 ================= -->
+<section class="panel active" id="panel-ruler">
+  <div class="card">
+    <div class="row">
+      <div class="controls">
+        <h2>控制台</h2>
+        <div class="preset">
+          <button id="p-sys">系统误差为主（尺子零点没对齐）</button>
+          <button id="p-rnd">偶然误差为主（手抖、随机散布）</button>
+          <button id="p-mix">两种都有</button>
+        </div>
+        <label>零刻线偏移 b（<span style="color:var(--red)">系统误差</span>：每次都往同一边偏）</label>
+        <div class="slider-row">
+          <input type="range" id="bias" min="-3" max="3" step="0.1" value="1.5">
+          <span class="val" id="biasVal"></span>
+        </div>
+        <label>读数抖动 σ（<span style="color:var(--blue)">偶然误差</span>：随机散布）</label>
+        <div class="slider-row">
+          <input type="range" id="sigma" min="0" max="3" step="0.1" value="0.4">
+          <span class="val" id="sigmaVal"></span>
+        </div>
+        <div style="margin-top:12px">
+          <button class="btn" id="btn1">＋测 1 次</button>
+          <button class="btn" id="btn10">＋连测 10 次</button>
+          <button class="btn ghost" id="btnClear">重新开始</button>
+        </div>
+        <p class="formula">每次读数 x<sub>i</sub> = <span class="g">真实值 50.0</span> + <span class="r">b</span> + <span class="b">随机抖动</span>　(单位 mm)</p>
+        <p class="hint">真实长度设为已知的 <b>50.0 mm</b>，方便观察误差。改动滑块会自动重新开始。</p>
+        <div class="chips">
+          <div class="chip">已测 <b id="sN">0</b> 次</div>
+          <div class="chip">平均值 x̄ = <b id="sMean">—</b> mm</div>
+          <div class="chip">偏差 x̄−真实 = <b id="sErr">—</b> mm</div>
+          <div class="chip">单次标准差 s = <b id="sStd">—</b> mm</div>
+          <div class="chip">平均值的误差 s/√n ≈ <b id="sSE">—</b> mm</div>
+          <div class="chip">测到无穷多次，平均值 → <b id="sLim">50.0</b> mm</div>
+        </div>
+        <p class="hint" id="record">读数记录：—</p>
+      </div>
+      <div class="viz">
+        <h3>尺子上的“看得见”的误差</h3>
+        <div class="svgbox" id="rulerViz"></div>
+        <div class="insight" id="insight">先点上面的按钮测几次试试。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>逐次读数图：每次测出来是多少？</h3>
+    <canvas id="runChart" width="1000" height="260"></canvas>
+    <p class="hint">▲ 绿线 = 真实值 50.0 mm；蓝线 = 当前平均值。系统误差时点整体挂在真实值一侧；偶然误差时点上下乱跳、平均值却稳稳贴住绿线。</p>
+  </div>
+
+  <div class="card">
+    <h3>平均的效果：|平均值 − 真实值| 随测量次数 n 怎么变？</h3>
+    <canvas id="convChart" width="1000" height="280"></canvas>
+    <p class="hint">▲ 纵轴对数刻度。灰虚线是理论值 √(b² + σ²/n)。看清楚：<b style="color:var(--red)">只要有系统误差 b，曲线会“躺平”在 b 上</b>，测一万次也下不来；只有偶然误差时，曲线按 <b>1/√n</b> 一路下坠（测 100 次误差缩到 1/10）。</p>
+  </div>
+</section>
+
+<!-- ================= 第 2 页：打靶 ================= -->
+<section class="panel" id="panel-target">
+  <div class="card">
+    <h2>精密度 vs 准确度：一图分清</h2>
+    <p style="margin:4px 0 10px">
+      <b style="color:var(--blue)">精密度</b>＝弹孔<b>聚不聚</b>（由<span style="color:var(--blue)">偶然误差</span>决定）；
+      <b style="color:var(--red)">准确度</b>＝弹孔<b>中不中靶心</b>（由<span style="color:var(--red)">系统误差</span>决定）。
+      两者互不包含：可以很密但不准，也可以平均很准但不密。<span class="hint">（点击任意靶图可重新打这一组）</span>
+    </p>
+    <div class="targets" id="targets"></div>
+    <button class="btn ghost" id="reshootAll" style="margin-top:12px">四张靶全部重打</button>
+  </div>
+
+  <div class="card">
+    <h3>联动：把第 ① 页尺子实验搬到靶上</h3>
+    <div class="row">
+      <div style="flex:1 1 320px">
+        <p>水平方向就是尺子的读数方向：靶心 = 真实值 50.0 mm。</p>
+        <p>当前设置：<b style="color:var(--red)" id="linkB"></b>，<b style="color:var(--blue)" id="linkS"></b>。</p>
+        <button class="btn" id="linkShoot">按当前 b 和 σ 打 12 发</button>
+        <div class="insight" id="linkMsg" style="margin-top:12px">
+          规律：<b>水平整体偏移 = 系统误差</b>（打再多发也回不到靶心）；
+          <b>水平散布宽窄 = 偶然误差</b>（多发取平均，落点中心会靠近靶心）。
+        </div>
+      </div>
+      <div class="svgbox" style="flex:1 1 320px" id="linkTarget"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 第 3 页：有效数字 ================= -->
+<section class="panel" id="panel-sigfig">
+  <div class="card">
+    <h2>有效数字：估读到最小分度的下一位</h2>
+    <ol>
+      <li>毫米刻度尺的最小分度是 <b>1 mm</b> → 毫米位是可靠的，<b>再估读一位到 0.1 mm</b>。如 <b>43.7 mm</b>：43 mm 是准确数字，0.7 mm 是<b>估读位</b>——不确定，但必须写！</li>
+      <li>估读位只有<b>一位</b>：写 43.73 mm 是装精确，写 44 mm 是偷懒，都算错。</li>
+      <li>多次测量取平均：平均值<b>保留到与测量值相同的位数</b>（多算出的位数按舍入规则处理）。</li>
+      <li>不同仪器规则不同（如游标卡尺不估读）；本页以毫米刻度尺为例。</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>动手读一次：物体右端读数是多少？</h3>
+    <div class="svgbox" id="readViz"></div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span>我的读数：</span>
+      <input class="read-input" id="readInput" placeholder="如 43.7" autocomplete="off"> <span>mm</span>
+      <button class="btn" id="btnCheck">检查</button>
+      <button class="btn ghost" id="btnNew">再出一题</button>
+    </div>
+    <div class="feedback" id="readFb"></div>
+  </div>
+
+  <div class="card">
+    <h3>平均值该记几位？——举个例子</h3>
+    <table>
+      <tr><th>次数</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr>
+      <tr><td>读数/cm</td><td>2.35</td><td>2.36</td><td>2.34</td><td>2.36</td><td>2.35</td></tr>
+    </table>
+    <p>平均 = 2.352 cm → <b>记作 2.35 cm</b>（和测量值一样保留到 0.01 cm，因为我们的尺子只“配”这个精度）。</p>
+    <p>若要求写出不确定度：s/√5 ≈ 0.004 cm → 结果表示为 <b>(2.35 ± 0.01) cm</b>，不确定度通常只保留 <b>1 位有效数字</b>，并让结果的末位与它对齐。</p>
+    <p class="hint">注意：上面这组数据已经“密”得很漂亮，但若尺子零点偏了 0.5 mm，平均值照样整体偏 0.5 mm——精密度救不了准确度。</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <div class="card summary">
+    <h2 style="font-size:16px;margin:0 0 6px">三句话带走</h2>
+    <ol class="summary">
+      <li><b>偶然误差</b>随机散布、有正有负 → 取平均能减小，误差按 <b>1/√n</b> 缩小；平均值比任何单次更可靠。</li>
+      <li><b>系统误差</b>每次往同一边偏 → <b>取平均完全消不掉</b>，只能校准仪器、改进方法（对零点、换量具、修正偏差）。</li>
+      <li><b>密 = 精密度高（偶然误差小）；准 = 准确度高（系统误差小）</b>；读数估读到最小分度的下一位，平均值与测量值同位数。</li>
+    </ol>
+  </div>
+</footer>
+
+<script>
+"use strict";
+/* ---------- 通用 ---------- */
+const $ = id => document.getElementById(id);
+function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+const fmt=(x,d)=>x.toFixed(d);
+function sgn(x){ return (x>0?"+":"")+x; }
+
+/* ---------- 标签页 ---------- */
+document.querySelectorAll(".tab-btn").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll(".tab-btn").forEach(x=>x.classList.toggle("active",x===b));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active",p.id==="panel-"+b.dataset.tab));
+  });
+});
+
+/* ================================================================
+   第 1 页：尺子实验
+================================================================ */
+const L = 50.0;              // 真实长度 mm
+const S = { bias:1.5, sigma:0.4, data:[] };
+let animTimer=null;
+
+function mean(a){ return a.reduce((s,x)=>s+x,0)/a.length; }
+function std(a){ if(a.length<2) return 0; const m=mean(a);
+  return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1)); }
+function cumMeans(a){ let s=0; return a.map((x,i)=>{s+=x;return s/(i+1);}); }
+
+function refreshLabels(){
+  $("biasVal").textContent  = "b = "+sgn(fmt(S.bias,1))+" mm";
+  $("sigmaVal").textContent = "σ = "+fmt(S.sigma,1)+" mm";
+}
+function reset(){ S.data=[]; if(animTimer){clearInterval(animTimer);animTimer=null;} update(); }
+function preset(sys){
+  if(sys==="sys"){ S.bias=1.5; S.sigma=0.3; }
+  if(sys==="rnd"){ S.bias=0;   S.sigma=1.2; }
+  if(sys==="mix"){ S.bias=-1.0;S.sigma=1.0; }
+  $("bias").value=S.bias; $("sigma").value=S.sigma; refreshLabels(); reset();
+}
+function measure(){ S.data.push(L + S.bias + gauss()*S.sigma); update(); }
+
+$("p-sys").onclick = ()=>preset("sys");
+$("p-rnd").onclick = ()=>preset("rnd");
+$("p-mix").onclick = ()=>preset("mix");
+$("btn1").onclick = measure;
+$("btnClear").onclick = reset;
+$("btn10").onclick = ()=>{
+  if(animTimer) return;
+  let k=0;
+  animTimer=setInterval(()=>{ measure(); if(++k>=10){clearInterval(animTimer);animTimer=null;} },130);
+};
+$("bias").oninput = e=>{ S.bias=+e.target.value; refreshLabels(); reset(); };
+$("sigma").oninput= e=>{ S.sigma=+e.target.value; refreshLabels(); reset(); };
+
+/* ---- 尺子可视化（SVG 字符串） ---- */
+function drawRuler(){
+  const W=880,H=128,px=14, objL=130, objTop=16, objH=26;
+  const rY1=56, rY2=96;                       // 尺身上下沿
+  const zeroX = objL - S.bias*px;             // 尺子 0 刻线的位置
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="min-width:760px">`;
+  // 物体
+  s+=`<rect x="${objL}" y="${objTop}" width="${L*px}" height="${objH}" fill="#bfdbfe" stroke="#3b82f6" stroke-width="2"/>`;
+  s+=`<text x="${objL+L*px/2}" y="${objTop+17}" text-anchor="middle" font-size="12" fill="#1e40af">被测物体（真实长度 50.0 mm）</text>`;
+  // 尺身
+  s+=`<rect x="${zeroX}" y="${rY1}" width="${W-zeroX-20}" height="${rY2-rY1}" fill="#fdf6e3" stroke="#b45309" stroke-width="1.5"/>`;
+  // 刻度：0.5mm 短、1mm 中、5mm 长、10mm 带数字
+  const rMax = Math.floor((W-30-zeroX)/px);
+  for(let r=0;r<=rMax;r++){
+    const x=zeroX+r*px; if(x>W-25)break;
+    let len=8;
+    if(r%10===0)len=20; else if(r%5===0)len=15;
+    s+=`<line x1="${x}" y1="${rY1}" x2="${x}" y2="${rY1+len}" stroke="#92400e" stroke-width="${r%5===0?1.4:0.8}"/>`;
+    if(r%10===0) s+=`<text x="${x}" y="${rY2-6}" text-anchor="middle" font-size="11" fill="#92400e">${r/10}</text>`;
+  }
+  s+=`<text x="${zeroX+(W-zeroX)/2}" y="${rY1-26}" text-anchor="middle" font-size="11" fill="#92400e">尺（cm 刻度）</text>`;
+  // 物体左端 & 零刻线对齐情况
+  s+=`<line x1="${objL}" y1="${objTop-4}" x2="${objL}" y2="${rY2+10}" stroke="#1f2933" stroke-width="1" stroke-dasharray="3 3"/>`;
+  s+=`<line x1="${zeroX}" y1="${rY1-16}" x2="${zeroX}" y2="${rY2}" stroke="#dc2626" stroke-width="2"/>`;
+  if(Math.abs(S.bias)>0.05){
+    s+=`<text x="${zeroX}" y="${rY1-22}" text-anchor="middle" font-size="12" font-weight="bold" fill="#dc2626">0 刻线</text>`;
+    s+=`<text x="${(objL+zeroX)/2}" y="${rY2+26}" text-anchor="middle" font-size="12" fill="#dc2626">零点偏了 ${sgn(fmt(S.bias,1))} mm → ${S.bias>0?"每次都读大":"每次都读小"}（系统误差）</text>`;
+    s+=`<line x1="${objL}" y1="${rY2+18}" x2="${zeroX}" y2="${rY2+18}" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ar)" marker-start="url(#ar)"/>`;
+  }else{
+    s+=`<text x="${zeroX+6}" y="${rY1-22}" font-size="12" fill="#15803d">0 刻线与物体左端对齐（b=0，无零点系统误差）</text>`;
+  }
+  // 真实端点
+  const trueEnd=objL+L*px;
+  s+=`<line x1="${trueEnd}" y1="6" x2="${trueEnd}" y2="${rY2+6}" stroke="#15803d" stroke-width="2" stroke-dasharray="5 4"/>`;
+  s+=`<text x="${trueEnd}" y="${H-2}" text-anchor="middle" font-size="12" fill="#15803d">真实端点 50.0 mm</text>`;
+  // 历次读数刻痕 + 最新读数箭头
+  S.data.forEach((x,i)=>{
+    const xr=objL-S.bias*px+x*px;
+    s+=`<line x1="${xr}" y1="${rY2+2}" x2="${xr}" y2="${rY2+12}" stroke="#f59e0b" stroke-width="1" opacity="${i===S.data.length-1?1:0.55}"/>`;
+  });
+  if(S.data.length){
+    const last=S.data[S.data.length-1], xl=objL-S.bias*px+last*px;
+    s+=`<circle cx="${xl}" cy="${rY2+9}" r="4" fill="#dc2626"/>`;
+    s+=`<text x="${xl}" y="${objTop-6}" text-anchor="middle" font-size="12" font-weight="bold" fill="#dc2626">最新读数 ${fmt(last,2)} mm</text>`;
+  }
+  s+=`<defs><marker id="ar" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+       <path d="M1,1 L7,4 L1,7 z" fill="#dc2626"/></marker></defs>`;
+  s+=`</svg>`;
+  $("rulerViz").innerHTML=s;
+}
+
+/* ---- 统计 ---- */
+function updateStats(){
+  const n=S.data.length;
+  $("sN").textContent=n;
+  if(n){
+    const m=mean(S.data), sd=std(S.data);
+    $("sMean").textContent=fmt(m,3);
+    $("sErr").innerHTML=`<span style="color:${Math.abs(m-L)>0.3?'var(--red)':'#15803d'}">${sgn(fmt(m-L,3))}</span>`;
+    $("sStd").textContent=n>1?fmt(sd,3):"—";
+    $("sSE").textContent=n>1?fmt(sd/Math.sqrt(n),3):"—";
+    $("record").textContent="读数记录："+S.data.slice(-14).map(x=>fmt(x,2)).join("，")+(n>14?" …":"");
+  }else{
+    ["sMean","sErr","sStd","sSE"].forEach(i=>$(i).textContent="—");
+    $("record").textContent="读数记录：—";
+  }
+  $("sLim").textContent=fmt(L+S.bias,2)+(Math.abs(S.bias)>0.05?"（永远到不了 50.0！）":"");
+}
+
+/* ---- 逐次读数图 ---- */
+function drawRun(){
+  const c=$("runChart"),ctx=c.getContext("2d"),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=52,padR=14,padT=14,padB=30, iw=W-padL-padR, ih=H-padT-padB;
+  const n=S.data.length;
+  let lo=Math.min(L-1, ...S.data), hi=Math.max(L+1, ...S.data);
+  const pad=(hi-lo)*0.15+0.2; lo-=pad; hi+=pad;
+  const Y=v=>padT+ih*(1-(v-lo)/(hi-lo));
+  const N=Math.max(10,n);
+  const X=i=>padL+iw*((i+0.5)/N);
+  // 网格与纵轴
+  ctx.strokeStyle="#e2e8f0";ctx.fillStyle="#64748b";ctx.font="12px sans-serif";ctx.lineWidth=1;
+  for(let g=Math.ceil(lo);g<=hi;g+= Math.ceil((hi-lo)/6)){
+    ctx.beginPath();ctx.moveTo(padL,Y(g));ctx.lineTo(W-padR,Y(g));ctx.stroke();
+    ctx.fillText(g.toFixed(0),12,Y(g)+4);
+  }
+  ctx.fillText("读数/mm",10,padT-2);
+  // 真实值线
+  ctx.strokeStyle="#15803d";ctx.setLineDash([7,5]);ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(padL,Y(L));ctx.lineTo(W-padR,Y(L));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle="#15803d";ctx.fillText("真实值 50.0",W-padR-90,Y(L)-6);
+  // 平均值线
+  if(n){
+    const m=mean(S.data);
+    ctx.strokeStyle="#2563eb";ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(padL,Y(m));ctx.lineTo(W-padR,Y(m));ctx.stroke();
+    ctx.fillStyle="#2563eb";ctx.fillText("平均值 "+fmt(m,2),W-padR-100,Y(m)+14);
+  }
+  // 数据点
+  S.data.forEach((v,i)=>{
+    ctx.fillStyle="#dc2626";
+    ctx.beginPath();ctx.arc(X(i),Y(v),4,0,7);ctx.fill();
+  });
+  // 横轴刻度
+  ctx.fillStyle="#64748b";
+  for(let i=0;i<N;i+=Math.max(1,Math.floor(N/10))) ctx.fillText(i+1,X(i)-6,H-10);
+  ctx.fillText("测量次数 n",W/2-30,H-2);
+  if(!n){ctx.fillStyle="#94a3b8";ctx.font="16px sans-serif";ctx.fillText("还没有数据，去点“＋测 1 次”",W/2-120,H/2);}
+}
+
+/* ---- 收敛图（对数纵轴） ---- */
+function drawConv(){
+  const c=$("convChart"),ctx=c.getContext("2d"),W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=56,padR=14,padT=12,padB=34, iw=W-padL-padR, ih=H-padT-padB;
+  const loLog=-2.3, hiLog=0.9;    // 0.005 mm ~ 8 mm
+  const Yv=v=>{ let lg=Math.log10(Math.max(v,1e-3));
+    return padT+ih*(1-(Math.min(hiLog,Math.max(loLog,lg))-loLog)/(hiLog-loLog)); };
+  const Nmax=100;
+  const X=n=>padL+iw*((n)/Nmax);
+  // 横轴刻度（对数感）
+  ctx.font="12px sans-serif";
+  const xTicks=[1,5,10,20,50,100];
+  xTicks.forEach(t=>{ ctx.strokeStyle="#e2e8f0";
+    ctx.beginPath();ctx.moveTo(X(t),padT);ctx.lineTo(X(t),H-padB);ctx.stroke();
+    ctx.fillStyle="#64748b";ctx.fillText(t,X(t)-6,H-14);});
+  ctx.fillStyle="#64748b";ctx.fillText("测量次数 n",W/2-30,H-2);
+  // 纵轴刻度
+  [[0.01,"0.01"],[0.1,"0.1"],[1,"1"],[5,"5"]].forEach(([v,t]=>{
+    ctx.strokeStyle="#e2e8f0";ctx.beginPath();ctx.moveTo(padL,Yv(v));ctx.lineTo(W-padR,Yv(v));ctx.stroke();
+    ctx.fillStyle="#64748b";ctx.fillText(t,20,Yv(v)+4);});
+  ctx.save();ctx.translate(12,padT+ih/2);ctx.rotate(-Math.PI/2);
+  ctx.fillText("平均值的误差 /mm",-70,0);ctx.restore();
+  // 理论参考线 sqrt(b^2+s^2/n)
+  ctx.strokeStyle="#94a3b8";ctx.setLineDash([4,4]);ctx.lineWidth=1.5;ctx.beginPath();
+  for(let n=1;n<=Nmax;n++){ const v=Math.sqrt(S.bias*S.bias+S.sigma*S.sigma/n);
+    n===1?ctx.moveTo(X(n),Yv(v)):ctx.lineTo(X(n),Yv(v)); }
+  ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle="#64748b";ctx.fillText("理论 √(b²+σ²/n)",X(52),Yv(Math.sqrt(S.bias*S.bias+S.sigma*S.sigma/50))-8);
+  // b 水平线
+  if(Math.abs(S.bias)>0.02){
+    ctx.strokeStyle="#dc2626";ctx.setLineDash([2,3]);ctx.beginPath();
+    ctx.moveTo(padL,Yv(Math.abs(S.bias)));ctx.lineTo(W-padR,Yv(Math.abs(S.bias)));ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="#dc2626";ctx.fillText("|b| = "+fmt(Math.abs(S.bias),1)+" mm ← 系统误差地板，平均消不掉",padL+8,Yv(Math.abs(S.bias))-6);
+  }
+  // 实际曲线
+  const cm=cumMeans(S.data);
+  if(cm.length){
+    ctx.strokeStyle="#0f766e";ctx.lineWidth=2.5;ctx.beginPath();
+    cm.forEach((m,i)=>{ const y=Yv(Math.abs(m-L)); i===0?ctx.moveTo(X(i+1),y):ctx.lineTo(X(i+1),y);});
+    ctx.stroke();
+    const lastE=Math.abs(cm[cm.length-1]-L);
+    ctx.fillStyle="#0f766e";ctx.fillText("n="+cm.length+" 时误差 "+fmt(lastE,3)+" mm",X(cm.length)+6,Yv(lastE)-8);
+  }else{
+    ctx.fillStyle="#94a3b8";ctx.font="16px sans-serif";ctx.fillText("还没有数据",W/2-50,H/2);
+  }
+}
+
+function insight(){
+  const n=S.data.length, el=$("insight");
+  if(n<5){ el.innerHTML="继续测…… 观察平均值是<b>贴住</b>真实值，还是<b>卡在偏离处不动</b>。"; return; }
+  const err=mean(S.data)-L;
+  if(Math.abs(S.bias)>=0.5 && Math.abs(err)>0.3){
+    el.innerHTML=`<b>典型系统误差情景：</b>已经测了 ${n} 次，平均值仍停在 ${fmt(L+S.bias,2)} mm 附近，偏差 ${sgn(fmt(err,2))} mm 几乎不变——<b>再多测几次也没用</b>，必须换/校尺子、修零点或修正读数。`;
+  }else if(Math.abs(S.bias)<0.5 && S.sigma>=0.5){
+    el.innerHTML=`<b>典型偶然误差情景：</b>单次读数东倒西歪（单次标准差约 ${fmt(S.sigma,1)} mm），但平均值偏差只有 ${sgn(fmt(err,2))} mm，而且随 n 增大继续缩小（约按 1/√n）——<b>取平均是对付偶然误差的法宝</b>。`;
+  }else if(Math.abs(S.bias)<0.5){
+    el.innerHTML=`现在误差很小：点既不偏一边也不太散，平均值几乎就是真实值——理想测量。`;
+  }else{
+    el.innerHTML=`<b>混合情景：</b>去掉抖动（σ=0）试试——所有点整齐地停在一条线上，但那条线不在 50.0 mm。这就是“假精密”：重复性再好，也准不了。`;
+  }
+}
+
+function update(){ refreshLabels(); drawRuler(); updateStats(); drawRun(); drawConv(); insight(); }
+update();
+
+/* ================================================================
+   第 2 页：打靶
+================================================================ */
+function targetSVG(bx,by,s,n=9){
+  const w=230,h=210,cx=w/2,cy=h/2;
+  let s2=`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+  s2+=`<circle cx="${cx}" cy="${cy}" r="82" fill="#fff" stroke="#94a3b8" stroke-width="1.5"/>`;
+  [64,46,28].forEach(r=>s2+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>`);
+  s2+=`<circle cx="${cx}" cy="${cy}" r="10" fill="#ef4444" opacity=".85"/>`;
+  s2+=`<line x1="${cx-88}" y1="${cy}" x2="${cx+88}" y2="${cy}" stroke="#e2e8f0"/>`;
+  s2+=`<line x1="${cx}" y1="${cy-88}" x2="${cx}" y2="${cy+88}" stroke="#e2e8f0"/>`;
+  for(let i=0;i<n;i++){
+    const x=Math.max(cx-84,Math.min(cx+84,cx+bx+gauss()*s));
+    const y=Math.max(cy-84,Math.min(cy+84,cy+by+gauss()*s));
+    s2+=`<circle cx="${x}" cy="${y}" r="4" fill="#1f2933" stroke="#fff" stroke-width="1"/>`;
+  }
+  s2+=`</svg>`; return s2;
+}
+const TCFG=[
+  {bx:0,  by:0,  s:2.6, title:"① 不密也不准",
+   tags:['<span class="tag bad">精密度低</span>','<span class="tag bad">准确度低</span>'],
+   desc:"偶然误差大（散）+ 系统误差大（偏）。两种都得治。"},
+  {bx:30, by:-16,s:1.2, title:"② 密而不准",
+   tags:['<span class="tag good">精密度高</span>','<span class="tag bad">准确度低</span>'],
+   desc:"打得很集中，但整体偏离靶心——系统误差大。再打 100 发也聚在偏处，正如取平均消不掉系统误差。"},
+  {bx:0,  by:0,  s:1.1, title:"③ 又密又准",
+   tags:['<span class="tag good">精密度高</span>','<span class="tag good">准确度高</span>'],
+   desc:"偶然误差小 + 系统误差小。好仪器 + 好方法。"},
+  {bx:0,  by:2,  s:4.2, title:"④ 准而不密",
+   tags:['<span class="tag bad">精密度低</span>','<span class="tag good">准确度高</span>'],
+   desc:"散是散（偶然误差大），但落点中心就在靶心——多打几发取“平均落点”就能救回来，正如平均对付偶然误差。"}
+];
+function renderTargets(){
+  $("targets").innerHTML=TCFG.map((t,i)=>
+    `<div class="tcard" data-i="${i}">
+       ${targetSVG(t.bx,t.by,t.s)}
+       <h3 style="margin:6px 0 2px">${t.title}</h3>
+       <div>${t.tags.join(" ")}</div>
+       <p class="hint" style="text-align:left;margin:6px 2px 2px">${t.desc}</p>
+     </div>`).join("");
+  document.querySelectorAll(".tcard").forEach(c=>
+    c.addEventListener("click",()=>{
+      const t=TCFG[+c.dataset.i];
+      c.querySelector("svg").outerHTML=targetSVG(t.bx,t.by,t.s);
+    }));
+}
+renderTargets();
+$("reshootAll").onclick=renderTargets;
+
+/* 联动靶 */
+function linkShoot(){
+  const k=13, cx=170, cy=105;
+  let s2=`<svg viewBox="0 0 340 210" xmlns="http://www.w3.org/2000/svg" style="min-width:300px">`;
+  s2+=`<circle cx="${cx}" cy="${cy}" r="88" fill="#fff" stroke="#94a3b8"/>`;
+  [66,44,22].forEach(r=>s2+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#cbd5e1"/>`);
+  s2+=`<circle cx="${cx}" cy="${cy}" r="9" fill="#ef4444" opacity=".85"/>`;
+  s2+=`<line x1="${cx-95}" y1="${cy}" x2="${cx+95}" y2="${cy}" stroke="#e2e8f0"/>`;
+  s2+=`<text x="${cx}" y="205" text-anchor="middle" font-size="12" fill="#15803d">靶心 = 真实值 50.0 mm，水平方向 = 读数方向</text>`;
+  for(let i=0;i<12;i++){
+    const x=L+S.bias+gauss()*S.sigma;
+    const px2=Math.max(cx-86,Math.min(cx+86,cx+(x-L)*k));
+    const py2=Math.max(cy-86,Math.min(cy+86,cy+gauss()*Math.max(S.sigma,0.2)*k));
+    s2+=`<circle cx="${px2}" cy="${py2}" r="4" fill="#1f2933" stroke="#fff"/>`;
+  }
+  if(Math.abs(S.bias)>0.2){
+    const bx=cx+S.bias*k;
+    s2+=`<line x1="${cx}" y1="14" x2="${bx}" y2="14" stroke="#dc2626" stroke-width="2" marker-end="url(#ar2)"/>`;
+    s2+=`<text x="${(cx+bx)/2}" y="10" text-anchor="middle" font-size="11" fill="#dc2626">整体偏移 = 系统误差</text>`;
+  }
+  s2+=`<defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7 z" fill="#dc2626"/></marker></defs>`;
+  s2+=`</svg>`;
+  $("linkTarget").innerHTML=s2;
+  $("linkB").textContent="零点偏移 b = "+sgn(fmt(S.bias,1))+" mm";
+  $("linkS").textContent="抖动 σ = "+fmt(S.sigma,1)+" mm";
+}
+$("linkShoot").onclick=linkShoot;
+linkShoot();
+
+/* ================================================================
+   第 3 页：读数练习
+================================================================ */
+let readTrue=0;
+function newRead(){
+  readTrue=30+Math.random()*30;                 // 30~60 mm 连续位置
+  const px=14, left=20;
+  const start=Math.floor(readTrue/10)*10-22;    // 起始刻度(mm)
+  const W=680,H=140, objTop=14, objH=30, rY1=58, rY2=100;
+  const X=mm=>left+(mm-start)*px;
+  let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="min-width:620px">`;
+  s+=`<rect x="0" y="${objTop}" width="${X(readTrue)}" height="${objH}" fill="#bfdbfe" stroke="#3b82f6" stroke-width="2"/>`;
+  s+=`<text x="${X(readTrue)/2}" y="${objTop+20}" text-anchor="middle" font-size="13" fill="#1e40af">物体（左端对齐 0 刻线）</text>`;
+  s+=`<rect x="${X(start)}" y="${rY1}" width="${W-X(start)-12}" height="${rY2-rY1}" fill="#fdf6e3" stroke="#b45309"/>`;
+  for(let m=start;m<=start+Math.floor((W-left-20)/px);m++){
+    const x=X(m); if(x>W-14)break;
+    let len= m%10===0?20 : m%5===0?15 : 9;
+    s+=`<line x1="${x}" y1="${rY1}" x2="${x}" y2="${rY1+len}" stroke="#92400e" stroke-width="${m%5===0?1.4:0.8}"/>`;
+    if(m%10===0)s+=`<text x="${x}" y="${rY2-6}" text-anchor="middle" font-size="12" fill="#92400e">${m}</text>`;
+  }
+  s+=`<line x1="${X(readTrue)}" y1="${objTop}" x2="${X(readTrue)}" y2="${rY2+6}" stroke="#dc2626" stroke-width="1.5"/>`;
+  s+=`<text x="${X(readTrue)}" y="${rY2+22}" text-anchor="middle" font-size="12" fill="#dc2626">物体右端（读这里，单位 mm）</text>`;
+  s+=`</svg>`;
+  $("readViz").innerHTML=s;
+  $("readFb").className="feedback";$("readFb").textContent="";
+  $("readInput").value="";
+}
+function checkRead(){
+  const v=$("readInput").value.trim();
+  const fb=$("readFb"); fb.className="feedback";
+  const accept=round1(readTrue);
+  if(!/^\d+(\.\d+)?$/.test(v)){ fb.className="feedback no"; fb.textContent="✗ 请输入数字，例如 43.7"; return; }
+  const dec=(v.split(".")[1]||"").length, num=parseFloat(v);
+  if(dec===0){ fb.className="feedback no";
+    fb.innerHTML=`✗ 少了估读位：毫米刻度尺要读到 mm 的<b>下一位（0.1 mm）</b>，你只读到整毫米。`;
+  }else if(dec>1){ fb.className="feedback no";
+    fb.innerHTML=`✗ 多估读了：估读位只有<b>一位</b>，写到 0.1 mm 就够，写更多位是“假精确”。`;
+  }else if(Math.abs(num-accept)<=0.35){
+    fb.className="feedback ok";
+    fb.innerHTML=`✓ 很好！末位 ${fmt(num%1,1).slice(2)} mm 是估读位——它不完全确定，<b>但必须写</b>，它也是有效数字。`;
+  }else{
+    fb.className="feedback no";
+    fb.innerHTML=`✗ 数值偏差太大：正确读数约 <b>${fmt(accept,1)} mm</b>。先数大格（每格 10 mm），再数小格，最后估一位。`;
+  }
+}
+function round1(x){ return Math.round(x*10)/10; }
+$("btnNew").onclick=newRead;
+$("btnCheck").onclick=checkRead;
+$("readInput").addEventListener("keydown",e=>{if(e.key==="Enter")checkRead();});
+newRead();
+</script>
+</body>
+</html>

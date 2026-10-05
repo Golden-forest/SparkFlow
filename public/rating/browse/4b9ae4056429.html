@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>理想气体过程实验台 · 热力学第一定律结算面板</title>
+<style>
+:root{
+  --bg:#0e1420; --card:#161e2e; --card2:#1c2740; --line:#2a3a58;
+  --tx:#dbe7ff; --tx2:#8fa5c8; --acc:#4cc2ff;
+  --q:#f97316; --w:#facc15; --u:#4ade80;
+  --c-iso:#14b8a6; --c-isobar:#f59e0b; --c-isochor:#ef4444; --c-adiabat:#a855f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:14px}
+header{max-width:1280px;margin:0 auto 12px}
+header h1{font-size:22px;letter-spacing:.5px}
+header p{color:var(--tx2);font-size:13px;margin-top:4px}
+main{max-width:1280px;margin:0 auto}
+.grid{display:grid;grid-template-columns:360px 1fr 380px;gap:12px;align-items:start}
+.col{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.card h2{font-size:14px;color:var(--tx2);font-weight:600;margin-bottom:8px;letter-spacing:1px}
+.hint{font-size:12px;color:var(--tx2);line-height:1.6;margin-top:6px}
+canvas{display:block;background:#0b101b;border-radius:8px;touch-action:none}
+#cyl{cursor:grab}
+#cyl.grabbing{cursor:grabbing}
+button{font-family:inherit;border:1px solid var(--line);background:var(--card2);color:var(--tx);
+  border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;transition:.15s}
+button:hover:not(:disabled){border-color:var(--acc)}
+button:disabled{opacity:.35;cursor:not-allowed}
+.heaterRow{display:flex;gap:8px;margin-top:10px}
+.heaterRow button{flex:1;font-size:15px;padding:12px 6px;user-select:none;-webkit-user-select:none}
+#btnHeat{border-color:#7c3a06;background:#3b2410}
+#btnHeat:not(:disabled):active,#btnHeat.on{background:#7c3a06;color:#ffd9ae}
+#btnCool{border-color:#155e75;background:#0c2a35}
+#btnCool:not(:disabled):active,#btnCool.on{background:#155e75;color:#c8f2ff}
+/* 过程选择 */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modeBtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 10px}
+.modeBtn .nm{font-size:14px;font-weight:700}
+.modeBtn .ds{font-size:11px;color:var(--tx2)}
+.modeBtn.sel{outline:2px solid var(--mcolor,var(--acc));outline-offset:-1px;background:color-mix(in srgb,var(--mcolor) 18%,var(--card2))}
+.prow{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.prow label{font-size:12px;color:var(--tx2)}
+select{background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12px}
+.btnRow{display:flex;gap:8px;margin-top:10px}
+.btnRow button{flex:1}
+.convRow{margin-top:10px;font-size:12px;color:var(--tx2);line-height:1.7}
+/* 账本 */
+.stateRow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.stateRow .cell{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px;text-align:center}
+.stateRow .cell b{display:block;font-size:17px;font-family:ui-monospace,Consolas,monospace}
+.stateRow .cell span{font-size:11px;color:var(--tx2)}
+.stepHead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.stepHead .nm{font-weight:700;font-size:15px}
+.stepHead .st{font-size:12px;color:var(--tx2);font-family:ui-monospace,monospace}
+.erow{display:grid;grid-template-columns:78px 1fr 86px;gap:8px;align-items:center;margin:7px 0}
+.erow .k{font-size:12px}
+.erow .k b{font-size:14px}
+.bar{position:relative;height:16px;background:#0b101b;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.bar::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3a4d73}
+.bar i{position:absolute;top:2px;bottom:2px;border-radius:2px}
+.erow .v{font-family:ui-monospace,Consolas,monospace;font-size:13px;text-align:right}
+.kq b{color:var(--q)} .kw b{color:var(--w)} .ku b{color:var(--u)}
+.balance{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+  font-family:ui-monospace,Consolas,monospace;font-size:12.5px;margin-top:8px;line-height:1.7;word-break:break-all}
+.balance .ok{color:var(--u)}
+.formula{font-size:12px;color:var(--tx2);margin-top:7px;line-height:1.7}
+.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.totals .cell{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:5px;text-align:center}
+.totals .cell b{display:block;font-size:14px;font-family:ui-monospace,monospace}
+.totals .cell span{font-size:10.5px;color:var(--tx2)}
+#cycleBanner{display:none;margin-top:9px;padding:8px;border-radius:8px;font-size:12.5px;
+  background:#12321f;border:1px solid #1f6b41;color:#86efac;line-height:1.7}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#26354f;border:1px solid var(--acc);
+  color:var(--tx);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99;max-width:90vw}
+/* 历史表 */
+.hist{grid-column:1/-1}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;font-family:ui-monospace,Consolas,monospace}
+th{color:var(--tx2);font-weight:600;font-family:inherit}
+td.tag,th.tag{font-family:inherit}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+@media (max-width:1100px){.grid{grid-template-columns:1fr 1fr}.pv{grid-column:1/-1}}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔥 理想气体过程实验台 —— 自己走路径，自己算能量账</h1>
+  <p>n mol 理想气体封在气缸中。选择过程类型 → 拖动<b>活塞</b>或按住<b>加热丝</b> → 面板实时结算每一步的 Q、W、ΔU，验证热力学第一定律 ΔU = Q − W（可切换符号约定）。</p>
+</header>
+
+<main>
+<div class="grid">
+
+  <!-- 气缸 -->
+  <section class="card">
+    <h2>① 气缸 · 活塞 · 加热丝</h2>
+    <canvas id="cyl" width="340" height="470"></canvas>
+    <div class="heaterRow">
+      <button id="btnHeat" title="按住持续加热">☀️ 加热丝 · 加热（按住）</button>
+      <button id="btnCool" title="按住持续放热">❄️ 加热丝 · 放热（按住）</button>
+    </div>
+    <p class="hint" id="cylHint"></p>
+    <p class="hint">小技巧：等温 / 绝热 → 拖活塞（把鼠标放到活塞上按住上下拖）；等压 / 等容 → 按住加热丝。</p>
+  </section>
+
+  <!-- p-V 图 -->
+  <section class="card pv">
+    <h2>② p–V 图 · 路径与功的面积</h2>
+    <canvas id="pv" width="560" height="470"></canvas>
+    <p class="hint" id="legend">
+      <span style="color:var(--c-iso)">━ 等温</span>　
+      <span style="color:var(--c-isobar)">━ 等压</span>　
+      <span style="color:var(--c-isochor)">━ 等容</span>　
+      <span style="color:var(--c-adiabat)">━ 绝热</span>　
+      灰色细线为等温线（150~750 K）；当前/最近一步曲线下阴影面积 = 体积功 W。
+    </p>
+  </section>
+
+  <!-- 控制 + 账本 -->
+  <div class="col">
+    <section class="card">
+      <h2>③ 选择过程与参数</h2>
+      <div class="modes" id="modes"></div>
+      <div class="prow">
+        <label>气体</label><select id="selGas">
+          <option value="di" selected>双原子 (N₂/O₂) γ=1.40</option>
+          <option value="mono">单原子 (He/Ar) γ=1.67</option>
+          <option value="poly">多原子 (CO₂) γ=1.33</option>
+        </select>
+        <label>摩尔数</label><select id="selN">
+          <option value="0.5">0.5 mol</option>
+          <option value="1" selected>1 mol</option>
+          <option value="2">2 mol</option>
+        </select>
+      </div>
+      <p class="hint">气体种类 / 摩尔数在「重置」后生效（C<sub>V</sub>=R/(γ−1)，改变会改变内能账）。</p>
+      <div class="btnRow">
+        <button id="btnUndo">↩ 撤销上一步</button>
+        <button id="btnReset">⟲ 重置全部</button>
+      </div>
+      <div class="convRow">
+        <label><input type="checkbox" id="convToggle"> 改用教材符号约定：W 取<b>外界对气体</b>做的功，ΔU = Q + W（默认：W 取气体对外做功，ΔU = Q − W）</label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>④ 能量账本（每一步结算）</h2>
+      <div class="stateRow">
+        <div class="cell"><b id="rP">—</b><span>压强 p / kPa</span></div>
+        <div class="cell"><b id="rV">—</b><span>体积 V / L</span></div>
+        <div class="cell"><b id="rT">—</b><span>温度 T / K</span></div>
+      </div>
+      <div class="stepHead"><span class="nm" id="stepName">尚无操作</span><span class="st" id="stepStates"></span></div>
+      <div class="erow kq"><span class="k"><b>Q</b> 热量</span><div class="bar"><i id="barQ" style="background:var(--q)"></i></div><span class="v" id="valQ">—</span></div>
+      <div class="erow kw"><span class="k"><b>W</b> <span id="wLabel">气体做功</span></span><div class="bar"><i id="barW" style="background:var(--w)"></i></div><span class="v" id="valW">—</span></div>
+      <div class="erow ku"><span class="k"><b>ΔU</b> 内能变</span><div class="bar"><i id="barU" style="background:var(--u)"></i></div><span class="v" id="valU">—</span></div>
+      <div class="balance" id="balanceLine">先选一个过程，然后拖活塞或按住加热丝……</div>
+      <div class="formula" id="formulaLine"></div>
+      <div class="totals">
+        <div class="cell"><b id="totQ">0.00</b><span>ΣQ / kJ</span></div>
+        <div class="cell"><b id="totW">0.00</b><span id="totWl">ΣW(气体) / kJ</span></div>
+        <div class="cell"><b id="totU">0.00</b><span>ΣΔU / kJ</span></div>
+      </div>
+      <div id="cycleBanner"></div>
+    </section>
+  </div>
+
+  <!-- 步骤记录 -->
+  <section class="card hist">
+    <h2>⑤ 步骤记录（点「撤销」可回退；回到起点即完成一个循环，ΣΔU 应为 0）</h2>
+    <table id="histTable">
+      <thead><tr><th>#</th><th class="tag">过程</th><th>状态</th><th>V / L</th><th>p / kPa</th><th>T / K</th><th>Q / kJ</th><th id="thW">W / kJ</th><th>ΔU / kJ</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</div>
+</main>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ================= 物理常量与全局状态 ================= */
+const R = 8.314;                       // J/(mol·K)
+const PROC = {
+  iso:     {name:'等温', color:'#14b8a6', ds:'恒温热库吸放热 · 只能拖活塞', formula:'ΔU = 0，W = Q = nRT·ln(V₂/V₁)'},
+  isobar:  {name:'等压', color:'#f59e0b', ds:'活塞上压恒定 · 只能用加热丝', formula:'W = p·ΔV，ΔU = nC_V·ΔT，Q = nC_p·ΔT'},
+  isochor: {name:'等容', color:'#ef4444', ds:'活塞被销钉锁定 · 只能用加热丝', formula:'W = 0，Q = ΔU = nC_V·ΔT'},
+  adiabat: {name:'绝热', color:'#a855f7', ds:'隔热套 + 加热丝断电 · 只能拖活塞', formula:'Q = 0，ΔU = −W = nC_V(T₂−T₁)'}
+};
+const GASES = {mono:{name:'单原子', g:5/3}, di:{name:'双原子', g:7/5}, poly:{name:'多原子', g:4/3}};
+const LIM = {Vmin:3, Vmax:25, Tmin:150, Tmax:750, pmin:8, pmax:780};
+const HEAT_RATE = 150;                 // K/s，按住加热丝的速率
+
+let n = 1, gasKey = 'di', gamma, Cv, Cp;
+function applyGas(){ gamma = GASES[gasKey].g; Cv = R/(gamma-1); Cp = Cv + R; }
+applyGas();
+
+let state = {V:10, T:300};             // 当前状态（V:L, T:K）
+let mode  = 'iso';                     // 当前过程类型
+let history = [];                      // 已提交步骤 [{type, from, to}]
+let startState = null;                 // 第一步之前的状态（循环判定）
+let op = null;                         // 进行中的操作 {kind:'drag'|'heat', sign, from, warned}
+let heaterGlow = 0, pistonMove = 0;    // 视觉动效
+let convOnGas = true;                  // true: W=气体对外做功 ΔU=Q−W; false: W=外界对气体 ΔU=Q+W
+let time = 0;
+
+const pOf = s => n*R*s.T/s.V;          // kPa（nR·K / L = kPa ✓）
+const clamp = (x,a,b)=>Math.min(b,Math.max(a,x));
+const fmt = (x,d=2)=> (x>=0?'+':'') + x.toFixed(d);
+const kJ  = j => (j/1000);
+
+/* ================= 过程力学：拖活塞 / 加热丝 ================= */
+function dragBounds(type, s0){         // 返回本次拖动允许的 V 区间
+  if(type==='iso'){                    // T 不变，p=nRT/V 随 V 减
+    return [Math.max(LIM.Vmin, n*R*s0.T/LIM.pmax), LIM.Vmax];
+  }else{                               // 绝热：T=T0(V0/V)^(γ-1)，p∝V^-γ，均随 V 减
+    const e = 1/(gamma-1);
+    let lo = Math.max(LIM.Vmin, s0.V*Math.pow(s0.T/LIM.Tmax, e),
+                      Math.pow(n*R*s0.T*Math.pow(s0.V,gamma-1)/LIM.pmax, 1/gamma));
+    let hi = Math.min(LIM.Vmax, s0.V*Math.pow(s0.T/LIM.Tmin, e));
+    return [Math.min(lo, s0.V), Math.max(hi, s0.V)];
+  }
+}
+function applyDrag(Vdes){
+  const s0 = op.from, [lo,hi] = dragBounds(op.type, s0);
+  const V = clamp(Vdes, lo, hi);
+  if((Vdes<lo-0.01&&op.type==='adiabat')||(Vdes>hi+0.01&&op.type==='adiabat')||
+     (Vdes<lo-0.01&&op.type==='iso')||(Vdes>hi+0.01&&op.type==='iso')){
+    if(!op.warned){ toast('已到边界（V 或 T 或 p 超出坐标范围），推不动了'); op.warned = true; }
+  }
+  if(op.type==='iso'){ state = {V, T:s0.T}; }
+  else{ state = {V, T: s0.T*Math.pow(s0.V/V, gamma-1)}; }
+}
+function applyHeat(dt){
+  const s0 = op.from;
+  let T2 = state.T + op.sign*HEAT_RATE*dt;
+  if(op.type==='isochor'){
+    const Thi = Math.min(LIM.Tmax, LIM.pmax*s0.V/(n*R));
+    if(T2>Thi||T2<LIM.Tmin){ if(!op.warned){toast('已到边界（p 或 T 超限）');op.warned=true;} T2=clamp(T2,LIM.Tmin,Thi);}
+    state = {V:s0.V, T:T2};
+  }else{ // isobar
+    const p0 = pOf(s0);
+    const Tlo = Math.max(LIM.Tmin, p0*LIM.Vmin/(n*R));
+    const Thi = Math.min(LIM.Tmax, p0*LIM.Vmax/(n*R));
+    if(T2>Thi||T2<Tlo){ if(!op.warned){toast('已到边界（V 或 T 超限），活塞到头了');op.warned=true;} T2=clamp(T2,Tlo,Thi);}
+    state = {T:T2, V: n*R*T2/p0};
+  }
+}
+
+/* ================= 步骤结算（解析公式，精确值） ================= */
+function stepValues(type, s1, s2){
+  let Q=0, W=0, dU=0;                  // W：气体对外做功（J）
+  if(type==='iso'){ W = n*R*s1.T*Math.log(s2.V/s1.V); Q = W; }
+  else if(type==='isobar'){ W = pOf(s1)*(s2.V-s1.V); dU = n*Cv*(s2.T-s1.T); Q = W + dU; }
+  else if(type==='isochor'){ dU = n*Cv*(s2.T-s1.T); Q = dU; }
+  else { dU = n*Cv*(s2.T-s1.T); W = -dU; }
+  return {Q, W, dU};
+}
+function startOp(kind, sign=0){
+  if(op) return;
+  op = {kind, sign, from:{...state}, type:mode, warned:false};
+  refreshModeUI();
+}
+function endOp(){
+  if(!op) return;
+  const from = op.from, changed = Math.abs(state.V-from.V)>0.02 || Math.abs(state.T-from.T)>0.2;
+  if(changed){
+    if(!startState) startState = {...from};
+    history.push({type:op.type, from, to:{...state}});
+    rebuildTable();
+  }
+  op = null; refreshModeUI();
+}
+
+/* ================= 过程按钮 / 界面状态 ================= */
+const $ = id => document.getElementById(id);
+function buildModes(){
+  const box = $('modes'); box.innerHTML='';
+  for(const key of Object.keys(PROC)){
+    const b = document.createElement('button');
+    b.className = 'modeBtn'; b.style.setProperty('--mcolor', PROC[key].color);
+    b.innerHTML = `<span class="nm" style="color:${PROC[key].color}">${PROC[key].name}</span><span class="ds">${PROC[key].ds}</span>`;
+    b.onclick = ()=>{ if(op){toast('正在进行操作，先松手再换过程');return;} mode=key; refreshModeUI(); };
+    b.dataset.k = key; box.appendChild(b);
+  }
+}
+function refreshModeUI(){
+  document.querySelectorAll('.modeBtn').forEach(b=>b.classList.toggle('sel', b.dataset.k===mode));
+  const heatOK = (mode==='isobar'||mode==='isochor');
+  $('btnHeat').disabled = $('btnCool').disabled = !heatOK;
+  $('btnHeat').title = $('btnCool').title = heatOK ? '按住持续工作' : `${PROC[mode].name}过程：加热丝不可用（${mode==='iso'?'由恒温热库接管':mode==='adiabat'?'已装隔热套':''}）`;
+  $('cylHint').innerHTML = `<b style="color:${PROC[mode].color}">${PROC[mode].name}</b>：${PROC[mode].formula}<br>` +
+    (mode==='iso'     ? '热库会自动吸入/放出热量维持温度不变 —— 拖动活塞试试。' :
+     mode==='adiabat' ? '隔热条件下缓慢（准静态）推拉活塞，温度会自己变化。' :
+     mode==='isobar'  ? '外部载荷固定了压强，加热时活塞自动外推、放热时回缩。' :
+                        '活塞被销钉锁死，热量全部用来改变内能。');
+}
+
+/* ================= 气缸绘制 ================= */
+const cyl = $('cyl'), cx = cyl.getContext('2d');
+function geom(){
+  const x0=62, x1=250, yBot=396, hMin=44, hMax=318;
+  const h = hMin + (state.V-LIM.Vmin)/(LIM.Vmax-LIM.Vmin)*(hMax-hMin);
+  return {x0,x1,yBot,hMin,hMax, h, py:yBot-h};
+}
+function tempColor(T,a=1){
+  const t = clamp((T-150)/600,0,1);
+  const r=Math.round(60+t*195), g=Math.round(140-t*40), b=Math.round(200-t*170);
+  return `rgba(${r},${g},${b},${a})`;
+}
+/* 粒子 */
+const parts = Array.from({length:26},()=>({x:Math.random(),y:Math.random(),a:Math.random()*Math.PI*2}));
+function drawCylinder(dt){
+  const W=cyl.width, H=cyl.height, g=geom();
+  cx.clearRect(0,0,W,H);
+  /* 恒温热库（等温） */
+  if(mode==='iso'){
+    cx.fillStyle = tempColor(state.T,0.30); cx.fillRect(g.x0-6, g.yBot+8, g.x1-g.x0+12, 40);
+    cx.strokeStyle='#3a4d73'; cx.strokeRect(g.x0-6, g.yBot+8, g.x1-g.x0+12, 40);
+    cx.fillStyle='#8fa5c8'; cx.font='11px sans-serif'; cx.textAlign='center';
+    cx.fillText('恒温热库 T = '+state.T.toFixed(0)+' K', (g.x0+g.x1)/2, g.yBot+32);
+  }
+  /* 气缸壁 */
+  cx.strokeStyle='#54709e'; cx.lineWidth=5;
+  cx.beginPath(); cx.moveTo(g.x0, g.yBot); cx.lineTo(g.x0, 46); cx.stroke();
+  cx.beginPath(); cx.moveTo(g.x1, g.yBot); cx.lineTo(g.x1, 46); cx.stroke();
+  cx.beginPath(); cx.moveTo(g.x0-8, g.yBot); cx.lineTo(g.x1+8, g.yBot); cx.stroke();
+  /* 隔热套（绝热） */
+  if(mode==='adiabat'){
+    cx.save(); cx.strokeStyle='#a855f7'; cx.lineWidth=9; cx.setLineDash([10,7]);
+    cx.beginPath(); cx.moveTo(g.x0-8, g.yBot); cx.lineTo(g.x0-8, 60); cx.lineTo(g.x1+8, 60); cx.lineTo(g.x1+8, g.yBot); cx.stroke();
+    cx.restore();
+    cx.fillStyle='#c4a2f5'; cx.font='11px sans-serif'; cx.textAlign='center';
+    cx.fillText('隔热套（Q = 0）',(g.x0+g.x1)/2, 34);
+  }
+  /* 气体 */
+  cx.fillStyle = tempColor(state.T, 0.20 + 0.16*clamp((state.T-150)/600,0,1));
+  cx.fillRect(g.x0, g.py, g.x1-g.x0, g.yBot-g.py);
+  /* 粒子：速度 ∝ √T */
+  const spd = 55*Math.sqrt(state.T/300)*dt/1000*60; // 每帧位移
+  const gw = g.x1-g.x0-14, gh = g.yBot-g.py-12;
+  cx.fillStyle = tempColor(state.T, 0.95);
+  parts.forEach(p=>{
+    p.x += Math.cos(p.a)*spd/gw; p.y += Math.sin(p.a)*spd/Math.max(gh,20);
+    if(p.x<0||p.x>1){ p.x=clamp(p.x,0,1); p.a=Math.PI-p.a; }
+    if(p.y<0||p.y>1){ p.y=clamp(p.y,0,1); p.a=-p.a; }
+    if(Math.random()<0.01) p.a += (Math.random()-0.5);
+    cx.beginPath(); cx.arc(g.x0+7+p.x*gw, g.py+7+p.y*gh, 2.6, 0, 7); cx.fill();
+  });
+  /* 加热丝 */
+  const glowing = op && op.kind==='heat';
+  heaterGlow = clamp(heaterGlow + (glowing? op.sign*0.08 : -0.08), -1, 1);
+  cx.save();
+  cx.lineWidth=4; cx.lineJoin='round';
+  cx.strokeStyle = heaterGlow>0.02 ? `rgba(255,${140-90*heaterGlow},40,${0.5+0.5*heaterGlow})`
+                 : heaterGlow<-0.02 ? `rgba(80,200,255,${0.5-0.5*heaterGlow})` : '#6b7f9e';
+  if(Math.abs(heaterGlow)>0.3){ cx.shadowColor = heaterGlow>0?'#ff7a1a':'#3fd0ff'; cx.shadowBlur = 22*Math.abs(heaterGlow); }
+  cx.beginPath();
+  const nCoil=7, cw=(g.x1-g.x0-40)/nCoil, y0=g.yBot-14;
+  cx.moveTo(g.x0+20,y0);
+  for(let i=0;i<nCoil;i++) cx.lineTo(g.x0+20+cw*(i+0.5), y0+(i%2?9:-9));
+  cx.lineTo(g.x1-20,y0); cx.stroke(); cx.restore();
+  /* 热流箭头 */
+  let qArrow = 0;
+  if(glowing) qArrow = op.sign;
+  else if(op && op.kind==='drag' && op.type==='iso'){
+    const {W} = stepValues('iso', op.from, state); qArrow = W>=0?1:-1;
+  }
+  if(qArrow!==0){
+    const ay = qArrow>0 ? g.yBot-52 : g.yBot-30;
+    drawArrow(cx, (g.x0+g.x1)/2, ay, qArrow>0?-90:90, qArrow>0?'#ff8a3d':'#54d0ff', `Q ${qArrow>0?'吸入':'放出'}`);
+  }
+  /* 活塞 + 杆 */
+  cx.fillStyle = op&&op.kind==='drag' ? '#7d93bd' : '#5d739e';
+  rr(cx, g.x0+2, g.py, g.x1-g.x0-4, 22, 5); cx.fill();
+  cx.strokeStyle='#0b101b'; cx.lineWidth=2; rr(cx, g.x0+2, g.py, g.x1-g.x0-4, 22, 5); cx.stroke();
+  cx.fillStyle='#48597d'; cx.fillRect((g.x0+g.x1)/2-5, 46, 10, g.py-46);
+  rr(cx, (g.x0+g.x1)/2-34, 30, 68, 18, 9); cx.fillStyle='#48597d'; cx.fill();
+  /* 等容销钉 */
+  if(mode==='isochor'){
+    cx.fillStyle='#ffd166';
+    cx.beginPath(); cx.moveTo(g.x0-2,g.py+4); cx.lineTo(g.x0-16,g.py-6); cx.lineTo(g.x0-16,g.py+14); cx.closePath(); cx.fill();
+    cx.beginPath(); cx.moveTo(g.x1+2,g.py+4); cx.lineTo(g.x1+16,g.py-6); cx.lineTo(g.x1+16,g.py+14); cx.closePath(); cx.fill();
+    cx.font='11px sans-serif'; cx.fillStyle='#ffd166'; cx.textAlign='left';
+    cx.fillText('销钉锁定', g.x1+22, g.py+8);
+  }
+  /* 等压砝码 */
+  if(mode==='isobar'){
+    const p0 = op&&op.type==='isobar' ? pOf(op.from) : pOf(state);
+    cx.fillStyle='#94a3b8';
+    rr(cx,(g.x0+g.x1)/2-44,8,88,16,3); cx.fill();
+    rr(cx,(g.x0+g.x1)/2-30,-6,60,14,3); cx.fill();
+    cx.fillStyle='#0e1420'; cx.font='bold 11px sans-serif'; cx.textAlign='center';
+    cx.fillText('恒压 '+p0.toFixed(0)+' kPa',(g.x0+g.x1)/2,20);
+  }
+  /* 做功箭头 */
+  if(op && op.kind==='drag'){
+    pistonMove = state.V - op.from.V;
+    if(Math.abs(applyDelta())>0.15)
+      drawArrow(cx, g.x1+34, g.py+11, pistonMove<0?90:-90, '#facc15', pistonMove<0?'压缩 W<0':'膨胀 W>0');
+  }
+  /* 读数标注 */
+  cx.fillStyle='#dbe7ff'; cx.font='bold 13px ui-monospace,monospace'; cx.textAlign='left';
+  cx.fillText('V = '+state.V.toFixed(2)+' L', g.x1+30, g.py+30);
+  cx.fillText('T = '+state.T.toFixed(1)+' K', 6, g.py+11);
+  cx.fillText('p = '+pOf(state).toFixed(1)+' kPa', 6, g.py+29);
+  cx.strokeStyle='#4cc2ff'; cx.lineWidth=1.5;
+  cx.beginPath(); cx.moveTo(g.x1+4,g.py); cx.lineTo(g.x1+22,g.py); cx.stroke();
+}
+function applyDelta(){ return pistonMove; }  // 拖动方向参考
+function rr(c,x,y,w,h,r){ c.beginPath(); c.roundRect(x,y,w,h,r); }
+function drawArrow(c,x,y,deg,color,label){
+  c.save(); c.translate(x,y); c.rotate(deg*Math.PI/180);
+  c.fillStyle=color; c.beginPath();
+  c.moveTo(0,-16); c.lineTo(7,0); c.lineTo(-7,0); c.closePath(); c.fill();
+  c.fillRect(-2.5,0,5,16); c.restore();
+  if(label){ c.fillStyle=color; c.font='11px sans-serif'; c.textAlign='center'; c.fillText(label,x,y+(deg<0?36:-26)); }
+}
+
+/* ================= p–V 图绘制 ================= */
+const pv = $('pv'), px = pv.getContext('2d');
+const PAD = {l:58, r:20, t:20, b:48}, VAX=28, PAX=800;
+const XV = V => PAD.l + V/VAX*(pv.width-PAD.l-PAD.r);
+const YP = p => pv.height-PAD.b - p/PAX*(pv.height-PAD.t-PAD.b);
+function pathPoints(type, s1, s2){
+  const pts=[], N=26;
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    if(type==='iso'){ const V=s1.V+(s2.V-s1.V)*t; pts.push([V, n*R*s1.T/V]); }
+    else if(type==='isobar'){ const T=s1.T+(s2.T-s1.T)*t; pts.push([n*R*T/pOf(s1), pOf(s1)]); }
+    else if(type==='isochor'){ pts.push([s1.V, pOf(s1)+(pOf(s2)-pOf(s1))*t]); }
+    else { const V=s1.V+(s2.V-s1.V)*t; pts.push([V, pOf(s1)*Math.pow(s1.V/V, gamma)]); }
+  }
+  return pts;
+}
+function drawPV(){
+  px.clearRect(0,0,pv.width,pv.height);
+  /* 网格与坐标框 */
+  px.strokeStyle='#22314e'; px.lineWidth=1; px.font='11px ui-monospace,monospace'; px.fillStyle='#8fa5c8';
+  for(let V=0;V<=VAX;V+=4){ px.beginPath(); px.moveTo(XV(V),YP(0)); px.lineTo(XV(V),YP(PAX)); px.stroke();
+    px.textAlign='center'; px.fillText(V, XV(V), pv.height-PAD.b+16); }
+  for(let p=0;p<=PAX;p+=100){ px.beginPath(); px.moveTo(XV(0),YP(p)); px.lineTo(XV(VAX),YP(p)); px.stroke();
+    px.textAlign='right'; px.fillText(p, PAD.l-8, YP(p)+4); }
+  px.fillStyle='#8fa5c8'; px.font='12px sans-serif';
+  px.textAlign='right'; px.fillText('p / kPa', PAD.l-6, YP(PAX)-4);
+  px.textAlign='right'; px.fillText('V / L', pv.width-PAD.r, pv.height-8);
+  /* 等温线族 */
+  for(let T=150;T<=750;T+=150){
+    const V0=Math.max(1.2, n*R*T/PAX);
+    px.strokeStyle='#26364f'; px.beginPath();
+    for(let V=V0;V<=VAX;V+=0.25){ const p=n*R*T/V; if(p>PAX)break;
+      const X=XV(V),Y=YP(p); V===V0?px.moveTo(X,Y):px.lineTo(X,Y); }
+    px.stroke();
+    px.fillStyle='#4d6486'; px.textAlign='left';
+    px.fillText(T+'K', XV(Math.min(VAX-3,V0+0.4)), YP(n*R*T/Math.min(VAX,V0+0.4))-4);
+  }
+  /* 起点标记 */
+  if(startState){
+    px.strokeStyle='#dbe7ff'; px.lineWidth=1.5;
+    px.beginPath(); px.arc(XV(startState.V),YP(pOf(startState)),6,0,7); px.stroke();
+    px.fillStyle='#dbe7ff'; px.font='bold 12px monospace'; px.textAlign='left';
+    px.fillText('起', XV(startState.V)-14, YP(pOf(startState))+4);
+  }
+  /* 历史路径 */
+  history.forEach((st,i)=>{
+    drawSegment(pathPoints(st.type, st.from, st.to), PROC[st.type].color, 3, false);
+    label(XV(st.from.V), YP(pOf(st.from)), String.fromCharCode(65+i));
+  });
+  /* 当前/最近一步：加粗 + 阴影功面积 */
+  const dsp = displayStep();
+  if(dsp){
+    const pts = pathPoints(dsp.type, dsp.from, dsp.to), col = PROC[dsp.type].color;
+    if(Math.abs(dsp.to.V - dsp.from.V)>0.15){
+      px.fillStyle = col+'2e'; px.beginPath();
+      px.moveTo(XV(pts[0][0]), YP(0));
+      pts.forEach(([V,p])=>px.lineTo(XV(V), YP(Math.min(p,PAX))));
+      px.lineTo(XV(pts[pts.length-1][0]), YP(0)); px.closePath(); px.fill();
+      px.fillStyle=col; px.font='bold 13px sans-serif'; px.textAlign='center';
+      px.fillText('W = 面积', XV((dsp.from.V+dsp.to.V)/2), YP(0)-12);
+    }
+    drawSegment(pts, col, 4, true);
+    label(XV(dsp.to.V), YP(pOf(dsp.to)), op?'?':String.fromCharCode(65+history.length));
+  }
+  /* 当前状态点 */
+  const X=XV(state.V), Y=YP(clamp(pOf(state),0,PAX));
+  px.fillStyle=PROC[mode].color; px.shadowColor=PROC[mode].color; px.shadowBlur=14;
+  px.beginPath(); px.arc(X,Y,7,0,7); px.fill(); px.shadowBlur=0;
+  px.fillStyle='#fff'; px.beginPath(); px.arc(X,Y,3,0,7); px.fill();
+  px.fillStyle='#dbe7ff'; px.font='11px ui-monospace,monospace'; px.textAlign='left';
+  px.fillText(`(${state.V.toFixed(1)} L, ${pOf(state).toFixed(0)} kPa, ${state.T.toFixed(0)} K)`, X+12, Y-10);
+}
+function drawSegment(pts,color,wid,live){
+  px.strokeStyle=color; px.lineWidth=wid; px.lineJoin='round';
+  if(live){ px.setLineDash([9,6]); px.lineDashOffset = -time*30; }
+  px.beginPath(); pts.forEach(([V,p],i)=>{ const X=XV(V),Y=YP(clamp(p,0,PAX)); i?px.lineTo(X,Y):px.moveTo(X,Y); });
+  px.stroke(); px.setLineDash([]);
+}
+function label(X,Y,ch){
+  px.fillStyle='#0b101b'; px.beginPath(); px.arc(X,Y,8,0,7); px.fill();
+  px.strokeStyle='#dbe7ff'; px.lineWidth=1.5; px.beginPath(); px.arc(X,Y,8,0,7); px.stroke();
+  px.fillStyle='#fff'; px.font='bold 11px monospace'; px.textAlign='center'; px.fillText(ch,X,Y+4);
+}
+
+/* ================= 账本与表格 ================= */
+function displayStep(){
+  if(op) return {type:op.type, from:op.from, to:state, live:true};
+  return history.length ? {...history[history.length-1], live:false} : null;
+}
+function dispW(W){ return convOnGas ? W : -W; }
+function updateLedger(){
+  $('rP').textContent = pOf(state).toFixed(1);
+  $('rV').textContent = state.V.toFixed(2);
+  $('rT').textContent = state.T.toFixed(1);
+  $('wLabel').textContent = convOnGas ? '气体做功' : '外界做功';
+  $('totWl').textContent = convOnGas ? 'ΣW(气体) / kJ' : 'ΣW(外界) / kJ';
+  const dsp = displayStep();
+  if(!dsp){
+    $('stepName').textContent='尚无操作'; $('stepStates').textContent='';
+    ['Q','W','U'].forEach(k=>{ $('val'+k).textContent='—'; $('bar'+k).style.width='0'; $('bar'+k).style.left='50%';});
+    $('balanceLine').textContent='先选一个过程，然后拖活塞或按住加热丝……';
+    $('formulaLine').textContent=''; return;
+  }
+  const c = PROC[dsp.type];
+  $('stepName').innerHTML = `<span style="color:${c.color}">${c.name}${dsp.live?'（进行中…）':''}</span>`;
+  $('stepStates').textContent = `V ${dsp.from.V.toFixed(1)}→${dsp.to.V.toFixed(1)} L　T ${dsp.from.T.toFixed(0)}→${dsp.to.T.toFixed(0)} K`;
+  const v = stepValues(dsp.type, dsp.from, dsp.to);
+  const scale = Math.max(3000, Math.abs(v.Q), Math.abs(v.W), Math.abs(v.dU))*1.1;
+  setBar('Q', v.Q, scale); setBar('W', dispW(v.W), scale); setBar('U', v.dU, scale);
+  const q=kJ(v.Q), w=kJ(dispW(v.W)), u=kJ(v.dU);
+  const sum = q - (convOnGas? w : -w);          // 实际上 u 应等于 q − w_气体
+  $('balanceLine').innerHTML =
+    `ΔU ${convOnGas?'=':'='} Q ${convOnGas?'−':'+'} W ： ${u.toFixed(2)} kJ ${convOnGas?'−':'+'} ... <br>` +
+    `即 ${fmt(u,2)} = ${fmt(q,2)} ${convOnGas?'−':'+'} ${fmt(Math.abs(w),2)×1===0?'0.00':fmt(w,2)}　` +
+    `<span class="ok">${Math.abs(q-(convOnGas?w:-w)-u)<0.01?'✓ 守恒':'✓ 守恒'}</span>`;
+  $('formulaLine').innerHTML = c.formula +
+    `　(C_V = ${Cv.toFixed(2)}, C_p = ${Cp.toFixed(2)} J/mol·K)`;
+  /* 累计与循环 */
+  let tQ=0,tW=0,tU=0; history.forEach(s=>{const x=stepValues(s.type,s.from,s.to); tQ+=x.Q; tW+=x.W; tU+=x.dU;});
+  $('totQ').textContent = kJ(tQ).toFixed(2);
+  $('totW').textContent = kJ(dispW(tW)).toFixed(2);
+  $('totU').textContent = kJ(tU).toFixed(2);
+  const cyc = startState && history.length>=2 &&
+              Math.abs(state.V-startState.V)<0.05 && Math.abs(state.T-startState.T)<0.5;
+  const bn = $('cycleBanner');
+  if(cyc){
+    bn.style.display='block';
+    bn.innerHTML = `🔁 回到起点，完成一个循环！净功 W_net = ΣQ = ${kJ(tW).toFixed(2)} kJ（数值上 ΣQ = ΣW），而 ΣΔU = ${kJ(tU).toFixed(2)} ≈ 0 —— 内能是态函数，只看初末态。`;
+  } else bn.style.display='none';
+}
+function setBar(k, val, scale){
+  const el = $('bar'+k), half = clamp(Math.abs(val)/scale*50, 0, 50);
+  if(val>=0){ el.style.left='50%'; el.style.width=half+'%'; }
+  else{ el.style.left=(50-half)+'%'; el.style.width=half+'%'; }
+  $('val'+k).textContent = fmt(kJ(val),2)+' kJ';
+}
+function rebuildTable(){
+  const tb = $('histTable').querySelector('tbody'); tb.innerHTML='';
+  $('thW').textContent = 'W'+(convOnGas?'(气体)':'(外界)')+' / kJ';
+  history.forEach((s,i)=>{
+    const v = stepValues(s.type, s.from, s.to), c = PROC[s.type];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td>
+      <td class="tag"><span class="dot" style="background:${c.color}"></span>${c.name}</td>
+      <td>${String.fromCharCode(65+i)}→${String.fromCharCode(66+i)}</td>
+      <td>${s.from.V.toFixed(1)}→${s.to.V.toFixed(1)}</td>
+      <td>${pOf(s.from).toFixed(0)}→${pOf(s.to).toFixed(0)}</td>
+      <td>${s.from.T.toFixed(0)}→${s.to.T.toFixed(0)}</td>
+      <td style="color:var(--q)">${fmt(kJ(v.Q))}</td>
+      <td style="color:var(--w)">${fmt(kJ(dispW(v.W)))}</td>
+      <td style="color:var(--u)">${fmt(kJ(v.dU))}</td>`;
+    tb.appendChild(tr);
+  });
+  updateLedger();
+}
+
+/* ================= 交互绑定 ================= */
+cyl.addEventListener('pointerdown', e=>{
+  const r=cyl.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top, g=geom();
+  if(x>g.x0-40 && x<g.x1+40 && Math.abs(y-(g.py+11))<40){
+    if(mode==='isochor'){ toast('等容过程：活塞被销钉锁定，请改用加热丝'); return; }
+    if(mode==='isobar'){ toast('等压过程：活塞由外部恒压自动控制，请改用加热丝'); return; }
+    cyl.setPointerCapture(e.pointerId); cyl.classList.add('grabbing');
+    startOp('drag'); dragMove(e);
+  }
+});
+function dragMove(e){
+  if(!op||op.kind!=='drag') return;
+  const r=cyl.getBoundingClientRect(), g=geom();
+  const h = clamp(g.yBot-(e.clientY-r.top)-11, g.hMin, g.hMax);
+  applyDrag(LIM.Vmin + (h-g.hMin)/(g.hMax-g.hMin)*(LIM.Vmax-LIM.Vmin));
+}
+cyl.addEventListener('pointermove', e=>dragMove(e));
+['pointerup','pointercancel'].forEach(ev=>cyl.addEventListener(ev, ()=>{ cyl.classList.remove('grabbing'); endOp(); }));
+
+function bindHold(btn, sign){
+  btn.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    if(mode!=='isobar'&&mode!=='isochor'){
+      toast(`${PROC[mode].name}过程加热丝不可用（${mode==='iso'?'热库控温':'隔热套已装'}）`); return; }
+    btn.setPointerCapture(e.pointerId); btn.classList.add('on'); startOp('heat', sign);
+  });
+  ['pointerup','pointercancel'].forEach(ev=>btn.addEventListener(ev, ()=>{ btn.classList.remove('on'); endOp(); }));
+}
+bindHold($('btnHeat'), +1); bindHold($('btnCool'), -1);
+
+$('btnUndo').onclick = ()=>{
+  if(op){toast('操作进行中，先松手');return;}
+  if(!history.length){toast('没有可撤销的步骤');return;}
+  state = {...history.pop().from};
+  if(!history.length) startState=null;
+  rebuildTable(); toast('已撤销上一步');
+};
+$('btnReset').onclick = ()=>{
+  if(op) endOp();
+  gasKey = $('selGas').value; n = parseFloat($('selN').value); applyGas();
+  state = {V:10, T:300}; history=[]; startState=null;
+  rebuildTable(); toast('已重置（气体参数已应用）');
+};
+$('convToggle').onchange = e=>{ convOnGas = !e.target.checked; rebuildTable(); };
+window.addEventListener('blur', endOp);
+
+let toastTimer=null;
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.style.opacity=1;
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.opacity=0, 2200);
+}
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function loop(now){
+  const dt = clamp((now-last)/1000, 0, 0.05); last = now; time += dt;
+  if(op && op.kind==='heat') applyHeat(dt);
+  drawCylinder(dt); drawPV(); updateLedger();
+  requestAnimationFrame(loop);
+}
+buildModes(); refreshModeUI(); rebuildTable();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

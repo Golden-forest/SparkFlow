@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>水路类比：电阻的串联与并联</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;margin:0;padding:14px;background:#0e2233;color:#222}
+  h1{color:#eaf4fc;font-size:20px;margin:4px 0 12px;text-align:center}
+  #wrap{display:flex;gap:14px;max-width:1320px;margin:0 auto;align-items:flex-start;flex-wrap:wrap}
+  canvas{background:#eef7ff;border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,.35);max-width:100%;height:auto}
+  #panel{flex:1;min-width:300px;max-width:380px}
+  .sec{background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:10px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  .sec h3{margin:0 0 8px;font-size:14px;color:#1565c0}
+  button{cursor:pointer;border:1px solid #90caf9;background:#e3f2fd;color:#0d47a1;border-radius:6px;padding:4px 9px;font-size:13px;margin:2px}
+  button:hover{background:#bbdefb}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  .on{background:#1976d2;color:#fff;border-color:#1976d2}
+  .row{margin:4px 0;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+  th,td{border:1px solid #cfe2f3;padding:3px 5px;text-align:center}
+  th{background:#e3f2fd;color:#0d47a1}
+  .num{font-family:ui-monospace,Consolas,monospace}
+  #teach{font-size:13px;line-height:1.75}
+  .hl{color:#c62828;font-weight:700}
+  .st{font-size:13.5px;line-height:1.8}
+  .st b{color:#1565c0}
+</style>
+</head>
+<body>
+<h1>💧 水路类比：电阻的串联与并联（水泵=电源 · 细管=电阻）</h1>
+<div id="wrap">
+  <canvas id="cv" width="900" height="500"></canvas>
+  <div id="panel">
+    <div class="sec"><h3>① 连接模式</h3><div id="cMode"></div></div>
+    <div class="sec"><h3>② 水泵压力档位（电源电压）</h3><div id="cPump"></div></div>
+    <div class="sec" id="secS"><h3>③ 串联设置</h3><div id="cNS"></div><div id="cResS"></div></div>
+    <div class="sec" id="secP"><h3>③ 并联设置</h3><div id="cNP"></div><div id="cResP"></div></div>
+    <div class="sec"><h3>实时数据面板</h3><div class="st" id="stats"></div><div id="table"></div></div>
+    <div class="sec"><h3>教学要点</h3><div id="teach"></div></div>
+  </div>
+</div>
+<script>
+"use strict";
+/* ---------- 常量与状态 ---------- */
+const KINDS=[{n:"细",r:6,w:10},{n:"中",r:3,w:16},{n:"粗",r:1.2,w:24}]; // 相对阻力 / 管宽
+const PLEV=[30,60,90], PMAX=90;
+const S={mode:"s",nS:2,nP:2,pump:1,resS:[0,1,1],resP:[1,1,0,2]};
+let segs=[],pipesM=[],meters=[],juncs=[],particles=[],phys={},pumpA=0,spawnAcc=0;
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+
+/* ---------- 几何/物理构建 ---------- */
+function addSeg(pts,q,w,pr,hp){ // pr: 管段点索引区间, hp: 含管段(不画箭头)
+  const cum=[0];let L=0;
+  for(let i=1;i<pts.length;i++){L+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);cum.push(L);}
+  const s={pts,cum,len:L,q,w,pr:pr||null,hp:!!hp,next:null};segs.push(s);return segs.length-1;
+}
+function build(){
+  segs=[];pipesM=[];meters=[];juncs=[];
+  const P=PLEV[S.pump];
+  if(S.mode==="s"){ /* ---- 串联 ---- */
+    const n=S.nS,y=170,xL=130,xR=770,cLen=40,span=xR-xL,pLen=(span-(n-1)*cLen)/n;
+    const Rs=S.resS.slice(0,n).map(i=>KINDS[i].r),Rt=Rs.reduce((a,b)=>a+b,0),Qt=P/Rt;
+    let acc=0;const DP=Rs.map(r=>{const d=Qt*r;return d;});
+    const i0=addSeg([[372,445],[xL,445]],Qt,14);
+    addSeg([[xL,445],[xL,y]],Qt,14);
+    addSeg([[xL,y],[xL,y]],Qt,14); // 占位(会被下一段替代起点)
+    segs.pop(); // 移除占位
+    addSeg([[xL,y],[xL+0,y]],Qt,14);seg.pop;seg.pop; // (清理冗余，重新画)
+    segs.pop();
+    let cur=addSeg([[xL,y],[xL,y]],Qt,14);segs.pop(); // noop
+    let prev=addSeg([[xL,y],[xL+0,y]],Qt,14);segs.pop();
+    // 依次铺管
+    let x=xL,first=true,prevIdx=i0+2;
+    for(let i=0;i<n;i++){
+      const xs=x,xe=x+pLen,k=KINDS[S.resS[i]];
+      if(first){addSeg([[xL,y],[xs,y]],Qt,14);first=false;}
+      const pi=addSeg([[xs,y],[xe,y]],Qt,k.w,[0,1],true);
+      pipesM.push({x0:xs,x1:xe,y,w:k.w,name:`管${i+1}（${k.n}）`,r:k.r,dp:DP[i],pin:P-acc,pout:P-acc-DP[i],q:Qt});
+      acc+=DP[i];x=xe;
+      if(i<n-1)addSeg([[xe,y],[xe+cLen,y]],Qt,14),x=xe+cLen;
+    }
+    addSeg([[x,y],[xR,y]],Qt,14);
+    addSeg([[xR,y],[xR,445]],Qt,14);
+    addSeg([[xR,445],[528,445]],Qt,14);
+    meters.push({x:640,y:445,q:Qt,label:"干路",a:0});
+    for(let i=0;i<segs.length;i++)segs[i].next=[[i+1,1]];
+    segs[segs.length-1].next=[[0,1]];
+    phys={P,Qt,Rt,list:pipesM};
+  }else{ /* ---- 并联 ---- */
+    const n=S.nP,sp=80,ys=[];for(let i=0;i<n;i++)ys.push(240-(n-1)*sp/2+i*sp);
+    const Rs=S.resP.slice(0,n).map(i=>KINDS[i].r);
+    const Rt=1/Rs.reduce((a,r)=>a+1/r,0),Qt=P/Rt,Q=Rs.map(r=>P/r);
+    addSeg([[372,445],[180,445]],Qt,14);                    // 0 泵出口→左母管
+    const busBot=addSeg([[180,445],[180,ys[n-1]]],Qt,14);   // 左母管底段
+    const busUp=[],br=[],rb=[];
+    for(let k=0;k<n;k++) br.push(addSeg([[180,ys[k]],[260,ys[k]],[600,ys[k]],[720,ys[k]]],Q[k],KINDS[S.resP[k]].w,[1,2],true));
+    for(let k=n-1;k>=1;k--) busUp[k]=addSeg([[180,ys[k]],[180,ys[k-1]]],Q.slice(0,k).reduce((a,b)=>a+b,0),14);
+    for(let k=0;k<n-1;k++) rb.push(addSeg([[720,ys[k]],[720,ys[k+1]]],Q.slice(0,k+1).reduce((a,b)=>a+b,0),14));
+    const rbBot=addSeg([[720,ys[n-1]],[720,445]],Qt,14);
+    addSeg([[720,445],[528,445]],Qt,14);                    // 回水→泵入口
+    // 连接关系（分流按流量加权，汇流单一路径）
+    segs[0].next=[[busBot,1]];
+    segs[busBot].next=n>1?[[br[n-1],Q[n-1]],[busUp[n-1],Qt-Q[n-1]]]:[[br[0],Q[0]]];
+    for(let k=n-1;k>=2;k--)segs[busUp[k]].next=[[br[k-1],Q[k-1]],[busUp[k-1],Q.slice(0,k-1).reduce((a,b)=>a+b,0)]];
+    if(n>1)segs[busUp[1]].next=[[br[0],Q[0]]];
+    for(let k=0;k<n;k++)segs[br[k]].next=[[k<n-1?rb[k]:rbBot,1]];
+    for(let k=0;k<n-2;k++)segs[rb[k]].next=[[rb[k+1],1]];
+    if(n>1)segs[rb[n-2]].next=[[rbBot,1]];
+    segs[rbBot].next=[[segs.length-1,1]];
+    segs[segs.length-1].next=[[0,1]];
+    for(let k=0;k<n;k++){
+      const kk=KINDS[S.resP[k]];
+      pipesM.push({x0:260,x1:600,y:ys[k],w:kk.w,name:`支路${k+1}（${kk.n}）`,r:kk.r,dp:P,pin:P,pout:0,q:Q[k]});
+      meters.push({x:690,y:ys[k],q:Q[k],label:`支路${k+1}`,a:0});
+      juncs.push([180,ys[k]],[720,ys[k]]);
+    }
+    meters.push({x:610,y:445,q:Qt,label:"干路",a:0});
+    phys={P,Qt,Rt,list:pipesM};
+  }
+  // 初始撒粒子（按 q×长度 加权）
+  particles=[];const wts=segs.map(s=>s.q*s.len),tot=wts.reduce((a,b)=>a+b,0)||1;
+  for(let i=0;i<70;i++){let r=Math.random()*tot,j=0;while(j<wts.length-1&&r>wts[j]){r-=wts[j];j++;}particles.push({seg:j,d:Math.random()*segs[j].len});}
+  renderControls();renderData();
+}
+function pointAt(s,d){d=Math.max(0,Math.min(s.len,d));let i=1;while(i<s.cum.length-1&&s.cum[i]<d)i++;
+  const t=(d-s.cum[i-1])/((s.cum[i]-s.cum[i-1])||1),a=s.pts[i-1],b=s.pts[i];
+  return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];}
+
+/* ---------- 动画更新 ---------- */
+function update(dt){
+  for(const m of meters){m.a+=m.q*0.22*dt;}
+  pumpA+=phys.Qt*0.06*dt;
+  spawnAcc+=(1.1+phys.Qt*0.09)*dt;
+  while(spawnAcc>=1){spawnAcc--;if(particles.length<330)particles.push({seg:0,d:0});}
+  for(const p of particles){
+    const s=segs[p.seg];p.d+=(8+2.8*s.q)*dt;
+    if(p.d>=s.len){
+      const ov=p.d-s.len;let nx=s.next;
+      if(!nx||!nx.length){p.seg=0;p.d=ov*0.5;continue;}
+      let r=Math.random()*nx.reduce((a,e)=>a+e[1],0),pick=nx[0][0];
+      for(const e of nx){if(r<e[1]){pick=e[0];break;}r-=e[1];}
+      p.seg=pick;p.d=ov;
+    }
+  }
+}
+
+/* ---------- 绘制 ---------- */
+function drawSeg(s){
+  for(let i=1;i<s.pts.length;i++){
+    const pw=s.pr&&i>s.pr[0]&&i<=s.pr[1];
+    const a=s.pts[i-1],b=s.pts[i];
+    ctx.lineCap="round";
+    ctx.strokeStyle="#5f8fb0";ctx.lineWidth=pw?s.w:14;
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+    ctx.strokeStyle="#cfe8fa";ctx.lineWidth=Math.max(5,(pw?s.w:14)-5);
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+  }
+}
+function arrow(x,y,ang){
+  ctx.save();ctx.translate(x,y);ctx.rotate(ang);ctx.fillStyle="rgba(21,101,192,.75)";
+  ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-5,-5);ctx.lineTo(-5,5);ctx.closePath();ctx.fill();ctx.restore();
+}
+function gauge(x,y,val,tapY){
+  ctx.strokeStyle="#8aa9c2";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x,y+11);ctx.lineTo(x,tapY);ctx.stroke();
+  ctx.beginPath();ctx.arc(x,y,11,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.strokeStyle="#455a64";ctx.lineWidth=1.5;ctx.stroke();
+  const f=Math.max(0,Math.min(1,val/PMAX)),a=(135+f*180)*Math.PI/180;
+  ctx.strokeStyle="#c62828";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+9*Math.cos(a),y+9*Math.sin(a));ctx.stroke();
+  ctx.fillStyle="#37474f";ctx.font="10px ui-monospace,monospace";ctx.textAlign="center";
+  ctx.fillText(Math.round(val),x,y-15);
+}
+function meter(m){
+  ctx.fillStyle="#fffbe6";ctx.strokeStyle="#b8860b";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.roundRect(m.x-22,m.y-12,44,24,5);ctx.fill();ctx.stroke();
+  ctx.strokeStyle="#c60";ctx.lineWidth=2;
+  for(let i=0;i<3;i++){const a=m.a+i*2.094;
+    ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(m.x+8*Math.cos(a),m.y+8*Math.sin(a));ctx.stroke();}
+  ctx.fillStyle="#795548";ctx.font="10px ui-monospace,monospace";ctx.textAlign="center";
+  ctx.fillText(`Q=${m.q.toFixed(1)}`,m.x,m.y+24);
+}
+function annotate(p){
+  const mid=(p.x0+p.x1)/2;
+  ctx.fillStyle="#0d47a1";ctx.font="bold 12px system-ui";ctx.textAlign="center";
+  ctx.fillText(p.name,mid,p.y-36);
+  gauge(p.x0+(S.mode==="s"?26:-25),p.y-30,p.pin,p.y-p.w/2);
+  gauge(p.x1+(S.mode==="s"?-26:30),p.y-30,p.pout,p.y-p.w/2);
+  ctx.fillStyle="#b71c1c";ctx.font="12px ui-monospace,monospace";
+  ctx.fillText(`ΔP=${p.dp.toFixed(1)} kPa`,mid,p.y+30);
+}
+function drawPump(P){
+  ctx.fillStyle="#90a4ae";ctx.fillRect(366,437,8,16);ctx.fillRect(526,437,8,16);
+  const g=ctx.createLinearGradient(0,415,0,475);g.addColorStop(0,"#ffd199");g.addColorStop(1,"#f4900c");
+  ctx.fillStyle=g;ctx.strokeStyle="#e65100";ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(374,415,152,60,10);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.arc(408,445,14,0,7);ctx.fillStyle="#fff";ctx.fill();ctx.strokeStyle="#e65100";ctx.stroke();
+  ctx.strokeStyle="#e65100";ctx.lineWidth=2;
+  for(let i=0;i<4;i++){const a=pumpA+i*Math.PI/2;
+    ctx.beginPath();ctx.moveTo(408,445);ctx.lineTo(408+11*Math.cos(a),445+11*Math.sin(a));ctx.stroke();}
+  ctx.fillStyle="#5d4037";ctx.font="bold 14px system-ui";ctx.textAlign="left";
+  ctx.fillText("水泵",432,442);ctx.font="11px ui-monospace,monospace";ctx.fillText(`P=${P}kPa`,432,459);
+}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(const s of segs)drawSeg(s);
+  for(const j of juncs){ctx.beginPath();ctx.arc(j[0],j[1],5,0,7);ctx.fillStyle="#5f8fb0";ctx.fill();}
+  for(const s of segs)if(!s.hp&&s.len>90){const a=pointAt(s,s.len*.5),b=pointAt(s,s.len*.5+3);arrow(a[0],a[1],Math.atan2(b[1]-a[1],b[0]-a[0]));}
+  ctx.fillStyle="rgba(16,90,180,.95)";
+  for(const p of particles){const pos=pointAt(segs[p.seg],p.d);
+    ctx.beginPath();ctx.arc(pos[0],pos[1],2.6,0,7);ctx.fill();}
+  drawPump(phys.P);
+  for(const m of meters)meter(m);
+  for(const p of pipesM)annotate(p);
+}
+
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+function rbtn(a,v,on,txt,dis){return`<button data-a="${a}" data-v="${v}" class="${on?"on":""}" ${dis?"disabled":""}>${txt}</button>`;}
+function renderControls(){
+  $("cMode").innerHTML=rbtn("mode","s",S.mode==="s","串联电路")+rbtn("mode","p",S.mode==="p","并联电路");
+  $("cPump").innerHTML=PLEV.map((p,i)=>rbtn("pump",i,S.pump===i,`${i+1} 档 · ${p} kPa`)).join("");
+  $("secS").style.display=S.mode==="s"?"":"none";
+  $("secP").style.display=S.mode==="p"?"":"none";
+  if(S.mode==="s"){
+    $("cNS").innerHTML="管数："+[2,3].map(n=>rbtn("ns",n,S.nS===n,`${n} 根`)).join("");
+    $("cResS").innerHTML=S.resS.slice(0,S.nS).map((r,i)=>
+      `<div class="row">管${i+1} 阻力：${KINDS.map((k,j)=>rbtn("rs",`${i},${j}`,r===j,k.n)).join("")}</div>`).join("");
+  }else{
+    $("cNP").innerHTML=`支路数：${rbtn("np","-1",false,"－ 增加/减少 ",S.nP<=1)}<b class="num">${S.nP} 条</b>${rbtn("np","1",false,"＋",S.nP>=4)}`;
+    $("cResP").innerHTML=S.resP.slice(0,S.nP).map((r,i)=>
+      `<div class="row">支路${i+1} 阻力：${KINDS.map((k,j)=>rbtn("rp",`${i},${j}`,r===j,k.n)).join("")}</div>`).join("");
+  }
+}
+function renderData(){
+  const{P,Qt,Rt,list}=phys;
+  $("stats").innerHTML=`泵压 P = <b>${P}</b> kPa　总阻力 R总 = <b class="num">${Rt.toFixed(2)}</b><br>干路总流量 Q总 = <b class="num">${Qt.toFixed(1)}</b> L/min`;
+  $("table").innerHTML=`<table><tr><th>${S.mode==="s"?"管":"支路"}</th><th>阻力</th><th>流量(L/min)</th><th>压差(kPa)</th></tr>`+
+    list.map((p,i)=>`<tr><td>${i+1}</td><td class="num">${p.r}</td><td class="num">${p.q.toFixed(1)}</td><td class="num">${p.dp.toFixed(1)}</td></tr>`).join("")+
+    `<tr><td><b>干路</b></td><td class="num">${Rt.toFixed(2)}</td><td class="num"><b>${Qt.toFixed(1)}</b></td><td class="num">${P}</td></tr></table>`;
+  if(S.mode==="s"){
+    $("teach").innerHTML=`<span class="hl">串联：各管流量相等</span> —— 每根管的流量都是 Q = ${Qt.toFixed(1)}，没有别的出路。<br>`+
+      `<span class="hl">水压按阻力分配、压差相加</span>：${list.map(p=>p.dp.toFixed(1)).join(" + ")} = ${P} kPa（=泵压）。阻力越大的管分到的压差越多（ΔP = Q×R）。<br>`+
+      `换算到电路：I 处处相等，U₁+U₂(+U₃) = 电源电压，R总 = R₁+R₂(+R₃) = ${Rt.toFixed(2)}。`;
+  }else{
+    $("teach").innerHTML=`<span class="hl">并联：各支路两端压差相同</span> —— 都等于泵压 ${P} kPa。<br>`+
+      `<span class="hl">支路流量之和 = 干路总流量</span>：${list.map(p=>p.q.toFixed(1)).join(" + ")} = ${phys.Qt.toFixed(1)}。阻力小的支路流量大（Q = P/R）。<br>`+
+      `<span class="hl">增删支路的影响</span>：新增一条支路 → 总阻力减小、<b>干路总流量增大</b>，但<span class="hl">其余支路流量不变</span>（它们两端压差仍=泵压）；删除则相反。<br>`+
+      `对应电路：U 并联各支路相等，I = I₁+I₂+…，1/R总 = Σ1/Rᵢ。`;
+  }
+}
+$("panel").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b||b.disabled)return;
+  const a=b.dataset.a,v=b.dataset.v;
+  if(a==="mode")S.mode=v;
+  else if(a==="pump")S.pump=+v;
+  else if(a==="ns")S.nS=+v;
+  else if(a==="np"){S.nP=Math.max(1,Math.min(4,S.nP+ +v));}
+  else if(a==="rs"){const[i,j]=v.split(",");S.resS[i]=+j;}
+  else if(a==="rp"){const[i,j]=v.split(",");S.resP[i]=+j;}
+  build();
+});
+
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function loop(t){
+  const dt=Math.min(0.05,(t-last)/1000);last=t;
+  update(dt);draw();requestAnimationFrame(loop);
+}
+build();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

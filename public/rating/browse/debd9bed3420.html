@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>α / β / γ 三种射线对比演示（穿透 · 磁场偏转 · 电离）</title>
+<style>
+:root{--bg:#0a0f1e;--panel:#111a33;--line:#22304f;--txt:#dce6ff;--dim:#8fa3cc;--a:#ff5d4d;--b:#4db8ff;--g:#7dff9a;--gold:#ffd76a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:18px}
+.wrap{max-width:1340px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:12px}
+.layout{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.stage{flex:1 1 720px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#070b16}
+canvas{display:block;width:100%;height:auto}
+.side{flex:0 1 340px;min-width:300px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.card h3{font-size:13px;color:var(--gold);margin-bottom:8px;font-weight:600}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+button{background:#1b2748;color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px;cursor:pointer}
+button:hover{background:#24345e}
+button.on{background:#3b5bbf;border-color:#5f81e6;color:#fff}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+label.chk{font-size:13px;color:var(--dim);display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+td,th{padding:4px 6px;border-bottom:1px solid #1c2846;text-align:center}
+th{color:var(--dim);font-weight:600}
+td.l{text-align:left}
+.statbar{height:8px;border-radius:4px;background:#1c2846;overflow:hidden;margin-top:3px}
+.statbar>i{display:block;height:100%;border-radius:4px}
+#concl{font-size:13.5px;line-height:1.75}
+#concl b{color:var(--gold)}
+.note{font-size:12px;color:var(--dim);line-height:1.6;margin-top:6px}
+input[type=range]{width:110px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>α / β / γ 三种射线 · 穿透本领 & 磁场偏转 & 电离本领 演示</h1>
+<div class="sub">放射源同时发出三束射线 → 插不同挡板看谁能穿过 → 开磁场看谁被偏转 → 看径迹上的离子对比较电离本领</div>
+
+<div class="layout">
+  <div class="stage"><canvas id="cv" width="960" height="520"></canvas></div>
+
+  <div class="side">
+    <div class="card">
+      <h3>① 挡板（插槽在射线途中）</h3>
+      <div class="row" id="plateBtns">
+        <button data-p="none" class="on">不插板</button>
+        <button data-p="paper">纸片</button>
+        <button data-p="alu">铝板 3mm</button>
+        <button data-p="lead">铅板 50mm</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>② 匀强磁场（垂直纸面）</h3>
+      <div class="row" id="fieldBtns">
+        <button data-f="0" class="on">关闭</button>
+        <button data-f="1">B 指向纸内 ⊗</button>
+        <button data-f="2">B 指向纸外 ⊙</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>③ 控制</h3>
+      <div class="row">
+        <button id="pauseBtn">暂停</button>
+        <button id="resetBtn">清零统计</button>
+        <label class="chk"><input type="checkbox" id="sndChk" checked>盖革声</label>
+        <label class="chk"><input type="checkbox" id="ionChk" checked>显示电离径迹</label>
+      </div>
+      <div class="row">
+        <span style="font-size:13px;color:var(--dim)">速率</span>
+        <input type="range" id="spd" min="0.2" max="2" step="0.1" value="1">
+        <span id="spdv" style="font-size:12px;color:var(--dim)">1.0×</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>实时统计</h3>
+      <table id="statTbl"></table>
+      <div class="note">“离子对/粒子”越多 → 电离本领越强（α ＞ β ＞ γ）</div>
+    </div>
+
+    <div class="card"><h3>当前现象解读</h3><div id="concl"></div></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <h3>三种射线对照表</h3>
+  <table>
+    <tr><th>射线</th><th>本质</th><th>电荷</th><th>质量</th><th>电离本领</th><th>穿透本领</th></tr>
+    <tr><td><span class="sw" style="background:var(--a)"></span>α</td><td class="l">氦原子核 ⁴₂He</td><td>+2e</td><td>4u</td><td>最强</td><td>最弱（一张纸即可挡住）</td></tr>
+    <tr><td><span class="sw" style="background:var(--b)"></span>β</td><td class="l">高速电子 e⁻</td><td>−e</td><td>1/1836 u</td><td>较弱</td><td>较强（几 mm 铝板可挡住）</td></tr>
+    <tr><td><span class="sw" style="background:var(--g)"></span>γ</td><td class="l">高能光子（电磁波）</td><td>0</td><td>0（静质量）</td><td>最弱</td><td>最强（需厚铅板大幅减弱）</td></tr>
+  </table>
+  <div class="note">教学提示：本演示夸大了空间尺度与磁场偏转比例（真实 α 在空气中射程仅几厘米），重点在定性规律：电离本领 α＞β＞γ，穿透本领 α＜β＜γ，磁场中 α/β 反向偏转、γ 不偏转。</div>
+</div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const trail=document.createElement('canvas');trail.width=W;trail.height=H;
+const tctx=trail.getContext('2d');
+
+const SRC={x:86,y:H/2};          // 放射源
+const PLATE_X=330;               // 挡板插槽
+const F={x1:520,x2:730};         // 磁场区域
+const DET_X=916;                 // 探测器
+
+const PLATES={
+ paper:{name:'纸片',     thick:10,pass:{a:0,b:0.99,g:0.97},c1:'#efe8d2',c2:'#b7a97f'},
+ alu :{name:'铝板 3mm', thick:18,pass:{a:0,b:0.03,g:0.85},c1:'#c6cfd9',c2:'#7f8b9b'},
+ lead:{name:'铅板 50mm',thick:28,pass:{a:0,b:0.00,g:0.06},c1:'#a7b1c2',c2:'#525d70'}
+};
+// omega：磁场中的角速度（已夸大）；ion：每步产生离子对概率
+const TYPES={
+ a:{label:'α',color:'#ff5d4d',speed:2.3,omega:-0.0075,ion:0.40,ionN:2,w:2.6,r:2.4},
+ b:{label:'β',color:'#4db8ff',speed:4.6,omega: 0.030,ion:0.06,ionN:1,w:1.8,r:2.0},
+ g:{label:'γ',color:'#7dff9a',speed:6.4,omega: 0,     ion:0.005,ionN:1,w:1.4,r:1.7}
+};
+const KEYS=['a','b','g'];
+
+let plate='none',fieldMode=0,paused=false,speedMul=1,showIon=true,soundOn=true;
+let parts=[],dots=[],flashes=[],detHits=[];
+let emitAcc=0,last=performance.now(),clickBudget=0;
+const stats={};KEYS.forEach(k=>stats[k]={em:0,arr:0,stp:0,ion:0});
+
+/* ---------- 音效（盖革滴答） ---------- */
+let AC=null;
+function sfx(f){
+ if(!soundOn||clickBudget<=0)return;clickBudget--;
+ try{
+  if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();
+  if(AC.state==='suspended')AC.resume();
+  const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
+  o.type='square';o.frequency.value=f;
+  g.gain.setValueAtTime(0.045,t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.035);
+  o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+0.05);
+ }catch(e){}
+}
+
+/* ---------- 离子对小贴图 ---------- */
+function makeDot(c){const t=document.createElement('canvas');t.width=7;t.height=7;
+ const x=t.getContext('2d');x.fillStyle=c;x.beginPath();x.arc(3.5,3.5,2.5,0,6.3);x.fill();return t;}
+const dotP=makeDot('#ffb066'),dotE=makeDot('#6fd9ff');
+
+/* ---------- 仿真 ---------- */
+function spawn(){
+ const k=KEYS[(Math.random()*3)|0];
+ parts.push({t:k,x:SRC.x+14,y:SRC.y+(Math.random()-0.5)*16,
+             ang:(Math.random()-0.5)*0.09,dist:0,checked:false,px:0,py:0});
+ stats[k].em++;
+}
+
+function update(dt){
+ clickBudget=3;
+ const mul=dt*60*speedMul;
+ emitAcc+=9*dt*Math.min(2,speedMul);
+ while(emitAcc>=1){emitAcc--;if(parts.length<450)spawn();}
+ const pl=PLATES[plate],half=pl?pl.thick/2:0;
+ const bdir=fieldMode===1?1:fieldMode===2?-1:0;
+
+ for(let i=parts.length-1;i>=0;i--){
+  const p=parts[i],T=TYPES[p.t];
+  p.px=p.x;p.py=p.y;
+  const step=T.speed*mul;
+  p.x+=Math.cos(p.ang)*step;
+  p.y+=Math.sin(p.ang)*step;
+  p.dist+=step;
+  if(bdir&&p.x>F.x1&&p.x<F.x2)p.ang+=T.omega*mul*bdir;   // 洛伦兹力偏转
+
+  // 电离：α 密集、β 稀疏、γ 极少
+  if(Math.random()<Math.min(1,T.ion*mul)){
+   stats[p.t].ion+=T.ionN;
+   if(showIon&&dots.length<500)
+    for(let j=0;j<T.ionN;j++)
+     dots.push({x:p.x+(Math.random()-0.5)*5,y:p.y+(Math.random()-0.5)*5,life:1});
+  }
+
+  // 挡板：按穿透概率决定能否穿过
+  if(pl&&p.x>PLATE_X-half&&p.x<PLATE_X+half&&!p.checked){
+   p.checked=true;
+   if(Math.random()>pl.pass[p.t]){
+    stats[p.t].stp++;
+    if(flashes.length<60)flashes.push({x:PLATE_X,y:p.y,life:1,c:T.color});
+    sfx(600);
+    parts.splice(i,1);continue;
+   }
+  }
+
+  // 探测器
+  if(p.x>=DET_X){
+   stats[p.t].arr++;
+   if(detHits.length<80)detHits.push({y:p.y,life:1,c:T.color});
+   sfx(2300);
+   parts.splice(i,1);continue;
+  }
+  // 出界 / α 射程（已夸大）
+  if(p.y<-40||p.y>H+40||p.x>W||p.x<-10||(p.t==='a'&&p.dist>1400)){parts.splice(i,1);}
+ }
+
+ const dd=Math.min(1,2.0*dt);
+ for(let i=dots.length-1;i>=0;i--){dots[i].life-=dd;if(dots[i].life<=0)dots.splice(i,1);}
+ for(let i=flashes.length-1;i>=0;i--){flashes[i].life-=2.4*dt;if(flashes[i].life<=0)flashes.splice(i,1);}
+ for(let i=detHits.length-1;i>=0;i--){detHits[i].life-=3*dt;if(detHits[i].life<=0)detHits.splice(i,1);}
+
+ // 径迹层：旧迹淡出 + 画新段
+ tctx.globalCompositeOperation='destination-out';
+ tctx.fillStyle='rgba(0,0,0,0.09)';
+ tctx.fillRect(0,0,W,H);
+ tctx.globalCompositeOperation='source-over';
+ tctx.lineCap='round';
+ for(const p of parts){
+  const T=TYPES[p.t];
+  tctx.strokeStyle=T.color;tctx.globalAlpha=0.75;tctx.lineWidth=T.w;
+  tctx.beginPath();tctx.moveTo(p.px,p.py);tctx.lineTo(p.x,p.y);tctx.stroke();
+ }
+ tctx.globalAlpha=1;
+}
+
+/* ---------- 绘制 ---------- */
+function drawSym(x,y,into){ // ⊗ / ⊙
+ ctx.strokeStyle='rgba(150,180,255,0.55)';ctx.lineWidth=1.3;
+ ctx.beginPath();ctx.arc(x,y,6.5,0,6.3);ctx.stroke();
+ if(into){ctx.beginPath();ctx.moveTo(x-3.2,y-3.2);ctx.lineTo(x+3.2,y+3.2);
+          ctx.moveTo(x+3.2,y-3.2);ctx.lineTo(x-3.2,y+3.2);ctx.stroke();}
+ else{ctx.fillStyle='rgba(150,180,255,0.8)';ctx.beginPath();ctx.arc(x,y,1.7,0,6.3);ctx.fill();}
+}
+
+function render(){
+ const g=ctx.createLinearGradient(0,0,0,H);
+ g.addColorStop(0,'#0c1328');g.addColorStop(1,'#070b16');
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ // 网格
+ ctx.strokeStyle='rgba(120,150,220,0.05)';ctx.lineWidth=1;ctx.beginPath();
+ for(let x=40;x<W;x+=40){ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);}
+ for(let y=40;y<H;y+=40){ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);}
+ ctx.stroke();
+ ctx.textAlign='center';
+
+ // 磁场区域
+ if(fieldMode){
+  ctx.fillStyle='rgba(90,130,255,0.06)';
+  ctx.fillRect(F.x1,34,F.x2-F.x1,H-68);
+  for(let x=F.x1+26;x<F.x2-10;x+=52)
+   for(let y=64;y<H-40;y+=52)drawSym(x,y,fieldMode===1);
+  ctx.fillStyle='#9db8ff';ctx.font='13px sans-serif';
+  ctx.fillText('匀强磁场 B（'+(fieldMode===1?'⊗ 指向纸内':'⊙ 指向纸外')+'）',(F.x1+F.x2)/2,24);
+ }
+ // 插槽与边界虚线
+ ctx.setLineDash([4,6]);ctx.strokeStyle='rgba(140,160,200,0.3)';ctx.beginPath();
+ ctx.moveTo(PLATE_X+.5,30);ctx.lineTo(PLATE_X+.5,H-30);
+ if(fieldMode){ctx.moveTo(F.x1+.5,34);ctx.lineTo(F.x1+.5,H-34);
+               ctx.moveTo(F.x2+.5,34);ctx.lineTo(F.x2+.5,H-34);}
+ ctx.stroke();ctx.setLineDash([]);
+
+ // 挡板
+ if(plate!=='none'){
+  const pl=PLATES[plate],h=pl.thick/2,y0=52,y1=H-52;
+  const lg=ctx.createLinearGradient(PLATE_X-h,0,PLATE_X+h,0);
+  lg.addColorStop(0,pl.c2);lg.addColorStop(0.5,pl.c1);lg.addColorStop(1,pl.c2);
+  ctx.fillStyle=lg;ctx.fillRect(PLATE_X-h,y0,pl.thick,y1-y0);
+  ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.strokeRect(PLATE_X-h,y0,pl.thick,y1-y0);
+  ctx.fillStyle='#e8eefc';ctx.font='13px sans-serif';
+  ctx.fillText('挡板：'+pl.name,PLATE_X,44);
+ }else{
+  ctx.fillStyle='#8fa3cc';ctx.font='12px sans-serif';
+  ctx.fillText('挡板插槽',PLATE_X,44);
+ }
+
+ // 探测器
+ ctx.fillStyle='#141f3c';ctx.fillRect(DET_X,34,16,H-68);
+ ctx.strokeStyle='#3d5490';ctx.strokeRect(DET_X,34,16,H-68);
+ ctx.save();ctx.translate(DET_X+36,H/2);ctx.rotate(-Math.PI/2);
+ ctx.fillStyle='#8fa3cc';ctx.font='13px sans-serif';ctx.fillText('探测器',0,0);ctx.restore();
+
+ // 放射源（铅准直盒）
+ const sy=SRC.y;
+ ctx.fillStyle='#232c44';ctx.strokeStyle='#3f4f7d';ctx.lineWidth=1.5;
+ ctx.beginPath();
+ if(ctx.roundRect)ctx.roundRect(28,sy-56,70,112,9);else ctx.rect(28,sy-56,70,112);
+ ctx.fill();ctx.stroke();
+ ctx.fillStyle='#0a101f';ctx.fillRect(92,sy-15,12,30);
+ ctx.fillStyle='#ffd76a';ctx.font='26px sans-serif';ctx.fillText('☢',63,sy-6);
+ ctx.fillStyle='#8fa3cc';ctx.font='12px sans-serif';ctx.fillText('放射源',63,sy+36);
+
+ // 径迹层
+ ctx.drawImage(trail,0,0);
+
+ // 探测器命中闪光
+ for(const h of detHits){
+  ctx.globalAlpha=Math.max(0,h.life)*0.9;ctx.fillStyle=h.c;
+  ctx.fillRect(DET_X-2,h.y-5,20,10);
+ }
+ ctx.globalAlpha=1;
+
+ // 离子对（橙=正离子，青=电子）
+ if(showIon)for(const d of dots){
+  ctx.globalAlpha=Math.max(0,d.life)*0.9;
+  ctx.drawImage(dotP,d.x-6,d.y-3);
+  ctx.drawImage(dotE,d.x+1,d.y-3);
+ }
+ ctx.globalAlpha=1;
+
+ // 粒子头部（光点）
+ for(const p of parts){
+  const T=TYPES[p.t];
+  ctx.fillStyle=T.color;
+  ctx.globalAlpha=0.28;ctx.beginPath();ctx.arc(p.x,p.y,T.r*2.6,0,6.3);ctx.fill();
+  ctx.globalAlpha=1;ctx.beginPath();ctx.arc(p.x,p.y,T.r,0,6.3);ctx.fill();
+ }
+ // 被挡住时的闪圈
+ for(const f of flashes){
+  ctx.globalAlpha=Math.max(0,f.life);
+  ctx.strokeStyle=f.c;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(f.x,f.y,(1-f.life)*20+3,0,6.3);ctx.stroke();
+ }
+ ctx.globalAlpha=1;
+
+ // 图例
+ ctx.textAlign='left';ctx.font='12.5px sans-serif';
+ [['α 粒子（氦核 +2e）',TYPES.a.color],
+  ['β 粒子（电子 −e）',TYPES.b.color],
+  ['γ 射线（光子，不带电）',TYPES.g.color]].forEach((L,i)=>{
+  const y=56+i*20;
+  ctx.strokeStyle=L[1];ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(16,y-4);ctx.lineTo(40,y-4);ctx.stroke();
+  ctx.fillStyle='#c9d6f2';ctx.fillText(L[0],48,y);
+ });
+ ctx.textAlign='center';
+}
+
+/* ---------- 统计与解读 ---------- */
+function refreshStats(){
+ const per={};let mx=1;
+ for(const k of KEYS){per[k]=stats[k].em?stats[k].ion/stats[k].em:0;mx=Math.max(mx,per[k]);}
+ const L=Math.log10(1+mx);
+ let h='<tr><th>射线</th><th>发射</th><th>到达</th><th>被挡</th><th>离子对/粒子</th></tr>';
+ for(const k of KEYS){
+  const s=stats[k],T=TYPES[k];
+  const w=Math.min(100,Math.log10(1+per[k])/L*100);
+  h+='<tr><td><span class="sw" style="background:'+T.color+'"></span>'+T.label+'</td>'
+    +'<td>'+s.em+'</td><td>'+s.arr+'</td>'
+    +'<td style="color:'+(s.stp?'#ffee99':'inherit')+'">'+s.stp+'</td>'
+    +'<td><div class="statbar"><i style="width:'+w+'%;background:'+T.color+'"></i></div>'+per[k].toFixed(1)+'</td></tr>';
+ }
+ $('statTbl').innerHTML=h;
+}
+
+function refreshConcl(){
+ const p={
+  none:'未插挡板：<b>α、β、γ</b> 三种射线都能直达探测器。',
+  paper:'插入<b>纸片</b>：α 立即被挡住（穿透最弱），β、γ 仍穿过 —— 一张纸即可分辨 α。',
+  alu:'插入<b>铝板 3mm</b>：α、β 均被挡住，γ 大部分仍穿过 —— 铝板可挡 β。',
+  lead:'插入<b>厚铅板</b>：α、β 全被吸收，γ 也被大幅衰减，仅少量穿过 —— 防 γ 需厚铅。'
+ }[plate];
+ let f='';
+ if(fieldMode===1)f='<br>磁场（⊗向里）：α 向<b>上</b>偏、β 向<b>下</b>偏且偏转明显大得多，γ <b>不偏转</b> → α 带正电、β 带负电且质量远小于 α，γ 不带电。';
+ if(fieldMode===2)f='<br>磁场（⊙向外）：偏转方向整体反过来：α 向下偏、β 向上偏，γ 依旧不偏转。';
+ $('concl').innerHTML=p+f+'<br>径迹上的橙/青小点是形成的<b>离子对</b>：α 最密、β 较稀、γ 几乎没有 → 电离本领 α＞β＞γ。';
+}
+
+/* ---------- 交互 ---------- */
+document.querySelectorAll('#plateBtns button').forEach(b=>{
+ b.onclick=()=>{plate=b.dataset.p;
+  document.querySelectorAll('#plateBtns button').forEach(x=>x.classList.toggle('on',x===b));
+  refreshConcl();};
+});
+document.querySelectorAll('#fieldBtns button').forEach(b=>{
+ b.onclick=()=>{fieldMode=+b.dataset.f;
+  document.querySelectorAll('#fieldBtns button').forEach(x=>x.classList.toggle('on',x===b));
+  refreshConcl();};
+});
+$('pauseBtn').onclick=()=>{paused=!paused;$('pauseBtn').textContent=paused?'继续':'暂停';};
+$('resetBtn').onclick=()=>{
+ KEYS.forEach(k=>{const s=stats[k];s.em=s.arr=s.stp=s.ion=0;});
+ dots=[];flashes=[];detHits=[];tctx.clearRect(0,0,W,H);refreshStats();
+};
+$('sndChk').onchange=e=>soundOn=e.target.checked;
+$('ionChk').onchange=e=>showIon=e.target.checked;
+$('spd').oninput=e=>{speedMul=+e.target.value;$('spdv').textContent=speedMul.toFixed(1)+'×';};
+
+/* ---------- 主循环 ---------- */
+function loop(now){
+ const dt=Math.min(0.05,(now-last)/1000);last=now;
+ if(!paused)update(dt);
+ render();
+ requestAnimationFrame(loop);
+}
+refreshConcl();refreshStats();
+setInterval(refreshStats,300);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

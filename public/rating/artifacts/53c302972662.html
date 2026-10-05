@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>考虑空气阻力的小球下落演示（F = −kv）</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --line:#26324a; --txt:#e8edf7;
+    --dim:#8ea0bf; --accent:#ffd166;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);
+    font:14px/1.5 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    min-height:100vh;padding:16px}
+  header{max-width:1180px;margin:0 auto 12px}
+  header h1{font-size:20px;margin-bottom:2px}
+  header p{color:var(--dim);font-size:13px}
+  header .formula{font-family:ui-monospace,Consolas,monospace;color:var(--accent);margin-top:4px}
+  .layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 320px;gap:12px}
+  @media(max-width:920px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .panel h2{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:6px}
+  canvas{display:block;width:100%;border-radius:6px;background:#0b101c}
+  #fallCanvas{height:340px}
+  #vtCanvas{height:300px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px}
+  .card h3{font-size:14px;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:7px 0 2px;font-size:13px}
+  .row .val{font-family:ui-monospace,Consolas,monospace;color:var(--accent)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .stats{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--dim);margin-top:6px;line-height:1.7}
+  .stats b{color:var(--txt);font-weight:600}
+  .btns{display:flex;gap:8px;margin:10px 0 6px}
+  button{flex:1;padding:8px 0;border:1px solid var(--line);border-radius:8px;
+    background:#202a40;color:var(--txt);font-size:14px;cursor:pointer}
+  button:hover{background:#2a3752}
+  button.primary{background:#2f4a8a;border-color:#3d5db3}
+  .presets{display:flex;gap:8px;margin-top:6px}
+  .presets button{font-size:12px;padding:6px 0}
+  .status{font-size:13px;color:var(--dim);text-align:center;margin-top:8px;min-height:20px}
+</style>
+</head>
+<body>
+<header>
+  <h1>考虑空气阻力的小球下落（阻力与速度成正比）</h1>
+  <p>两球同屏下落，可实时调节质量 m 与阻力系数 k，观察 v–t 曲线如何渐渐趋于终极速度。</p>
+  <p class="formula">m·dv/dt = m·g − k·v　→　v(t) = v<sub>t</sub>·(1 − e<sup>−t/τ</sup>)，其中 τ = m/k，终极速度 v<sub>t</sub> = m·g/k</p>
+</header>
+
+<div class="layout">
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="panel"><h2>下落动画（高度 100 m，球半径按质量的立方根示意）</h2><canvas id="fallCanvas"></canvas></div>
+    <div class="panel"><h2>v – t 曲线（水平虚线为各自的终极速度 v<sub>t</sub>）</h2><canvas id="vtCanvas"></canvas></div>
+  </div>
+  <div>
+    <div id="cards"></div>
+    <div class="card">
+      <h3>全局设置</h3>
+      <div class="row"><span>重力加速度 g</span><span class="val" id="gv"></span></div>
+      <input type="range" id="gSlider" min="1.6" max="20" step="0.1" value="9.8">
+      <div class="row"><span>播放倍率</span><span class="val" id="spdV"></span></div>
+      <input type="range" id="spdSlider" min="0.25" max="3" step="0.05" value="1">
+      <div class="btns">
+        <button class="primary" id="btnRun">开始</button>
+        <button id="btnReset">重置</button>
+      </div>
+      <div class="presets">
+        <button id="pre1">轻重两球（k 相同）</button>
+        <button id="pre2">同质量不同阻力</button>
+      </div>
+      <div class="status" id="status">t = 0.00 s（待开始）</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+// ---------- 常量与状态 ----------
+const Hgt = 100;            // 下落高度 (m)
+const DT  = 1/240;          // 物理步长 (s)
+const SAMPLE = 0.02;        // 采样间隔 (s)，用于画 v-t 曲线
+let g = 9.8, speed = 1, t = 0, acc = 0, running = false, lastTs = null;
+
+const balls = [
+  {name:'球 A（红）', short:'球A', color:'#ff6b6b', m:0.5, k:1.0, v:0, y:0, landed:false, landT:null, samples:[], nextT:0, el:{}},
+  {name:'球 B（蓝）', short:'球B', color:'#4dc9ff', m:2.0, k:1.0, v:0, y:0, landed:false, landT:null, samples:[], nextT:0, el:{}}
+];
+const vtOf  = b => b.k > 1e-9 ? b.m*g/b.k : Infinity;
+const tauOf = b => b.k > 1e-9 ? b.m/b.k   : Infinity;
+const fmt   = x => (Math.round(x*100)/100).toString();
+function niceStep(range,n){
+  const raw = range/n, p = Math.pow(10,Math.floor(Math.log10(raw)));
+  for(const f of [1,2,2.5,5,10]) if(f*p >= raw) return f*p;
+  return 10*p;
+}
+
+// ---------- 控制面板 ----------
+const cards = document.getElementById('cards');
+function makeCard(b){
+  const el = document.createElement('div'); el.className='card';
+  el.innerHTML = `
+    <h3><span class="dot" style="background:${b.color}"></span>${b.name}</h3>
+    <div class="row"><span>质量 m</span><span class="val" data-mv></span></div>
+    <input type="range" min="0.1" max="5" step="0.05" data-m>
+    <div class="row"><span>阻力系数 k</span><span class="val" data-kv></span></div>
+    <input type="range" min="0" max="10" step="0.1" data-k>
+    <div class="stats">
+      终极速度 v<sub>t</sub> = <b data-vt></b><br>
+      特征时间 τ = m/k = <b data-tau></b><br>
+      当前速度 v = <b data-v></b> m/s，已下落 <b data-y></b> m<br>
+      已达 v<sub>t</sub> 的 <b data-pct></b>
+    </div>`;
+  cards.appendChild(el);
+  b.el = {
+    m: el.querySelector('[data-m]'), k: el.querySelector('[data-k]'),
+    mv: el.querySelector('[data-mv]'), kv: el.querySelector('[data-kv]'),
+    vt: el.querySelector('[data-vt]'), tau: el.querySelector('[data-tau]'),
+    v: el.querySelector('[data-v]'), y: el.querySelector('[data-y]'),
+    pct: el.querySelector('[data-pct]')
+  };
+  b.el.m.value = b.m; b.el.k.value = b.k;
+  b.el.m.oninput = ()=>{ b.m = +b.el.m.value; syncLabels(b); };
+  b.el.k.oninput = ()=>{ b.k = +b.el.k.value; syncLabels(b); };
+  syncLabels(b);
+}
+function syncLabels(b){
+  b.el.mv.textContent = b.m.toFixed(2)+' kg';
+  b.el.kv.textContent = b.k.toFixed(2)+' kg/s';
+}
+balls.forEach(makeCard);
+
+const gv=document.getElementById('gv'), gS=document.getElementById('gSlider');
+const sv=document.getElementById('spdV'), sS=document.getElementById('spdSlider');
+const btnRun=document.getElementById('btnRun'), btnReset=document.getElementById('btnReset');
+const statusEl=document.getElementById('status');
+function syncGlobal(){ gv.textContent=g.toFixed(1)+' m/s²'; sv.textContent='× '+speed.toFixed(2); }
+gS.oninput = ()=>{ g=+gS.value; syncGlobal(); };
+sS.oninput = ()=>{ speed=+sS.value; syncGlobal(); };
+syncGlobal();
+
+function resetSim(){
+  t=0; acc=0; running=false;
+  balls.forEach(b=>{ b.v=0; b.y=0; b.landed=false; b.landT=null; b.samples=[]; b.nextT=0; });
+  btnRun.textContent='开始';
+}
+function setParams(ps){
+  balls.forEach((b,i)=>{ b.m=ps[i][0]; b.k=ps[i][1]; b.el.m.value=b.m; b.el.k.value=b.k; syncLabels(b); });
+  resetSim();
+}
+document.getElementById('pre1').onclick = ()=>setParams([[0.5,1.0],[2.0,1.0]]);
+document.getElementById('pre2').onclick = ()=>setParams([[1.0,0.3],[1.0,3.0]]);
+btnRun.onclick = ()=>{
+  if(!running && balls.every(b=>b.landed)) resetSim();
+  running = !running;
+  btnRun.textContent = running ? '暂停' : (balls.every(b=>b.landed) && t>0 ? '重新开始' : '开始 / 继续');
+};
+btnReset.onclick = resetSim;
+
+// ---------- 物理推进 ----------
+function stepAll(){
+  for(const b of balls){
+    if(b.landed) continue;
+    b.v += (g - (b.k/b.m)*b.v) * DT;   // dv/dt = g − (k/m)v
+    b.y += b.v * DT;
+  }
+  t += DT;
+  for(const b of balls){
+    if(b.landed) continue;
+    if(b.y >= Hgt){ b.y=Hgt; b.landed=true; b.landT=t; b.samples.push({t,v:b.v}); continue; }
+    if(t >= b.nextT - 1e-9){ b.samples.push({t,v:b.v}); b.nextT += SAMPLE; }
+  }
+  if(balls.every(b=>b.landed)){
+    running=false;
+    btnRun.textContent='重新开始';
+  }
+}
+
+// ---------- 画布 ----------
+const fallCv=document.getElementById('fallCanvas'), vtCv=document.getElementById('vtCanvas');
+const fx=fallCv.getContext('2d'), cx=vtCv.getContext('2d');
+function fit(cv){
+  const r=cv.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  cv.width=Math.max(1,r.width*d); cv.height=Math.max(1,r.height*d);
+  cv.getContext('2d').setTransform(d,0,0,d,0,0);
+}
+function fitAll(){ fit(fallCv); fit(vtCv); }
+window.addEventListener('resize',fitAll); fitAll();
+
+function drawFall(){
+  const W=fallCv.clientWidth, Hc=fallCv.clientHeight;
+  fx.clearRect(0,0,W,Hc);
+  const padT=56, padB=34, plotH=Hc-padT-padB, ppm=plotH/Hgt, gy=padT+plotH;
+  const xA=W*0.32, xB=W*0.68;
+
+  // 高度刻度与横向参考线
+  fx.font='11px ui-monospace,Consolas,monospace';
+  for(let d=0; d<=Hgt; d+=10){
+    const y=padT+d*ppm, alt=Hgt-d;
+    if(alt%20===0){
+      fx.strokeStyle='rgba(255,255,255,.05)';
+      fx.beginPath(); fx.moveTo(40,y); fx.lineTo(W-8,y); fx.stroke();
+    }
+    fx.strokeStyle='rgba(255,255,255,.25)';
+    fx.beginPath(); fx.moveTo(30,y); fx.lineTo(38,y); fx.stroke();
+    fx.fillStyle='#8ea0bf'; fx.textAlign='right';
+    fx.fillText(alt+' m', 26, y+4);
+  }
+  // 出发线与轨道
+  fx.strokeStyle='rgba(255,209,102,.4)'; fx.setLineDash([6,5]);
+  fx.beginPath(); fx.moveTo(40,padT); fx.lineTo(W-8,padT); fx.stroke();
+  fx.strokeStyle='rgba(255,255,255,.1)';
+  fx.beginPath(); fx.moveTo(xA,padT); fx.lineTo(xA,gy);
+  fx.moveTo(xB,padT); fx.lineTo(xB,gy); fx.stroke();
+  fx.setLineDash([]);
+  // 地面（斜纹）
+  fx.fillStyle='#1a2334'; fx.fillRect(0,gy,W,Hc-gy);
+  fx.save(); fx.beginPath(); fx.rect(0,gy,W,Hc-gy); fx.clip();
+  fx.strokeStyle='rgba(255,255,255,.08)';
+  for(let x=-Hc;x<W;x+=12){ fx.beginPath(); fx.moveTo(x,Hc); fx.lineTo(x+Hc-gy,gy); fx.stroke(); }
+  fx.restore();
+  fx.strokeStyle='rgba(255,255,255,.3)';
+  fx.beginPath(); fx.moveTo(0,gy); fx.lineTo(W,gy); fx.stroke();
+
+  // 两个球
+  for(const b of balls){
+    const x = b===balls[0] ? xA : xB;
+    const r = Math.max(7, Math.min(24, 9*Math.cbrt(b.m)));
+    const y = gy - b.y*ppm;
+    // 顶部信息
+    fx.textAlign='center'; fx.font='12px system-ui,sans-serif'; fx.fillStyle='#e8edf7';
+    fx.fillText(`${b.name}　m=${b.m.toFixed(2)} kg　k=${b.k.toFixed(2)} kg/s`, x, 20);
+    fx.fillStyle=b.color; fx.font='11px ui-monospace,Consolas,monospace';
+    fx.fillText(`v = ${b.v.toFixed(2)} m/s`, x, 38);
+    if(b.landed){
+      fx.fillStyle=b.color;
+      fx.fillText(`✓ 已落地 ${b.landT.toFixed(2)} s`, x, gy-14);
+    }
+    // 球体
+    const grd=fx.createRadialGradient(x-r*0.35,y-r*0.35,r*0.15,x,y,r);
+    grd.addColorStop(0,'#ffffff'); grd.addColorStop(0.25,b.color); grd.addColorStop(1,b.color);
+    fx.fillStyle=grd; fx.beginPath(); fx.arc(x,Math.min(y,gy-r),r,0,Math.PI*2); fx.fill();
+    fx.strokeStyle='rgba(0,0,0,.4)'; fx.stroke();
+  }
+}
+
+function drawChart(){
+  const W=vtCv.clientWidth, Hc=vtCv.clientHeight;
+  cx.clearRect(0,0,W,Hc);
+  const L=48,R=14,T=16,B=30, pw=W-L-R, ph=Hc-T-B;
+  const vts=balls.map(vtOf);
+  let vmax=10;
+  vts.forEach(v=>{ if(isFinite(v)) vmax=Math.max(vmax,v); });
+  balls.forEach(b=>{ if(b.samples.length) vmax=Math.max(vmax,b.samples[b.samples.length-1].v); });
+  const tMax=Math.max(10, Math.ceil(t+1)), vMax=vmax*1.15;
+  const X=tt=>L+Math.min(tt,tMax)/tMax*pw, Y=vv=>T+ph-Math.min(vv,vMax)/vMax*ph;
+
+  // 网格与刻度
+  cx.font='11px ui-monospace,Consolas,monospace';
+  const ts=niceStep(tMax,8), vs=niceStep(vMax,5);
+  cx.textAlign='center';
+  for(let i=0;i*ts<=tMax+1e-9;i++){
+    const tt=i*ts, xx=X(tt);
+    cx.strokeStyle='rgba(255,255,255,.07)';
+    cx.beginPath(); cx.moveTo(xx,T); cx.lineTo(xx,T+ph); cx.stroke();
+    cx.fillStyle='#8ea0bf'; cx.fillText(fmt(tt), xx, Hc-10);
+  }
+  cx.textAlign='right';
+  for(let i=0;i*vs<=vMax+1e-9;i++){
+    const vv=i*vs, yy=Y(vv);
+    cx.strokeStyle='rgba(255,255,255,.07)';
+    cx.beginPath(); cx.moveTo(L,yy); cx.lineTo(L+pw,yy); cx.stroke();
+    cx.fillStyle='#8ea0bf'; cx.fillText(fmt(vv), L-6, yy+4);
+  }
+  cx.strokeStyle='rgba(255,255,255,.35)';
+  cx.beginPath(); cx.moveTo(L,T); cx.lineTo(L,T+ph); cx.lineTo(L+pw,T+ph); cx.stroke();
+  cx.textAlign='left';
+  cx.fillText('v / (m·s⁻¹)', 6, 11);
+  cx.textAlign='right'; cx.fillText('t / s', W-R, Hc-10);
+
+  // 终极速度虚线
+  balls.forEach((b,i)=>{
+    const v=vts[i];
+    if(isFinite(v) && v<=vMax){
+      cx.strokeStyle=b.color; cx.globalAlpha=0.55; cx.setLineDash([6,4]); cx.lineWidth=1;
+      cx.beginPath(); cx.moveTo(L,Y(v)); cx.lineTo(L+pw,Y(v)); cx.stroke();
+      cx.setLineDash([]); cx.globalAlpha=1;
+      cx.fillStyle=b.color; cx.textAlign='right'; cx.font='11px ui-monospace,Consolas,monospace';
+      cx.fillText('v_t = '+v.toFixed(2), L+pw-4, Y(v)-4);
+    }
+  });
+
+  // 速度曲线（裁剪在坐标区内）
+  cx.save(); cx.beginPath(); cx.rect(L,T,pw,ph); cx.clip();
+  balls.forEach(b=>{
+    if(b.samples.length<1) return;
+    cx.strokeStyle=b.color; cx.lineWidth=2; cx.beginPath();
+    b.samples.forEach((s,i)=>{ i?cx.lineTo(X(s.t),Y(s.v)):cx.moveTo(X(s.t),Y(s.v)); });
+    cx.stroke();
+    const ct=b.landed?b.landT:t;
+    cx.fillStyle=b.color; cx.beginPath(); cx.arc(X(ct),Y(b.v),3.5,0,Math.PI*2); cx.fill();
+  });
+  cx.restore();
+
+  // 图例
+  cx.textAlign='left'; cx.font='12px system-ui,sans-serif';
+  let lx=L+10;
+  balls.forEach(b=>{
+    cx.strokeStyle=b.color; cx.lineWidth=2;
+    cx.beginPath(); cx.moveTo(lx,T+14); cx.lineTo(lx+18,T+14); cx.stroke();
+    cx.fillStyle='#e8edf7'; cx.fillText(b.short, lx+23, T+18);
+    lx += 23 + cx.measureText(b.short).width + 18;
+  });
+}
+
+// ---------- 读数与主循环 ----------
+function updateReadouts(){
+  balls.forEach(b=>{
+    const vt=vtOf(b), tau=tauOf(b);
+    b.el.vt.textContent  = isFinite(vt)  ? vt.toFixed(2)+' m/s' : '∞（无阻力）';
+    b.el.tau.textContent = isFinite(tau) ? tau.toFixed(2)+' s'  : '—';
+    b.el.v.textContent   = b.v.toFixed(2);
+    b.el.y.textContent   = b.y.toFixed(1);
+    b.el.pct.textContent = isFinite(vt) ? (b.v/vt*100).toFixed(0)+'%' : '—';
+  });
+  const allLand = balls.every(b=>b.landed) && t>0;
+  statusEl.textContent = `t = ${t.toFixed(2)} s` +
+    (running ? '（模拟中…）' : (allLand ? '（两球均已落地）' : (t>0?'（已暂停）':'（待开始）')));
+}
+
+function frame(ts){
+  if(lastTs===null) lastTs=ts;
+  const fd=Math.min(0.05,(ts-lastTs)/1000); lastTs=ts;
+  if(running){
+    acc += fd*speed;
+    let n=0;
+    while(acc>=DT && n<2000){ stepAll(); acc-=DT; n++; }
+  }
+  drawFall(); drawChart(); updateReadouts();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

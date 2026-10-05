@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>频闪照片测重力加速度（含“首闪不在释放瞬间”坑）</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;background:#e9eef4;color:#22303c;margin:0;padding:18px}
+  .wrap{max-width:1150px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:#5a6b7b;font-size:13px;margin-bottom:14px}
+  .layout{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+  .card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(30,50,70,.08);padding:14px 16px;margin-bottom:16px}
+  .photoCol{flex:0 0 auto}
+  .ctrlCol{flex:1 1 430px;min-width:390px}
+  .card h2{font-size:15px;margin:0 0 10px;border-left:4px solid #0b7aE0;padding-left:8px}
+  canvas{display:block;border-radius:6px}
+  label{font-size:13px}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  input[type=range]{flex:1;min-width:140px}
+  .val{font-weight:600;color:#0b6}
+  button{background:#0b7aE0;border:none;color:#fff;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer}
+  button:hover{background:#096
+8bd}
+  button.warn{background:#d9534f}
+  button.ghostb{background:#6c757d}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid #d7dee6;padding:4px 8px;text-align:center}
+  th{background:#f0f4f8}
+  tr:nth-child(even) td{background:#fafcfe}
+  .big{font-size:26px;font-weight:700;color:#0b6}
+  .ok{color:#1a9;}.bad{color:#d9534f}
+  .note{font-size:12px;color:#667}
+  .reveal{background:#fff8e6;border:1px dashed #e0a800;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7}
+  .hide{display:none}
+  select,input[type=number]{padding:5px;border:1px solid #cfd8e0;border-radius:5px;font-size:13px}
+  .formula{font-family:"Times New Roman",serif;font-size:15px;background:#f5f8fb;padding:8px 10px;border-radius:6px;margin:6px 0}
+  ul{margin:6px 0;padding-left:20px;font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>频闪照片测重力加速度</h1>
+  <div class="sub">自由落体的频闪照片 · 逐段位移差 / 逐差法求 g · 中点速度法求瞬时速度 · 内置“首闪不在释放瞬间”的坑</div>
+
+  <div class="layout">
+    <div class="photoCol card">
+      <canvas id="cv" width="400" height="680"></canvas>
+      <div class="note" style="margin-top:8px">照片左侧有刻度尺（单位 cm，零点在照片上沿）。像序号标在小球右侧。</div>
+    </div>
+
+    <div class="ctrlCol">
+      <div class="card">
+        <h2>拍摄控制</h2>
+        <div class="row">
+          <label>闪光频率 f = <span class="val" id="fLab">10</span> Hz</label>
+          <input type="range" id="fSl" min="8" max="25" step="1" value="10">
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="trapCk" checked> 埋坑：首闪不在释放瞬间（随机延迟）</label>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="noiseCk" checked> 模拟读数误差 ±0.5 mm</label>
+        </div>
+        <div class="row">
+          <button id="reshoot">重新拍摄</button>
+          <button id="revealBtn" class="warn">揭秘（显示真实释放点）</button>
+        </div>
+        <div class="note">相邻像时间间隔 T = 1/f = <b id="tLab"></b> s，本次共 <b id="nLab"></b> 个像。</div>
+      </div>
+
+      <div class="card">
+        <h2>数据记录与处理</h2>
+        <div id="tblWrap"></div>
+        <div id="resWrap" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <h2>瞬时速度计算器（中点速度法）</h2>
+        <div class="row">
+          <label>求第</label>
+          <select id="imgSel"></select>
+          <label>个像处的瞬时速度：</label>
+          <button id="calcV" class="ghostb">计算</button>
+        </div>
+        <div id="vOut"></div>
+      </div>
+
+      <div class="card">
+        <h2>先想一想（揭秘前作答）</h2>
+        <div class="row">
+          <label>第 1 个像处小球的速度 v₁ =</label>
+          <input type="number" id="quizIn" step="0.01" style="width:90px"> m/s
+          <button id="quizBtn">提交</button>
+        </div>
+        <div id="quizFb" class="note"></div>
+      </div>
+
+      <div class="card hide" id="revealCard">
+        <h2>揭秘：这张照片的真相</h2>
+        <div class="reveal" id="revealBody"></div>
+      </div>
+
+      <div class="card">
+        <h2>教学提示</h2>
+        <ul>
+          <li>逐段位移差 Δs = gT² 只要求<b>相邻时间间隔相等</b>，与首闪是否在释放瞬间无关 → 求 g 不受坑影响。</li>
+          <li>中点速度公式 v<sub>i</sub> = (s<sub>前</sub>+s<sub>后</sub>)/2T 同样不受影响，算出的就是真实瞬时速度。</li>
+          <li>会翻车的做法：默认“第 1 个像 = 释放瞬间”，即认为 v₁ = 0、s₁ = ½gT²、s₁:s₂:s₃ = 1:3:5、v<sub>n</sub> = g(n−1)T。</li>
+          <li>建议流程：埋坑拍摄 → 学生用逐差法算 g、用中点法算 v → 作答 v₁ → 揭秘对照。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const G=9.8, Y_TOP=-0.15, FIELD=2.0, MAXN=12, BALLX_FRAC=0.52;
+const st={f:10,trap:true,noise:true,tauFrac:0,revealed:false};
+let T=0,tau=0,N=0,ys=[],sm=[];
+
+function reshoot(){
+  st.tauFrac = st.trap ? 0.25+0.5*Math.random() : 0;
+  st.revealed=false;
+  build();
+}
+function build(){
+  T=1/st.f; tau=st.tauFrac*T;
+  const yMax=1.82;
+  const maxK=Math.floor((Math.sqrt(2*yMax/G)-tau)/T);
+  N=Math.min(maxK+1,MAXN);
+  ys=[];sm=[];
+  for(let k=0;k<N;k++) ys.push(0.5*G*Math.pow(tau+k*T,2));
+  for(let k=0;k<N-1;k++){
+    let s=ys[k+1]-ys[k];
+    if(st.noise) s+=(Math.random()*2-1)*0.0005;
+    sm.push(Math.round(s*1000)/1000);
+  }
+  render();
+}
+function gZhucha(){
+  const m=sm.length,k=Math.floor(m/2);
+  if(k<2)return null;
+  let a=0,b=0;
+  for(let i=0;i<k;i++)a+=sm[i];
+  for(let i=k;i<2*k;i++)b+=sm[i];
+  return (b-a)/(k*k*T*T);
+}
+function gAvgDiff(){
+  const gs=[];
+  for(let i=1;i<sm.length;i++) gs.push((sm[i]-sm[i-1])/(T*T));
+  return {list:gs,avg:gs.reduce((x,y)=>x+y,0)/gs.length};
+}
+
+/* ---------- 画照片 ---------- */
+function draw(){
+  const cv=$("cv"),dpr=window.devicePixelRatio||1;
+  const W=400,H=680;
+  if(cv.width!==W*dpr){cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+"px";cv.style.height=H+"px";}
+  const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
+  const x0=58,y0=14,w=300,h=636,ppm=h/FIELD;
+  const yPix=m=>y0+(m-Y_TOP)*ppm, xC=x0+w*BALLX_FRAC;
+  c.clearRect(0,0,W,H);
+  // 相纸白边
+  c.fillStyle="#f7f5ef";
+  roundRect(c,x0-14,y0-14,w+28,h+28,8);c.fill();
+  // 深色底片
+  c.fillStyle="#22262b";c.fillRect(x0,y0,w,h);
+  const vg=c.createRadialGradient(x0+w/2,y0+h/2,h*0.3,x0+w/2,y0+h/2,h*0.75);
+  vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.45)");
+  c.fillStyle=vg;c.fillRect(x0,y0,w,h);
+  // 刻度尺
+  c.strokeStyle="#8a93a0";c.fillStyle="#9aa4b1";c.lineWidth=1;
+  c.font="9px sans-serif";c.textAlign="right";
+  const xr=x0+34;
+  c.beginPath();c.moveTo(xr,y0+4);c.lineTo(xr,yPix(1.85));c.stroke();
+  for(let m=0;m<=1.8501;m+=0.01){
+    const y=yPix(m),cm=Math.round((m-Y_TOP)*100),frac=Math.abs(cm%10);
+    let len= frac===0?13: (cm%5===0?9:5);
+    c.beginPath();c.moveTo(xr,y);c.lineTo(xr-len,y);c.stroke();
+    if(frac===0)c.fillText(cm,xr-len-3,y+3);
+  }
+  // 频闪像
+  for(let k=0;k<N;k++){
+    const y=yPix(ys[k]);
+    c.save();
+    c.shadowColor="#fff";c.shadowBlur=7;
+    const gr=c.createRadialGradient(xC-2,y-3,1,xC,y,9);
+    gr.addColorStop(0,"#ffffff");gr.addColorStop(0.7,"#cfd6dd");gr.addColorStop(1,"#7d8791");
+    c.fillStyle=gr;
+    c.beginPath();c.arc(xC,y,9,0,7);c.fill();
+    c.restore();
+    c.fillStyle="#c9d2da";c.font="11px sans-serif";c.textAlign="left";
+    c.fillText((k+1)+"",xC+16,y+4);
+  }
+  // 揭秘：真实释放点
+  if(st.revealed&&st.trap){
+    const y0p=yPix(0);
+    c.save();
+    c.strokeStyle="#ff5d5d";c.setLineDash([6,4]);c.lineWidth=1.5;
+    c.beginPath();c.moveTo(x0+8,y0p);c.lineTo(x0+w-8,y0p);c.stroke();
+    c.beginPath();c.arc(xC,y0p,9,0,7);c.stroke();
+    c.setLineDash([]);
+    c.fillStyle="#ff5d5d";c.font="bold 12px sans-serif";c.textAlign="left";
+    c.fillText("真实释放点（照片上原本不可见）",x0+12,y0p-14);
+    c.fillText("v₁ = g·τ ≠ 0",xC+16,yPix(ys[0])+18);
+    c.restore();
+  }
+  // 角标
+  c.fillStyle="#8a93a0";c.font="11px sans-serif";c.textAlign="right";
+  c.fillText("f = "+st.f+" Hz   T = "+T.toFixed(3)+" s",x0+w-10,y0+h-10);
+}
+function roundRect(c,x,y,w,h,r){
+  c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();
+}
+
+/* ---------- 数据表与结果 ---------- */
+function renderTable(){
+  const m=sm.length,gd=gAvgDiff();
+  let h="<table><tr><th>段 i</th><th>s<sub>i</sub> /cm</th><th>Δs<sub>i</sub>=s<sub>i+1</sub>−s<sub>i</sub> /cm</th><th>g<sub>i</sub>=Δs<sub>i</sub>/T² /(m·s⁻²)</th></tr>";
+  for(let i=0;i<m;i++){
+    const ds=i<m-1?(sm[i+1]-sm[i])*100:null;
+    h+="<tr><td>"+(i+1)+"</td><td>"+(sm[i]*100).toFixed(2)+"</td>"
+      +"<td>"+(ds===null?"—":ds.toFixed(2))+"</td>"
+      +"<td>"+(ds===null?"—":gd.list[i].toFixed(2))+"</td></tr>";
+  }
+  h+="</table>";
+  $("tblWrap").innerHTML=h;
+}
+function renderRes(){
+  const gz=gZhucha(),gd=gAvgDiff();
+  let h="";
+  if(gz!==null){
+    const err=(gz-9.8)/9.8*100;
+    h+="<div>逐差法（分组逐差）：<span class='big'>"+gz.toFixed(3)+"</span> m/s²　"
+      +"<span class='"+(Math.abs(err)<3?"ok":"bad")+"'>与 9.80 偏差 "+err.toFixed(1)+"%</span></div>";
+  }
+  h+="<div class='note'>逐段差平均：ḡ = "+gd.avg.toFixed(3)+" m/s²　|　理论 Δs = gT² = "+(G*T*T*100).toFixed(2)+" cm</div>";
+  $("resWrap").innerHTML=h;
+}
+
+/* ---------- 瞬时速度 ---------- */
+function renderSel(){
+  const sel=$("imgSel");const keep=sel.value;
+  let h="";
+  for(let n=2;n<=N-1;n++)h+="<option value='"+n+"'>"+n+"</option>";
+  sel.innerHTML=h;
+  if(keep)sel.value=keep;
+}
+function calcV(){
+  const n=+$("imgSel").value;
+  if(!n)return;
+  const v=(sm[n-2]+sm[n-1])/(2*T);           // 中点速度法
+  const vTrue=G*(tau+(n-1)*T);               // 真实
+  const vWrong=G*(n-1)*T;                    // 误以为首闪=释放
+  let h="<div class='formula'>v<sub>"+n+"</sub> = (s<sub>"+(n-1)+"</sub>+s<sub>"+n+"</sub>)/(2T) = ("
+    +(sm[n-2]*100).toFixed(2)+"+"+(sm[n-1]*100).toFixed(2)+") cm / (2×"+T.toFixed(3)+" s) = <b>"
+    +v.toFixed(3)+" m/s</b></div>";
+  h+="<div class='note'>中点速度法不依赖释放点在哪，结果即真实瞬时速度。</div>";
+  if(st.revealed){
+    h+="<div class='note'>对照：真实 v = g[τ+(n−1)T] = <b>"+vTrue.toFixed(3)+"</b> m/s；"
+      +"若误以为首闪在释放瞬间会得 g(n−1)T = "+vWrong.toFixed(3)+" m/s（错 <b class='bad'>"
+      +Math.abs(vTrue-vWrong).toFixed(3)+"</b> m/s）。</div>";
+  }
+  $("vOut").innerHTML=h;
+}
+
+/* ---------- 自测 ---------- */
+function quiz(){
+  const v=parseFloat($("quizIn").value);
+  const fb=$("quizFb");
+  if(isNaN(v)){fb.textContent="请输入一个数值。";return;}
+  const ans=G*tau,tol=Math.max(0.05,ans*0.06);
+  if(!st.trap){
+    fb.innerHTML=Math.abs(v)<0.03?"<span class='ok'>✔ 正确！本次首闪恰好就在释放瞬间，v₁ = 0。</span>"
+      :"<span class='bad'>✘ 本次没有坑：首闪恰在释放瞬间，v₁ 应为 0。</span>";
+  }else if(Math.abs(v-ans)<tol){
+    fb.innerHTML="<span class='ok'>✔ 正确！你识破了“首闪不在释放瞬间”的坑：v₁ = g·τ = "+ans.toFixed(3)+" m/s。</span>";
+  }else if(Math.abs(v)<0.03){
+    fb.innerHTML="<span class='bad'>✘ 你默认了“第 1 个像 = 释放瞬间”。照片本身无法证明这一点——先点“揭秘”看看。</span>";
+  }else{
+    fb.innerHTML="<span class='bad'>✘ 再想想：相邻像间隔都是 T 没错，但第 1 次闪光距释放过了多久？点“揭秘”验证。</span>";
+  }
+}
+function renderReveal(){
+  $("revealCard").classList.toggle("hide",!st.revealed);
+  if(!st.revealed)return;
+  const s1true=G*tau*T+0.5*G*T*T;
+  let h;
+  if(!st.trap){
+    h="本次 τ = 0：首闪恰好在释放瞬间，没有坑。多拍几次（保持埋坑勾选）才会遇到随机延迟。";
+  }else{
+    h="首闪比释放晚 <b>τ = "+tau.toFixed(3)+" s</b>（= "+st.tauFrac.toFixed(2)+" T，随机产生）<br>"
+      +"真实释放点距第 1 个像 Δy = ½gτ² = <b>"+(0.5*G*tau*tau*100).toFixed(2)+" cm</b>（照片上未标出）<br>"
+      +"第 1 个像处真实速度 <b>v₁ = g·τ = "+(G*tau).toFixed(3)+" m/s</b>，并不为零！<br><br>"
+      +"<b>会翻车的做法：</b><br>"
+      +"① 认为 s₁ = ½gT² 或 s₁:s₂:s₃ = 1:3:5 → 错。真实 s₁ = gτT + ½gT² = "+(s1true*100).toFixed(2)
+      +" cm，而 ½gT² 只有 "+(0.5*G*T*T*100).toFixed(2)+" cm。<br>"
+      +"② 认为 v<sub>n</sub> = g(n−1)T → 错，应为 g[τ+(n−1)T]。<br><br>"
+      +"<b>不受影响的做法（关键结论）：</b>只要相邻闪光间隔相等，Δs = gT² 恒成立，"
+      +"所以逐段位移差法 / 逐差法求 g、以及中点速度公式 v = (s前+s后)/2T 全部依然正确。";
+  }
+  $("revealBody").innerHTML=h;
+}
+
+/* ---------- 总渲染 ---------- */
+function render(){
+  $("fLab").textContent=st.f;
+  $("tLab").textContent=T.toFixed(3);
+  $("nLab").textContent=N;
+  draw();renderTable();renderRes();renderSel();renderReveal();
+  $("vOut").innerHTML="";$("quizFb").textContent="";
+}
+
+/* ---------- 事件 ---------- */
+$("fSl").addEventListener("input",e=>{st.f=+e.target.value;reshoot();});
+$("trapCk").addEventListener("change",e=>{st.trap=e.target.checked;reshoot();});
+$("noiseCk").addEventListener("change",e=>{st.noise=e.target.checked;reshoot();});
+$("reshoot").addEventListener("click",reshoot);
+$("revealBtn").addEventListener("click",()=>{st.revealed=true;render();});
+$("imgSel").addEventListener("change",calcV);
+$("calcV").addEventListener("click",calcV);
+$("quizBtn").addEventListener("click",quiz);
+$("quizIn").addEventListener("keydown",e=>{if(e.key==="Enter")quiz();});
+
+reshoot();
+</script>
+</body>
+</html>

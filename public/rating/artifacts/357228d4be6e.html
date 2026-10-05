@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>蹦极跳 · 多过程运动仿真</title>
+<style>
+:root{--bg:#0b1220;--card:#121d31;--edge:#24334e;--txt:#dce7f5;--dim:#8fa3c0;--acc:#4da3ff}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:radial-gradient(1200px 600px at 70% -10%,#16263f,#0b1220);color:var(--txt);
+ font-family:system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+header{max-width:1220px;margin:0 auto 12px}
+h1{font-size:20px;margin:0 0 2px}
+header p{margin:0;color:var(--dim);font-size:13px}
+main{max-width:1220px;margin:0 auto;display:grid;grid-template-columns:340px minmax(430px,1fr);gap:14px;align-items:start}
+@media(max-width:920px){main{grid-template-columns:1fr}.sceneWrap canvas{height:60vh!important}}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.card h3{font-size:12.5px;color:var(--dim);margin:0 0 10px;letter-spacing:.6px;font-weight:700}
+.sceneWrap{position:relative;background:#08111f;border:1px solid var(--edge);border-radius:12px;overflow:hidden}
+.sceneWrap canvas{display:block;width:100%;height:660px}
+#phaseChip{position:absolute;top:10px;left:10px;padding:6px 13px;border-radius:20px;font-weight:800;font-size:14px;
+ color:#08131f;background:#4da3ff;box-shadow:0 2px 10px rgba(0,0,0,.4);max-width:78%}
+#ticker{position:absolute;top:48px;left:10px;font-size:11px;color:#cfe3ff;background:rgba(6,14,26,.6);
+ padding:3px 9px;border-radius:8px;max-width:78%}
+#slowBadge{position:absolute;top:10px;right:10px;font-size:12px;font-weight:700;color:#ffd166;
+ background:rgba(6,14,26,.6);padding:4px 9px;border-radius:8px;display:none}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{background:var(--acc);border:none;color:#06131f;font-weight:800;font-size:14px;padding:8px 16px;border-radius:9px;cursor:pointer}
+button.sec{background:#223350;color:var(--txt)}
+button:hover{filter:brightness(1.15)}
+label.ck{display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer;user-select:none}
+input[type=checkbox]{accent-color:var(--acc)}
+.param{margin-bottom:10px}
+.param .lr{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px}
+.param .lr b{color:#7fd1ff}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.readGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ro{background:#0e1930;border:1px solid #223350;border-radius:9px;padding:6px 9px}
+.ro span{display:block;font-size:11px;color:var(--dim)}
+.ro b{font-size:14.5px;font-variant-numeric:tabular-nums}
+.ro.v b{color:#7dffb0}.ro.a b{color:#ffb066}
+#forceText{margin-top:10px;font-size:13px;line-height:1.6;background:#0e1930;border:1px dashed #2c4166;
+ border-radius:9px;padding:8px 10px;color:#cfe0f5}
+.pred{font-size:13px;line-height:1.8;color:#c8d8ee}
+.pred b{color:#ffd166}
+.barsRow{position:relative;display:flex;gap:16px;align-items:flex-end}
+.barCol{flex:1;text-align:center}
+.track{position:relative;height:130px;background:#0e1930;border:1px solid #223350;border-radius:8px;overflow:hidden}
+.fill{position:absolute;bottom:0;left:0;right:0;height:0%}
+.barCol .lab{font-size:11.5px;color:var(--dim);margin-top:5px}
+.barCol .val{font-size:11.5px;font-variant-numeric:tabular-nums}
+#eMarker{position:absolute;left:0;right:0;border-top:1.5px dashed #ffd166;pointer-events:none}
+#eMarker span{position:absolute;right:2px;top:-14px;font-size:10px;color:#ffd166}
+.gwrap canvas{display:block;width:100%;height:150px;background:#0a1322;border:1px solid #1f2f4a;border-radius:8px}
+.legend{font-size:11px;color:var(--dim);margin-top:7px;display:flex;gap:12px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+ol.tp{margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:#c8d8ee}
+ol.tp b{color:#7fd1ff}
+.formula{font-family:ui-monospace,Menlo,Consolas,monospace;color:#ffd166}
+</style>
+</head>
+<body>
+<header>
+<h1>🪂 蹦极跳 · 多过程运动仿真</h1>
+<p>弹性轻绳（自然长度 L、劲度系数 k，只拉不压）一端固定于平台、一端系人（质量 m），静止跳下。g = 10 m/s²，取竖直向下为正方向（↓ 为正）。</p>
+</header>
+<main>
+<section>
+ <div class="sceneWrap">
+  <canvas id="scene"></canvas>
+  <div id="phaseChip">自由落体（绳松弛）</div>
+  <div id="ticker">按 ▶ 播放开始　（空格：播放/暂停，R：重置）</div>
+  <div id="slowBadge">🐢 慢放 ×0.16</div>
+ </div>
+</section>
+<section>
+ <div class="card"><div class="row">
+  <button id="btnPlay">▶ 播放</button>
+  <button id="btnReset" class="sec">↺ 重置</button>
+  <label class="ck"><input type="checkbox" id="cbSlow">最低点慢放</label>
+  <label class="ck"><input type="checkbox" id="cbDamp">微小阻尼 c=2.5 N·s/m</label>
+  <label class="ck"><input type="checkbox" id="cbForce" checked>受力箭头</label>
+ </div></div>
+
+ <div class="card"><h3>参数调节（改变后自动重置）</h3>
+  <div class="param"><div class="lr"><span>绳自然长度 L</span><b id="vL">20 m</b></div>
+   <input type="range" id="inL" min="10" max="40" step="1" value="20"></div>
+  <div class="param"><div class="lr"><span>劲度系数 k</span><b id="vK">120 N/m</b></div>
+   <input type="range" id="inK" min="40" max="300" step="5" value="120"></div>
+  <div class="param" style="margin-bottom:0"><div class="lr"><span>人的质量 m（g = 10 m/s²）</span><b id="vM">60 kg</b></div>
+   <input type="range" id="inM" min="40" max="100" step="1" value="60"></div>
+ </div>
+
+ <div class="card"><h3>实时读数</h3>
+  <div class="readGrid">
+   <div class="ro"><span>时间 t</span><b id="roT">0.00 s</b></div>
+   <div class="ro"><span>下落距离 y</span><b id="roY">0.00 m</b></div>
+   <div class="ro"><span>绳伸长 x=y−L</span><b id="roX">0.00 m</b></div>
+   <div class="ro"><span>绳力 F=kx</span><b id="roF">0 N</b></div>
+   <div class="ro v"><span>速度 v</span><b id="roV">0.0 m/s ·</b></div>
+   <div class="ro a"><span>加速度 a</span><b id="roA">10.0 m/s² ↓</b></div>
+   <div class="ro"><span>重力 mg</span><b id="roMg">600 N</b></div>
+   <div class="ro"><span>阻尼力 f=c·v</span><b id="roD">—</b></div>
+  </div>
+  <div id="forceText"></div>
+ </div>
+
+ <div class="card"><h3>理论预测（由当前参数计算）</h3><div class="pred" id="predBox"></div></div>
+
+ <div class="card"><h3>能量条（相对初始总机械能 E₀ = mg·y_max）</h3>
+  <div class="barsRow" id="barsRow">
+   <div id="eMarker"><span>总机械能 E</span></div>
+   <div class="barCol"><div class="track"><div class="fill" id="barK" style="background:linear-gradient(#7dffb0,#2fa866)"></div></div><div class="lab">动能 Ek</div><div class="val" id="valK"></div></div>
+   <div class="barCol"><div class="track"><div class="fill" id="barG" style="background:linear-gradient(#7fb8ff,#2f6fd0)"></div></div><div class="lab">重力势能 Ep</div><div class="val" id="valG"></div></div>
+   <div class="barCol"><div class="track"><div class="fill" id="barE" style="background:linear-gradient(#ffb066,#e0732f)"></div></div><div class="lab">弹性势能 Ee</div><div class="val" id="valE"></div></div>
+  </div>
+ </div>
+
+ <div class="card gwrap"><h3>v – t 与 a – t 曲线</h3>
+  <canvas id="gV"></canvas><div style="height:10px"></div><canvas id="gA"></canvas>
+  <div class="legend">
+   <span><i style="background:#38d9f5"></i>绳张紧</span>
+   <span><i style="background:#8fa3c0"></i>绳松弛</span>
+   <span><i style="background:#ff59d6"></i>平衡点 a=0</span>
+   <span><i style="background:#ff3b3b"></i>最低点</span>
+   <span><i style="background:#ffd166"></i>回到起点</span>
+  </div>
+ </div>
+
+ <div class="card"><h3>教学要点</h3>
+  <ol class="tp">
+   <li><b>分阶段受力：</b>绳松弛段只受重力，<span class="formula">a=g</span>（自由落体/竖直上抛）；张紧段受重力与绳力 <span class="formula">F=kx</span>，<span class="formula">a=g−kx/m</span>。绳只拉不压：y=L 处力从 0 连续变化，速度/加速度连续（事件平滑）。</li>
+   <li><b>最大速度不在绳刚绷紧处：</b>绷紧后只要 F&lt;mg 仍加速；直到 <b>F=mg（a=0）</b>处 v 最大，<span class="formula">v_max=√(2gL+mg²/k)</span>。</li>
+   <li><b>最低点由能量守恒求解：</b><span class="formula">mg·y_max=½k(y_max−L)²</span>，越往下绳力越大，减速至 v=0 后反弹。</li>
+   <li><b>无阻尼往复不息：</b>机械能守恒，人在 y=0 与 y_max 间永远振荡；开启微小阻尼后幅度渐减，最终停在平衡位置 y=L+mg/k。</li>
+  </ol>
+ </div>
+</section>
+</main>
+
+<script>
+'use strict';
+const G=10, C_DAMP=2.5, H=1/240;
+const $=id=>document.getElementById(id);
+const P={L:20,k:120,m:60};
+let dampOn=false, showForce=true, slowMo=false;
+let S={y:0,v:0,t:0};
+let playing=false, acc=0, lastTs=null, speedCur=1;
+let derived={}, data=[], events=[], lastEvent=null, lastBottomT=-9, lastSampleT=0;
+
+/* ---------- 理论量 ---------- */
+function computeDerived(){
+  const mg=P.m*G, yb=P.L+mg/P.k;
+  const disc=Math.sqrt(mg*mg+2*P.k*mg*P.L);
+  const xMax=(mg+disc)/P.k;
+  derived={mg,yb,xMax,yMax:P.L+xMax,Fmax:P.k*xMax,
+           vMax:Math.sqrt(2*G*P.L+mg*mg/(P.k*P.m)),
+           aBottom:(P.k*xMax-mg)/P.m};
+}
+function updatePred(){
+  const d=derived;
+  $('predBox').innerHTML=
+   `平衡位置（F=mg，a=0，v 最大处）：y₀ = L + mg/k = <b>${d.yb.toFixed(2)} m</b><br>`+
+   `最大速度：v_max = √(2gL + mg²/k) = <b>${d.vMax.toFixed(2)} m/s</b>（出现在 y₀ 处，而非绳刚绷紧处！）<br>`+
+   `最低点（能量守恒 mg·y=½k(y−L)²）：y_max = <b>${d.yMax.toFixed(2)} m</b>，`+
+   `伸长 ${d.xMax.toFixed(2)} m，此刻 F<sub>绳</sub>=${d.Fmax.toFixed(0)} N ≈ ${(d.Fmax/d.mg).toFixed(1)}mg，a=${d.aBottom.toFixed(1)} m/s² 向上`;
+}
+
+/* ---------- 物理积分（RK4，力在 y=L 处连续 ⇒ 事件平滑） ---------- */
+function accel(y,v){ const x=Math.max(0,y-P.L); return G-(P.k*x)/P.m-(dampOn?C_DAMP:0)*v/P.m; }
+function addEvent(type,label){ events.push({t:S.t,type,label}); if(events.length>80)events.shift(); lastEvent={t:S.t,type,label}; }
+function detectEvents(py,pv){
+  const L=P.L, yb=derived.yb, y=S.y, v=S.v;
+  if(py<L && y>=L && v>0) addEvent('taut','绳开始张紧（y=L，绳力从 0 连续增大，v 连续）');
+  if(py>L && y<=L && v<0) addEvent('slack','绳恢复松弛（只拉不压）');
+  if((py-yb)*(y-yb)<0)   addEvent('balance', v>0?'下落经过平衡点 F=mg（a=0，v 最大）':'上升经过平衡点 F=mg');
+  if(pv>0 && v<=0 && y>L){ addEvent('bottom','到达最低点（v=0）'); lastBottomT=S.t; }
+  if(pv<0 && v>=0 && y<L) addEvent('top','回到起跳位置（v=0）');
+}
+function step(h){
+  const py=S.y, pv=S.v;
+  const k1y=pv,           k1v=accel(py,pv);
+  const y2=py+.5*h*k1y,   v2=pv+.5*h*k1v, k2y=v2, k2v=accel(y2,v2);
+  const y3=py+.5*h*k2y,   v3=pv+.5*h*k2v, k3y=v3, k3v=accel(y3,v3);
+  const y4=py+h*k3y,      v4=pv+h*k3v,    k4y=v4, k4v=accel(y4,v4);
+  S.y=py+h/6*(k1y+2*k2y+2*k3y+k4y);
+  S.v=pv+h/6*(k1v+2*k2v+2*k3v+k4v);
+  S.t+=h;
+  detectEvents(py,pv);
+  if(S.t-lastSampleT>=1/60-1e-9){
+    data.push({t:S.t,v:S.v,a:accel(S.y,S.v)}); lastSampleT=S.t;
+    if(data.length>7200) data=data.filter((_,i)=>i%2===0);
+  }
+}
+function resetSim(){
+  S={y:0,v:0,t:0}; data=[{t:0,v:0,a:G}]; events=[]; lastEvent=null;
+  lastBottomT=-9; lastSampleT=0; acc=0; speedCur=1;
+}
+
+/* ---------- 阶段判定与受力说明 ---------- */
+function phaseInfo(){
+  const y=S.y, v=S.v, mg=derived.mg;
+  if(S.t-lastBottomT<0.7) return {lab:'最低点（v=0，a 最大且向上）',col:'#ff3b3b'};
+  if(y<P.L) return v>=0 ? {lab:'自由落体（绳松弛）',col:'#4da3ff'}
+                        : {lab:'竖直上抛（绳松弛）',col:'#9aa7ff'};
+  const F=P.k*(y-P.L);
+  if(Math.abs(F-mg)<0.02*mg) return {lab:'平衡点：F=mg，a=0（速度最大）',col:'#ff59d6'};
+  if(v>0) return F<mg ? {lab:'绳张紧 · 加速下落（F绳<mg）',col:'#ffb03a'}
+                      : {lab:'绳张紧 · 减速下落（F绳>mg）',col:'#ff7a59'};
+  return F>mg ? {lab:'反弹 · 加速上升（F绳>mg）',col:'#7ee081'}
+              : {lab:'反弹 · 减速上升（F绳<mg）',col:'#4dd2ff'};
+}
+function forceText(){
+  const y=S.y, v=S.v, mg=derived.mg;
+  const f=dampOn?C_DAMP*v:0; let s;
+  if(y<P.L){
+    s=`绳松弛（x=0，F<sub>绳</sub>=0）：仅受重力 mg=${mg.toFixed(0)} N ⇒ a = g = 10 m/s²，方向向下`;
+  }else{
+    const F=P.k*(y-P.L);
+    if(Math.abs(F-mg)<0.02*mg)
+      s=`F<sub>绳</sub>=kx=${F.toFixed(0)} N ≈ mg=${mg.toFixed(0)} N ⇒ 合力≈0，a≈0（速度极值点）`;
+    else if(F<mg)
+      s=`F<sub>绳</sub>=kx=${F.toFixed(0)} N ＜ mg=${mg.toFixed(0)} N ⇒ 合力向下 ${(mg-F).toFixed(0)} N，仍在加速`;
+    else
+      s=`F<sub>绳</sub>=kx=${F.toFixed(0)} N ＞ mg=${mg.toFixed(0)} N ⇒ 合力向上 ${(F-mg).toFixed(0)} N（${v>0?'下落减速':'上升加速'}）`;
+  }
+  if(dampOn) s+=`；阻尼 f=c·v=${Math.abs(f).toFixed(0)} N（与运动方向相反）`;
+  return s;
+}
+const dir=x=>x>0.02?'↓':x<-0.02?'↑':'·';
+
+/* ---------- 读数 / 能量 ---------- */
+function updateReadouts(){
+  $('roT').textContent=S.t.toFixed(2)+' s';
+  $('roY').textContent=S.y.toFixed(2)+' m';
+  $('roX').textContent=Math.max(0,S.y-P.L).toFixed(2)+' m';
+  $('roF').textContent=(P.k*Math.max(0,S.y-P.L)).toFixed(0)+' N';
+  $('roV').textContent=Math.abs(S.v).toFixed(1)+' m/s '+dir(S.v);
+  const a=accel(S.y,S.v);
+  $('roA').textContent=Math.abs(a).toFixed(1)+' m/s² '+dir(a);
+  $('roMg').textContent=derived.mg.toFixed(0)+' N';
+  $('roD').textContent=dampOn?(C_DAMP*Math.abs(S.v)).toFixed(0)+' N':'—';
+  $('forceText').innerHTML=forceText();
+}
+function setBar(b,v,E,E0){
+  $(b).style.height=(Math.max(0,Math.min(1,E/E0))*100)+'%';
+  $(v).textContent=(E/1000).toFixed(1)+' kJ · '+(E/E0*100).toFixed(0)+'%';
+}
+function updateEnergy(){
+  const yRef=derived.yMax, E0=P.m*G*yRef;
+  const Ek=.5*P.m*S.v*S.v;
+  const Eg=Math.max(0,P.m*G*(yRef-S.y));
+  const Ee=.5*P.k*Math.pow(Math.max(0,S.y-P.L),2);
+  setBar('barK','valK',Ek,E0); setBar('barG','valG',Eg,E0); setBar('barE','valE',Ee,E0);
+  $('eMarker').style.bottom=(Math.min(1,(Ek+Eg+Ee)/E0)*130)+'px';
+  $('eMarker').style.display=$('eMarker').style.display||'block';
+}
+
+/* ---------- 场景绘制 ---------- */
+function fit(cv){
+  const d=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(cv.width!==Math.round(w*d)||cv.height!==Math.round(h*d)){cv.width=Math.round(w*d);cv.height=Math.round(h*d);}
+  const ctx=cv.getContext('2d'); ctx.setTransform(d,0,0,d,0,0); return {ctx,w,h};
+}
+function hex(c){return [parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];}
+function lerpColor(a,b,t){const A=hex(a),B=hex(b);return `rgb(${A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')})`;}
+function arrow(ctx,x,y0,y1,color,label){
+  const s=Math.sign(y1-y0); if(Math.abs(y1-y0)<3) return;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1-9*s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x-5.5,y1-9*s); ctx.lineTo(x+5.5,y1-9*s); ctx.closePath(); ctx.fill();
+  ctx.font='bold 11px system-ui'; ctx.textAlign='left';
+  ctx.fillText(label,x+8,y0+(s>0?-6:14));
+}
+function drawScene(){
+  const cv=$('scene'), {ctx,w,h}=fit(cv);
+  const sky=ctx.createLinearGradient(0,0,0,h); sky.addColorStop(0,'#0e2040'); sky.addColorStop(1,'#0a1626');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,w,h);
+  const worldTop=-4, worldBot=derived.yMax+7, ppm=(h-46)/(worldBot-worldTop);
+  const Y=y=>23+(y-worldTop)*ppm, cx=Math.round(w*0.52);
+  // 水面
+  const wy=Y(derived.yMax+4.5);
+  ctx.fillStyle='rgba(38,120,190,0.30)'; ctx.fillRect(0,wy,w,h-wy);
+  ctx.strokeStyle='rgba(120,200,255,0.55)'; ctx.beginPath(); ctx.moveTo(0,wy); ctx.lineTo(w,wy); ctx.stroke();
+  // 参考线
+  const refLine=(yy,color,text,below)=>{
+    ctx.strokeStyle=color; ctx.setLineDash([6,5]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(10,yy); ctx.lineTo(w-28,yy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=color; ctx.font='10.5px system-ui'; ctx.textAlign='left';
+    ctx.fillText(text,12,yy+(below?12:-4));
+  };
+  refLine(Y(P.L),'#38d9f5',`L = ${P.L} m（自然长度）`);
+  refLine(Y(derived.yb),'#ff59d6',`平衡位置 L+mg/k = ${derived.yb.toFixed(1)} m`,true);
+  refLine(Y(derived.yMax),'#ff6b6b',`预测最低点 ${derived.yMax.toFixed(1)} m`);
+  // 刻度尺（右侧）
+  ctx.font='10px system-ui';
+  for(let yy=0;yy<=worldBot-1;yy+=5){
+    const py=Y(yy), major=yy%10===0;
+    ctx.strokeStyle=`rgba(180,205,235,${major?0.8:0.3})`;
+    ctx.beginPath(); ctx.moveTo(w-(major?18:12),py); ctx.lineTo(w-4,py); ctx.stroke();
+    if(major){ctx.fillStyle='rgba(190,210,235,0.75)';ctx.textAlign='right';ctx.fillText(yy+' m',w-21,py+3);}
+  }
+  ctx.textAlign='left';
+  // 平台
+  const y0=Y(0);
+  ctx.fillStyle='#5d4630'; ctx.fillRect(0,y0-16,cx+46,16);
+  ctx.fillStyle='#75593d'; ctx.fillRect(0,y0-16,cx+46,5);
+  ctx.fillStyle='#3a2f22'; for(let x=8;x<cx+40;x+=24) ctx.fillRect(x,y0,6,10);
+  ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(cx,y0,3.5,0,7); ctx.fill();
+  // 绳（松弛下垂曲线 / 张紧变红变粗）
+  const py=Y(S.y), F=P.k*Math.max(0,S.y-P.L);
+  ctx.lineCap='round';
+  if(S.y<P.L){
+    const sag=Math.min(46,(P.L-S.y)*3+5);
+    ctx.strokeStyle='#cbb47e'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(cx,y0);
+    ctx.quadraticCurveTo(cx-sag*0.35,(y0+py)/2+sag*0.6,cx,py-8); ctx.stroke();
+  }else{
+    const t=Math.min(1,F/(2*derived.mg));
+    ctx.strokeStyle=lerpColor('#d9c27a','#ff5a3c',t); ctx.lineWidth=2.6+t*1.8;
+    ctx.beginPath(); ctx.moveTo(cx,y0); ctx.lineTo(cx,py-8); ctx.stroke();
+  }
+  // 人
+  const sw=Math.max(-7,Math.min(7,-S.v*0.6));
+  ctx.fillStyle='#ffcf9f'; ctx.beginPath(); ctx.arc(cx,py-14,5.5,0,7); ctx.fill();
+  ctx.strokeStyle='#4da3ff'; ctx.lineWidth=3.5;
+  ctx.beginPath(); ctx.moveTo(cx,py-8); ctx.lineTo(cx,py+9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,py-6); ctx.lineTo(cx-9,py-16); ctx.moveTo(cx,py-6); ctx.lineTo(cx+9,py-16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,py+9); ctx.lineTo(cx-7+sw,py+24); ctx.moveTo(cx,py+9); ctx.lineTo(cx+7+sw,py+24); ctx.stroke();
+  // v / a 矢量（右）与受力（左）
+  const vS=90/Math.max(derived.vMax,5), aS=90/Math.max(derived.aBottom,12), fS=56/derived.mg;
+  const a=accel(S.y,S.v);
+  if(Math.abs(S.v)>0.06) arrow(ctx,cx+40,py,py+S.v*vS,'#7dffb0','v='+Math.abs(S.v).toFixed(1));
+  if(Math.abs(a)>0.3)    arrow(ctx,cx+64,py,py+a*aS,'#ffb066','a='+Math.abs(a).toFixed(1));
+  if(showForce){
+    arrow(ctx,cx-40,py,py+derived.mg*fS,'#7fb8ff','mg='+derived.mg.toFixed(0));
+    if(F>1) arrow(ctx,cx-64,py,py-F*fS,'#ff8d7a','F绳='+F.toFixed(0));
+  }
+}
+
+/* ---------- 曲线绘制 ---------- */
+const EV_COL={taut:'#38d9f5',slack:'#8fa3c0',balance:'#ff59d6',bottom:'#ff3b3b',top:'#ffd166'};
+const niceStep=x=>{if(!(x>0))return 1;const p=Math.pow(10,Math.floor(Math.log10(x)));const n=x/p;
+  return (n<1.5?1:n<3.5?2:n<7.5?5:10)*p;};
+const niceCeil=x=>{const s=niceStep(x);return Math.ceil(x/s)*s;};
+const fmt=x=>{const r=Math.round(x*100)/100;return Math.abs(r-Math.round(r))<1e-9?String(Math.round(r)):r.toFixed(1);};
+function drawGraph(cv,key,color,unit,minRange,gline){
+  const {ctx,w,h}=fit(cv); ctx.clearRect(0,0,w,h);
+  const padL=44,padR=12,padT=14,padB=20,pw=w-padL-padR,ph=h-padT-padB;
+  const tMax=Math.max(10,S.t);
+  let mx=0; for(const d of data){const a=Math.abs(d[key]); if(a>mx)mx=a;}
+  const yMax=niceCeil(Math.max(minRange,mx*1.08));
+  const X=t=>padL+t/tMax*pw, Yv=v=>padT+(1-(v+yMax)/(2*yMax))*ph;
+  ctx.font='10px system-ui';
+  const vs=niceStep(yMax/2.5);
+  ctx.strokeStyle='rgba(120,150,190,.14)'; ctx.fillStyle='rgba(160,185,215,.65)';
+  for(let v=Math.ceil(-yMax/vs)*vs; v<=yMax+1e-9; v+=vs){
+    const yy=Yv(v);
+    ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(w-padR,yy); ctx.stroke();
+    ctx.textAlign='right'; ctx.fillText(fmt(v),padL-5,yy+3);
+  }
+  const tst=niceStep(tMax/6);
+  for(let t=0;t<=tMax+1e-9;t+=tst){
+    const xx=X(t);
+    ctx.beginPath(); ctx.moveTo(xx,padT); ctx.lineTo(xx,h-padB); ctx.stroke();
+    ctx.textAlign='center'; ctx.fillText(fmt(t),xx,h-padB+13);
+  }
+  ctx.strokeStyle='rgba(200,220,245,.5)';
+  ctx.beginPath(); ctx.moveTo(padL,Yv(0)); ctx.lineTo(w-padR,Yv(0)); ctx.stroke();
+  if(gline!=null){
+    const yy=Yv(gline);
+    ctx.strokeStyle='rgba(255,209,102,.4)'; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(w-padR,yy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,209,102,.85)'; ctx.textAlign='left'; ctx.fillText('g=10',padL+5,yy-3);
+  }
+  for(const ev of events){
+    const xx=X(ev.t);
+    ctx.strokeStyle=EV_COL[ev.type]||'#888'; ctx.globalAlpha=.45;
+    ctx.beginPath(); ctx.moveTo(xx,padT); ctx.lineTo(xx,h-padB); ctx.stroke(); ctx.globalAlpha=1;
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.beginPath();
+  let st=false;
+  for(const d of data){const xx=X(d.t),yy=Yv(d[key]); if(!st){ctx.moveTo(xx,yy);st=true;}else ctx.lineTo(xx,yy);}
+  ctx.stroke();
+  const last=data[data.length-1];
+  if(last){ctx.fillStyle=color;ctx.beginPath();ctx.arc(X(last.t),Yv(last[key]),3,0,7);ctx.fill();}
+  ctx.fillStyle='rgba(200,220,245,.9)'; ctx.font='bold 11px system-ui';
+  ctx.textAlign='left'; ctx.fillText(unit,padL+6,padT+12);
+  ctx.textAlign='right'; ctx.fillText('t/s',w-padR,h-4);
+  ctx.strokeStyle='rgba(120,150,190,.25)'; ctx.lineWidth=1; ctx.strokeRect(padL,padT,pw,ph);
+}
+
+/* ---------- 主循环 ---------- */
+function render(){
+  const ph=phaseInfo(), chip=$('phaseChip');
+  chip.textContent=ph.lab; chip.style.background=ph.col;
+  $('ticker').textContent=lastEvent?`t=${lastEvent.t.toFixed(2)} s 事件：${lastEvent.label}`
+                                   :(S.t>0?'（事件提示将在此显示）':'按 ▶ 播放开始　空格：播放/暂停　R：重置');
+  updateReadouts(); updateEnergy(); drawScene();
+  drawGraph($('gV'),'v','#7dffb0','v / (m·s⁻¹)',10,null);
+  drawGraph($('gA'),'a','#ffb066','a / (m·s⁻²)  （↓为正）',15,G);
+}
+function frame(ts){
+  if(lastTs==null) lastTs=ts;
+  const dt=Math.min(0.05,(ts-lastTs)/1000); lastTs=ts;
+  const nearBottom=S.y>P.L && Math.abs(S.v)<1.6;           // 最低点附近
+  const target=(slowMo&&nearBottom)?0.16:1;
+  speedCur+=(target-speedCur)*Math.min(1,dt*10);
+  if(playing){
+    acc+=dt*speedCur; let n=0;
+    while(acc>=H && n<4000){ step(H); acc-=H; n++; }
+  }
+  $('slowBadge').style.display=speedCur<0.6?'block':'none';
+  render();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 交互绑定 ---------- */
+function bindSlider(inp,lab,key,fmtv){
+  $(inp).addEventListener('input',e=>{
+    P[key]=+e.target.value; $(lab).textContent=fmtv(P[key]);
+    computeDerived(); updatePred(); resetSim();
+  });
+}
+bindSlider('inL','vL','L',v=>v+' m');
+bindSlider('inK','vK','k',v=>v+' N/m');
+bindSlider('inM','vM','m',v=>v+' kg');
+$('btnPlay').onclick=()=>{playing=!playing;$('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放';};
+$('btnReset').onclick=resetSim;
+$('cbDamp').onchange=e=>dampOn=e.target.checked;
+$('cbForce').onchange=e=>showForce=e.target.checked;
+$('cbSlow').onchange=e=>slowMo=e.target.checked;
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type!=='checkbox'&&e.target.type!=='range')return;
+  if(e.code==='Space'){e.preventDefault();$('btnPlay').click();}
+  if(e.key==='r'||e.key==='R') resetSim();
+});
+
+/* ---------- 初始化 ---------- */
+computeDerived(); updatePred(); resetSim(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>单光子双缝干涉 · 逐粒累积仿真</title>
+<style>
+:root{--bg:#0b1020;--panel:#141b30;--ink:#e8edf7;--dim:#93a0bd;--acc:#5ad1a5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1300px;margin:0 auto;padding:14px}
+header h1{font-size:20px;margin:0 0 4px}
+header p{margin:0;color:var(--dim);font-size:13px}
+.layout{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;align-items:stretch}
+aside.panel{width:322px;flex:none;background:var(--panel);border:1px solid #232f52;border-radius:12px;padding:14px}
+main{flex:1;min-width:520px;background:var(--panel);border:1px solid #232f52;border-radius:12px;padding:10px}
+canvas{width:100%;display:block;border-radius:8px;background:#070b16}
+.btns{display:flex;gap:8px;margin:2px 0 10px}
+button{flex:1;padding:9px;border:none;border-radius:8px;background:#22305c;color:#fff;cursor:pointer;font-size:14px}
+button:hover{background:#2c3d74}
+button.primary{background:#148f6b}button.primary:hover{background:#18a87e}
+.ctl{margin:9px 0}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:3px}
+.ctl label b{color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+input[type=range]{width:100%;accent-color:var(--acc);height:22px}
+.chk{font-size:12.5px;color:var(--dim);display:flex;gap:7px;align-items:center;margin:5px 0;cursor:pointer}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
+.stats div{background:#0e1428;border:1px solid #202c50;border-radius:8px;padding:6px 9px}
+.stats span{font-size:11.5px;color:var(--dim);display:block}
+.stats b{font-size:16px;font-variant-numeric:tabular-nums}
+.stats b.big{color:var(--acc)}
+.teach{font-size:12.5px;color:#c6d0e6;background:#0e1428;border-left:3px solid var(--acc);
+ padding:9px 11px;border-radius:6px;margin-top:12px;line-height:1.65}
+.teach ol{margin:4px 0 0 18px;padding:0}
+.teach li{margin:4px 0}
+code{background:#1b2547;padding:0 5px;border-radius:4px;font-size:12px}
+.note{font-size:11.5px;color:#6f7d9d;margin-top:8px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>单光子双缝干涉仿真 —— 光子逐个发射，条纹逐步显现</h1>
+  <p>每个光子随机落点，但累积计数直方图逐渐逼近波动理论强度 I(x) ∝ cos²(πdx/λL)·sinc²(πay/λL)</p>
+</header>
+<div class="layout">
+<aside class="panel">
+  <div class="btns">
+    <button id="btnRun" class="primary">▶ 开始</button>
+    <button id="btnReset">↺ 重置</button>
+  </div>
+
+  <div class="ctl"><label>缝间距 d <b id="dV">0.250 mm</b></label>
+    <input type="range" id="d" min="0.10" max="0.60" step="0.01" value="0.25"></div>
+  <div class="ctl"><label>单缝宽 a <b id="aV">0.050 mm</b></label>
+    <input type="range" id="a" min="0.010" max="0.300" step="0.005" value="0.05"></div>
+  <div class="ctl"><label>波长 λ <b id="lamV">550 nm</b></label>
+    <input type="range" id="lam" min="380" max="780" step="5" value="550"></div>
+  <div class="ctl"><label>屏距 L <b id="LV">1.5 m</b></label>
+    <input type="range" id="L" min="0.5" max="3.0" step="0.1" value="1.5"></div>
+  <div class="ctl"><label>发射速率 <b id="rateV">60 /s</b></label>
+    <input type="range" id="rate" min="5" max="500" step="5" value="60"></div>
+  <div class="ctl"><label>加速倍数 <b id="speedV">1 ×</b></label>
+    <input type="range" id="speed" min="1" max="60" step="1" value="1"></div>
+
+  <label class="chk"><input type="checkbox" id="autoReset" checked>改变参数时自动重置累积</label>
+  <label class="chk"><input type="checkbox" id="showWF">显示子波波前（示意）</label>
+
+  <div class="stats">
+    <div><span>已发射光子数 N</span><b id="nEmit">0</b></div>
+    <div><span>条纹间距 Δy = λL/d</span><b class="big" id="dyVal">—</b></div>
+    <div><span>直方图峰值计数</span><b id="peak">0</b></div>
+    <div><span>显示范围</span><b id="viewVal">—</b></div>
+  </div>
+
+  <div class="teach"><b>教学要点</b>
+    <ol>
+      <li>单个光子随机打到屏上某点，但大量光子的<em>概率分布</em>由波动理论决定：I ∝ |ψ|²。</li>
+      <li>条纹间距 <code>Δy = λL/d</code>：d 增大 → 条纹变密；λ 或 L 增大 → 条纹变疏（可拖滑块验证）。</li>
+      <li>整体亮度受<em>单缝衍射包络</em> <code>sinc²(πay/λL)</code> 调制，中心包络内条纹才明显。</li>
+    </ol>
+  </div>
+  <p class="note">注：狭缝的间距/宽度在示意图中未按真实比例放大显示；理论曲线与直方图均已按各自峰值归一化以便对比。</p>
+</aside>
+
+<main><canvas id="cv"></canvas></main>
+</div>
+</div>
+
+<script>
+(()=>{'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const dots=document.createElement('canvas'),dctx=dots.getContext('2d');
+const $=id=>document.getElementById(id);
+const el={d:$('d'),a:$('a'),lam:$('lam'),L:$('L'),rate:$('rate'),speed:$('speed'),
+ dV:$('dV'),aV:$('aV'),lamV:$('lamV'),LV:$('LV'),rateV:$('rateV'),speedV:$('speedV'),
+ run:$('btnRun'),reset:$('btnReset'),auto:$('autoReset'),wf:$('showWF'),
+ nEmit:$('nEmit'),dyVal:$('dyVal'),peak:$('peak'),viewVal:$('viewVal')};
+
+/* ---------- 参数与状态 ---------- */
+const P={d:0.25,a:0.05,lam:550,L:1.5,rate:60,speed:1};
+let lam_m,d_m,a_m,dy;                 // 派生量（dy 单位 mm）
+let yView=8,yViewT=8;                 // 屏上显示的半高（mm）
+let running=false,needRebuild=true,lastRB=0;
+let ys=[],emitted=0;                  // 全部落点（mm）
+const NB=141;
+let bins=new Array(NB).fill(0),binMax=1;
+let photons=[],flashes=[],acc=0,lastT=performance.now();
+let dpr=1,W=800,H=500;
+const M={};                           // 几何布局（每帧更新）
+
+function derive(){
+  lam_m=P.lam*1e-9; d_m=P.d*1e-3; a_m=P.a*1e-3;
+  dy=lam_m*P.L/d_m*1000;              // Δy = λL/d (mm)
+  yViewT=Math.min(60,Math.max(0.3,2.8*dy));
+  if(P.a>P.d*0.85){P.a=Math.round(P.d*0.85*200)/200;el.a.value=P.a;syncLabels();}
+  el.dyVal.textContent=dy.toFixed(2)+' mm';
+}
+
+/* ---------- 物理 ---------- */
+function intensity(y){                // y 单位 mm，返回 0..1
+  const ym=y/1000,u=Math.PI*d_m*ym/(lam_m*P.L),b=Math.PI*a_m*ym/(lam_m*P.L);
+  const sb=Math.abs(b)<1e-9?1:Math.sin(b)/b,c=Math.cos(u);
+  return c*c*sb*sb;
+}
+const ycs=new Float64Array(NB),pcdf=new Float64Array(NB);let ptot=1;
+function buildDist(){
+  let s=0;
+  for(let i=0;i<NB;i++){
+    const y=-yView+(i+0.5)*(2*yView/NB);ycs[i]=y;
+    s+=intensity(y)+1e-12;pcdf[i]=s;
+  }ptot=s;
+}
+function sampleY(){
+  const r=Math.random()*ptot;let lo=0,hi=NB-1;
+  while(lo<hi){const m=(lo+hi)>>1;pcdf[m]<r?lo=m+1:hi=m;}
+  return ycs[lo]+(Math.random()-0.5)*(2*yView/NB);
+}
+
+/* ---------- 波长→颜色 ---------- */
+function wl2rgb(w){
+  let r=0,g=0,b=0;w=Math.min(780,Math.max(380,w));
+  if(w<440){r=(440-w)/60;b=1}else if(w<490){g=(w-440)/50;b=1}
+  else if(w<510){g=1;b=(510-w)/20}else if(w<580){r=(w-510)/70;g=1}
+  else if(w<645){r=1;g=(645-w)/65}else r=1;
+  let f=1;if(w<420)f=.3+.7*(w-380)/40;else if(w>700)f=.3+.7*(780-w)/80;
+  const gm=.85,c=v=>Math.round(255*Math.pow(v*f,gm));
+  return[c(r),c(g),c(b)];
+}
+let colA=[120,255,180],colStr='#7',colTrail='rgba(255,255,255,.5)';
+function updColor(){
+  colA=wl2rgb(P.lam);
+  colStr=`rgba(${colA[0]},${colA[1]},${colA[2]},`;
+}
+
+/* ---------- 布局 / 尺寸 ---------- */
+function resize(){
+  dpr=Math.min(2,window.devicePixelRatio||1);
+  const w=cv.clientWidth||800;
+  H=Math.round(Math.min(620,Math.max(400,w*0.55)));
+  W=w;cv.width=W*dpr;cv.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  dots.width=20*dpr;dots.height=H*dpr;dctx.setTransform(dpr,0,0,dpr,0,0);
+  needRebuild=true;
+}
+function layout(){
+  M.top=28;M.bot=H-46;
+  M.srcX=Math.max(52,W*0.085);
+  M.slitX=Math.max(160,W*0.29);
+  M.scrX=Math.max(300,W*0.50);
+  M.hx0=M.scrX+92;M.hx1=W-26;
+  M.cy=(M.top+M.bot)/2;
+  M.scale=(M.bot-M.top)/2/yView;
+  const phys=P.d*M.scale;
+  M.sep=Math.min(120,Math.max(36,phys));                 // 缝间距（示意放大）
+  M.wid=Math.min(60,Math.max(3,M.sep*(P.a/P.d)));        // 缝宽按 a/d 比例
+}
+
+/* ---------- 落点层 ---------- */
+function drawDot(y,dx){
+  const py=M.cy+y*M.scale,x=10+dx;
+  dctx.fillStyle=colStr+'0.16)';dctx.beginPath();dctx.arc(x,py,3.1,0,7);dctx.fill();
+  dctx.fillStyle=colStr+'0.9)';dctx.beginPath();dctx.arc(x,py,1.25,0,7);dctx.fill();
+}
+function redrawDots(){
+  dctx.clearRect(0,0,20,H);
+  dctx.globalCompositeOperation='lighter';
+  for(let i=0;i<ys.length;i++)drawDot(ys[i],dotsX[i]);
+  dctx.globalCompositeOperation='source-over';
+}
+let dotsX=[];
+function resetData(){
+  ys=[];dotsX=[];emitted=0;bins.fill(0);binMax=1;
+  photons=[];flashes=[];acc=0;
+  dctx.clearRect(0,0,20,H);
+  el.nEmit.textContent='0';el.peak.textContent='0';
+}
+function rebuild(){
+  buildDist();
+  bins.fill(0);
+  for(let i=0;i<ys.length;i++){
+    let k=Math.floor((ys[i]+yView)/(2*yView)*NB);
+    bins[Math.min(NB-1,Math.max(0,k))]++;
+  }
+  binMax=1;for(let i=0;i<NB;i++)if(bins[i]>binMax)binMax=bins[i];
+  redrawDots();
+  el.peak.textContent=binMax;
+}
+
+/* ---------- 光子发射 / 运动 ---------- */
+function land(y,dx){
+  ys.push(y);dotsX.push(dx);emitted++;
+  let k=Math.floor((y+yView)/(2*yView)*NB);
+  k=Math.min(NB-1,Math.max(0,k));
+  if(++bins[k]>binMax){binMax=bins[k];el.peak.textContent=binMax;}
+  dctx.globalCompositeOperation='lighter';drawDot(y,dx);
+  dctx.globalCompositeOperation='source-over';
+  flashes.push({y,dx,age:0});
+}
+function emit(){
+  const y=sampleY(),sl=Math.random()<.5?0:1,dx=Math.random()*12-6;
+  if(photons.length>2600){land(y,dx);return;}   // 超高速时跳过飞行动画
+  photons.push({st:0,t:0,sl,y,dx,px:0,py:0,init:false});
+}
+function posOf(ph){
+  const s1=M.cy-M.sep/2,s2=M.cy+M.sep/2,sy=ph.sl?s2:s1;
+  const ty=M.cy+ph.y*M.scale,tx=M.scrX+ph.dx;
+  if(ph.st===0){const k=Math.min(1,ph.t/ph.dur1);
+    return[M.srcX+(M.slitX-M.srcX)*k,M.cy+(sy-M.cy)*k];}
+  const k=Math.min(1,ph.t/ph.dur2);
+  return[M.slitX+(tx-M.slitX)*k,sy+(ty-sy)*k];
+}
+function stepPhotons(dt){
+  const v=480*Math.min(P.speed,10);
+  for(let i=photons.length-1;i>=0;i--){
+    const ph=photons[i];
+    const s1=M.cy-M.sep/2,s2=M.cy+M.sep/2,sy=ph.sl?s2:s1;
+    const ty=M.cy+ph.y*M.scale,tx=M.scrX+ph.dx;
+    ph.dur1=(M.slitX-M.srcX)/v;
+    ph.dur2=Math.hypot(tx-M.slitX,ty-sy)/v;
+    if(!ph.init){const p=posOf(ph);ph.px=p[0];ph.py=p[1];ph.init=true;}
+    ph.t+=dt;
+    if(ph.st===0&&ph.t>=ph.dur1){ph.st=1;ph.t=0;}
+    else if(ph.st===1&&ph.t>=ph.dur2){land(ph.y,ph.dx);photons.splice(i,1);}
+  }
+}
+
+/* ---------- 绘制 ---------- */
+function roundRect(x,y,w,h,r){ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function niceStep(range){
+  const t=[.01,.02,.05,.1,.2,.5,1,2,5,10,20,50,100];
+  for(const s of t)if(range/s<=8)return s;return 200;}
+
+function render(dt){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#070b16';ctx.fillRect(0,0,W,H);
+  const top=M.top,bot=M.bot,cy=M.cy;
+
+  /* 光轴 */
+  ctx.strokeStyle='rgba(120,140,190,.18)';ctx.setLineDash([5,7]);
+  ctx.beginPath();ctx.moveTo(M.srcX,cy);ctx.lineTo(M.scrX,cy);ctx.stroke();
+  ctx.setLineDash([]);
+
+  /* 子波波前（示意） */
+  if(el.wf.checked){
+    ctx.save();ctx.beginPath();ctx.rect(M.slitX+6,top,M.scrX-M.slitX-6,bot-top);ctx.clip();
+    ctx.strokeStyle=colStr+'0.07)';ctx.lineWidth=1.2;
+    const sp=10+(P.lam-380)/400*16;
+    for(let k=1;k<=16;k++){const r=k*sp;
+      for(const sy of[cy-M.sep/2,cy+M.sep/2]){
+        ctx.beginPath();ctx.arc(M.slitX+6,sy,r,-Math.PI/2,Math.PI/2);ctx.stroke();}}
+    ctx.restore();
+  }
+
+  /* 光源 */
+  const g=ctx.createRadialGradient(M.srcX,cy,2,M.srcX,cy,30);
+  g.addColorStop(0,'rgba(255,255,255,.95)');
+  g.addColorStop(.35,colStr+'0.55)');g.addColorStop(1,colStr+'0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(M.srcX,cy,30,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(M.srcX,cy,4.5,0,7);ctx.fill();
+  ctx.fillStyle='#8fa0c6';ctx.font='12px system-ui';ctx.textAlign='center';
+  ctx.fillText('光源',M.srcX,top+6);
+
+  /* 双缝挡板 */
+  const s1=cy-M.sep/2,s2=cy+M.sep/2,w=M.wid,bx=M.slitX;
+  ctx.fillStyle='#2b3757';
+  ctx.fillRect(bx-6,4,12,(s1-w/2)-4);
+  ctx.fillRect(bx-6,s1+w/2,12,(s2-w/2)-(s1+w/2));
+  ctx.fillRect(bx-6,s2+w/2,12,(bot+8)-(s2+w/2));
+  ctx.fillStyle='#3d4c78';
+  ctx.fillRect(bx-6,4,2,(s1-w/2)-4);ctx.fillRect(bx-6,s1+w/2,2,(s2-w/2)-(s1+w/2));
+  ctx.fillRect(bx-6,s2+w/2,2,(bot+8)-(s2+w/2));
+  ctx.fillStyle='#5ad1a5';ctx.fillRect(bx-7,s1-w/2,14,2);ctx.fillRect(bx-7,s2-w/2,14,2);
+  ctx.fillStyle='#8fa0c6';ctx.fillText('双缝 d , a（示意）',bx,bot+22);
+
+  /* 屏幕 + 落点层 */
+  ctx.fillStyle='#0d1526';ctx.fillRect(M.scrX-10,top,20,bot-top);
+  ctx.drawImage(dots,0,0,20*dpr,H*dpr,M.scrX-10,0,20,H);
+  ctx.strokeStyle='#33406b';
+  ctx.strokeRect(M.scrX-10.5,top-4,21,bot-top+8);
+  ctx.fillStyle='#8fa0c6';ctx.fillText('屏幕',M.scrX,bot+22);
+
+  /* Δy 刻度与标注（位于屏幕左侧） */
+  ctx.strokeStyle='rgba(90,209,165,.85)';ctx.lineWidth=1.5;
+  for(let k=-7;k<=7;k++){
+    const ym=k*dy;if(Math.abs(ym)>yView*0.985)continue;
+    const py=cy+ym*M.scale;
+    ctx.beginPath();ctx.moveTo(M.scrX-19,py);ctx.lineTo(M.scrX-12,py);ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(90,209,165,.5)';
+  ctx.beginPath();ctx.moveTo(M.scrX-15.5,cy);ctx.lineTo(M.scrX-15.5,cy+dy*M.scale);ctx.stroke();
+  for(const yy of[cy,cy+dy*M.scale]){
+    ctx.beginPath();ctx.moveTo(M.scrX-19,yy);ctx.lineTo(M.scrX-15.5,yy-3);
+    ctx.lineTo(M.scrX-15.5,yy+3);ctx.closePath();ctx.fillStyle='rgba(90,209,165,.7)';ctx.fill();}
+  ctx.save();ctx.translate(M.scrX-26,cy+dy*M.scale/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#5ad1a5';ctx.font='bold 12px system-ui';ctx.fillText('Δy',0,0);ctx.restore();
+  ctx.lineWidth=1;
+
+  /* ---------- 直方图 + 理论曲线面板 ---------- */
+  const hx0=M.hx0,hx1=M.hx1,hw=hx1-hx0,plotW=hw-18,axis=hx0+9;
+  ctx.fillStyle='rgba(11,18,38,.9)';roundRect(hx0,top-6,hw,bot-top+12,8);ctx.fill();
+  ctx.strokeStyle='#26335c';ctx.stroke();
+  ctx.save();ctx.beginPath();ctx.rect(hx0,top-6,hw,bot-top+12);ctx.clip();
+
+  /* 位置网格线 + mm 刻度 */
+  const step=niceStep(2*yView);
+  ctx.font='11px system-ui';ctx.textAlign='right';
+  for(let v=-Math.floor(yView/step)*step;v<=yView*1.001;v+=step){
+    const py=cy+v*M.scale;
+    ctx.strokeStyle='rgba(90,110,170,.12)';
+    ctx.beginPath();ctx.moveTo(hx0,py);ctx.lineTo(hx1,py);ctx.stroke();
+    ctx.strokeStyle='#3a4874';
+    ctx.beginPath();ctx.moveTo(hx1-5,py);ctx.lineTo(hx1,py);ctx.stroke();
+    ctx.fillStyle='#6f7d9d';ctx.fillText((v===0?'0':(v>0?'+':'')+v.toFixed(step<1?2:0)),hx0-8,py+4);
+  }
+  /* 纵轴 */
+  ctx.strokeStyle='#3a4874';ctx.beginPath();ctx.moveTo(axis,top);ctx.lineTo(axis,bot);ctx.stroke();
+
+  /* 理论曲线（填充 + 描边） */
+  ctx.beginPath();ctx.moveTo(axis,top+6);
+  for(let py=top+6;py<=bot-6;py+=2){
+    const I=intensity((py-cy)/M.scale);
+    ctx.lineTo(axis+I*plotW,py);
+  }
+  ctx.lineTo(axis,bot-6);ctx.closePath();
+  ctx.fillStyle=colStr+'0.10)';ctx.fill();
+  ctx.beginPath();
+  for(let py=top+6;py<=bot-6;py+=2){
+    const I=intensity((py-cy)/M.scale),x=ax+0; // noop
+    py===top+6?ctx.moveTo(axis+I*plotW,py):ctx.lineTo(axis+I*plotW,py);
+  }
+  ctx.strokeStyle=colStr+'0.95)';ctx.lineWidth=2;ctx.stroke();ctx.lineWidth=1;
+
+  /* 累积直方图（向两侧对称展开，按峰值归一化） */
+  const maxH=(bot-top)*0.44,bw=plotW/NB;
+  for(let i=0;i<NB;i++){
+    if(!bins[i])continue;
+    const h=bins[i]/binMax*maxH,x=axis+i*bw+0.5;
+    ctx.fillStyle='rgba(90,209,165,.75)';
+    ctx.fillRect(x,cy-h/2,Math.max(1,bw-0.8),h);
+  }
+  ctx.restore();
+
+  /* 面板标题与图例 */
+  ctx.textAlign='left';ctx.fillStyle='#c6d0e6';ctx.font='12px system-ui';
+  ctx.fillText('累积计数直方图  vs  理论 I(x)',hx0+10,top+10);
+  ctx.fillStyle='rgba(90,209,165,.9)';ctx.fillRect(hx0+10,top+20,14,3);
+  ctx.fillStyle='#93a0bd';ctx.fillText('直方图（峰值归一）',hx0+28,top+26);
+  ctx.fillStyle=colStr+'0.95)';ctx.fillRect(hx0+150,top+20,14,3);
+  ctx.fillStyle='#93a0bd';ctx.fillText('I(x)（峰值归一）',hx0+168,top+26);
+
+  /* 飞行中的光子（带拖尾，粒子感） */
+  for(const ph of photons){
+    const p=posOf(ph);
+    ctx.strokeStyle=colStr+'0.5)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(ph.px,ph.py);ctx.lineTo(p[0],p[1]);ctx.stroke();
+    ctx.fillStyle=colStr+'0.35)';ctx.beginPath();ctx.arc(p[0],p[1],3.4,0,7);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p[0],p[1],1.5,0,7);ctx.fill();
+    ph.px=p[0];ph.py=p[1];
+  }
+  ctx.lineWidth=1;
+
+  /* 落点闪光 */
+  for(let i=flashes.length-1;i>=0;i--){
+    const f=flashes[i];f.age+=dt;
+    if(f.age>0.45){flashes.splice(i,1);continue;}
+    const a=0.7*(1-f.age/0.45),py=cy+f.y*M.scale;
+    ctx.strokeStyle=colStr+a+')';
+    ctx.beginPath();ctx.arc(M.scrX+f.dx,py,3+f.age*36,0,7);ctx.stroke();
+  }
+
+  /* 标题 */
+  ctx.textAlign='left';ctx.fillStyle='#e8edf7';ctx.font='bold 13px system-ui';
+  ctx.fillText('单光子双缝干涉 · 逐粒累积',12,18);
+  ctx.fillStyle='#6f7d9d';ctx.font='11px system-ui';
+  ctx.fillText('I(x) ∝ cos²(πdx/λL) · sinc²(πay/λL)',12,32);
+}
+
+/* ---------- 主循环 ---------- */
+function frame(t){
+  const dt=Math.min(0.05,(t-lastT)/1000);lastT=t;
+  layout();
+  if(Math.abs(yViewT-yView)>yViewT*1e-4){
+    yView+=(yViewT-yView)*Math.min(1,dt*4);
+    if(Math.abs(yViewT-yView)<yViewT*2e-3)yView=yViewT;
+    needRebuild=true;
+    el.viewVal.textContent='±'+yView.toFixed(1)+' mm';
+  }
+  if(needRebuild&&(ys.length===0||t-lastRB>90)){rebuild();needRebuild=false;lastRB=t;}
+  if(running){
+    const eff=Math.min(P.rate*P.speed,4000);
+    acc+=eff*dt;
+    let n=Math.min(Math.floor(acc),500);acc-=n;
+    while(n-->0)emit();
+    stepPhotons(dt);
+    el.nEmit.textContent=emitted;
+  }
+  render(dt);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 交互 ---------- */
+function syncLabels(){
+  el.dV.textContent=P.d.toFixed(3)+' mm';
+  el.aV.textContent=P.a.toFixed(3)+' mm';
+  el.lamV.textContent=P.lam+' nm';
+  el.LV.textContent=P.L.toFixed(1)+' m';
+  el.rateV.textContent=P.rate+' /s';
+  el.speedV.textContent=P.speed+' ×';
+}
+function onParam(key,val){
+  P[key]=val;derive();updColor();syncLabels();
+  if(el.auto.checked)resetData();
+  needRebuild=true;
+}
+el.d.addEventListener('input',e=>onParam('d',+e.target.value));
+el.a.addEventListener('input',e=>onParam('a',+e.target.value));
+el.lam.addEventListener('input',e=>onParam('lam',+e.target.value));
+el.L.addEventListener('input',e=>onParam('L',+e.target.value));
+el.rate.addEventListener('input',e=>{P.rate=+e.target.value;syncLabels();});
+el.speed.addEventListener('input',e=>{P.speed=+e.target.value;syncLabels();});
+el.run.addEventListener('click',()=>{
+  running=!running;
+  el.run.textContent=running?'⏸ 暂停':'▶ 开始';
+});
+el.reset.addEventListener('click',resetData);
+window.addEventListener('resize',resize);
+
+/* ---------- 启动 ---------- */
+resize();derive();updColor();syncLabels();
+el.viewVal.textContent='±'+yView.toFixed(1)+' mm';
+el.dyVal.textContent=dy.toFixed(2)+' mm';
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

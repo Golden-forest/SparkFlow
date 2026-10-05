@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多普勒效应 · 救护车驶过的瞬间</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific extras (extend, not replace, the base set) */
+      --sim-wave: #35d6e8;      /* wavefront rings on the dark stage */
+      --sim-stage-deep: #0b1526;
+      --sim-stage: #101d33;
+      --sim-approach: #0f9fba;  /* approaching phase */
+      --sim-recede: #e0709a;    /* receding phase */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.13), transparent 30%),
+        radial-gradient(circle at 94% 6%, rgba(224, 112, 154, 0.09), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; font-size: 0.86rem; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(340px, 0.8fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 0.98rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; text-align: right; }
+
+    /* ---------- stage ---------- */
+    .scene-panel { min-height: 420px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .stage-wrap { position: relative; min-height: 0; border-radius: 18px; overflow: hidden; border: 1px solid rgba(15,159,186,.16); }
+    #scene { display: block; width: 100%; height: 100%; background: radial-gradient(120% 140% at 50% 8%, #16294a 0%, var(--sim-stage) 46%, var(--sim-stage-deep) 100%); }
+    .tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -130%); padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; box-shadow: 0 4px 12px rgba(4, 10, 22, 0.5); }
+    .tag small { font-weight: 600; opacity: .85; margin-left: 5px; font-variant-numeric: tabular-nums; }
+    .tag-mover { background: #10304a; color: #c9f2fb; border: 1px solid rgba(53, 214, 232, .55); }
+    .tag-observer { background: #3a2440; color: #ffd7e6; border: 1px solid rgba(224, 112, 154, .6); transform: translate(-50%, 55%); }
+
+    /* ---------- evidence side ---------- */
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 12px; overflow-y: auto; padding-right: 2px; }
+    .readouts { padding: 13px 15px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.14); border-radius: 13px; background: linear-gradient(150deg, #f8fcfd, #f2f7fa); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric .sub { display: block; margin-top: 2px; color: var(--sim-muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+    .metric .chip { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 0.68rem; vertical-align: 3px; }
+    .chip-approach { background: #d9f4f7; color: #08758a; border: 1px solid rgba(8,117,138,.3); }
+    .chip-recede { background: #fbe4ee; color: #a3255c; border: 1px solid rgba(163,37,92,.3); }
+    .chip-static { background: #eef1f6; color: #5b6779; border: 1px solid rgba(91,103,121,.3); }
+    .chart-panel { padding: 12px 14px; }
+    #chart { display: block; width: 100%; height: 158px; border: 1px solid var(--sim-grid); border-radius: 12px; background: #fbfdff; }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--sim-muted); font-size: 0.72rem; }
+    .chart-legend i { display: inline-block; width: 16px; height: 0; border-top: 3px solid; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
+
+    .insight { padding: 12px 15px; border-left: 4px solid var(--sim-warning); border-radius: 0 14px 14px 0; background: #fff7e6; }
+    .insight small { display: block; margin-bottom: 3px; color: #9a6a12; font-weight: 800; font-size: 0.72rem; letter-spacing: .04em; }
+    .insight p { margin: 0; color: #6d4a10; line-height: 1.55; font-size: 0.84rem; }
+
+    .formula-panel { padding: 12px 14px; display: grid; align-content: start; gap: 8px; }
+    .formula-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .formula-table th, .formula-table td { padding: 6px 7px; text-align: left; border-bottom: 1px solid var(--sim-grid); vertical-align: top; }
+    .formula-table th { color: var(--sim-muted); font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+    .formula-table tr:last-child td { border-bottom: none; }
+    .formula-table .mode-a { color: var(--sim-accent-deep); font-weight: 800; }
+    .formula-table .mode-b { color: #a3255c; font-weight: 800; }
+    .formula-table td num, .formula-table .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .formula-note { margin: 2px 0 0; color: var(--sim-muted); font-size: 0.74rem; line-height: 1.5; }
+    .hl { color: #a3255c; font-weight: 700; }
+
+    /* ---------- controls dock ---------- */
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto minmax(228px, 1fr) minmax(170px, 1fr) minmax(150px, 0.9fr) minmax(150px, 0.9fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: grid; grid-template-columns: repeat(2, auto); gap: 7px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: default; transform: none; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.22); }
+    button.sound[aria-pressed="true"] { border-color: rgba(8,117,138,.4); background: var(--sim-accent-soft); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(8,117,138,.25); }
+    .mode-picker legend, .mode-picker .legend { padding: 0; font-size: 0.74rem; font-weight: 800; color: var(--sim-muted); margin-bottom: 6px; }
+    .mode-picker { border: none; margin: 0; padding: 0; min-width: 0; }
+    .mode-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .mode-seg label { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid var(--sim-border); border-radius: 11px; background: var(--sim-surface-soft); font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+    .mode-seg label:has(input:checked) { border-color: var(--sim-accent); background: var(--sim-accent-soft); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(8,117,138,.28); }
+    .mode-seg input { accent-color: var(--sim-accent); margin: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+
+    @media (max-width: 980px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+      .scene-panel { min-height: 0; }
+      .stage-wrap { height: 62vw; min-height: 330px; }
+      .side { overflow: visible; }
+    }
+    /* Canvas motion carries model state and must keep running; only decorative
+       interface transitions are suppressed under reduced motion. */
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>多普勒效应 · 救护车驶过的瞬间</h1>
+        <p>分清「声源在动」还是「观察者在动」——两种情况公式不同，不能乱套；再看波前如何在车前挤密、车后拉疏。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">待开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">俯视演示场 · 波前视图</h2>
+          <span>每个圆环 = 一个波峰（每隔 T=1/f 发出一个）· 观察者位于 x=0 · 网格间距 20 m</span>
+        </div>
+        <div class="stage-wrap" id="stageWrap">
+          <canvas id="scene" role="img" aria-label="俯视道路场景：救护车或骑车人沿路移动，发出的声波形成一圈圈圆形波前；移动的声源前方波前挤密、后方拉疏；观察者处用脉冲标出波峰到达"></canvas>
+          <div id="moverTag" class="tag tag-mover" aria-hidden="true">救护车<small></small></div>
+          <div id="observerTag" class="tag tag-observer" aria-hidden="true">你 · 观察者<small></small></div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric">
+              <small>接收频率 f′（演示世界）</small>
+              <strong><span id="frReadout">15.00</span> Hz<span id="phaseChip" class="chip chip-static">静止</span></strong>
+              <span class="sub">真实换算（800 Hz 汽笛）：<span id="frRealReadout">800</span> Hz</span>
+            </div>
+            <div class="metric">
+              <small>波长 λ（波峰间距）</small>
+              <strong id="lambdaReadout" style="font-size:1.02rem">前 18.7 · 后 26.7 m</strong>
+              <span class="sub" id="lambdaNote">声源动：波前被挤密 / 拉疏</span>
+            </div>
+            <div class="metric">
+              <small>相对速度 u</small>
+              <strong id="uReadout">60 m/s</strong>
+              <span class="sub">= 0.18 × 声速 340 m/s</span>
+            </div>
+            <div class="metric">
+              <small>时刻 t</small>
+              <strong id="tReadout">0.00 s</strong>
+              <span class="sub" id="phaseNote">尚未驶过</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head" style="margin-bottom:8px">
+            <h2 id="chart-title">接收频率 f′ 随时间变化</h2>
+            <span>注意驶过瞬间的跳变</span>
+          </div>
+          <canvas id="chart" role="img" aria-label="接收频率随时间变化的曲线：驶来时高平台，驶过瞬间垂直跳降，驶离时低平台"></canvas>
+          <div class="chart-legend">
+            <span><i style="border-color:#0f9fba"></i>接收频率 f′</span>
+            <span><i style="border-color:#9aa7ba; border-top-style:dashed"></i>波源频率 f</span>
+            <span><i style="border-color:#dc2626; border-top-style:dashed"></i>驶过瞬间</span>
+          </div>
+        </section>
+
+        <section class="panel insight" data-zone="insight" aria-label="当前解读">
+          <small>此刻发生了什么</small>
+          <p id="insight">按「开始」：救护车鸣笛驶来，注意波前在车前一圈圈挤密、车后一圈圈拉疏；驶过你身边的一瞬，音调骤然由高变低。</p>
+        </section>
+
+        <section class="panel formula-panel" aria-labelledby="formula-title">
+          <div class="panel-head" style="margin-bottom:2px">
+            <h2 id="formula-title">两种情况，两套公式</h2>
+            <span>随左侧参数实时更新</span>
+          </div>
+          <table class="formula-table">
+            <thead>
+              <tr><th>谁在动</th><th>波长 λ</th><th>频率公式</th><th>当前数值（演示 / 真实）</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mode-a">声源动</td>
+                <td>被挤压/拉伸<br><span class="num">(v∓u)/f</span></td>
+                <td>f′ = f·v/(v∓u)<br><span style="color:var(--sim-muted)">分母变：空间效应</span></td>
+                <td>驶来 <span class="num" id="faApproach">—</span><br>驶离 <span class="num" id="faRecede">—</span></td>
+              </tr>
+              <tr>
+                <td class="mode-b">观察者动</td>
+                <td>不变<br><span class="num">v/f</span></td>
+                <td>f′ = f·(v±u)/v<br><span style="color:var(--sim-muted)">分子变：时间效应</span></td>
+                <td>驶来 <span class="num" id="fbApproach">—</span><br>驶离 <span class="num" id="fbRecede">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="formula-note">同样的相对速度 u，两种情况的 f′ <span class="hl">并不相等</span>——所以公式不能乱套。分辨要点：波前间距变了吗？变了是声源在动，没变是观察者在动。<br>模型注记：观察者取在声源运动直线上（理想化），驶过瞬间频率为瞬间跳变；真实路旁因偏离车道，听到的是快速滑降。演示世界把 800 Hz 汽笛缩成 15 Hz 量级以便看清波前，速度比 u/v 与真实一致，公式不变。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="演示控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+        <button id="soundBtn" class="sound" type="button" aria-pressed="true">声音：开</button>
+      </div>
+      <fieldset class="mode-picker">
+        <legend>谁在动？（切换会重新开始）</legend>
+        <div class="mode-seg" role="radiogroup" aria-label="选择谁在运动">
+          <label><input type="radio" name="mode" value="source" checked>救护车动（声源动）</label>
+          <label><input type="radio" name="mode" value="observer">骑车人动（观察者动）</label>
+        </div>
+      </fieldset>
+      <div class="control">
+        <label for="uInput">相对速度 u <output id="uOutput">60 m/s（0.18 v声）</output></label>
+        <input id="uInput" type="range" min="0" max="170" step="5" value="60">
+      </div>
+      <div class="control">
+        <label for="fInput">汽笛频率 f <output id="fOutput">15 Hz</output></label>
+        <input id="fInput" type="range" min="8" max="25" step="1" value="15">
+      </div>
+      <div class="control">
+        <label for="speedInput">慢放 <output id="speedOutput">0.30×</output></label>
+        <input id="speedInput" type="range" min="0.1" max="1" step="0.05" value="0.3">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // ================= world constants (scene = scaled teaching world) =================
+    const WORLD = { v: 340, fReal: 800, startX: -70, endX: 85, halfSpan: 88, fadeAge: 2.4 };
+    const parameterSchema = [
+      { key: "u", label: "相对速度", type: "slider", min: 0, max: 170, step: 5, default: 60, unit: "m/s" },
+      { key: "f", label: "汽笛频率", type: "slider", min: 8, max: 25, step: 1, default: 15, unit: "Hz" },
+      { key: "timeScale", label: "慢放", type: "slider", min: 0.1, max: 1, step: 0.05, default: 0.3, unit: "×" }
+    ];
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    // ================= pure physics kernel (no DOM; exact 1-D Doppler) =================
+    // Convention: observer at x=0, mover starts at startX<0 and moves +x at speed u.
+    // "approaching" = mover still on the negative side (has not passed the observer).
+    function receivedFrequency(mode, u, f, v, approaching) {
+      if (mode === "source") return (f * v) / (v + (approaching ? -u : u));
+      return (f * (v + (approaching ? u : -u))) / v;
+    }
+    function wavelengths(mode, u, f, v) {
+      // mode "source": wavefronts squeezed ahead / stretched behind; mode "observer": uniform.
+      return mode === "source"
+        ? { ahead: (v - u) / f, behind: (v + u) / f, uniform: null }
+        : { ahead: v / f, behind: v / f, uniform: v / f };
+    }
+    function arrivalInterval(mode, u, f, v, approaching) {
+      // Period between successive crest arrivals at the receiver = 1/f′.
+      return 1 / receivedFrequency(mode, u, f, v, approaching);
+    }
+    // Pure trajectory helpers (used by checks and by the stateful scene alike).
+    function linearX(x0, u, t) { return x0 + u * t; }
+    // Crest-by-crest simulation used only as an independent numerical oracle.
+    function simulateEmissions(u, f, tEnd, x0) {
+      const T = 1 / f, out = [];
+      for (let k = 0; ; k += 1) {
+        const tE = k * T;
+        if (tE > tEnd + 1e-12) break;
+        out.push({ tE, xE: linearX(x0, u, tE) });
+      }
+      return out;
+    }
+    // Arrival time of a crest at the receiver for both modes (constant u).
+    function arrivalTime(mode, tE, xE, u, v, d0) {
+      return mode === "source" ? tE + Math.abs(xE) / v : (v * tE + d0) / (v + u);
+    }
+
+    // ================= authoritative state =================
+    const state = {
+      running: false, ended: false, mode: "source", u: 60, f: 15, timeScale: 0.3, soundOn: true,
+      t: 0, segments: [], fronts: [], nextEmitT: 0, history: [], passes: [], lastSampleT: -1,
+      pulses: [], nextPulseT: 0, phase: "approach", lastTs: null, flashT: -1e9, lastInsightKey: ""
+    };
+    function lastSegment() { return state.segments[state.segments.length - 1]; }
+    function moverX(t) {
+      const s = state.segments;
+      for (let i = s.length - 1; i >= 0; i -= 1) {
+        if (t >= s[i].t0 - 1e-12) return s[i].x0 + s[i].u * (t - s[i].t0);
+      }
+      return s.length ? s[0].x0 : WORLD.startX;
+    }
+    function phaseOf(xM, u) {
+      if (!u) return "static";
+      return xM < 0 ? "approach" : "recede";
+    }
+    function currentFr() {
+      return receivedFrequency(state.mode, state.u, state.f, WORLD.v, state.phase === "approach");
+    }
+
+    // ================= DOM refs =================
+    const $ = (sel) => document.querySelector(sel);
+    const els = {
+      status: $("#status"), scene: $("#scene"), chart: $("#chart"), stageWrap: $("#stageWrap"),
+      moverTag: $("#moverTag"), observerTag: $("#observerTag"),
+      fr: $("#frReadout"), frReal: $("#frRealReadout"), phaseChip: $("#phaseChip"),
+      lambda: $("#lambdaReadout"), lambdaNote: $("#lambdaNote"),
+      uOut: $("#uReadout"), tOut: $("#tReadout"), phaseNote: $("#phaseNote"),
+      insight: $("#insight"),
+      faA: $("#faApproach"), faR: $("#faRecede"), fbA: $("#fbApproach"), fbR: $("#fbRecede"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"), soundBtn: $("#soundBtn"),
+      uInput: $("#uInput"), uOutput: $("#uOutput"),
+      fInput: $("#fInput"), fOutput: $("#fOutput"),
+      speedInput: $("#speedInput"), speedOutput: $("#speedOutput"),
+      modeRadios: () => Array.from(document.querySelectorAll('input[name="mode"]'))
+    };
+    const PALETTE = {
+      wave: "#35d6e8", approach: "#4cc7de", recede: "#e0709a",
+      observer: "#ff9ec4", road: "#1b2c49", roadEdge: "rgba(180,205,235,.35)",
+      text: "#c8d6ea", axis: "#9aa7ba", grid: "#e8edf4", jump: "#dc2626"
+    };
+
+    // ================= audio bridge (real 800 Hz siren × same Doppler ratio) =================
+    const audio = { ctx: null, osc: null, gain: null };
+    function audioEnsure() {
+      if (!state.soundOn || audio.ctx) return;
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audio.ctx = new AC();
+        audio.osc = audio.ctx.createOscillator();
+        audio.gain = audio.ctx.createGain();
+        audio.gain.gain.value = 0;
+        audio.osc.type = "sine";
+        audio.osc.frequency.value = WORLD.fReal;
+        audio.osc.connect(audio.gain);
+        audio.gain.connect(audio.ctx.destination);
+        audio.osc.start();
+      } catch (e) { audio.ctx = null; }
+    }
+    function audioUpdate() {
+      if (!audio.ctx) return;
+      const now = audio.ctx.currentTime;
+      const audible = state.running && !state.ended && state.soundOn;
+      audio.gain.gain.setTargetAtTime(audible ? 0.055 : 0, now, 0.04);
+      if (audible) {
+        const target = WORLD.fReal * (currentFr() / state.f); // ratio u/v identical in both worlds
+        audio.osc.frequency.setTargetAtTime(Math.max(40, target), now, 0.015);
+      }
+    }
+
+    // ================= lifecycle =================
+    function reset() {
+      state.running = false; state.ended = false;
+      state.t = 0;
+      state.segments = [{ t0: 0, x0: WORLD.startX, u: state.u }];
+      state.fronts = []; state.nextEmitT = 0;
+      state.phase = phaseOf(WORLD.startX, state.u);
+      state.history = [{ t: 0, fr: currentFr() }];
+      state.passes = []; state.pulses = []; state.lastSampleT = -1;
+      state.nextPulseT = arrivalTime(state.mode, 0, WORLD.startX, state.u, WORLD.v, Math.abs(WORLD.startX));
+      state.flashT = -1e9; state.lastTs = null;
+      audioUpdate(); render();
+    }
+    function start() {
+      if (state.ended) reset();
+      audioEnsure();
+      if (audio.ctx && audio.ctx.state === "suspended") audio.ctx.resume();
+      state.running = true;
+      audioUpdate(); render();
+    }
+    function pause() {
+      state.running = false;
+      audioUpdate(); render();
+    }
+    function setParameters(values) {
+      const defs = {};
+      parameterSchema.forEach((d) => { defs[d.key] = d; });
+      const nu = clamp(finite(Number(values.u), state.u), defs.u.min, defs.u.max);
+      const nf = clamp(finite(Number(values.f), state.f), defs.f.min, defs.f.max);
+      const nt = clamp(finite(Number(values.timeScale), state.timeScale), defs.timeScale.min, defs.timeScale.max);
+      if (nu !== state.u) {
+        // speed change takes effect from now on; already-emitted wavefronts keep
+        // their emission time/position (waves in air do not change retroactively)
+        if (state.segments.length && state.t > 0) {
+          state.segments.push({ t0: state.t, x0: moverX(state.t), u: nu });
+        } else if (state.segments.length) {
+          lastSegment().u = nu;
+        }
+        state.u = nu;
+      }
+      state.f = nf; state.timeScale = nt;
+      if (!state.running && state.t === 0) reset(); // re-arm initial readouts
+      syncInputs(); render();
+    }
+    function setMode(mode) {
+      if (state.mode === mode) return;
+      state.mode = mode;
+      reset();
+    }
+
+    // ================= update (no DOM) =================
+    function update(dtReal) {
+      if (!state.running) return;
+      const dt = clamp(finite(dtReal, 0), 0, 0.05) * state.timeScale;
+      if (dt <= 0) return;
+      state.t += dt;
+      // emit crests on the exact period grid (frame-rate independent)
+      const T = 1 / state.f;
+      let guard = 0;
+      while (state.nextEmitT <= state.t + 1e-12 && guard < 400) {
+        state.fronts.push({ tE: state.nextEmitT, xE: moverX(state.nextEmitT) });
+        state.nextEmitT += T;
+        guard += 1;
+      }
+      while (state.fronts.length && WORLD.v * (state.t - state.fronts[0].tE) > WORLD.fadeAge + 0.2) state.fronts.shift();
+      // pass event: detect phase flip, compute the exact crossing time analytically
+      const xM = moverX(state.t);
+      const newPhase = phaseOf(xM, state.u);
+      if (newPhase !== state.phase && newPhase !== "static" && state.phase !== "static") {
+        const seg = lastSegment();
+        if (seg.u > 0) {
+          const tCross = seg.t0 + (0 - seg.x0) / seg.u;
+          state.passes.push(tCross);
+          state.history.push({ t: tCross, fr: receivedFrequency(state.mode, state.u, state.f, WORLD.v, false) });
+          state.flashT = tCross;
+          state.phase = newPhase;
+        }
+      } else if (newPhase !== "static") {
+        state.phase = newPhase;
+      }
+      // observer pulse on each received crest (exact interval; re-syncs after parameter edits)
+      const Tarr = arrivalInterval(state.mode, state.u, state.f, WORLD.v, state.phase === "approach");
+      let pg = 0;
+      while (state.t >= state.nextPulseT - 1e-12 && pg < 200) {
+        state.pulses.push(state.nextPulseT);
+        state.nextPulseT += Tarr;
+        pg += 1;
+      }
+      while (state.pulses.length && state.t - state.pulses[0] > 1.4) state.pulses.shift();
+      // chart sampling from the same authoritative frequency
+      if (state.t - state.lastSampleT >= 0.02) {
+        state.history.push({ t: state.t, fr: currentFr() });
+        state.lastSampleT = state.t;
+        if (state.history.length > 3000) state.history.shift();
+      }
+      // terminal condition: mover has left the scene
+      if (xM >= WORLD.endX) {
+        state.running = false; state.ended = true;
+        audioUpdate();
+      } else {
+        audioUpdate();
+      }
+    }
+
+    // ================= rendering =================
+    function fit2d(canvas) {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (!w || !h) return null;
+      const dpr = window.devicePixelRatio || 1;
+      const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+      if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w, h };
+    }
+    function sirenLevel() {
+      const T = 1 / state.f;
+      const lastEmit = state.nextEmitT - T;
+      if (state.t <= 0) return 0.6;
+      return Math.max(0, 1 - (state.t - lastEmit) / T);
+    }
+    function drawAmbulance(ctx, cx, cy, level) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+      ctx.fillStyle = "#f2f6fb";
+      roundRect(ctx, -33, -14, 66, 28, 7); ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.fillStyle = "#c9d6e6"; roundRect(ctx, -33, -14, 8, 28, 7); ctx.fill(); // rear
+      ctx.fillStyle = "#35507a"; roundRect(ctx, 15, -11, 15, 22, 5); ctx.fill(); // cab windshield
+      ctx.fillStyle = "#e0455e"; // red cross on the roof
+      ctx.fillRect(-14, -3.2, 20, 6.4); ctx.fillRect(-7, -9, 6.4, 18);
+      const lv = Math.max(0.15, level); // roof light bar glows on each emitted crest
+      const grd = ctx.createRadialGradient(-20, 0, 1, -20, 0, 16);
+      grd.addColorStop(0, `rgba(255,196,84,${0.85 * lv})`);
+      grd.addColorStop(1, "rgba(255,196,84,0)");
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(-20, 0, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = `rgba(255,214,120,${0.55 + 0.45 * lv})`; roundRect(ctx, -24, -5, 8, 10, 3); ctx.fill();
+      ctx.restore();
+    }
+    function drawPerson(ctx, cx, cy, moving) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (moving) { // speed lines behind the rider encode current speed
+        ctx.strokeStyle = "rgba(120,190,230,.5)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+        for (let i = 0; i < 3; i += 1) {
+          const y = -8 + i * 8;
+          ctx.beginPath(); ctx.moveTo(-26 - (2 - Math.abs(i - 1)) * 6, y); ctx.lineTo(-16, y); ctx.stroke();
+        }
+      }
+      ctx.fillStyle = "#3f5f8f";
+      ctx.beginPath(); ctx.ellipse(0, 0, 15, 10, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(220,235,250,.5)"; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = "#ffd2a0";
+      ctx.beginPath(); ctx.arc(4, 0, 6.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(60,40,20,.4)"; ctx.stroke();
+      ctx.restore();
+    }
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+    function drawScene() {
+      const fit = fit2d(els.scene); if (!fit) return;
+      const { ctx, w, h } = fit;
+      ctx.clearRect(0, 0, w, h);
+      const pxPerM = w / (2 * WORLD.halfSpan);
+      const roadY = Math.round(h * 0.56);
+      const toPx = (x) => w / 2 + x * pxPerM;
+      const v = WORLD.v;
+      // road
+      const roadH = Math.max(52, Math.min(74, h * 0.2));
+      ctx.fillStyle = "rgba(23,36,58,.9)";
+      ctx.fillRect(0, roadY - roadH / 2, w, roadH);
+      ctx.strokeStyle = PALETTE.roadEdge; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, roadY - roadH / 2); ctx.lineTo(w, roadY - roadH / 2);
+      ctx.moveTo(0, roadY + roadH / 2); ctx.lineTo(w, roadY + roadH / 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(200,214,234,.22)"; ctx.lineWidth = 2; ctx.setLineDash([14, 12]);
+      ctx.beginPath(); ctx.moveTo(0, roadY); ctx.lineTo(w, roadY); ctx.stroke(); ctx.setLineDash([]);
+      // distance ticks every 20 m
+      ctx.fillStyle = "rgba(160,180,205,.7)"; ctx.font = "10px system-ui, sans-serif"; ctx.textAlign = "center";
+      for (let m = -80; m <= 80; m += 20) {
+        if (m === 0) continue;
+        const px = toPx(m);
+        ctx.strokeStyle = "rgba(160,180,205,.35)";
+        ctx.beginPath(); ctx.moveTo(px, roadY + roadH / 2); ctx.lineTo(px, roadY + roadH / 2 + 6); ctx.stroke();
+        ctx.fillText(`${m} m`, px, roadY + roadH / 2 + 18);
+      }
+      // observer axis marker
+      ctx.strokeStyle = "rgba(224,112,154,.55)"; ctx.lineWidth = 1.5; ctx.setLineDash([6, 7]);
+      ctx.beginPath(); ctx.moveTo(toPx(0), 8); ctx.lineTo(toPx(0), h - 8); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255,158,196,.9)"; ctx.font = "700 11px system-ui, sans-serif";
+      ctx.fillText("x = 0", toPx(0) + 2, 16);
+      // wavefronts: one ring per emitted crest, radius v·age, fading with age
+      const level = sirenLevel();
+      const diag = Math.hypot(w, h);
+      ctx.lineWidth = 2;
+      for (let i = 0; i < state.fronts.length; i += 1) {
+        const f = state.fronts[i];
+        const age = state.t - f.tE;
+        const rPx = v * age * pxPerM;
+        if (rPx <= 0 || rPx > diag) continue;
+        const a = Math.max(0, 1 - age / WORLD.fadeAge);
+        if (a <= 0.02) continue;
+        ctx.strokeStyle = `rgba(53,214,232,${(0.8 * a).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(toPx(f.xE), roadY, rPx, 0, Math.PI * 2); ctx.stroke();
+      }
+      // received-crest pulses at the receiver (person icon)
+      const srcX = state.mode === "source" ? moverX(state.t) : 0;
+      const recvX = state.mode === "source" ? 0 : moverX(state.t);
+      const srcPx = toPx(srcX), recvPx = toPx(recvX), moverPx = toPx(moverX(state.t));
+      for (let i = 0; i < state.pulses.length; i += 1) {
+        const dt = state.t - state.pulses[i];
+        const a = Math.max(0, 1 - dt / 0.9);
+        if (a <= 0.02) continue;
+        ctx.strokeStyle = `rgba(255,158,196,${(0.75 * a).toFixed(3)})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(recvPx, roadY, 10 + 55 * (dt / 0.9), 0, Math.PI * 2); ctx.stroke();
+      }
+      // actors: the moving one is the mover; the other stays at the meeting axis
+      if (state.mode === "source") {
+        drawPerson(ctx, recvPx, roadY, false);
+        drawAmbulance(ctx, srcPx, roadY, level);
+      } else {
+        drawAmbulance(ctx, srcPx, roadY, level);
+        drawPerson(ctx, recvPx, roadY, true);
+      }
+      // velocity arrow for the mover
+      if (state.u > 0) {
+        const ax = moverPx + 44, ay = roadY;
+        ctx.strokeStyle = "rgba(150,220,240,.85)"; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 26, ay); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax + 26, ay); ctx.lineTo(ax + 19, ay - 4.5);
+        ctx.moveTo(ax + 26, ay); ctx.lineTo(ax + 19, ay + 4.5); ctx.stroke();
+      }
+      // pass flash: always at the meeting axis x=0, where the two actors cross
+      const fdt = state.t - state.flashT;
+      if (fdt >= 0 && fdt < 0.8 && state.passes.length) {
+        const a = 1 - fdt / 0.8;
+        const flashPx = toPx(0);
+        const g = ctx.createRadialGradient(flashPx, roadY, 4, flashPx, roadY, 70);
+        g.addColorStop(0, `rgba(255,208,120,${0.5 * a})`); g.addColorStop(1, "rgba(255,208,120,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(flashPx, roadY, 70, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(255,224,150,${a.toFixed(3)})`;
+        ctx.font = "800 17px system-ui, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("驶过！", flashPx, roadY - 42 - 10 * a);
+      }
+      // HTML overlay tags follow the actors
+      placeTag(els.moverTag, moverPx, roadY - 34, state.mode === "source" ? "救护车" : "骑车人（你）", state.u > 0 ? `${state.u} m/s →` : "静止");
+      placeTag(els.observerTag, toPx(0), roadY + 34, state.mode === "source" ? "你 · 观察者" : "救护车（汽笛静止）", state.mode === "source" ? "" : "持续鸣笛");
+    }
+    function placeTag(el, px, py, name, note) {
+      el.firstChild.nodeValue = name;
+      const small = el.querySelector("small");
+      if (small) small.textContent = note || "";
+      el.style.left = `${px}px`;
+      el.style.top = `${py}px`;
+    }
+    function drawChart() {
+      const fit = fit2d(els.chart); if (!fit) return;
+      const { ctx, w, h } = fit;
+      ctx.clearRect(0, 0, w, h);
+      const L = 46, R = 12, T = 12, B = 22, pw = w - L - R, ph = h - T - B;
+      if (pw < 40 || ph < 30) return;
+      const v = WORLD.v, f = state.f, u = state.u;
+      const yMax = 1.18 * Math.max((f * v) / Math.max(v - u, 1), (f * (v + u)) / v, 10);
+      const tMax = Math.max(4, state.t * 1.06);
+      const X = (t) => L + (t / tMax) * pw;
+      const Y = (fr) => T + ph - (fr / yMax) * ph;
+      ctx.font = "10px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      for (let i = 0; i <= 4; i += 1) {
+        const fr = (yMax / 4) * i, y = Y(fr);
+        ctx.strokeStyle = i === 0 ? "#c7d2e2" : PALETTE.grid; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R, y); ctx.stroke();
+        ctx.fillStyle = PALETTE.axis; ctx.fillText(fr.toFixed(1), L - 5, y);
+      }
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      const tStep = tMax <= 4.6 ? 0.5 : tMax <= 10 ? 1 : 2;
+      for (let t = 0; t <= tMax + 1e-9; t += tStep) {
+        const x = X(t);
+        ctx.strokeStyle = PALETTE.grid;
+        ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
+        ctx.fillStyle = PALETTE.axis; ctx.fillText(t.toFixed(tStep < 1 ? 1 : 0), x, T + ph + 5);
+      }
+      ctx.textAlign = "left"; ctx.fillText("t / s", w - R - 26, T + ph + 5);
+      ctx.textAlign = "left"; ctx.fillStyle = PALETTE.axis; ctx.fillText("f′ / Hz", L + 4, 2);
+      // source-frequency reference
+      ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(L, Y(f)); ctx.lineTo(w - R, Y(f)); ctx.stroke(); ctx.setLineDash([]);
+      // trace
+      ctx.strokeStyle = "#0f9fba"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.beginPath();
+      state.history.forEach((p, i) => { const x = X(p.t), y = Y(p.fr); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+      ctx.stroke();
+      // pass markers
+      ctx.strokeStyle = PALETTE.jump; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+      ctx.fillStyle = PALETTE.jump; ctx.textAlign = "center";
+      state.passes.forEach((tp) => {
+        if (tp > tMax) return;
+        ctx.beginPath(); ctx.moveTo(X(tp), T); ctx.lineTo(X(tp), T + ph); ctx.stroke();
+        ctx.fillText("驶过", X(tp), T + 1);
+      });
+      ctx.setLineDash([]);
+      // current point
+      if (state.history.length) {
+        const cur = { t: state.t, fr: currentFr() };
+        ctx.fillStyle = state.phase === "approach" ? "#0f9fba" : "#e0709a";
+        ctx.beginPath(); ctx.arc(X(cur.t), Y(cur.fr), 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    }
+
+    // ================= panels, readouts, insight =================
+    function updatePanels() {
+      const v = WORLD.v, f = state.f, u = state.u;
+      const fr = currentFr();
+      const frReal = WORLD.fReal * (fr / f);
+      els.fr.textContent = fr.toFixed(2);
+      els.frReal.textContent = Number.isFinite(frReal) ? frReal.toFixed(0) : "—";
+      const chip = state.u === 0 ? ["静止", "chip-static"] : state.phase === "approach" ? ["驶来", "chip-approach"] : ["驶离", "chip-recede"];
+      els.phaseChip.textContent = chip[0];
+      els.phaseChip.className = `chip ${chip[1]}`;
+      if (state.mode === "source") {
+        els.lambda.textContent = `前 ${((v - u) / f).toFixed(1)} · 后 ${((v + u) / f).toFixed(1)} m`;
+        els.lambdaNote.textContent = "声源动：波前被挤密 / 拉疏";
+      } else {
+        els.lambda.textContent = `处处 ${(v / f).toFixed(1)} m（不变）`;
+        els.lambdaNote.textContent = "观察者动：波长不变";
+      }
+      els.uOut.textContent = `${u} m/s`;
+      const uSub = els.uOut.parentElement && els.uOut.parentElement.querySelector(".sub");
+      if (uSub) uSub.textContent = `= ${(u / v).toFixed(2)} × 声速 ${v} m/s`;
+      els.tOut.textContent = `${state.t.toFixed(2)} s`;
+      els.phaseNote.textContent = state.passes.length ? `已于 ${state.passes[0].toFixed(2)} s 驶过` : "尚未驶过";
+      // formula comparison card (live for BOTH modes)
+      const faA = (f * v) / (v - u), faR = (f * v) / (v + u);
+      const fbA = (f * (v + u)) / v, fbR = (f * (v - u)) / v;
+      const pair = (x) => `${x.toFixed(2)} Hz / ${(WORLD.fReal * (x / f)).toFixed(0)} Hz`;
+      els.faA.textContent = pair(faA); els.faR.textContent = pair(faR);
+      els.fbA.textContent = pair(fbA); els.fbR.textContent = pair(fbR);
+      // status pill
+      let status;
+      if (state.ended) status = "已驶离 · 按「重置」再看";
+      else if (!state.running && state.t === 0) status = "待开始";
+      else if (state.running && state.u > 0) status = state.phase === "approach" ? "演示中 · 驶来（音调偏高）" : "演示中 · 驶离（音调偏低）";
+      else if (state.running) status = "演示中 · 相对静止";
+      else status = state.passes.length ? "已暂停 · 已驶过" : "已暂停 · 驶来途中";
+      els.status.textContent = status;
+      els.startBtn.disabled = state.running;
+      els.pauseBtn.disabled = !state.running;
+      updateInsight();
+    }
+    function updateInsight() {
+      const key = state.ended ? "ended" : state.u === 0 ? "static"
+        : (!state.running && state.t === 0) ? "idle" : `${state.mode}|${state.phase}`;
+      if (key === state.lastInsightKey) return;
+      state.lastInsightKey = key;
+      const texts = {
+        idle: "按下「开始」：救护车鸣笛驶来，注意波前在车前一圈圈挤密、车后一圈圈拉疏；驶过你身边的一瞬，音调骤然由高变低。",
+        "source|approach": "声源驶来：每发出一个波峰，车都向前抢了一段路程——前方波前被压密（λ前 = (v−u)/f），你每秒收到的波峰变多，f′ = f·v/(v−u)。",
+        "source|recede": "驶过的一瞬：车速从「朝向你」翻转为「离开你」，波长立刻由压缩变为拉伸——f′ 从 f·v/(v−u) 骤降到 f·v/(v+u)，音调陡然变低。",
+        "observer|approach": "你驶向静止的汽笛：波前均匀、波长不变（λ = v/f），但你在迎着波峰跑，每秒多截到 u/λ 圈，f′ = f(v+u)/v。",
+        "observer|recede": "驶过的一瞬：你从迎着波跑转为顺着波跑，波长依旧不变——f′ 从 f(v+u)/v 降到 f(v−u)/v。对照下方公式卡：同样的速度，两种情况的频率并不相等。",
+        static: "相对速度为 0：没有多普勒效应，f′ = f。调大「相对速度」再试。",
+        ended: "已驶离：拉疏的波前从车后一圈圈传来，音调停在低平台。按「重置」再跑一次，或把速度调到 170 m/s（0.5 v声），看更夸张的挤密与拉疏。"
+      };
+      els.insight.textContent = texts[key] || texts.idle;
+    }
+    function syncInputs() {
+      const uText = `${state.u} m/s（${(state.u / WORLD.v).toFixed(2)} v声）`;
+      els.uInput.value = String(state.u); els.uOutput.textContent = uText;
+      els.fInput.value = String(state.f); els.fOutput.textContent = `${state.f} Hz`;
+      els.speedInput.value = String(state.timeScale); els.speedOutput.textContent = `${state.timeScale.toFixed(2)}×`;
+    }
+    function render() {
+      drawScene();
+      drawChart();
+      updatePanels();
+    }
+
+    // ================= model checks (pure, browser-independent oracle) =================
+    function runModelChecks() {
+      const v = WORLD.v, f = 15, d0 = Math.abs(WORLD.startX), u = 60;
+      const cases = [];
+      const near = (a, b, tol) => Math.abs(a - b) <= tol;
+      const c1 = receivedFrequency("source", u, f, v, true), e1 = (f * v) / (v - u);
+      cases.push({ name: "声源驶来 常规工况 f·v/(v−u)", pass: near(c1, e1, 1e-12), expected: e1.toFixed(9), actual: c1.toFixed(9), tolerance: "1e-12" });
+      const c2 = receivedFrequency("observer", u, f, v, true), e2 = (f * (v + u)) / v;
+      cases.push({ name: "观察者驶来 常规工况 f(v+u)/v", pass: near(c2, e2, 1e-12), expected: e2.toFixed(9), actual: c2.toFixed(9), tolerance: "1e-12" });
+      const c3 = receivedFrequency("source", u, f, v, false), e3 = (f * v) / (v + u);
+      const c4 = receivedFrequency("observer", u, f, v, false), e4 = (f * (v - u)) / v;
+      cases.push({ name: "驶离方向 f·v/(v+u) 与 f(v−u)/v", pass: near(c3, e3, 1e-12) && near(c4, e4, 1e-12), expected: `${e3.toFixed(9)} / ${e4.toFixed(9)}`, actual: `${c3.toFixed(9)} / ${c4.toFixed(9)}`, tolerance: "1e-12" });
+      let ordering = true, ordDetail = "";
+      for (const uu of [10, 60, 120, 170]) {
+        const fa = receivedFrequency("source", uu, f, v, true), fb = receivedFrequency("observer", uu, f, v, true);
+        const fa2 = receivedFrequency("source", uu, f, v, false), fb2 = receivedFrequency("observer", uu, f, v, false);
+        // same |u|: source motion deviates further from f on BOTH sides
+        if (!(fa > fb && fb > f && f > fa2 && fa2 > fb2)) { ordering = false; ordDetail = `u=${uu}`; }
+      }
+      cases.push({ name: "同速不等式 驶来 f·v/(v−u) > f(v+u)/v > f；驶离 f > f·v/(v+u) > f(v−u)/v", pass: ordering, expected: "严格成立 (u=10…170)", actual: ordering ? "成立" : `在 ${ordDetail} 失败`, tolerance: "严格" });
+      const eps = 1e-6;
+      const z1 = Math.abs(receivedFrequency("source", eps, f, v, true) - f);
+      const z2 = Math.abs(receivedFrequency("observer", eps, f, v, true) - f);
+      cases.push({ name: "u→0 极限：f′ → f", pass: z1 < 1e-6 && z2 < 1e-6, expected: `误差 < 1e-6`, actual: `${z1.toExponential(2)} / ${z2.toExponential(2)}`, tolerance: "1e-6" });
+      // emission grid: exact period grid, spacing u/f between emission positions
+      const ems = simulateEmissions(u, f, 3, WORLD.startX);
+      let gridOk = ems.length > 40, maxDev = 0;
+      for (let i = 1; i < ems.length; i += 1) {
+        maxDev = Math.max(maxDev, Math.abs((ems[i].tE - ems[i - 1].tE) - 1 / f));
+        maxDev = Math.max(maxDev, Math.abs((ems[i].xE - ems[i - 1].xE) - u / f));
+      }
+      cases.push({ name: "波前发射网格：周期 1/f、位移 u/f", pass: gridOk && maxDev < 1e-9, expected: "偏差 < 1e-9", actual: maxDev.toExponential(2), tolerance: "1e-9" });
+      // crest-arrival oracle, mode A: successive arrivals at the observer are T·(v−u)/v apart
+      const arrA = ems.filter((e) => e.xE < -1e-9).map((e) => arrivalTime("source", e.tE, e.xE, u, v, d0));
+      let devA = 0;
+      for (let i = 1; i < arrA.length; i += 1) devA = Math.max(devA, Math.abs((arrA[i] - arrA[i - 1]) - (v - u) / (f * v)));
+      cases.push({ name: "波峰到达间隔（声源动，驶来）→ f′ = f·v/(v−u)", pass: arrA.length >= 12 && devA < 1e-9, expected: `${((f * v) / (v - u)).toFixed(6)} Hz`, actual: `${(1 / ((v - u) / (f * v))).toFixed(6)} Hz（${arrA.length} 个波峰）`, tolerance: "1e-9" });
+      // crest-arrival oracle, mode B: arrivals T·v/(v+u) apart
+      const arrB = ems.map((e) => arrivalTime("observer", e.tE, 0, u, v, d0)).slice(0, 40);
+      let devB = 0;
+      for (let i = 1; i < arrB.length; i += 1) devB = Math.max(devB, Math.abs((arrB[i] - arrB[i - 1]) - v / (f * (v + u))));
+      cases.push({ name: "波峰到达间隔（观察者动，驶来）→ f′ = f(v+u)/v", pass: arrB.length > 30 && devB < 1e-9, expected: `${((f * (v + u)) / v).toFixed(6)} Hz`, actual: `${(1 / (v / (f * (v + u)))).toFixed(6)} Hz`, tolerance: "1e-9" });
+      // wavelength identities
+      const wl = wavelengths("source", u, f, v);
+      const id1 = Math.abs(wl.ahead + wl.behind - (2 * v) / f);
+      const id2 = Math.abs(wl.ahead - (v / f) * (1 - u / v));
+      cases.push({ name: "波长恒等式 λ前+λ后 = 2v/f；λ前 = λ(1−u/v)", pass: id1 < 1e-12 && id2 < 1e-12, expected: "0 / 0", actual: `${id1.toExponential(2)} / ${id2.toExponential(2)}`, tolerance: "1e-12" });
+      // pass-event time: trajectory −70+u·t crosses 0 exactly at d0/u
+      const tCross = d0 / u;
+      const xBefore = linearX(WORLD.startX, u, tCross - 1e-9), xAfter = linearX(WORLD.startX, u, tCross + 1e-9);
+      cases.push({ name: "驶过瞬间事件时刻 t* = 70/60 s，符号翻转", pass: Math.abs(linearX(WORLD.startX, u, tCross)) < 1e-12 && xBefore < 0 && xAfter > 0, expected: "t*=1.1667，x(t*)=0", actual: `x=${linearX(WORLD.startX, u, tCross).toExponential(2)}`, tolerance: "1e-12" });
+      // interval/frequency consistency for all four combos
+      let consist = true;
+      for (const mode of ["source", "observer"]) for (const ap of [true, false]) {
+        if (!near(1 / arrivalInterval(mode, u, f, v, ap), receivedFrequency(mode, u, f, v, ap), 1e-12)) consist = false;
+      }
+      cases.push({ name: "到达间隔与频率公式互相印证（四种组合）", pass: consist, expected: "1/T到 = f′（<1e-12）", actual: consist ? "一致" : "不一致", tolerance: "1e-12" });
+      // real-siren bridge uses the same ratio
+      const bridge = WORLD.fReal * (receivedFrequency("source", u, f, v, true) / f);
+      cases.push({ name: "真实换算 800 Hz × [f′/f]", pass: near(bridge, (WORLD.fReal * v) / (v - u), 1e-9), expected: ((WORLD.fReal * v) / (v - u)).toFixed(6), actual: bridge.toFixed(6), tolerance: "1e-9" });
+      return cases;
+    }
+
+    // ================= boot =================
+    function getState() {
+      return {
+        running: state.running, ended: state.ended, mode: state.mode, u: state.u, f: state.f,
+        timeScale: state.timeScale, t: state.t, phase: state.phase, moverX: moverX(state.t),
+        fronts: state.fronts.length, passes: state.passes.slice(), receivedFrequency: currentFr()
+      };
+    }
+    function getReadouts() {
+      const wl = wavelengths(state.mode, state.u, state.f, WORLD.v);
+      return {
+        t: state.t, mode: state.mode, phase: state.phase, u: state.u, f: state.f,
+        receivedFrequency: currentFr(),
+        realHz: WORLD.fReal * (currentFr() / state.f),
+        lambdaAhead: wl.ahead, lambdaBehind: wl.behind, lambdaUniform: wl.uniform,
+        passed: state.passes.length > 0, passT: state.passes.length ? state.passes[0] : null
+      };
+    }
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      els.soundBtn.addEventListener("click", () => {
+        state.soundOn = !state.soundOn;
+        els.soundBtn.setAttribute("aria-pressed", String(state.soundOn));
+        els.soundBtn.textContent = state.soundOn ? "声音：开" : "声音：关";
+        if (state.soundOn) { audioEnsure(); if (audio.ctx && audio.ctx.state === "suspended") audio.ctx.resume(); }
+        audioUpdate();
+      });
+      els.uInput.addEventListener("input", () => setParameters({ u: els.uInput.value, f: state.f, timeScale: state.timeScale }));
+      els.fInput.addEventListener("input", () => setParameters({ u: state.u, f: els.fInput.value, timeScale: state.timeScale }));
+      els.speedInput.addEventListener("input", () => setParameters({ u: state.u, f: state.f, timeScale: els.speedInput.value }));
+      els.modeRadios().forEach((r) => r.addEventListener("change", () => setMode(r.value)));
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dtReal = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dtReal);
+      render();
+      requestAnimationFrame(frame);
+    }
+    function init() {
+      syncInputs();
+      bindControls();
+      if (typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => render());
+        ro.observe(els.stageWrap); ro.observe(els.chart);
+      } else {
+        window.addEventListener("resize", render);
+      }
+      reset();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

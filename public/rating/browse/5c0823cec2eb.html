@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>电梯中的超重与失重 · 交互仿真</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0f1c;color:#dce4f5;font:15px/1.65 system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
+header{max-width:1180px;margin:18px auto 12px;padding:0 16px}
+h1{font-size:22px;letter-spacing:.5px}
+header p{color:#8fa0c0;font-size:13px;margin-top:2px}
+.wrap{max-width:1180px;margin:0 auto 30px;padding:0 16px;display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:14px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:#121a2c;border:1px solid #22304e;border-radius:14px;padding:14px}
+.cardTitle{font-size:14px;color:#aebcd8;margin-bottom:8px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+#scene{width:100%;height:460px;display:block}
+#chart{width:100%;height:230px;display:block}
+.legend{font-size:12px;font-weight:400;color:#8fa0c0}
+.legend i{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:middle;margin:0 4px 0 10px}
+/* 读数区 */
+.n-label{font-size:13px;color:#8fa0c0}
+.n-val{font-size:44px;font-weight:800;color:#39d0d8;font-variant-numeric:tabular-nums;line-height:1.15}
+.n-val .unit{font-size:18px;color:#8fa0c0;margin-left:6px;font-weight:600}
+.n-sub{font-size:12px;color:#8fa0c0}
+.formula{background:#0d1424;border:1px solid #22304e;border-radius:8px;padding:8px 10px;font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#aebcd8;margin-top:10px}
+.formula b{color:#39d0d8}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.grid3>div{background:#0d1424;border:1px solid #22304e;border-radius:8px;padding:6px 4px;text-align:center}
+.grid3 label{display:block;font-size:11px;color:#8fa0c0}
+.grid3 b{font-size:16px;font-family:ui-monospace,Consolas,monospace}
+.badge{margin-top:10px;text-align:center;padding:8px;border-radius:10px;font-weight:700;font-size:16px;transition:.15s}
+.badge.norm{background:#14352c;color:#5dd39e}
+.badge.over{background:#3a2020;color:#ff8f6b}
+.badge.under{background:#16283f;color:#6db7ff}
+.badge.free{background:#2a1d40;color:#c9a1ff}
+/* 控件 */
+button{cursor:pointer;background:#1b2740;border:1px solid #2e3f63;color:#dce4f5;border-radius:9px;padding:7px 12px;font-size:14px;font-family:inherit;transition:.15s}
+button:hover{background:#243354}
+.seg{display:flex;gap:8px}
+.seg button{flex:1}
+.seg button.active{background:#1f4d55;border-color:#39d0d8;color:#7fe3ea;font-weight:700}
+.row{display:flex;gap:8px;margin:10px 0 8px}
+#playBtn{flex:1;background:#1d4d3a;border-color:#2f7d5c;font-weight:700;font-size:15px}
+#playBtn:hover{background:#26634a}
+.chipsCap{font-size:12px;color:#8fa0c0;margin-bottom:5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:30px}
+.chip{padding:4px 11px;font-size:13px;border-radius:999px}
+.chip.active{background:#1f4d55;border-color:#39d0d8;color:#7fe3ea;font-weight:700}
+.hintInline{font-size:12.5px;color:#8fa0c0;align-self:center}
+.slider{margin:11px 0 3px}
+.slider label{display:flex;justify-content:space-between;font-size:13px;color:#aebcd8;margin-bottom:3px}
+.slider label b{color:#7fe3ea;font-family:ui-monospace,Consolas,monospace}
+input[type=range]{width:100%;accent-color:#39d0d8}
+.hint{font-size:12px;color:#8fa0c0;margin-top:3px}
+.quick{display:flex;gap:6px;margin-top:5px;align-items:center}
+.quick button{padding:2px 10px;font-size:12px}
+.quick span{font-size:12px;color:#8fa0c0}
+/* 教学要点 */
+.teach{grid-column:1/-1}
+#teach{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
+#teach li{padding:9px 11px;border-left:3px solid #22304e;background:#0d1424;border-radius:0 8px 8px 0;font-size:13.5px;color:#aebcd8;transition:.2s}
+#teach li.on{border-color:#39d0d8;color:#e8eefc;background:#10233a}
+#teach li strong{color:#e8eefc}
+footer{max-width:1180px;margin:0 auto 26px;padding:0 16px;color:#5c6c8c;font-size:12px}
+@media(max-width:920px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛗 电梯中的超重与失重 · 交互仿真</h1>
+  <p>以向上为正方向：N = m(g + a)。观察体重计示数（正压力）与重力 mg 的差别。</p>
+</header>
+
+<div class="wrap">
+  <div class="col">
+    <div class="card" style="padding:8px"><canvas id="scene"></canvas></div>
+    <div class="card">
+      <div class="cardTitle">N–t 曲线
+        <span class="legend"><i style="background:#39d0e1"></i>N(t)<i style="background:#ffab5e"></i>mg 参考线</span>
+      </div>
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card">
+      <div class="n-label">体重计示数 N（正压力）</div>
+      <div class="n-val"><span id="Nval">600</span><span class="unit">N</span></div>
+      <div class="n-sub" id="Nkg">相当于 60.0 kg（若秤按质量刻度）</div>
+      <div class="formula" id="formula"></div>
+      <div class="grid3">
+        <div><label>速度 v (m/s)</label><b id="vVal">+0.00</b></div>
+        <div><label>加速度 a (m/s²)</label><b id="aVal">+0.00</b></div>
+        <div><label>位置 y (m)</label><b id="yVal">0.0</b></div>
+      </div>
+      <div class="badge norm" id="badge">静止 · N = mg</div>
+    </div>
+
+    <div class="card">
+      <div class="seg" id="modeSeg">
+        <button data-mode="up" class="active">上行全程</button>
+        <button data-mode="down">下行全程</button>
+        <button data-mode="manual">手动加速度</button>
+      </div>
+      <div class="row">
+        <button id="playBtn">▶ 播放</button>
+        <button id="resetBtn">⟲ 重置</button>
+      </div>
+      <div class="chipsCap" id="chipsCap">点击编号可跳转到该阶段：</div>
+      <div class="chips" id="chips"></div>
+
+      <div class="slider">
+        <label>人的质量 m <b><span id="mVal">60</span> kg</b></label>
+        <input id="mS" type="range" min="40" max="100" step="1" value="60">
+      </div>
+      <div class="slider">
+        <label>加速度 a（向上为正） <b><span id="aVal2">+2.0</span> m/s²</b></label>
+        <input id="aS" type="range" min="-10" max="10" step="0.1" value="2">
+        <div class="hint" id="aHint">预设模式取 |a| = 2.0 作为加/减速幅值</div>
+        <div class="quick">
+          <button id="btnFree">设 a = −g（完全失重）</button>
+          <span>|a| 越大效果越明显</span>
+        </div>
+      </div>
+      <div class="slider">
+        <label>重力加速度 g <b><span id="gVal">10.0</span> m/s²</b></label>
+        <input id="gS" type="range" min="2" max="15" step="0.1" value="10">
+        <div class="quick"><button data-gq="9.8">9.8</button><button data-gq="10">10</button><span>运行中修改实时生效</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card teach">
+    <div class="cardTitle">📌 教学要点（当前状态对应的要点会高亮）</div>
+    <ul id="teach">
+      <li id="t-read">体重计的示数反映的是<strong>正压力 N</strong>（人与秤相互挤压的力），它并不总是等于重力 mg——秤“称”出的是 N，不是重力本身。</li>
+      <li id="t-over"><strong>超重</strong>：加速上升或减速下降（加速度 a 方向向上），N = m(g+a) &gt; mg。</li>
+      <li id="t-under"><strong>失重</strong>：加速下降或减速上升（加速度 a 方向向下），N = m(g−|a|) &lt; mg。</li>
+      <li id="t-free"><strong>完全失重</strong>：当 a = −g 时 N = 0，但重力 mg <strong>依然存在</strong>（图中橙色箭头始终画出），只是人不再压迫秤面。</li>
+    </ul>
+  </div>
+</div>
+
+<footer>提示：空格键可播放/暂停 · 预设模式中 a 滑块取绝对值作为加/减速幅值 · 手动模式可在运行中实时拖动 a。</footer>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const sceneCv=$('#scene'), chartCv=$('#chart');
+
+/* ---------- 物理状态 ---------- */
+const sim={mode:'up',running:false,t:0,v:0,y:0,m:60,g:10,a:2,hist:[]};
+const Nof=a=>sim.m*Math.max(0,sim.g+a);
+
+/* ---------- 预设阶段（静止→加速→匀速→减速→停止） ---------- */
+let PH=null;
+function buildPhases(){
+  if(sim.mode==='manual')return null;
+  const up=sim.mode==='up', A=Math.max(.5,Math.abs(sim.a));
+  const vC=clamp(2*A,1.2,8), tAD=vC/A;
+  const defs=up?[
+    ['静止','静止（待梯）',2,0],
+    ['加速','上行启动 · 加速上升（超重）',tAD,A],
+    ['匀速','匀速上升（N = mg）',4,0],
+    ['减速','减速到站 · 减速上升（失重）',tAD,-A],
+    ['停止','停止（到达）',2,0]
+  ]:[
+    ['静止','静止（待梯）',2,0],
+    ['加速','下行启动 · 加速下降（失重）',tAD,-A],
+    ['匀速','匀速下降（N = mg）',4,0],
+    ['减速','减速到站 · 减速下降（超重）',tAD,A],
+    ['停止','停止（到达）',2,0]
+  ];
+  let s=0;const P=defs.map(d=>{const p={short:d[0],label:d[1],dur:d[2],a:d[3],start:s};s+=d[2];return p;});
+  P.total=s;return P;
+}
+const phases=()=>PH||(PH=buildPhases());
+const invalidate=()=>{PH=null;};
+
+function currentA(t){
+  if(sim.mode==='manual')return sim.a;
+  const P=phases();
+  if(t>=P.total-1e-9)return 0;
+  let i=P.length-1;
+  for(let k=0;k<P.length;k++)if(t<P[k].start+P[k].dur-1e-9){i=k;break;}
+  const p=P[i],lt=t-p.start,R=.4;
+  if(i===0||lt>=R)return p.a;
+  const a0=P[i-1].a,k=lt/R,s=k*k*(3-2*k);   // 阶段间 0.4s 平滑过渡
+  return a0+(p.a-a0)*s;
+}
+function phaseIndex(t){
+  if(sim.mode==='manual')return -1;
+  const P=phases();
+  if(t>=P.total-1e-9)return P.length-1;
+  for(let k=0;k<P.length;k++)if(t<P[k].start+P[k].dur-1e-9)return k;
+  return P.length-1;
+}
+function integrateTo(tEnd){                    // 精确积分到某时刻（用于跳转阶段）
+  const h=1/240;let t=0,v=0,y=0,n=0;
+  const s=[{t:0,a:currentA(0)}];
+  while(t<tEnd-1e-9){
+    const a=currentA(t);v+=a*h;y+=v*h;t+=h;n++;
+    if(n%4===0)s.push({t,a});
+  }
+  return {v,y,samples:s};
+}
+
+/* ---------- 控制 ---------- */
+function resetSim(run){
+  sim.t=0;sim.v=0;sim.y=0;
+  sim.hist=[{t:0,a:currentA(0)}];
+  sim.running=!!run;buildChips();syncPlayBtn();
+}
+function jumpTo(i){
+  if(sim.mode==='manual')return;
+  const P=phases(),t=P[i].start,r=integrateTo(t);
+  sim.t=t;sim.v=r.v;sim.y=r.y;sim.hist=r.samples;
+  sim.running=false;syncPlayBtn();
+}
+function syncPlayBtn(){$('#playBtn').textContent=sim.running?'⏸ 暂停':'▶ 播放';}
+function buildChips(){
+  const box=$('#chips');box.innerHTML='';
+  if(sim.mode==='manual'){
+    box.innerHTML='<span class="hintInline">手动模式：拖动 a 滑块实时设定加速度（运行中也可调）。</span>';
+    $('#chipsCap').textContent='当前为手动模式：';
+    return;
+  }
+  $('#chipsCap').textContent='点击编号可跳转到该阶段：';
+  phases().forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='chip';b.textContent=(i+1)+' '+p.short;
+    b.onclick=()=>jumpTo(i);box.appendChild(b);
+  });
+}
+function syncChips(){
+  const cs=$('#chips').children,i=phaseIndex(sim.t);
+  [...cs].forEach((b,k)=>b.classList.toggle('active',k===i));
+}
+function setMode(m){
+  sim.mode=m;invalidate();resetSim(false);
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  $('#aHint').textContent=m==='manual'?'直接设定当前加速度（向上为正）':`预设模式取 |a| = ${Math.abs(sim.a).toFixed(1)} 作为加/减速幅值`;
+}
+
+/* ---------- 事件 ---------- */
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('#playBtn').onclick=()=>{
+  if(!sim.running){
+    if(sim.mode!=='manual'&&sim.t>=phases().total-.05)resetSim(false);
+    sim.running=true;
+  }else sim.running=false;
+  syncPlayBtn();
+};
+$('#resetBtn').onclick=()=>resetSim(false);
+$('#mS').oninput=e=>{sim.m=+e.target.value;$('#mVal').textContent=sim.m;};
+$('#gS').oninput=e=>{sim.g=+e.target.value;$('#gVal').textContent=sim.g.toFixed(1);};
+document.querySelectorAll('[data-gq]').forEach(b=>b.onclick=()=>{
+  sim.g=+b.dataset.gq;$('#gS').value=sim.g;$('#gVal').textContent=sim.g.toFixed(1);
+});
+function applyA(v){
+  sim.a=v;$('#aVal2').textContent=(v>=0?'+':'')+v.toFixed(1);
+  if(sim.mode!=='manual'){
+    invalidate();resetSim(false);
+    $('#aHint').textContent=`预设模式取 |a| = ${Math.abs(sim.a).toFixed(1)} 作为加/减速幅值`;
+  }
+}
+$('#aS').oninput=e=>applyA(+e.target.value);
+$('#btnFree').onclick=()=>{$('#aS').value=-sim.g;applyA(-sim.g);};
+addEventListener('keydown',e=>{
+  if(e.code==='Space'&&e.target===document.body){e.preventDefault();$('#playBtn').click();}
+});
+
+/* ---------- 画布工具 ---------- */
+function fit(c){
+  const r=c.getBoundingClientRect(),d=devicePixelRatio||1;
+  const w=Math.round(r.width*d),h=Math.round(r.height*d);
+  if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+  const ctx=c.getContext('2d');ctx.setTransform(d,0,0,d,0,0);
+  c.cw=r.width;c.ch=r.height;return ctx;
+}
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function arrow(ctx,x,y0,y1,color,w){
+  const dir=Math.sign(y1-y0),len=Math.abs(y1-y0);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w||5;ctx.lineCap='round';
+  if(len<3){ctx.beginPath();ctx.arc(x,y0,3,0,7);ctx.fill();return;}
+  const hd=Math.min(14,len*.45);
+  ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1-dir*hd);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x-7,y1-dir*hd);ctx.lineTo(x+7,y1-dir*hd);ctx.closePath();ctx.fill();
+}
+function pill(ctx,x,y,text,color){
+  ctx.font='700 12px system-ui,sans-serif';
+  const w=ctx.measureText(text).width+14;
+  rr(ctx,x-w/2,y-10,w,20,10);
+  ctx.fillStyle='rgba(5,10,20,.78)';ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,x,y+1);
+}
+
+/* ---------- 场景绘制 ---------- */
+function drawScene(){
+  const c=sceneCv,ctx=fit(c),W=c.cw,H=c.ch;
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#111b31');g.addColorStop(1,'#0a0f1c');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  const a=currentA(sim.t),N=Nof(a),mg=sim.m*sim.g;
+
+  /* 井道（位置指示） */
+  const sx=26,sw=46,sy=48,sh=H-76;
+  rr(ctx,sx,sy,sw,sh,8);ctx.fillStyle='#0b1120';ctx.fill();ctx.strokeStyle='#22304e';ctx.stroke();
+  ctx.fillStyle='#8fa0c0';ctx.font='11px system-ui';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  ctx.fillText('井道',sx+sw/2,sy-8);
+  const mapY=y=>sy+sh-10-((y+20)/40)*(sh-20);
+  ctx.textAlign='right';ctx.font='9px system-ui';
+  for(let fy=18;fy>=-18;fy-=3){
+    const py=mapY(fy);
+    ctx.strokeStyle='#1d2942';ctx.beginPath();ctx.moveTo(sx+6,py);ctx.lineTo(sx+sw-6,py);ctx.stroke();
+    ctx.fillStyle='#5c6c8c';ctx.fillText((fy>0?'+':'')+fy,sx-4,py+3);
+  }
+  const cy=mapY(clamp(sim.y,-20,20));
+  ctx.strokeStyle='#2b3a5c';ctx.beginPath();ctx.moveTo(sx+sw/2,sy+6);ctx.lineTo(sx+sw/2,cy-9);ctx.stroke();
+  rr(ctx,sx+sw/2-11,cy-9,22,18,4);ctx.fillStyle='#39d0d8';ctx.fill();
+
+  /* 电梯厢 */
+  const cx0=sx+sw+36,cx1=W-20,cy0=38,cy1=H-26;
+  rr(ctx,cx0,cy0,cx1-cx0,cy1-cy0,10);
+  ctx.fillStyle='#141d33';ctx.fill();ctx.strokeStyle='#33436a';ctx.lineWidth=2;ctx.stroke();
+  ctx.strokeStyle='#1e2a46';ctx.lineWidth=1;
+  for(let i=1;i<4;i++){const lx=cx0+i*(cx1-cx0)/4;ctx.beginPath();ctx.moveTo(lx,cy0+6);ctx.lineTo(lx,cy1-6);ctx.stroke();}
+  const midX=(cx0+cx1)/2;
+  ctx.fillStyle='#9fb0d0';ctx.font='600 13px system-ui';ctx.textAlign='center';
+  const label=sim.mode==='manual'?`手动模式 · a = ${(a>=0?'+':'')+a.toFixed(1)} m/s²`:(phases()[phaseIndex(sim.t)]||{}).label||'';
+  ctx.fillText(label,midX,cy0+22);
+  const floor=Math.max(1,1+Math.round(sim.y/3));
+  ctx.font='11px system-ui';ctx.fillStyle='#5dd39e';
+  ctx.fillText('F'+floor,cx1-30,cy0+22);
+
+  /* 地板与体重计 */
+  const floorY=cy1-14,scx=midX-38,scw=118,sch=16,scTop=floorY-sch;
+  ctx.strokeStyle='#3a4a70';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(cx0+8,floorY);ctx.lineTo(cx1-8,floorY);ctx.stroke();
+  rr(ctx,scx-scw/2,scTop,scw,sch,4);
+  ctx.fillStyle='#2a3550';ctx.fill();ctx.strokeStyle='#465a86';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#5c6c8c';ctx.font='10px system-ui';ctx.textAlign='center';
+  ctx.fillText('体重计',scx,scTop+sch+13);
+
+  /* 数字显示面板 */
+  const dx=scx+96,dy=floorY-42;
+  rr(ctx,dx,dy,84,42,6);ctx.fillStyle='#0a0f1c';ctx.fill();ctx.strokeStyle='#465a86';ctx.stroke();
+  ctx.fillStyle='#5dd39e';ctx.font='700 16px ui-monospace,Consolas,monospace';
+  ctx.fillText(N.toFixed(0)+' N',dx+42,dy+18);
+  ctx.fillStyle='#5c6c8c';ctx.font='10px system-ui';
+  ctx.fillText('= '+(N/sim.g).toFixed(1)+' kg 刻度',dx+42,dy+33);
+
+  /* 人（超重轻微下压，失重轻微上浮） */
+  const dn=clamp((N/mg-1)*6,-6,6);
+  const feetY=scTop+dn*0.5;
+  const hip=feetY-56+dn*.4,shY=feetY-98+dn,headY=feetY-114+dn;
+  ctx.strokeStyle='#dfe7f7';ctx.fillStyle='#dfe7f7';ctx.lineCap='round';
+  ctx.lineWidth=8;
+  ctx.beginPath();ctx.moveTo(scx-7,hip);ctx.lineTo(scx-8,feetY);ctx.moveTo(scx+7,hip);ctx.lineTo(scx+8,feetY);ctx.stroke();
+  ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(scx,hip);ctx.lineTo(scx,shY);ctx.stroke();
+  ctx.lineWidth=6;ctx.beginPath();
+  ctx.moveTo(scx-6,shY+6);ctx.lineTo(scx-14,hip-4);ctx.moveTo(scx+6,shY+6);ctx.lineTo(scx+14,hip-4);ctx.stroke();
+  ctx.beginPath();ctx.arc(scx,headY,12,0,7);ctx.fill();
+
+  /* 受力示意：N（向上）与 mg（向下，始终画出） */
+  const pxPerN=90/mg;
+  const nLen=Math.min(172,N*pxPerN);
+  arrow(ctx,scx,scTop-2,scTop-2-nLen,'#39d0d8',5);
+  pill(ctx,scx,Math.max(cy0+34,scTop-2-nLen-16),'N = '+N.toFixed(0)+' N','#39d0d8');
+  arrow(ctx,scx,feetY-78,feetY-78+90,'#ffab5e',5);
+  pill(ctx,scx,Math.min(cy1-16,feetY-78+90+16),'mg = '+mg.toFixed(0)+' N'+((a<=-sim.g+.02)?'（重力仍在！）':''),'#ffab5e');
+
+  /* 速度指示箭头 */
+  if(Math.abs(sim.v)>.05){
+    const vx=cx1-22,vc=cy0+90,vl=clamp(sim.v*7,-60,60);
+    arrow(ctx,vx,vc,vc-vl,'#7ee081',4);
+    ctx.fillStyle='#7ee081';ctx.font='11px system-ui';ctx.textAlign='center';
+    ctx.fillText('v',vx,vc-vl+(vl>0?16:-10));
+  }
+}
+
+/* ---------- N-t 曲线 ---------- */
+function niceStep(range,n){
+  const raw=range/n,p=Math.pow(10,Math.floor(Math.log10(raw)));
+  for(const s of[1,2,2.5,5,10])if(raw<=s*p)return s*p;
+  return 10*p;
+}
+function drawChart(){
+  const c=chartCv,ctx=fit(c),W=c.cw,H=c.ch;
+  const L=48,R=W-14,T=26,B=H-26;
+  const a=currentA(sim.t),mg=sim.m*sim.g;
+  const Amax=sim.mode==='manual'?Math.max(.5,Math.abs(sim.a)):Math.max(...phases().map(p=>Math.abs(p.a)));
+  const Nmax=Math.max(mg*1.5,sim.m*(sim.g+Amax)*1.12);
+  const t1=sim.mode==='manual'?Math.max(12,sim.t):phases().total;
+  const t0=sim.mode==='manual'?Math.max(0,t1-12):0;
+  const X=t=>L+(t-t0)/(t1-t0)*(R-L), Y=n=>B-(n/Nmax)*(B-T);
+
+  ctx.fillStyle='#0b1120';ctx.fillRect(L,T,R-L,B-T);
+  ctx.strokeStyle='#22304e';ctx.strokeRect(L,T,R-L,B-T);
+
+  /* 阶段分区与标签 */
+  if(sim.mode!=='manual'){
+    const P=phases();
+    P.forEach((p,i)=>{
+      const x0=X(p.start),x1=X(p.start+p.dur);
+      if(i%2===1){ctx.fillStyle='rgba(57,208,232,.045)';ctx.fillRect(x0,T,x1-x0,B-T);}
+      ctx.strokeStyle='#1d2942';ctx.beginPath();ctx.moveTo(x0,T);ctx.lineTo(x0,B);ctx.stroke();
+      if(x1-x0>32){ctx.fillStyle='#7c8db0';ctx.font='10px system-ui';ctx.textAlign='center';
+        ctx.fillText(p.short,(x0+x1)/2,T+13);}
+    });
+  }
+  /* 网格与刻度 */
+  const ns=niceStep(Nmax,4);
+  ctx.font='10px system-ui';ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let n=0;n<=Nmax;n+=ns){
+    ctx.strokeStyle='#182338';ctx.beginPath();ctx.moveTo(L,Y(n));ctx.lineTo(R,Y(n));ctx.stroke();
+    ctx.fillStyle='#5c6c8c';ctx.fillText(n.toFixed(0),L-6,Y(n));
+  }
+  const ts=niceStep(t1-t0,6);
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(let t=Math.ceil(t0/ts)*ts;t<=t1+1e-9;t+=ts){
+    ctx.strokeStyle='#182338';ctx.beginPath();ctx.moveTo(X(t),T);ctx.lineTo(X(t),B);ctx.stroke();
+    ctx.fillStyle='#5c6c8c';ctx.fillText(t.toFixed(0),X(t),B+5);
+  }
+  ctx.textAlign='left';ctx.fillStyle='#5c6c8c';ctx.fillText('t/s',R-24,B+5);
+  ctx.textBaseline='middle';ctx.fillText('N/N',L+6,T-10);
+
+  /* mg 参考线 */
+  ctx.setLineDash([6,5]);ctx.strokeStyle='#ffab5e';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(L,Y(mg));ctx.lineTo(R,Y(mg));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#ffab5e';ctx.font='700 11px system-ui';ctx.textAlign='right';
+  ctx.fillText('mg = '+mg.toFixed(0)+' N',R-6,Y(mg)-10);
+
+  /* N(t) 曲线（由记录的 a 用当前 m、g 换算，保证参数修改后曲线一致） */
+  const pts=sim.hist.filter(p=>p.t>=t0-.02&&p.t<=t1+.02);
+  if(pts.length>1){
+    const stp=Math.max(1,Math.floor(pts.length/800));
+    ctx.beginPath();
+    let first=true;
+    for(let i=0;i<pts.length;i+=stp){
+      const px=X(pts[i].t),py=Y(Nof(pts[i].a));
+      first?ctx.moveTo(px,py):ctx.lineTo(px,py);first=false;
+    }
+    const last=pts[pts.length-1];ctx.lineTo(X(last.t),Y(Nof(last.a)));
+    ctx.strokeStyle='#39d0e1';ctx.lineWidth=2.2;ctx.lineJoin='round';ctx.stroke();
+    ctx.lineTo(X(last.t),B);ctx.lineTo(X(pts[0].t),B);ctx.closePath();
+    ctx.fillStyle='rgba(57,208,225,.10)';ctx.fill();
+  }
+  /* 当前点 */
+  const cx=X(clamp(sim.t,t0,t1)),cyy=Y(Nof(a));
+  ctx.beginPath();ctx.arc(cx,cyy,4.5,0,7);
+  ctx.fillStyle='#39d0e1';ctx.fill();ctx.strokeStyle='#eaf6ff';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#9fe8ee';ctx.font='700 11px system-ui';ctx.textAlign=cx>R-70?'right':'left';
+  ctx.fillText(Nof(a).toFixed(0)+' N',cx+(cx>R-70?-9:9),cyy-11);
+}
+
+/* ---------- 状态与面板 ---------- */
+function statusOf(a){
+  const ev=.05;
+  if(a<=-sim.g+.02)return{k:'free',t:'完全失重',s:'a = −g，N = 0，但重力仍在'};
+  if(a>.04)return{k:'over',t:'超重',s:sim.v>ev?'加速上升 · N > mg':(sim.v<-ev?'减速下降 · N > mg':'a 向上 · N > mg')};
+  if(a<-.04)return{k:'under',t:'失重',s:sim.v<-ev?'加速下降 · N < mg':(sim.v>ev?'减速上升 · N < mg':'a 向下 · N < mg')};
+  return Math.abs(sim.v)<.05?{k:'norm',t:'静止',s:'N = mg'}:{k:'norm',t:'匀速',s:'N = mg'};
+}
+const teachMap={norm:'#t-read',over:'#t-over',under:'#t-under',free:'#t-free'};
+function updateDOM(){
+  const a=currentA(sim.t),N=Nof(a),st=statusOf(a);
+  $('#Nval').textContent=Math.round(N);
+  $('#Nkg').textContent='相当于 '+(N/sim.g).toFixed(1)+' kg（若秤按质量刻度）';
+  const gs=sim.g.toFixed(1),as=(a>=0?'+':'−')+Math.abs(a).toFixed(1);
+  $('#formula').innerHTML='N = m(g+a) = '+sim.m+' × ('+gs+' '+as.replace('+','+')+') = <b>'+N.toFixed(0)+' N</b>';
+  $('#vVal').textContent=(sim.v>=0?'+':'')+sim.v.toFixed(2);
+  $('#aVal').textContent=(a>=0?'+':'')+a.toFixed(2);
+  $('#yVal').textContent=sim.y.toFixed(1);
+  const bd=$('#badge');bd.className='badge '+st.k;bd.textContent=st.t+' · '+st.s;
+  document.querySelectorAll('#teach li').forEach(li=>li.classList.remove('on'));
+  const li=$(teachMap[st.k]);if(li)li.classList.add('on');
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now(),accum=0;
+function frame(now){
+  let dt=(now-last)/1000;last=now;if(dt>.06)dt=.06;
+  if(sim.running){
+    const h=1/240;accum+=dt;
+    const total=sim.mode==='manual'?Infinity:phases().total;
+    while(accum>=h){
+      accum-=h;
+      const a=currentA(sim.t);
+      sim.v=clamp(sim.v+a*h,-20,20);sim.y+=sim.v*h;sim.t+=h;
+      if(sim.mode!=='manual'&&sim.t>=total){
+        const r=integrateTo(total);
+        sim.t=total;sim.v=0;sim.y=r.y;sim.hist=r.samples;
+        sim.running=false;syncPlayBtn();break;
+      }
+      if(sim.mode==='manual'){if(sim.y>20)sim.y-=40;else if(sim.y<-20)sim.y+=40;}
+    }
+    if(sim.running)sim.hist.push({t:sim.t,a:currentA(sim.t)});
+    if(sim.hist.length>26000)sim.hist.splice(0,sim.hist.length-26000);
+  }
+  drawScene();drawChart();updateDOM();syncChips();
+  requestAnimationFrame(frame);
+}
+resetSim(false);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绳波脉冲演示 · 波形前进 vs 质点振动</title>
+<style>
+:root{--bg:#0a0f1a;--panel:#111a2b;--line:#223047;--txt:#dbe6f5;--dim:#8fa3c0;--acc:#38bdf8;--acc2:#fbbf24}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;padding:18px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:22px;letter-spacing:.5px}
+h1 small{color:var(--dim);font-weight:400;font-size:13px;margin-left:10px}
+#hint{margin:10px 0;padding:10px 14px;background:#132038;border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;font-size:14px;color:#bfe0ff;min-height:42px;line-height:1.6}
+#cv{width:100%;height:440px;background:#0d1524;border:1px solid var(--line);border-radius:12px;display:block;box-shadow:0 8px 30px rgba(0,0,0,.35);touch-action:none;cursor:crosshair}
+.bar{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0;align-items:stretch}
+.group{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.glabel{font-size:12px;color:var(--dim)}
+.btn{background:#1c2a42;border:1px solid #2e4160;color:var(--txt);padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer;transition:.15s}
+.btn:hover{background:#24365a;border-color:#3d5residents}
+.btn:hover{background:#24365a}
+.btn.primary{background:#0e7490;border-color:#22b8d4}
+.btn.primary:hover{background:#0e8bab}
+.btn.active{background:#0e7490;border-color:#7dd3fc;color:#e0f7ff}
+.slider{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim)}
+input[type=range]{accent-color:var(--acc);width:110px}
+label{font-size:13px;display:flex;gap:5px;align-items:center;cursor:pointer;user-select:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.75;color:#c7d5ea}
+.card b{color:var(--acc2);display:block;margin-bottom:4px;font-size:14px}
+kbd{background:#1c2a42;border:1px solid #2e4160;border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>绳波脉冲演示<small>波形沿绳前进 · 质点只在原地上下振动 · 反射 · 对撞叠加</small></h1>
+  <div id="hint"></div>
+  <canvas id="cv"></canvas>
+
+  <div class="bar">
+    <div class="group"><span class="glabel">场景</span>
+      <button class="btn mode active" data-mode="fixed">1 固定端反射</button>
+      <button class="btn mode" data-mode="free">2 自由端反射</button>
+      <button class="btn mode" data-mode="both">3 双脉冲对撞</button>
+    </div>
+    <div class="group"><span class="glabel">手</span>
+      <button id="btnFlick" class="btn primary">手抖一下 ↑</button>
+      <button id="btnFlickDown" class="btn">手抖一下 ↓</button>
+      <button id="btnCollide" class="btn">发射对撞脉冲</button>
+    </div>
+    <div class="group"><span class="glabel">播放</span>
+      <button id="btnPause" class="btn">暂停</button>
+      <button id="btnStep" class="btn">单步</button>
+      <button id="btnReset" class="btn">重置</button>
+      <div class="slider">速度 <input type="range" id="speed" min="1" max="8" value="3"><span id="speedVal">3</span></div>
+    </div>
+    <div class="group"><span class="glabel">显示</span>
+      <label><input type="checkbox" id="chkMarkers" checked>质点标记</label>
+      <label><input type="checkbox" id="chkTrail" checked>振动轨迹</label>
+      <label><input type="checkbox" id="chkArrow" checked>传播箭头</label>
+      <button id="btnSnap" class="btn">抓拍波形</button>
+      <button id="btnClearSnap" class="btn">清除抓拍</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><b>① 波形在走，质点没走</b>盯住绳上任意一个彩色标记点：它只沿竖直方向上下振动，永远不向前挪一步；向前跑的只是"脉冲"这段波形（看橙色箭头）。</div>
+    <div class="card"><b>② 固定端反射（反相）</b>脉冲碰到被固定的墙，端点始终不能动，反射回来的脉冲上下翻转（倒着弹回）。左端被手握住不计时也一样。</div>
+    <div class="card"><b>③ 自由端反射（同相）</b>右端换成可沿杆自由滑动的环：反射脉冲不翻转、原样弹回，且端点瞬间摆幅可达入射的约 2 倍。</div>
+    <div class="card"><b>④ 对撞：叠加后互不干扰</b>两脉冲相遇时，重叠区位移按代数相加（一正一反时会瞬间"变平"）；穿过后各自保持原形状、原速度继续前进。用"抓拍波形"对比前后即可验证。</div>
+    <div class="card"><b>操作提示</b>用鼠标直接上下拖动左边（对撞场景还有右边的）手柄，可自制任意脉冲；点击绳上空白处可增删质点标记。快捷键：<kbd>空格</kbd>暂停 <kbd>F</kbd>抖动 <kbd>1/2/3</kbd>场景 <kbd>S</kbd>抓拍 <kbd>R</kbd>重置。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const hintEl=document.getElementById('hint');
+const $=id=>document.getElementById(id);
+const chkMarkers=$('chkMarkers'),chkTrail=$('chkTrail'),chkArrow=$('chkArrow');
+
+/* ---------- 布局 ---------- */
+let W=0,H=0,dpr=1,x0px=90,x1px=1000,yBase=220;
+function resize(){
+  dpr=window.devicePixelRatio||1;
+  W=cv.clientWidth;H=cv.clientHeight;
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  x0px=Math.max(70,W*0.07);x1px=W-Math.max(90,W*0.08);yBase=H*0.5;
+}
+window.addEventListener('resize',resize);
+const X=i=>x0px+i*(x1px-x0px)/(N-1);
+const Y=v=>yBase-v;
+
+/* ---------- 物理量 ---------- */
+const N=241;                 // 绳离散点数（库朗数=1，波形无数值色散）
+let yP=new Float64Array(N),yC=new Float64Array(N),yN=new Float64Array(N);
+let mode='fixed',paused=false,substeps=3,ghost=null;
+const AMP=56,FLICK_T=34;     // 手抖幅度(px)、时长(子步)
+
+function mkHand(){return{mode:'idle',t:0,T:FLICK_T,A:0,val:0,manual:false,dragY:0,target:0,y0:0};}
+const L=mkHand(),R=mkHand();
+
+let markers=[0.25,0.5,0.75].map(f=>({i:Math.round(f*(N-1)),trail:[]}));
+const mcolors=[[248,113,113],[74,222,128],[96,165,250],[244,114,182],[250,204,21],[167,139,250],[45,212,191]];
+const col=(k,a)=>`rgba(${mcolors[k%7].join(',')},${a})`;
+
+/* ---------- 手（边界驱动） ---------- */
+function tickHand(h){
+  if(h.manual){h.dragY+=(h.target-h.dragY)*0.45;h.val=h.dragY;return;}
+  if(h.mode==='wave'){h.val=h.A*Math.sin(Math.PI*h.t/h.T);h.t++;if(h.t>=h.T){h.mode='idle';h.val=0;}}
+  else if(h.mode==='release'){const p=Math.min(h.t/26,1);h.val=h.y0*0.5*(1+Math.cos(Math.PI*p));h.t++;if(p>=1){h.mode='idle';h.val=0;}}
+  else h.val=0;
+}
+function flick(h,A){h.manual=false;h.mode='wave';h.t=0;h.A=A;}
+function releaseHand(h){h.manual=false;if(Math.abs(h.val)>1){h.mode='release';h.t=0;h.y0=h.val;}else h.mode='idle';}
+
+/* ---------- 波动方程递推（r=1：y^{n+1}_i = y^n_{i+1}+y^n_{i-1}-y^{n-1}_i） ---------- */
+function stepPhysics(){
+  tickHand(L);tickHand(R);
+  for(let i=1;i<N-1;i++) yN[i]=yC[i+1]+yC[i-1]-yP[i];
+  yN[0]=L.val;                                   // 左端：手驱动
+  if(mode==='both')      yN[N-1]=R.val;          // 对撞：右端也是手
+  else if(mode==='fixed')yN[N-1]=0;              // 固定端
+  else                   yN[N-1]=yN[N-2];        // 自由端（零斜率）
+  const t=yP;yP=yC;yC=yN;yN=t;
+}
+
+function peak(i0,i1){let bi=i0,bv=0;for(let i=i0;i<=i1;i++){const a=Math.abs(yC[i]);if(a>bv){bv=a;bi=i;}}return{i:bi,v:bv};}
+const peakFrac=(f0,f1)=>peak(Math.max(0,Math.round(f0*(N-1))),Math.min(N-1,Math.round(f1*(N-1))));
+function pushTrails(){for(const m of markers){m.trail.push(yC[m.i]);if(m.trail.length>90)m.trail.shift();}}
+function resetWave(){yP.fill(0);yC.fill(0);yN.fill(0);[L,R].forEach(h=>{h.mode='idle';h.manual=false;h.val=0;h.dragY=0;h.target=0;});for(const m of markers)m.trail.length=0;ghost=null;}
+
+/* ---------- 绘图 ---------- */
+function drawArrow(x1,y1,x2,y2,c,w){
+  const ang=Math.atan2(y2-y1,x2-x1),hl=9;
+  ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=w;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hl*Math.cos(ang-.45),y2-hl*Math.sin(ang-.45));
+  ctx.lineTo(x2-hl*Math.cos(ang+.45),y2-hl*Math.sin(ang+.45));
+  ctx.closePath();ctx.fill();
+}
+function drawHand(kx,ky,label,flip){
+  ctx.strokeStyle='#94a3b8';ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(kx+(flip?46:-46),ky);ctx.lineTo(kx,ky);ctx.stroke();
+  ctx.beginPath();ctx.arc(kx,ky,11,0,7);ctx.fillStyle='#38bdf8';ctx.fill();
+  ctx.strokeStyle='#e0f2fe';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#bae6fd';ctx.font='13px sans-serif';ctx.textAlign='center';
+  ctx.fillText(label,kx,ky-20);
+}
+const FONT=s=>ctx.font=s+'px "PingFang SC","Microsoft YaHei",sans-serif';
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#101828');g.addColorStop(1,'#0b111e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.045)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);ctx.stroke();}
+
+  // 平衡位置
+  ctx.setLineDash([7,6]);ctx.strokeStyle='rgba(255,255,255,.22)';
+  ctx.beginPath();ctx.moveTo(x0px-44,yBase);ctx.lineTo(x1px+44,yBase);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.4)';FONT(11);ctx.textAlign='left';
+  ctx.fillText('平衡位置',x0px-40,yBase+16);
+
+  // 右端装置
+  if(mode==='fixed'){
+    const wx=x1px+6;
+    ctx.fillStyle='#2a3648';ctx.fillRect(wx,yBase-170,26,340);
+    ctx.save();ctx.beginPath();ctx.rect(wx,yBase-170,26,340);ctx.clip();
+    ctx.strokeStyle='rgba(255,255,255,.12)';
+    for(let yy=yBase-150;yy<yBase+190;yy+=12){ctx.beginPath();ctx.moveTo(wx-4,yy);ctx.lineTo(wx+34,yy-24);ctx.stroke();}
+    ctx.restore();
+    ctx.strokeStyle='#46587a';ctx.strokeRect(wx,yBase-170,26,340);
+    ctx.fillStyle='#9fb4d4';FONT(12);ctx.textAlign='center';
+    ctx.fillText('固定端（墙）',wx+13,yBase-186);
+  }else if(mode==='free'){
+    ctx.strokeStyle='#55657f';ctx.lineWidth=6;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x1px,yBase-165);ctx.lineTo(x1px,yBase+165);ctx.stroke();
+    const ry=Y(yC[N-1]);
+    ctx.beginPath();ctx.arc(x1px,ry,10,0,7);ctx.strokeStyle='#cbd5e1';ctx.lineWidth=3;ctx.stroke();
+    ctx.beginPath();ctx.arc(x1px,ry,3,0,7);ctx.fillStyle='#cbd5e1';ctx.fill();
+    ctx.fillStyle='#9fb4d4';FONT(12);ctx.textAlign='center';
+    ctx.fillText('自由端（滑环）',x1px,yBase+188);
+  }
+
+  // 抓拍波形
+  if(ghost){
+    ctx.setLineDash([6,5]);ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(X(0),Y(ghost[0]));
+    for(let i=1;i<N;i++)ctx.lineTo(X(i),Y(ghost[i]));
+    ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,255,255,.5)';FONT(11);ctx.textAlign='left';
+    ctx.fillText('灰色虚线：抓拍的波形',x0px+8,yBase+140);
+  }
+
+  // 质点标记（先画参考线与轨迹，再画绳，最后画点）
+  if(chkMarkers.checked){
+    for(let k=0;k<markers.length;k++){
+      const m=markers[k],x=X(m.i);
+      ctx.setLineDash([4,6]);ctx.strokeStyle=col(k,.28);ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,yBase-115);ctx.lineTo(x,yBase+115);ctx.stroke();ctx.setLineDash([]);
+      ctx.strokeStyle=col(k,.6);ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(x-6,yBase);ctx.lineTo(x+6,yBase);ctx.stroke();
+      if(chkTrail.checked){
+        const tr=m.trail;
+        for(let j=0;j<tr.length;j++){
+          ctx.beginPath();ctx.arc(x,Y(tr[j]),2,0,7);
+          ctx.fillStyle=col(k,(j/tr.length)*0.4);ctx.fill();
+        }
+      }
+    }
+  }
+
+  // 绳
+  const pk=peak(0,N-1).v;
+  ctx.save();
+  ctx.beginPath();ctx.moveTo(X(0),Y(yC[0]));
+  for(let i=1;i<N;i++)ctx.lineTo(X(i),Y(yC[i]));
+  ctx.strokeStyle='#67e8f9';ctx.lineWidth=3;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.shadowColor='rgba(103,232,249,.8)';ctx.shadowBlur=Math.min(26,4+pk*0.25);
+  ctx.stroke();ctx.restore();
+
+  if(chkMarkers.checked){
+    for(let k=0;k<markers.length;k++){
+      const m=markers[k],x=X(m.i);
+      ctx.beginPath();ctx.arc(x,Y(yC[m.i]),5.5,0,7);
+      ctx.fillStyle=col(k,1);ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    }
+    const mid=markers[Math.min(1,markers.length-1)];
+    ctx.fillStyle='#fbbf24';FONT(12);ctx.textAlign='center';
+    ctx.fillText('↕ 质点只上下振动，不随波前进',X(mid.i),yBase-132);
+  }
+
+  // 传播方向箭头（由能流方向 -y_x·y_t 判断）
+  if(chkArrow.checked){
+    const p=peak(2,N-3);
+    if(p.v>10){
+      const i=p.i,val=yC[i];
+      const dir=((-(yC[i+1]-yC[i-1]))*(yC[i]-yP[i]))>=0?1:-1;
+      const ay=Y(val)+(val>0?-30:30);
+      drawArrow(X(i)-dir*26,ay,X(i)+dir*26,ay,'#fbbf24',3);
+      ctx.fillStyle='#fbbf24';FONT(12);ctx.textAlign='center';
+      ctx.fillText('波形传播',X(i),ay+(val>0?-8:18));
+    }
+  }
+
+  drawHand(x0px,Y(L.val),'手',false);
+  if(mode==='both')drawHand(x1px,Y(R.val),'手',true);
+}
+
+/* ---------- 提示语 ---------- */
+function updateHint(){
+  let m;
+  if(mode==='fixed'){
+    m=peakFrac(0.85,1).v>12
+      ?'⚠ 脉冲正在固定墙上反射：墙端位移始终为 0（入射+反射抵消），返回的脉冲上下翻转（反相）！'
+      :'场景1｜固定端反射：点「手抖一下」发射脉冲。观察：① 彩色质点只在原地上下振动；② 脉冲碰到墙会「翻着」弹回。';
+  }else if(mode==='free'){
+    m=peakFrac(0.85,1).v>12
+      ?'⚠ 脉冲正在自由端反射：端点被甩到最大（≈2 倍振幅），反射脉冲与原脉冲同相（不翻转）！'
+      :'场景2｜自由端反射：右端环可沿杆自由滑动，脉冲到达后不翻转地原样弹回。';
+  }else{
+    m=(peakFrac(0.05,0.45).v>10&&peakFrac(0.55,0.95).v>10)
+      ?'⚠ 两脉冲正在叠加：重叠区位移 = 两者之和（一正一反，中间瞬间「变平」）；穿过后各自恢复原形。'
+      :'场景3｜双脉冲对撞：点「发射对撞脉冲」。可先「抓拍波形」记录形状，对撞穿过后再对比——形状分毫不变。';
+  }
+  if(hintEl.textContent!==m)hintEl.textContent=m;
+}
+
+/* ---------- 主循环 ---------- */
+function frame(){
+  if(!paused){for(let k=0;k<substeps;k++)stepPhysics();pushTrails();}
+  draw();updateHint();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 交互 ---------- */
+function launchCollide(){flick(L,AMP);flick(R,-AMP);}
+function setMode(m){
+  mode=m;resetWave();paused=false;$('btnPause').textContent='暂停';
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  if(m==='both')launchCollide();else flick(L,AMP);
+}
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+$('btnFlick').addEventListener('click',()=>flick(L,AMP));
+$('btnFlickDown').addEventListener('click',()=>flick(L,-AMP));
+$('btnCollide').addEventListener('click',()=>setMode('both'));
+$('btnReset').addEventListener('click',()=>{resetWave();paused=false;$('btnPause').textContent='暂停';});
+function togglePause(){paused=!paused;$('btnPause').textContent=paused?'继续':'暂停';}
+$('btnPause').addEventListener('click',togglePause);
+$('btnStep').addEventListener('click',()=>{if(!paused)togglePause();for(let k=0;k<substeps;k++)stepPhysics();pushTrails();});
+$('speed').addEventListener('input',e=>{substeps=+e.target.value;$('speedVal').textContent=substeps;});
+$('btnSnap').addEventListener('click',()=>{ghost=Float64Array.from(yC);});
+$('btnClearSnap').addEventListener('click',()=>ghost=null);
+
+let drag=null;
+const mouse=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+const dist=(x,y,p)=>Math.hypot(x-p.x,y-p.y);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+cv.addEventListener('pointerdown',e=>{
+  const{x,y}=mouse(e);
+  if(dist(x,y,{x:x0px,y:Y(L.val)})<30){drag='L';L.manual=true;L.dragY=L.val;L.target=clamp(yBase-y,-100,100);}
+  else if(mode==='both'&&dist(x,y,{x:x1px,y:Y(R.val)})<30){drag='R';R.manual=true;R.dragY=R.val;R.target=clamp(yBase-y,-100,100);}
+  else if(x>x0px+10&&x<x1px-10){
+    const i=Math.round((x-x0px)/(x1px-x0px)*(N-1));
+    const near=markers.findIndex(m=>Math.abs(m.i-i)<6);
+    if(near>=0){if(markers.length>1)markers.splice(near,1);}
+    else if(markers.length<7)markers.push({i,trail:[]});
+  }
+  if(drag)cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;const{x,y}=mouse(e);
+  (drag==='L'?L:R).target=clamp(yBase-y,-100,100);
+});
+window.addEventListener('pointerup',()=>{if(drag){releaseHand(drag==='L'?L:R);drag=null;}});
+
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();togglePause();}
+  else if(e.key==='f'||e.key==='F')flick(L,AMP);
+  else if(e.key==='1')setMode('fixed');
+  else if(e.key==='2')setMode('free');
+  else if(e.key==='3')setMode('both');
+  else if(e.key==='s'||e.key==='S')ghost=Float64Array.from(yC);
+  else if(e.key==='r'||e.key==='R'){resetWave();paused=false;$('btnPause').textContent='暂停';}
+});
+
+/* ---------- 启动 ---------- */
+resize();
+setMode('fixed');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

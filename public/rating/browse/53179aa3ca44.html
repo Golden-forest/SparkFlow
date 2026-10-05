@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电梯超重与失重演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-over: #dc2626;
+      --sim-over-soft: rgba(220, 38, 38, 0.12);
+      --sim-under: #0f9fba;
+      --sim-under-soft: rgba(15, 159, 186, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.10), transparent 26%),
+        radial-gradient(circle at 94% 6%, rgba(245, 158, 11, 0.09), transparent 24%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 8px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; font-size: 0.92rem; }
+    .status.over { background: var(--sim-over-soft); border-color: rgba(220,38,38,.30); color: #b91c1c; }
+    .status.under { background: var(--sim-under-soft); border-color: rgba(15,159,186,.34); color: var(--sim-accent-deep); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.52fr) minmax(350px, 0.9fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 0; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; height: 100%; min-height: 0; display: block; border-radius: 16px; background: linear-gradient(180deg, #f7fafc 0%, #eef3f8 100%); }
+    .timeline { display: flex; gap: 3px; height: 44px; }
+    .tl-seg { flex: 0 0 auto; min-width: 34px; border-radius: 9px; border: 1.5px solid transparent; background: #e8edf4; color: #5b6779; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 2px 3px; transition: opacity .18s ease; overflow: hidden; }
+    .tl-seg small { font-size: 0.62rem; line-height: 1.15; text-align: center; }
+    .tl-seg b { font-size: 0.72rem; line-height: 1.1; }
+    .tl-seg.kind-over { background: var(--sim-over-soft); color: #b91c1c; }
+    .tl-seg.kind-under { background: var(--sim-under-soft); color: var(--sim-accent-deep); }
+    .tl-seg.kind-coast { background: #e3e9f1; color: #4a566a; }
+    .tl-seg.current { border-color: currentColor; box-shadow: 0 0 0 2px rgba(23,32,51,.10); }
+    .tl-seg.done { opacity: .52; }
+    .tl-seg:hover { border-color: #9aa7ba; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .scale-card { padding: 14px 17px 15px; display: grid; gap: 10px; background: linear-gradient(150deg, #10241f, #0b1a26); border: 1px solid rgba(9, 20, 30, .5); border-radius: var(--sim-radius-md); color: #eaf7f5; }
+    .scale-card small { color: #9fc4c9; font-size: 0.76rem; font-weight: 700; letter-spacing: .06em; }
+    .scale-value { font-size: clamp(2.2rem, 3vw, 2.9rem); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+    .scale-value .unit { font-size: 1.05rem; font-weight: 700; color: #9fc4c9; margin-left: 6px; }
+    .scale-value.over { color: #ff8d8d; }
+    .scale-value.under { color: #6fd8e8; }
+    .scale-sub { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.82rem; color: #c6dde0; font-variant-numeric: tabular-nums; }
+    .scale-sub .tag { padding: 2px 10px; border-radius: 999px; font-weight: 780; background: rgba(255,255,255,.10); }
+    .scale-sub .tag.over { background: rgba(220,38,38,.34); color: #ffc9c9; }
+    .scale-sub .tag.under { background: rgba(15,159,186,.34); color: #bff0f7; }
+    .chart-panel { min-height: 0; padding: 12px 12px 6px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 4px; overflow: hidden; }
+    #chart { width: 100%; height: 100%; min-height: 0; display: block; }
+    .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 2px; }
+    .metric { padding: 9px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; color: var(--sim-muted); font-size: 0.7rem; margin-bottom: 2px; }
+    .metric strong { font-size: 1.08rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.a-pos strong { color: #b91c1c; }
+    .metric.a-neg strong { color: var(--sim-accent-deep); }
+    .insight-panel { padding: 12px 14px; }
+    .insight { margin: 0; padding: 10px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #7a4e08; font-weight: 640; font-size: 0.92rem; line-height: 1.5; }
+    .insight.over { border-left-color: var(--sim-danger); background: #fdecec; color: #9f1f1f; }
+    .insight.under { border-left-color: var(--sim-accent); background: #e6f7fa; color: #0c6a7d; }
+    .model-note { margin: 8px 0 0; color: var(--sim-muted); font-size: 0.76rem; line-height: 1.5; }
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto minmax(170px, 1fr) minmax(170px, 1fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 7px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button:disabled { opacity: .45; cursor: default; }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speed { display: flex; gap: 6px; align-items: center; }
+    .speed span { font-size: 0.78rem; color: var(--sim-muted); font-weight: 700; }
+    .speed button { padding: 7px 10px; font-size: 0.8rem; }
+    .speed button.active { background: var(--sim-accent-soft); border-color: var(--sim-accent); color: var(--sim-accent-deep); }
+    .shaft-wall { stroke: #94a3b8; stroke-width: 3; }
+    .floor-line { stroke: #cbd5e1; stroke-width: 3; stroke-linecap: round; }
+    .floor-label { fill: #7c8798; font-size: 15px; font-weight: 760; }
+    .guide-line { stroke: #dde5ee; stroke-width: 1.5; stroke-dasharray: 3 6; }
+    .cab-frame { fill: rgba(255,255,255,.92); stroke: #2f3542; stroke-width: 4; }
+    .cab-rod { stroke: #8fa1b5; stroke-width: 4; stroke-linecap: round; }
+    .cab-ceiling { fill: #fff7df; stroke: #e4c968; stroke-width: 2.5; }
+    .person { stroke: #22314e; stroke-width: 7; stroke-linecap: round; fill: none; }
+    .person-head { fill: #22314e; }
+    .scale-body { fill: #3a4759; }
+    .scale-top { fill: #55657c; }
+    .scale-display-bg { fill: #0d1f2d; }
+    .scale-display-text { fill: #7ef0d6; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; text-anchor: middle; }
+    .arrow-n { stroke: #0b8a9e; stroke-width: 6; stroke-linecap: round; }
+    .arrow-g { stroke: #64748b; stroke-width: 6; stroke-linecap: round; }
+    .arrow-v { stroke: #a15d00; stroke-width: 5; stroke-linecap: round; }
+    .arrow-label { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .arrow-label.n { fill: #0b8a9e; }
+    .arrow-label.g { fill: #5b6779; }
+    .arrow-label.v { fill: #a15d00; }
+    .cab-tag { fill: #4a566a; font-size: 13px; font-weight: 700; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 11.5px; }
+    .tick-label { fill: #7c8798; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .phase-line { stroke: #c3cedd; stroke-width: 1.5; stroke-dasharray: 4 5; }
+    .mg-line { stroke: var(--sim-warning); stroke-width: 2.5; stroke-dasharray: 8 6; }
+    .mg-label { fill: #a35d00; font-size: 12px; font-weight: 760; }
+    .trace-plan { stroke: #b9c5d4; stroke-width: 2.5; fill: none; stroke-linejoin: round; }
+    .trace-live { fill: none; stroke-width: 4.5; stroke-linejoin: round; stroke-linecap: round; }
+    .trace-live.over { stroke: var(--sim-danger); }
+    .trace-live.under { stroke: var(--sim-accent); }
+    .trace-live.coast { stroke: #64748b; }
+    .chart-marker { fill: #172033; stroke: #fff; stroke-width: 2.5; }
+    .legend { fill: #5b6779; font-size: 11.5px; font-weight: 720; }
+    .legend-swatch { stroke-width: 4; fill: none; stroke-linecap: round; }
+    @media (max-width: 940px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel #scene { height: auto; aspect-ratio: 520 / 600; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .speed { grid-column: 1 / -1; justify-content: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button, .tl-seg { transition: none !important; }
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>电梯超重与失重演示</h1>
+        <p>人站在电梯里的体重计上：示数何时变大、何时变小？决定它的是<b>加速度的方向</b>，不是运动方向。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">静止 · 示数 = 真实体重</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">电梯井道 · 受力与运动</h2><span>青色箭头 N = 体重计支持力 · 灰色箭头 G = 重力 · 橙色箭头 v = 速度方向</span></div>
+        <svg id="scene" viewBox="0 0 520 600" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">一部电梯在井道中上行再下行。轿厢里的人站在体重计上，身上的支持力箭头与重力箭头长度随加速度变化，旁边显示速度方向。</desc>
+          <defs>
+            <marker id="headN" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0b8a9e"></path></marker>
+            <marker id="headG" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64748b"></path></marker>
+            <marker id="headV" viewBox="0 0 10 10" refX="4" refY="5" markerWidth="3.8" markerHeight="3.8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a15d00"></path></marker>
+          </defs>
+          <line class="guide-line" x1="260" y1="80" x2="260" y2="560"></line>
+          <g id="shaftWalls"></g>
+          <g id="floors"></g>
+          <g id="cab">
+            <rect id="cabRear" class="cab-frame" x="150" y="0" width="220" height="196" rx="12"></rect>
+            <line id="cabRodL" class="cab-rod" x1="170" y1="0" x2="170" y2="0"></line>
+            <line id="cabRodR" class="cab-rod" x1="350" y1="0" x2="350" y2="0"></line>
+            <rect id="cabLamp" class="cab-ceiling" x="248" y="0" width="24" height="9" rx="4"></rect>
+            <g id="personG">
+              <rect id="scalePlate" class="scale-body" x="216" y="0" width="88" height="15" rx="5"></rect>
+              <rect id="scaleTop" class="scale-top" x="222" y="0" width="76" height="5" rx="2.5"></rect>
+              <rect id="scaleDisp" class="scale-display-bg" x="230" y="0" width="60" height="20" rx="4"></rect>
+              <text id="scaleDispText" class="scale-display-text" x="260" y="0">490</text>
+              <circle id="pHead" class="person-head" cx="260" cy="0" r="13"></circle>
+              <line id="pBody" class="person" x1="260" y1="0" x2="260" y2="0"></line>
+              <line id="pArmL" class="person" x1="260" y1="0" x2="232" y2="0" stroke-width="6"></line>
+              <line id="pArmR" class="person" x1="260" y1="0" x2="288" y2="0" stroke-width="6"></line>
+              <line id="pLegL" class="person" x1="260" y1="0" x2="247" y2="0"></line>
+              <line id="pLegR" class="person" x1="260" y1="0" x2="273" y2="0"></line>
+            </g>
+          </g>
+          <line id="arrowN" class="arrow-n" x1="0" y1="0" x2="0" y2="0" marker-end="url(#headN)"></line>
+          <line id="arrowG" class="arrow-g" x1="0" y1="0" x2="0" y2="0" marker-end="url(#headG)"></line>
+          <line id="arrowV" class="arrow-v" x1="0" y1="0" x2="0" y2="0" marker-end="url(#headV)"></line>
+          <text id="arrowNText" class="arrow-label n" x="0" y="0">N</text>
+          <text id="arrowGText" class="arrow-label g" x="0" y="0">G</text>
+          <text id="arrowVText" class="arrow-label v" x="0" y="0">v</text>
+          <text id="cabTag" class="cab-tag" x="0" y="0">1F</text>
+          <text id="floorHint" class="cab-tag" x="0" y="0"></text>
+        </svg>
+        <div id="timeline" class="timeline" role="group" aria-label="阶段时间轴：点击任一阶段可跳转"></div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="scale-card" aria-label="体重计读数">
+          <small>体重计示数 N（支持力）</small>
+          <div class="scale-value" id="scaleValue">490<span class="unit">N</span></div>
+          <div class="scale-sub">
+            <span>相当于 <b id="kgReadout">50.0</b> kg</span>
+            <span>真实体重 mg = <b id="mgReadout">490</b> N</span>
+            <span class="tag" id="stateTag">静止</span>
+          </div>
+        </section>
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head"><h2 id="chart-title">示数 N 随时间 t 变化</h2><span>虚线 = 真实体重 mg</span></div>
+          <svg id="chart" viewBox="0 0 460 300" role="img" aria-labelledby="chart-title chart-desc">
+            <desc id="chart-desc">体重计示数随时间的曲线：加速阶段高于体重线，减速阶段低于体重线，匀速阶段与体重线重合。</desc>
+            <g id="chartGrid"></g>
+            <g id="chartPhases"></g>
+            <line id="mgLine" class="mg-line" x1="0" y1="0" x2="0" y2="0"></line>
+            <text id="mgLabel" class="mg-label" x="0" y="0">真实体重 mg</text>
+            <polyline id="planLine" class="trace-plan" points=""></polyline>
+            <g id="liveLines"></g>
+            <circle id="chartMarker" class="chart-marker" r="5.5" cx="0" cy="0"></circle>
+            <g id="chartAxes"></g>
+            <text class="legend" x="62" y="16">超重 N&gt;mg</text>
+            <line class="legend-swatch" x1="126" y1="12" x2="146" y2="12" stroke="#dc2626"></line>
+            <text class="legend" x="152" y="16">失重 N&lt;mg</text>
+            <line class="legend-swatch" x1="214" y1="12" x2="234" y2="12" stroke="#0f9fba"></line>
+            <text class="legend" x="240" y="16">N=mg</text>
+            <line class="legend-swatch" x1="280" y1="12" x2="300" y2="12" stroke="#64748b"></line>
+          </svg>
+        </section>
+        <section class="panel insight-panel" data-zone="insight">
+          <div class="metric-row">
+            <div class="metric" id="aMetric"><small>加速度 a（向上为正）</small><strong id="aReadout">0.0 m/s²</strong></div>
+            <div class="metric"><small>速度 v（向上为正）</small><strong id="vReadout">0.0 m/s</strong></div>
+            <div class="metric"><small>高度 y（距 1F）</small><strong id="yReadout">0.0 m</strong></div>
+          </div>
+          <p class="insight" id="insight">点「启动」：电梯先向上加速，此时示数最大。</p>
+          <p class="model-note">教学模型：N = m(g + a)，g = 9.8 m/s²，加速度分阶段恒定；楼层高 8 m、巡航速度 2 m/s。井道与箭头长度为示意放大，读数与曲线为准确值。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">启动</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+        <button id="nextBtn" type="button">下一阶段</button>
+      </div>
+      <div class="control">
+        <label for="massInput">质量 m <output id="massOutput">50 kg</output></label>
+        <input id="massInput" type="range" min="40" max="120" step="5" value="50">
+      </div>
+      <div class="control">
+        <label for="accInput">加速度大小 |a| <output id="accOutput">2.0 m/s²</output></label>
+        <input id="accInput" type="range" min="0.5" max="5" step="0.1" value="2">
+      </div>
+      <div class="speed" role="group" aria-label="播放速度">
+        <span>播放</span>
+        <button id="sp05" type="button">0.5×</button>
+        <button id="sp10" type="button" class="active">1×</button>
+        <button id="sp20" type="button">2×</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+/*__PHYSICS_KERNEL__*/
+    const G_ACC = 9.8;      // gravitational acceleration, m/s^2
+    const FLOOR_H = 8;      // one-floor travel distance, m
+    const V_CRUISE = 2;     // cruise speed, m/s
+    const REST_PRE = 1.0;   // standstill before start, s
+    const REST_MID = 1.4;   // standstill between trips, s
+
+    // Build the analytic round-trip schedule. Pure function of { m, aMag }.
+    function buildSchedule(m, aMag) {
+      const tAcc = V_CRUISE / aMag;                    // accel/decel duration
+      const dAcc = (V_CRUISE * V_CRUISE) / (2 * aMag); // accel distance
+      const tCruise = Math.max(0, (FLOOR_H - 2 * dAcc) / V_CRUISE);
+      const defs = [
+        { key: "rest0", a: 0, dur: REST_PRE, label: "静止", kind: "coast" },
+        { key: "upA", a: +aMag, dur: tAcc, label: "向上启动", kind: "over" },
+        { key: "upC", a: 0, dur: tCruise, label: "匀速上升", kind: "coast" },
+        { key: "upD", a: -aMag, dur: tAcc, label: "减速到站", kind: "under" },
+        { key: "rest1", a: 0, dur: REST_MID, label: "到站停留", kind: "coast" },
+        { key: "dnA", a: -aMag, dur: tAcc, label: "向下启动", kind: "under" },
+        { key: "dnC", a: 0, dur: tCruise, label: "匀速下降", kind: "coast" },
+        { key: "dnD", a: +aMag, dur: tAcc, label: "减速到站", kind: "over" },
+        { key: "rest2", a: 0, dur: Infinity, label: "停止", kind: "coast" }
+      ].filter((p) => p.dur > 1e-12 || p.key === "rest2");
+      let t = 0, y = 0, v = 0;
+      const phases = defs.map((p) => {
+        const phase = { ...p, tStart: t, y0: y, v0: v, tEnd: t + p.dur };
+        t = phase.tEnd; y += v * p.dur + 0.5 * p.a * p.dur * p.dur; v += p.a * p.dur;
+        return phase;
+      });
+      const tEnd = phases[phases.length - 2].tEnd; // end of down-decel = demo end
+      return { m, aMag, phases, tEnd };
+    }
+
+    // Closed-form kinematics + scale reading at absolute time t. Pure.
+    function evaluate(sch, t) {
+      const tc = Math.max(0, Math.min(t, sch.tEnd));
+      let ph = sch.phases[0];
+      for (let i = 0; i < sch.phases.length; i += 1) {
+        if (tc >= sch.phases[i].tStart - 1e-12) ph = sch.phases[i];
+      }
+      const u = tc - ph.tStart;
+      const a = ph.a;
+      const v = ph.v0 + a * u;
+      const y = ph.y0 + ph.v0 * u + 0.5 * a * u * u;
+      const N = sch.m * (G_ACC + a);
+      return { t: tc, phase: ph, a, v, y, N, mg: sch.m * G_ACC, finished: t >= sch.tEnd - 1e-9 };
+    }
+
+    // Dense samples of the whole run, used by the chart preview and trace.
+    // Includes exact phase-boundary samples so corners are never interpolated away.
+    function sampleCurve(sch) {
+      const marks = new Set([0, sch.tEnd]);
+      for (const p of sch.phases) if (Number.isFinite(p.tEnd)) { marks.add(p.tStart); marks.add(p.tEnd); }
+      const ts = [];
+      for (let t = 0; t <= sch.tEnd + 1e-9; t += 0.05) ts.push(t);
+      for (const m of marks) ts.push(m);
+      ts.sort((a, b) => a - b);
+      return ts.map((t) => evaluate(sch, t));
+    }
+
+    // Oracle checks: analytic expected values, no DOM access.
+    function runModelChecks() {
+      const checks = [];
+      const add = (name, pass, expected, actual, tolerance) => checks.push({ name, pass, expected, actual, tolerance });
+      const near = (x, y, eps) => Math.abs(x - y) <= eps;
+
+      // 1) Ordinary case m=50, aMag=2: exact N in every phase (analytic oracle).
+      {
+        const sch = buildSchedule(50, 2);
+        const exp = { rest0: 490, upA: 590, upC: 490, upD: 390, rest1: 490, dnA: 390, dnC: 490, dnD: 590 };
+        let worst = 0;
+        for (const key of Object.keys(exp)) {
+          const ph = sch.phases.find((p) => p.key === key);
+          const mid = ph.tStart + ph.dur / 2;
+          worst = Math.max(worst, Math.abs(evaluate(sch, mid).N - exp[key]));
+        }
+        add("每阶段示数 N = m(g+a)（m=50, |a|=2）", near(worst, 0, 1e-9), "N∈{490,590,390} N", `最大偏差 ${worst.toExponential(2)} N`, "1e-9 N");
+      }
+      // 2) Kinematics vs closed form: distance after accel phase = v²/(2a); v = 2 m/s.
+      {
+        const sch = buildSchedule(60, 2.5);
+        const upA = sch.phases.find((p) => p.key === "upA");
+        const r = evaluate(sch, upA.tEnd);
+        const expD = (V_CRUISE * V_CRUISE) / (2 * 2.5);
+        add("加速末速度与位移（v²/2a 闭式解）", near(r.v, V_CRUISE, 1e-9) && near(r.y, expD, 1e-9), `v=2 m/s, y=${expD} m`, `v=${r.v.toFixed(10)}, y=${r.y.toFixed(10)}`, "1e-9");
+      }
+      // 3) Boundary aMag=0.5: cruise phase degenerates; one-way distance still exactly 8 m, v=0 at stop.
+      {
+        const sch = buildSchedule(50, 0.5);
+        const upD = sch.phases.find((p) => p.key === "upD");
+        const r = evaluate(sch, upD.tEnd);
+        const hasNoCruise = !sch.phases.some((p) => p.key === "upC");
+        add("边界 |a|=0.5（匀速段消失）单程仍为 8 m", hasNoCruise && near(r.y, FLOOR_H, 1e-9) && near(r.v, 0, 1e-9), "y=8 m, v=0", `y=${r.y.toFixed(10)}, v=${r.v.toFixed(10)}`, "1e-9");
+      }
+      // 4) Symmetry: up-accel == down-decel (超重), up-decel == down-accel (失重); trip returns to y=0 with v=0.
+      {
+        const sch = buildSchedule(70, 3);
+        const N = (k) => { const p = sch.phases.find((q) => q.key === k); return evaluate(sch, p.tStart + p.dur / 2).N; };
+        const end = evaluate(sch, sch.tEnd);
+        add("上/下行程对称且回到 1F（y=0, v=0）", near(N("upA"), N("dnD"), 1e-9) && near(N("upD"), N("dnA"), 1e-9) && near(end.y, 0, 1e-9) && near(end.v, 0, 1e-9), "N(upA)=N(dnD), N(upD)=N(dnA), y=0, v=0", `偏差≤${Math.max(Math.abs(N("upA") - N("dnD")), Math.abs(N("upD") - N("dnA")), Math.abs(end.y), Math.abs(end.v)).toExponential(2)}`, "1e-9");
+      }
+      // 5) Sign rule on every sample of the full curve: a>0 ⇒ N>mg, a<0 ⇒ N<mg, a=0 ⇒ N=mg.
+      {
+        const sch = buildSchedule(80, 4);
+        const pts = sampleCurve(sch);
+        const bad = pts.filter((p) => (p.a > 1e-12 && !(p.N > p.mg + 1e-9)) || (p.a < -1e-12 && !(p.N < p.mg - 1e-9)) || (Math.abs(p.a) <= 1e-12 && !near(p.N, p.mg, 1e-9)));
+        add("符号规则：N 与 a 同向偏离 mg（全曲线）", bad.length === 0, "全部采样满足", `${bad.length}/${pts.length} 个采样违反`, "0 个违例");
+      }
+      // 6) Time-scale invariance: stepping t by 2×speed for 2 s in 1/60 chunks equals direct t=4.
+      {
+        const sch = buildSchedule(50, 2);
+        let t = 0;
+        for (let i = 0; i < 120; i += 1) t += (1 / 60) * 2;
+        const r1 = evaluate(sch, t), r2 = evaluate(sch, 4);
+        add("时间缩放不变性（2× 播放 2 s ≡ t=4 s）", r1.phase.key === r2.phase.key && near(r1.N, r2.N, 1e-9) && near(r1.y, r2.y, 1e-9), `阶段 ${r2.phase.key}`, `阶段 ${r1.phase.key}, ΔN=${Math.abs(r1.N - r2.N).toExponential(2)}`, "1e-9");
+      }
+      // 7) Stability sweep: all quantities finite across parameter grid.
+      {
+        let allFinite = true;
+        for (let aMag = 0.5; aMag <= 5.0001; aMag += 0.5) {
+          for (const m of [40, 120]) {
+            const sch = buildSchedule(m, aMag);
+            for (const p of sampleCurve(sch)) {
+              if (!Number.isFinite(p.N) || !Number.isFinite(p.v) || !Number.isFinite(p.y)) allFinite = false;
+            }
+          }
+        }
+        add("参数网格全量有限性（|a| 0.5–5 × m 40/120）", allFinite, "全部有限", allFinite ? "全部有限" : "存在非有限值", "无 NaN/∞");
+      }
+      return checks;
+    }
+/*__PHYSICS_KERNEL_END__*/
+
+    const parameterSchema = [
+      { key: "mass", label: "质量 m", type: "slider", min: 40, max: 120, step: 5, default: 50, unit: "kg" },
+      { key: "aMag", label: "加速度大小 |a|", type: "slider", min: 0.5, max: 5, step: 0.1, default: 2, unit: "m/s²" }
+    ];
+    const state = {
+      running: false, t: 0, mass: 50, aMag: 2, speed: 1,
+      lastTimestamp: null, schedule: null, curve: []
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      scaleValue: document.querySelector("#scaleValue"), kgReadout: document.querySelector("#kgReadout"),
+      mgReadout: document.querySelector("#mgReadout"), stateTag: document.querySelector("#stateTag"),
+      aReadout: document.querySelector("#aReadout"), vReadout: document.querySelector("#vReadout"), yReadout: document.querySelector("#yReadout"),
+      aMetric: document.querySelector("#aMetric"), insight: document.querySelector("#insight"),
+      timeline: document.querySelector("#timeline"),
+      shaftWalls: document.querySelector("#shaftWalls"), floors: document.querySelector("#floors"),
+      cabRear: document.querySelector("#cabRear"), cabRodL: document.querySelector("#cabRodL"), cabRodR: document.querySelector("#cabRodR"), cabLamp: document.querySelector("#cabLamp"),
+      scalePlate: document.querySelector("#scalePlate"), scaleTop: document.querySelector("#scaleTop"),
+      scaleDisp: document.querySelector("#scaleDisp"), scaleDispText: document.querySelector("#scaleDispText"),
+      pHead: document.querySelector("#pHead"), pBody: document.querySelector("#pBody"),
+      pArmL: document.querySelector("#pArmL"), pArmR: document.querySelector("#pArmR"),
+      pLegL: document.querySelector("#pLegL"), pLegR: document.querySelector("#pLegR"),
+      arrowN: document.querySelector("#arrowN"), arrowG: document.querySelector("#arrowG"), arrowV: document.querySelector("#arrowV"),
+      arrowNText: document.querySelector("#arrowNText"), arrowGText: document.querySelector("#arrowGText"), arrowVText: document.querySelector("#arrowVText"),
+      cabTag: document.querySelector("#cabTag"), floorHint: document.querySelector("#floorHint"),
+      chartGrid: document.querySelector("#chartGrid"), chartPhases: document.querySelector("#chartPhases"), chartAxes: document.querySelector("#chartAxes"),
+      mgLine: document.querySelector("#mgLine"), mgLabel: document.querySelector("#mgLabel"),
+      planLine: document.querySelector("#planLine"), liveLines: document.querySelector("#liveLines"), chartMarker: document.querySelector("#chartMarker"),
+      massInput: document.querySelector("#massInput"), massOutput: document.querySelector("#massOutput"),
+      accInput: document.querySelector("#accInput"), accOutput: document.querySelector("#accOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"), nextBtn: document.querySelector("#nextBtn"),
+      sp05: document.querySelector("#sp05"), sp10: document.querySelector("#sp10"), sp20: document.querySelector("#sp20")
+    };
+
+    const SHAFT = { x0: 120, x1: 400, yBase: 560, travelPx: 300, h: FLOOR_H };
+    const CAB = { x: 150, w: 220, h: 196 };
+    const CHART = { x0: 54, x1: 444, y0: 30, y1: 258, axisY: 258 };
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const finite = (value, fallback) => (Number.isFinite(value) ? value : fallback);
+    const fmt = (x, d = 1) => Number(x).toFixed(d);
+
+    function initShaft() {
+      const { x0, x1, yBase, travelPx } = SHAFT;
+      const walls = [
+        `<rect x="${x0 - 46}" y="54" width="40" height="${yBase - 44}" rx="6" fill="#e4ebf3"></rect>`,
+        `<rect x="${x1 + 6}" y="54" width="40" height="${yBase - 44}" rx="6" fill="#e4ebf3"></rect>`,
+        `<line class="shaft-wall" x1="${x0}" y1="54" x2="${x0}" y2="${yBase}"></line>`,
+        `<line class="shaft-wall" x1="${x1}" y1="54" x2="${x1}" y2="${yBase}"></line>`
+      ];
+      elements.shaftWalls.innerHTML = walls.join("");
+      const floors = [];
+      for (let f = 1; f <= 2; f += 1) {
+        const y = yBase - (f - 1) * travelPx;
+        floors.push(`<line class="floor-line" x1="${x0 - 46}" y1="${y}" x2="${x0 - 6}" y2="${y}"></line>`);
+        floors.push(`<line class="floor-line" x1="${x1 + 6}" y1="${y}" x2="${x1 + 46}" y2="${y}"></line>`);
+        floors.push(`<text class="floor-label" x="${x0 - 46}" y="${y - 10}">${f}F</text>`);
+        floors.push(`<text class="floor-label" x="${x1 + 12}" y="${y - 10}" text-anchor="end" transform="translate(34,0)"></text>`);
+      }
+      floors.push(`<text class="cab-tag" x="${x1 + 14}" y="96">井道高 8 m</text>`);
+      elements.floors.innerHTML = floors.join("");
+    }
+    const INSIGHT = {
+      rest0: "点「启动」：电梯先向上加速——支持力 N = m(g+a) 大于重力 mg，示数变大（超重）。",
+      upA: "向上启动：加速度向上，N = m(g+a) > mg —— 超重，示数变大。",
+      upC: "匀速上升：a = 0，N = mg。速度再大，示数也不变！",
+      upD: "减速到站：速度仍向上，但加速度向下，N = m(g−a) < mg —— 失重。还在上升，示数却变小！",
+      rest1: "到站停留：a = 0，N = mg。接下来电梯向下启动，猜猜示数怎么变？",
+      dnA: "向下启动：加速度向下，N < mg —— 失重，示数变小。",
+      dnC: "匀速下降：a = 0，N = mg。匀速下降与静止的示数相同。",
+      dnD: "减速到站：速度仍向下，但加速度向上，N > mg —— 超重。还在下降，示数却变大！",
+      rest2: "全程结束：超重/失重只由加速度方向决定——a 向上超重、a 向下失重，与速度方向无关。"
+    };
+    const PHASE_SHORT = { upA: "启动", upC: "匀速", upD: "减速", rest1: "停留", dnA: "启动", dnC: "匀速", dnD: "减速" };
+
+    let chartScale = { xMax: 1, yLo: 0, yHi: 1 };
+
+    function rebuild() {
+      state.schedule = buildSchedule(state.mass, state.aMag);
+      state.curve = sampleCurve(state.schedule);
+      const { m, aMag } = state;
+      const span = m * (G_ACC + aMag) - m * (G_ACC - aMag);
+      chartScale = {
+        xMax: state.schedule.tEnd + 0.4,
+        yLo: m * (G_ACC - aMag) - 0.2 * span,
+        yHi: m * (G_ACC + aMag) + 0.16 * span
+      };
+      buildChartStatic();
+      buildTimeline();
+    }
+    const xPix = (t) => CHART.x0 + (t / chartScale.xMax) * (CHART.x1 - CHART.x0);
+    const yPix = (N) => CHART.y1 - ((N - chartScale.yLo) / (chartScale.yHi - chartScale.yLo)) * (CHART.y1 - CHART.y0);
+
+    function buildChartStatic() {
+      const sch = state.schedule;
+      const grid = [];
+      for (let t = 2; t < chartScale.xMax - 0.01; t += 2) {
+        grid.push(`<line class="grid-line" x1="${xPix(t)}" y1="${CHART.y0}" x2="${xPix(t)}" y2="${CHART.y1}"></line>`);
+        grid.push(`<text class="tick-label" x="${xPix(t)}" y="${CHART.y1 + 13}" text-anchor="middle">${Math.round(t)}</text>`);
+      }
+      const levels = [
+        { v: m_(G_ACC + state.aMag), d: 0 }, { v: m_(G_ACC), d: 0 }, { v: m_(G_ACC - state.aMag), d: 0 }
+      ];
+      for (const lv of levels) {
+        grid.push(`<line class="grid-line" x1="${CHART.x0}" y1="${yPix(lv.v)}" x2="${CHART.x1}" y2="${yPix(lv.v)}"></line>`);
+        grid.push(`<text class="tick-label" x="${CHART.x0 - 6}" y="${yPix(lv.v) + 3.5}" text-anchor="end">${Math.round(lv.v)}</text>`);
+      }
+      elements.chartGrid.innerHTML = grid.join("");
+      const ph = [];
+      for (const p of sch.phases) {
+        if (p.tStart < 1e-9 || p.key === "rest2") continue;
+        ph.push(`<line class="phase-line" x1="${xPix(p.tStart)}" y1="${CHART.y0}" x2="${xPix(p.tStart)}" y2="${CHART.y1}"></line>`);
+      }
+      for (const p of sch.phases) {
+        const short = PHASE_SHORT[p.key];
+        if (!short) continue;
+        const color = p.kind === "over" ? "#b91c1c" : p.kind === "under" ? "#08758a" : "#7c8798";
+        ph.push(`<text class="tick-label" x="${xPix(p.tStart + p.dur / 2)}" y="${CHART.y1 + 27}" text-anchor="middle" fill="${color}" font-weight="740">${short}</text>`);
+      }
+      elements.chartPhases.innerHTML = ph.join("");
+      elements.chartAxes.innerHTML =
+        `<line class="axis" x1="${CHART.x0}" y1="${CHART.y0}" x2="${CHART.x0}" y2="${CHART.y1}"></line>` +
+        `<line class="axis" x1="${CHART.x0}" y1="${CHART.y1}" x2="${CHART.x1}" y2="${CHART.y1}"></line>` +
+        `<text class="axis-label" x="${CHART.x1}" y="${CHART.y1 + 27}" text-anchor="end">t/s</text>` +
+        `<text class="axis-label" x="${CHART.x0 - 6}" y="${CHART.y0 - 12}" text-anchor="end">N</text>`;
+      elements.mgLine.setAttribute("x1", CHART.x0); elements.mgLine.setAttribute("x2", CHART.x1);
+      elements.mgLine.setAttribute("y1", yPix(m_(G_ACC))); elements.mgLine.setAttribute("y2", yPix(m_(G_ACC)));
+      elements.mgLabel.setAttribute("x", CHART.x1 - 4);
+      elements.mgLabel.setAttribute("y", Math.max(CHART.y0 + 10, yPix(m_(G_ACC)) - 7));
+      elements.mgLabel.setAttribute("text-anchor", "end");
+      elements.planLine.setAttribute("points", state.curve.map((p) => `${xPix(p.t)},${yPix(p.N)}`).join(" "));
+    }
+    function m_(g) { return state.mass * g; }
+
+    function buildTimeline() {
+      elements.timeline.innerHTML = "";
+      for (const p of state.schedule.phases) {
+        if (p.key === "rest2") continue;
+        const seg = document.createElement("button");
+        seg.type = "button";
+        seg.className = `tl-seg kind-${p.kind}`;
+        seg.style.flexGrow = String(p.dur);
+        seg.style.flexBasis = "0";
+        seg.title = `${p.label}（${fmt(p.dur)} s）`;
+        seg.innerHTML = `<b>${p.label}</b><small>${fmt(p.dur)} s</small>`;
+        seg.addEventListener("click", () => { state.t = Math.min(p.tStart + 1e-3, state.schedule.tEnd); render(); });
+        elements.timeline.appendChild(seg);
+      }
+    }
+
+    function renderScene(r) {
+      const yBottom = SHAFT.yBase - (r.y / SHAFT.h) * SHAFT.travelPx;
+      const yTop = yBottom - CAB.h;
+      elements.cabRear.setAttribute("y", yTop);
+      elements.cabRodL.setAttribute("y1", 54); elements.cabRodL.setAttribute("y2", yTop + 6);
+      elements.cabRodR.setAttribute("y1", 54); elements.cabRodR.setAttribute("y2", yTop + 6);
+      elements.cabLamp.setAttribute("y", yTop + 7);
+      const plateTop = yBottom - 15;
+      elements.scalePlate.setAttribute("y", plateTop);
+      elements.scaleTop.setAttribute("y", plateTop - 5);
+      elements.scaleDisp.setAttribute("y", plateTop - 46);
+      elements.scaleDispText.setAttribute("y", plateTop - 31);
+      elements.scaleDispText.textContent = String(Math.round(r.N));
+      const feetY = plateTop - 5, hipY = feetY - 48, headY = hipY - 46;
+      elements.pHead.setAttribute("cy", headY);
+      elements.pBody.setAttribute("y1", headY + 15); elements.pBody.setAttribute("y2", hipY);
+      const shoulderY = hipY - 38;
+      elements.pArmL.setAttribute("y1", shoulderY); elements.pArmL.setAttribute("y2", shoulderY + 26);
+      elements.pArmR.setAttribute("y1", shoulderY); elements.pArmR.setAttribute("y2", shoulderY + 26);
+      elements.pLegL.setAttribute("y1", hipY); elements.pLegL.setAttribute("y2", feetY);
+      elements.pLegR.setAttribute("y1", hipY); elements.pLegR.setAttribute("y2", feetY);
+      // Force arrows from body center: N (teal, up) vs G (gray, down). G is the 46 px reference.
+      const comY = (headY + feetY) / 2 + 6;
+      const kArrow = 46 / r.mg;
+      const nLen = clamp(r.N * kArrow, 8, 120);
+      const xN = 260 - 58, xG = 260 + 58;
+      elements.arrowN.setAttribute("x1", xN); elements.arrowN.setAttribute("x2", xN);
+      elements.arrowN.setAttribute("y1", comY); elements.arrowN.setAttribute("y2", comY - nLen);
+      elements.arrowG.setAttribute("x1", xG); elements.arrowG.setAttribute("x2", xG);
+      elements.arrowG.setAttribute("y1", comY); elements.arrowG.setAttribute("y2", comY + 46);
+      elements.arrowNText.setAttribute("x", xN); elements.arrowNText.setAttribute("y", comY - nLen - 8);
+      elements.arrowNText.setAttribute("text-anchor", "middle");
+      elements.arrowNText.textContent = `N=${Math.round(r.N)}N`;
+      elements.arrowGText.setAttribute("x", xG); elements.arrowGText.setAttribute("y", comY + 66);
+      elements.arrowGText.setAttribute("text-anchor", "middle");
+      elements.arrowGText.textContent = `G=${Math.round(r.mg)}N`;
+      // Velocity direction indicator (orange), left of the cab.
+      const vArrow = clamp(Math.abs(r.v) * 26, 12, 26) * (r.v >= 0 ? -1 : 1);
+      const showV = Math.abs(r.v) > 0.02;
+      elements.arrowV.setAttribute("opacity", showV ? "1" : "0");
+      elements.arrowVText.setAttribute("opacity", showV ? "1" : "0");
+      elements.arrowV.setAttribute("x1", 136); elements.arrowV.setAttribute("x2", 136);
+      elements.arrowV.setAttribute("y1", comY - vArrow); elements.arrowV.setAttribute("y2", comY + vArrow);
+      elements.arrowV.setAttribute("marker-end", r.v >= 0 ? "url(#headV)" : "url(#headV)");
+      elements.arrowVText.setAttribute("x", 128);
+      elements.arrowVText.setAttribute("y", r.v >= 0 ? comY + vArrow - 8 : comY + vArrow + 18);
+      elements.arrowVText.textContent = `v=${fmt(Math.abs(r.v))}`;
+      elements.cabTag.setAttribute("x", CAB.x + 10); elements.cabTag.setAttribute("y", yTop + 22);
+      elements.cabTag.textContent = r.y > SHAFT.h / 2 ? "2F" : "1F";
+      elements.floorHint.setAttribute("x", 406); elements.floorHint.setAttribute("y", yBottom - 6);
+      elements.floorHint.textContent = `y=${fmt(r.y)} m`;
+    }
+
+    function renderChart(r) {
+      const sch = state.schedule;
+      let live = "";
+      for (const p of sch.phases) {
+        if (state.t <= p.tStart + 1e-9 || p.key === "rest2") continue;
+        const tA2 = Math.min(state.t, p.tEnd);
+        const pts = state.curve.filter((s) => s.t > p.tStart + 1e-9 && s.t < tA2 - 1e-9);
+        const seq = [evaluate(sch, p.tStart + 1e-6), ...pts, evaluate(sch, tA2)];
+        const poly = seq.map((s) => `${xPix(s.t)},${yPix(s.N)}`).join(" ");
+        live += `<polyline class="trace-live ${p.kind}" points="${poly}"></polyline>`;
+      }
+      elements.liveLines.innerHTML = live;
+      elements.chartMarker.setAttribute("cx", xPix(r.t));
+      elements.chartMarker.setAttribute("cy", yPix(r.N));
+      elements.chartMarker.setAttribute("opacity", state.t > 1e-9 ? "1" : "0.9");
+    }
+
+    function render() {
+      const r = evaluate(state.schedule, state.t);
+      const kind = Math.abs(r.a) < 1e-12 ? "coast" : r.a > 0 ? "over" : "under";
+      const stateWord = kind === "coast" ? "N=mg" : kind === "over" ? "超重" : "失重";
+      elements.status.className = `status ${kind === "coast" ? "" : kind}`;
+      elements.status.textContent = r.finished ? "演示结束 · 回到 1F 静止" : `${r.phase.label} · ${stateWord}`;
+      elements.scaleValue.className = `scale-value ${kind === "coast" ? "" : kind}`;
+      elements.scaleValue.innerHTML = `${Math.round(r.N)}<span class="unit">N</span>`;
+      elements.kgReadout.textContent = fmt(r.N / G_ACC, 1);
+      elements.mgReadout.textContent = String(Math.round(r.mg));
+      elements.stateTag.className = `tag ${kind === "coast" ? "" : kind}`;
+      const delta = r.N - r.mg;
+      elements.stateTag.textContent = kind === "coast" ? "N = mg" : `${delta > 0 ? "+" : ""}${Math.round(delta)} N ${stateWord}`;
+      elements.aReadout.textContent = `${r.a >= 0 ? "+" : ""}${fmt(r.a)} m/s²`;
+      elements.vReadout.textContent = `${r.v >= 0 ? "+" : ""}${fmt(r.v)} m/s`;
+      elements.yReadout.textContent = `${fmt(r.y)} m`;
+      elements.aMetric.className = `metric ${r.a > 1e-12 ? "a-pos" : r.a < -1e-12 ? "a-neg" : ""}`;
+      elements.insight.className = `insight ${kind === "coast" ? "" : kind}`;
+      elements.insight.textContent = r.finished ? INSIGHT.rest2 : INSIGHT[r.phase.key];
+      renderScene(r);
+      renderChart(r);
+      const segs = elements.timeline.children;
+      let i = 0;
+      for (const p of state.schedule.phases) {
+        if (p.key === "rest2") continue;
+        const seg = segs[i]; i += 1;
+        seg.classList.toggle("current", !r.finished && r.phase.key === p.key);
+        seg.classList.toggle("done", state.t >= p.tEnd - 1e-9);
+      }
+      elements.startBtn.disabled = state.running;
+      elements.pauseBtn.disabled = !state.running;
+      elements.nextBtn.disabled = r.finished;
+    }
+
+    function init() { initShaft(); rebuild(); bindControls(); render(); requestAnimationFrame(frame); }
+    function start() {
+      if (state.t >= state.schedule.tEnd - 1e-9) state.t = 0;
+      state.running = true; state.lastTimestamp = null; render();
+    }
+    function pause() { state.running = false; render(); }
+    function reset() { state.running = false; state.t = 0; state.lastTimestamp = null; render(); }
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+      state.t = finite(state.t + boundedDt * state.speed, 0);
+      if (state.t >= state.schedule.tEnd) { state.t = state.schedule.tEnd; state.running = false; }
+    }
+    function setParameters(values) {
+      const massDef = parameterSchema[0], accDef = parameterSchema[1];
+      state.mass = clamp(finite(Number(values.mass), massDef.default), massDef.min, massDef.max);
+      state.aMag = clamp(finite(Number(values.aMag), accDef.default), accDef.min, accDef.max);
+      state.t = 0; state.running = false; state.lastTimestamp = null;
+      elements.massInput.value = String(state.mass); elements.accInput.value = String(state.aMag);
+      elements.massOutput.textContent = `${state.mass} kg`;
+      elements.accOutput.textContent = `${fmt(state.aMag)} m/s²`;
+      rebuild(); render();
+    }
+    function setSpeed(s) {
+      state.speed = s;
+      elements.sp05.classList.toggle("active", s === 0.5);
+      elements.sp10.classList.toggle("active", s === 1);
+      elements.sp20.classList.toggle("active", s === 2);
+    }
+    function nextPhase() {
+      const idx = state.schedule.phases.findIndex((p) => evaluate(state.schedule, state.t).phase.key === p.key);
+      const next = state.schedule.phases[Math.min(idx + 1, state.schedule.phases.length - 1)];
+      state.t = next.key === "rest2" ? state.schedule.tEnd : Math.min(next.tStart + 1e-3, state.schedule.tEnd);
+      if (state.t >= state.schedule.tEnd) state.running = false;
+      render();
+    }
+    function getState() { const r = evaluate(state.schedule, state.t); return { running: state.running, t: state.t, mass: state.mass, aMag: state.aMag, speed: state.speed, phase: r.phase.key, a: r.a, v: r.v, y: r.y, N: r.N, mg: r.mg, tEnd: state.schedule.tEnd }; }
+    function getReadouts() { const r = evaluate(state.schedule, state.t); return { time: r.t, phase: r.phase.label, acceleration: r.a, velocity: r.v, height: r.y, scaleReading: r.N, weight: r.mg, kilogramEquivalent: r.N / G_ACC }; }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.nextBtn.addEventListener("click", nextPhase);
+      elements.massInput.addEventListener("input", () => setParameters({ mass: elements.massInput.value, aMag: state.aMag }));
+      elements.accInput.addEventListener("input", () => setParameters({ mass: state.mass, aMag: elements.accInput.value }));
+      elements.sp05.addEventListener("click", () => setSpeed(0.5));
+      elements.sp10.addEventListener("click", () => setSpeed(1));
+      elements.sp20.addEventListener("click", () => setSpeed(2));
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt); render(); requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

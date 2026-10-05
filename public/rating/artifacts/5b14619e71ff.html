@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>滑块—木板（板块）模型 · 分阶段演示</title>
+<style>
+:root{--blue:#2f6db3;--orange:#e07b28;--green:#1e9e5a;--red:#d84343}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;background:#eef1f6;color:#2b3245}
+.wrap{max-width:1020px;margin:0 auto;padding:14px 14px 40px}
+h1{font-size:20px;margin:8px 0 2px}
+.sub{color:#6b7385;font-size:13px;margin-bottom:12px}
+.card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(30,40,70,.08);padding:12px 14px;margin-bottom:12px}
+canvas{width:100%;height:auto;display:block;border-radius:8px}
+.badge{display:inline-block;padding:3px 12px;border-radius:999px;font-weight:600;font-size:13px;color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;font-size:13px;color:#4a5266}
+.readouts b{font-weight:700;color:#1f2536;font-variant-numeric:tabular-nums}
+.ctl{display:flex;align-items:center;gap:8px;font-size:13px;min-width:250px;flex:1}
+.ctl label{width:118px;color:#3a4256}
+.ctl input[type=range]{flex:1}
+.ctl .val{width:66px;text-align:right;font-weight:600;color:var(--blue);font-variant-numeric:tabular-nums}
+button{border:0;border-radius:8px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer}
+#play{background:var(--blue);color:#fff}
+#reset{background:#e3e8f0;color:#2b3245}
+.formula{font-size:13.5px;line-height:2}
+.formula .warn{color:var(--red);font-weight:700}
+.legend{font-size:12.5px;color:#5a6275;margin-top:6px}
+kbd{background:#e3e8f0;border-radius:4px;padding:1px 6px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>滑块—木板（板块）模型</h1>
+  <div class="sub">光滑水平地面 · 木板静止 · 滑块以 v₀ 冲上木板 · 接触面动摩擦因数 μ —— 依物理规律分阶段：相对滑动 → 共速 → 一起匀速（若木板不够长则滑离）</div>
+
+  <div class="card"><canvas id="scene"></canvas></div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <span><span class="badge" id="phaseBadge">阶段Ⅰ</span>
+      <span id="phaseDesc" style="font-size:13px;color:#4a5266"></span></span>
+      <span style="font-size:12px;color:#8a90a0"><kbd>空格</kbd> 播放 / 暂停</span>
+    </div>
+    <div class="readouts">
+      <span>时间 t = <b id="ro-t"></b> s</span>
+      <span>滑块 v₁ = <b id="ro-v1"></b> m/s</span>
+      <span>木板 v₂ = <b id="ro-v2"></b> m/s</span>
+      <span>相对速度 = <b id="ro-dv"></b> m/s</span>
+      <span>滑块位移 x₁ = <b id="ro-x1"></b> m</span>
+      <span>木板位移 x₂ = <b id="ro-x2"></b> m</span>
+      <span>相对位移 Δx = <b id="ro-dx"></b> m</span>
+      <span>摩擦力 f = <b id="ro-f"></b> N</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <canvas id="graph"></canvas>
+    <div class="legend">橙线：滑块速度 v₁(t)；蓝线：木板速度 v₂(t)。两线斜率分别为 a₁ = −μg 与 a₂ = μmg/M；交点即共速时刻 t*（此后重合为一条水平线）。</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <button id="play">▶ 开始</button>
+      <button id="reset">↺ 重置</button>
+    </div>
+    <div class="row">
+      <div class="ctl"><label>滑块质量 m / kg</label><input type="range" id="in-m" min="0.5" max="5" step="0.1" value="2"><span class="val" id="v-m"></span></div>
+      <div class="ctl"><label>木板质量 M / kg</label><input type="range" id="in-M" min="0.5" max="10" step="0.1" value="4"><span class="val" id="v-M"></span></div>
+      <div class="ctl"><label>摩擦因数 μ</label><input type="range" id="in-mu" min="0.1" max="0.8" step="0.01" value="0.5"><span class="val" id="v-mu"></span></div>
+      <div class="ctl"><label>初速度 v₀ / (m/s)</label><input type="range" id="in-v0" min="2" max="10" step="0.5" value="6"><span class="val" id="v-v0"></span></div>
+      <div class="ctl"><label>木板长度 L / m</label><input type="range" id="in-L" min="2" max="10" step="0.5" value="5"><span class="val" id="v-L"></span></div>
+      <div class="ctl"><label>播放速度（慢放）</label><input type="range" id="in-speed" min="0.1" max="2" step="0.05" value="0.5"><span class="val" id="v-speed"></span></div>
+    </div>
+  </div>
+
+  <div class="card formula" id="formulaBox"></div>
+</div>
+
+<script>
+'use strict';
+const g=10, BW=1;                       // 重力加速度、滑块宽(米)
+const P={m:2,M:4,mu:0.5,v0:6,L:5};
+let model=null, simT=0, playing=false, speed=0.5;
+
+const $=id=>document.getElementById(id);
+const sceneC=$('scene'), graphC=$('graph');
+const sc=sceneC.getContext('2d'), gc=graphC.getContext('2d');
+const SW=960,SH=340,GW=960,GH=290;
+(function fit(){const d=window.devicePixelRatio||1;
+  [ [sceneC,sc,SW,SH],[graphC,gc,GW,GH] ].forEach(([c,ctx,w,h])=>{c.width=w*d;c.height=h*d;ctx.setTransform(d,0,0,d,0,0);});
+})();
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---------- 物理模型 ---------- */
+function computeModel(){
+  const {m,M,mu,v0,L}=P;
+  const a1=mu*g;                        // 滑块加速度大小（减速）
+  const a2=mu*m*g/M;                    // 木板加速度（加速）
+  const tStar=v0/(a1+a2);               // 共速时刻
+  const vc=v0-a1*tStar;                 // 共同速度 = m v0/(m+M)
+  const dRel=0.5*v0*tStar;              // 全程相对滑动位移 = ½v0t*
+  const avail=Math.max(0,L-BW);
+  const falls=dRel>avail+1e-9;
+  let tFall=Infinity;
+  if(falls){const A=a1+a2;tFall=(v0-Math.sqrt(Math.max(0,v0*v0-2*A*avail)))/A;}
+  const tS=falls?tFall:tStar;
+  const tEnd=falls?Math.min(tFall*1.6,tFall+4):Math.max(2.2*tStar,tStar+3);
+  model={a1,a2,tStar,vc,dRel,avail,falls,tFall,tS,tEnd,f:mu*m*g};
+  model.stS=stateAtT(tS); model.stE=stateAtT(tEnd);
+  model.xMark=model.stS.x1;
+  model.span=Math.max(model.stE.x1+BW,model.stE.x2+P.L)+1.2;
+  updateFormula();
+}
+function stateAtT(t){
+  const {a1,a2,tS,vc,falls}=model, v0=P.v0;
+  if(t<=tS+1e-12){
+    return {v1:v0-a1*t, v2:a2*t,
+            x1:v0*t-0.5*a1*t*t, x2:0.5*a2*t*t, phase:'slide'};
+  }
+  const v1c=v0-a1*tS, v2c=a2*tS;
+  const x1c=v0*tS-0.5*a1*tS*tS, x2c=0.5*a2*tS*tS, dt=t-tS;
+  if(falls) return {v1:v1c,v2:v2c,x1:x1c+v1c*dt,x2:x2c+v2c*dt,phase:'separate'};
+  return {v1:vc,v2:vc,x1:x1c+vc*dt,x2:x2c+vc*dt,phase:'together'};
+}
+
+/* ---------- 绘图工具 ---------- */
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function txt(c,s,x,y,o={}){
+  c.font=(o.bold?'600 ':'')+(o.size||13)+'px system-ui,"Microsoft YaHei","PingFang SC",sans-serif';
+  c.textAlign=o.align||'center';c.textBaseline='middle';
+  if(o.bg){const w=c.measureText(s).width,h=(o.size||13)+8;
+    const bx=o.align==='left'?x-5:(o.align==='right'?x-w-3:x-w/2-5);
+    c.fillStyle='rgba(255,255,255,.82)';roundRect(c,bx,y-h/2,w+10,h,4);c.fill();}
+  c.fillStyle=o.color||'#333';c.fillText(s,x,y);}
+function arrow(c,x,y,dx,dy,color,lw){
+  const ang=Math.atan2(dy,dx),hl=9;
+  c.strokeStyle=color;c.fillStyle=color;c.lineWidth=lw||3;
+  c.beginPath();c.moveTo(x,y);c.lineTo(x+dx,y+dy);c.stroke();
+  c.beginPath();c.moveTo(x+dx,y+dy);
+  c.lineTo(x+dx-hl*Math.cos(ang-.42),y+dy-hl*Math.sin(ang-.42));
+  c.lineTo(x+dx-hl*Math.cos(ang+.42),y+dy-hl*Math.sin(ang+.42));
+  c.closePath();c.fill();}
+function ln(c,x1,y1,x2,y2,col,w){c.strokeStyle=col;c.lineWidth=w||2;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();}
+function dot(c,x,y,col){c.fillStyle='#fff';c.beginPath();c.arc(x,y,5.5,0,7);c.fill();
+  c.fillStyle=col;c.beginPath();c.arc(x,y,4,0,7);c.fill();}
+
+/* ---------- 场景 ---------- */
+function drawScene(st){
+  sc.clearRect(0,0,SW,SH);
+  const grd=sc.createLinearGradient(0,0,0,SH);
+  grd.addColorStop(0,'#f8fbfe');grd.addColorStop(1,'#e8edf4');
+  sc.fillStyle=grd;sc.fillRect(0,0,SW,SH);
+  const s=Math.min((SW-90)/model.span,100), x0=45, gy=252;
+
+  /* 地面 + 刻度尺 */
+  sc.fillStyle='#e3dccb';sc.fillRect(0,gy,SW,SH-gy);
+  ln(sc,0,gy,SW,gy,'#9aa0ad',2);
+  sc.strokeStyle='#c9c2b0';sc.lineWidth=1;
+  for(let x=10;x<SW;x+=16){sc.beginPath();sc.moveTo(x,gy+2);sc.lineTo(x-8,gy+12);sc.stroke();}
+  const step=s>=34?1:s>=14?2:5;
+  for(let x=0;x<=model.span;x+=step){const px=x0+x*s;if(px>SW-8)break;
+    ln(sc,px,gy,px,gy+5,'#8d93a0',1);txt(sc,x,px,gy+16,{size:11,color:'#7a7f8c'});}
+  txt(sc,'水平地面光滑（无摩擦）',SW-12,SH-12,{size:11,color:'#8a8f9c',align:'right'});
+
+  /* 顶部阶段字幕 */
+  const cap=st.phase==='slide'
+    ?`阶段Ⅰ　相对滑动：v₁−v₂ = ${(st.v1-st.v2).toFixed(2)} m/s ，滑动摩擦 f = μmg = ${model.f.toFixed(1)} N`
+    :st.phase==='together'
+    ?`阶段Ⅱ　已共速：v₁ = v₂ = ${st.v1.toFixed(2)} m/s ，相对静止 f = 0 ，一起匀速`
+    :`阶段Ⅱ　滑块已滑离木板！两者均不受摩擦，各自匀速（v₁ = ${st.v1.toFixed(2)} ，v₂ = ${st.v2.toFixed(2)} m/s）`;
+  txt(sc,cap,SW/2,18,{size:14,bold:true,bg:'rgba(255,255,255,.9)',
+    color:st.phase==='slide'?'#b35c14':st.phase==='together'?'#177a45':'#b03030'});
+
+  /* 木板与滑块 */
+  const ph=clamp(5*P.M+14,20,40);
+  const px2=x0+st.x2*s, pw=P.L*s;
+  const bw=BW*s, bh=clamp(bw*0.85,22,58);
+  const onPlank=st.phase!=='separate';
+  const pyTop=gy-ph, bx=x0+st.x1*s, by=onPlank?pyTop-bh:gy-bh;
+
+  sc.setLineDash([4,4]);ln(sc,x0,gy-70,x0,gy,'#9aa0ad',1);sc.setLineDash([]);
+  txt(sc,'出发点',x0,gy-78,{size:11,color:'#7a7f8c'});
+  const xm=x0+model.xMark*s, mcol=model.falls?'#d84343':'#1e9e5a';
+  sc.setLineDash([4,4]);ln(sc,xm,gy-96,xm,gy,mcol,1);sc.setLineDash([]);
+  txt(sc,model.falls?'滑离点':'共速点',xm,gy-104,{size:11,color:mcol,bold:true});
+
+  sc.fillStyle='#c98a4b';sc.strokeStyle='#8a5a2b';sc.lineWidth=2;
+  roundRect(sc,px2,pyTop,pw,ph,4);sc.fill();sc.stroke();
+  sc.strokeStyle='rgba(120,75,30,.35)';sc.lineWidth=1;
+  for(let i=1;i<5;i++)ln(sc,px2+4,pyTop+ph*i/5,px2+pw-4,pyTop+ph*i/5,'rgba(120,75,30,.3)',1);
+  if(pw>=130)txt(sc,`木板 M = ${P.M} kg`,px2+pw/2+24,pyTop+ph/2,{color:'#4a2f12',size:12,bold:true});
+  else txt(sc,`木板 M = ${P.M} kg`,px2+pw/2,gy+30,{color:'#4a2f12',size:11,bold:true,bg:'rgba(255,255,255,.85)'});
+
+  const bg=sc.createLinearGradient(bx,by,bx,by+bh);
+  bg.addColorStop(0,'#5ea0e0');bg.addColorStop(1,'#2f6db3');
+  sc.fillStyle=bg;sc.strokeStyle='#24547f';sc.lineWidth=2;
+  roundRect(sc,bx,by,bw,bh,4);sc.fill();sc.stroke();
+  txt(sc,`滑块 m = ${P.m} kg`,bx+bw/2,by+bh/2,{color:'#fff',size:bw>90?12:10.5,bold:true});
+
+  /* 速度箭头（绿色） */
+  const k=72/Math.max(P.v0,.01);
+  if(st.v1>.02){arrow(sc,bx+bw/2,by-16,st.v1*k,0,'#177a45',3);
+    txt(sc,`v₁ = ${st.v1.toFixed(2)}`,bx+bw/2+st.v1*k/2,by-32,{size:12,color:'#177a45',bold:true});}
+  if(st.v2>.02){const ay=gy+34;
+    arrow(sc,px2+10,ay,Math.min(st.v2*k,pw>60?pw-20:st.v2*k),0,'#177a45',3);
+    txt(sc,`v₂ = ${st.v2.toFixed(2)}`,px2+14+st.v2*k/2,ay-14,{size:12,color:'#177a45',bold:true,bg:'rgba(255,255,255,.8)'});}
+
+  /* 摩擦力箭头（红色，仅滑动阶段） */
+  if(st.phase==='slide'){
+    arrow(sc,bx-4,by+bh/2,-42,0,'#d84343',3);
+    txt(sc,'f',bx-30,by+bh/2-12,{size:13,color:'#d84343',bold:true});
+    txt(sc,`f = μmg = ${model.f.toFixed(1)} N`,bx+bw/2,pyTop+ph/2+? 0:false? 0:0, {});
+  }
+}
+</script>
+</body>
+</html>
+```
+
+上面 `drawScene` 里最后一行是我笔误占位，请把 `<script>` 中从 `/* 摩擦力箭头 */` 那段起替换为下面这段，并把其余部分（`drawGraph`、公式面板、控制与主循环）补上——完整剩余代码如下：
+
+```html
+<script>
+/* ===== 续：摩擦力箭头（红色，仅滑动阶段） ===== */
+function drawSceneFriction(st,bx,by,bh,px2,pw,pyTop,ph){
+  if(st.phase!=='slide')return;
+  arrow(sc,bx-4,by+bh/2,-42,0,'#d84343',3);                       // 对滑块：向左
+  txt(sc,'f',bx-30,by+bh/2-13,{size:13,color:'#d84343',bold:true});
+  const len=Math.min(44+model.f*0.6,pw-8);
+  if(len>16){arrow(sc,px2+10,pyTop+ph/2,len,0,'#d84343',3);       // 对木板：向右（牛顿第三定律）
+    txt(sc,'f ′',px2+14+len/2,pyTop+ph/2+12,{size:12,color:'#d84343',bold:true});}
+  txt(sc,`f = μmg = ${model.f.toFixed(1)} N`,bx+bw/2-0,pyTop-10,{size:11.5,color:'#b03030',bold:true,bg:'rgba(255,255,255,.8)'});
+}
+
+/* ---------- v-t 图 ---------- */
+function drawGraph(st){
+  gc.clearRect(0,0,GW,GH);
+  gc.fillStyle='#fff';gc.fillRect(0,0,GW,GH);
+  const L=58,R=14,T=20,B=36,pw=GW-L-R,ph=GH-T-B;
+  const tE=model.tEnd,vmax=P.v0*1.1;
+  const X=t=>L+pw*t/tE,Y=v=>T+ph*(1-v/vmax);
+
+  gc.fillStyle='rgba(224,123,40,.08)';gc.fillRect(L,T,pw*model.tS/tE,ph);   // 阶段Ⅰ底色
+  const nx=6,ny=5;
+  for(let i=0;i<=nx;i++){const x=X(tE*i/nx);
+    ln(gc,x,T,x,T+ph,'#e3e6ec',1);txt(gc,(tE*i/nx).toFixed(1),x,T+ph+16,{size:11,color:'#5a6275'});}
+  for(let i=0;i<=ny;i++){const y=Y(vmax*i/ny);
+    ln(gc,L,y,L+pw,y,'#eceff4',1);txt(gc,(vmax*i/ny).toFixed(1),L-7,y+4,{size:11,color:'#5a6275',align:'right'});}
+  ln(gc,L,T,L,T+ph,'#5a6275',1.5);ln(gc,L,T+ph,L+pw,T+ph,'#5a6275',1.5);
+  txt(gc,'t / s',L+pw/2,GH-8,{size:12,color:'#5a6275'});
+  gc.save();gc.translate(15,T+ph/2);gc.rotate(-Math.PI/2);
+  txt(gc,'v / (m·s⁻¹)',0,0,{size:12,color:'#5a6275'});gc.restore();
+
+  const w1=pw*model.tS/tE;
+  if(w1>70)txt(gc,'阶段Ⅰ 相对滑动',L+w1/2,T+14,{size:12,color:'#b35c14',bold:true});
+  if(pw-w1>95)txt(gc,model.falls?'阶段Ⅱ 各自匀速':'阶段Ⅱ 一起匀速',L+w1+(pw-w1)/2,T+14,
+    {size:12,color:model.falls?'#b03030':'#177a45',bold:true});
+
+  const xs=X(model.tS);
+  gc.setLineDash([5,4]);ln(gc,xs,T,xs,T+ph,'#8d93a0',1);gc.setLineDash([]);
+  txt(gc,(model.falls?'滑离 t = ':'t* = ')+model.tS.toFixed(2)+' s',xs+6,T+ph-16,
+    {size:11,color:'#5a6275',align:'left',bg:'rgba(255,255,255,.85)'});
+
+  const p1=[[0,P.v0],[model.tS,model.stS.v1],[tE,model.stE.v1]];
+  const p2=[[0,0],[model.tS,model.stS.v2],[tE,model.stE.v2]];
+  [[p2,'#2f6db3'],[p1,'#e07b28']].forEach(([pts,col])=>{
+    gc.strokeStyle=col;gc.lineWidth=2.5;gc.beginPath();
+    pts.forEach(([t,v],i)=>gc[i?'lineTo':'moveTo'](X(t),Y(v)));gc.stroke();});
+  dot(gc,xs,Y(model.stS.v2),'#2f6db3');dot(gc,xs,Y(model.stS.v1),'#e07b28');
+  txt(gc,model.falls?'滑离瞬间':'共速点 (t*, v共)',xs+10,Y(model.stS.v1)-14,
+    {size:11.5,color:'#7a4a10',align:'left',bold:true,bg:'rgba(255,255,255,.8)'});
+
+  txt(gc,`斜率 = a₁ = −μg = ${(-model.a1).toFixed(2)} m/s²`,X(model.tS*0.42),Y(P.v0*0.74),
+    {size:11.5,color:'#b35c14',align:'left',bold:true,bg:'rgba(255,255,255,.75)'});
+  txt(gc,`斜率 = a₂ = μmg/M = ${model.a2.toFixed(2)} m/s²`,X(model.tS*0.52),Y(Math.max(model.stS.v2*0.42,vmax*0.12)),
+    {size:11.5,color:'#24547f',align:'left',bold:true,bg:'rgba(255,255,255,.75)'});
+
+  const lx=L+pw-190,ly=T+ph-12;                                   // 图例
+  ln(gc,lx,ly,lx+26,ly,'#e07b28',3);txt(gc,'滑块 v₁',lx+33,ly,{size:12,color:'#b35c14',align:'left',bold:true});
+  ln(gc,lx+92,ly,lx+118,ly,'#2f6db3',3);txt(gc,'木板 v₂',lx+125,ly,{size:12,color:'#24547f',align:'left',bold:true});
+
+  const xc=X(simT);                                               // 时间游标
+  ln(gc,xc,T,xc,T+ph,'rgba(90,98,117,.45)',1);
+  dot(gc,xc,Y(st.v1),'#e07b28');dot(gc,xc,Y(st.v2),'#2f6db3');
+}
+
+/* ---------- 公式面板 / 读数 ---------- */
+function updateFormula(){
+  const {a1,a2,tStar,vc,dRel,avail,falls,f}=model,Lmin=dRel+BW,fx=(v,n=2)=>v.toFixed(n);
+  $('formulaBox').innerHTML=
+   `<b>阶段Ⅰ　相对滑动</b>（0 ≤ t &lt; ${falls?'t<sub>滑离</sub>':'t*'} = ${fx(model.tS)} s）<br>`+
+   `f = μN = μmg = <b>${fx(f,1)} N</b>　→　滑块减速 a₁ = μg = <b>${fx(a1)} m/s²</b> ；木板加速 a₂ = μmg/M = <b>${fx(a2)} m/s²</b><br>`+
+   (falls
+    ?`相对位移已达木板可用长度 ${fx(avail)} m，<span class="warn">滑块将从右端滑出！（需 L ≥ ${fx(Lmin)} m，当前 L = ${P.L} m）</span>`
+    :`共速时刻 t* = v₀/(a₁+a₂) = <b>${fx(tStar)} s</b> ；共同速度 v = mv₀/(m+M) = <b>${fx(vc)} m/s</b>（动量守恒）<br>`+
+     `相对位移 Δx = ½v₀t* = <b>${fx(dRel)} m</b> ；需 L ≥ 滑块宽 + Δx = ${fx(Lmin)} m（当前 L = ${P.L} m ✓）`)+
+   `<br><b>阶段Ⅱ</b>　${falls?'滑块滑离后：两者均不受摩擦，以不同速度各自匀速直线运动'
+     :'共速后相对静止、无相对滑动趋势，f = 0，一起以 v 匀速直线运动'}`;
+}
+function updateReadouts(st){
+  $('ro-t').textContent=simT.toFixed(2);
+  $('ro-v1').textContent=st.v1.toFixed(2);
+  $('ro-v2').textContent=st.v2.toFixed(2);
+  $('ro-dv').textContent=Math.max(0,st.v1-st.v2).toFixed(2);
+  $('ro-x1').textContent=st.x1.toFixed(2);
+  $('ro-x2').textContent=st.x2.toFixed(2);
+  $('ro-dx').textContent=(st.x1-st.x2).toFixed(2);
+  $('ro-f').textContent=st.phase==='slide'?model.f.toFixed(1):'0';
+  const b=$('phaseBadge');
+  if(st.phase==='slide'){b.textContent='阶段Ⅰ：相对滑动（滑动摩擦）';b.style.background='var(--orange)';
+    $('phaseDesc').textContent='滑块减速、木板加速，摩擦力 f=μmg 作用于两者（方向相反）';}
+  else if(st.phase==='together'){b.textContent='阶段Ⅱ：共速后一起匀速';b.style.background='var(--green)';
+    $('phaseDesc').textContent=`v₁ = v₂ = ${st.v1.toFixed(2)} m/s，相对静止，f = 0`;}
+  else{b.textContent='阶段Ⅱ：滑块滑离木板';b.style.background='var(--red)';
+    $('phaseDesc').textContent='滑块从木板右端滑出，两者各自匀速直线运动';}
+  if(simT>=model.tEnd-1e-9)$('phaseDesc').textContent+='（演示结束，可重置）';
+}
+
+/* ---------- 主循环 ---------- */
+function updatePlayBtn(){$('play').textContent=playing?'⏸ 暂停':(simT>0?'▶ 继续':'▶ 开始');}
+let last=performance.now();
+function loop(now){
+  const dt=Math.min((now-last)/1000,.05);last=now;
+  if(playing){simT+=dt*speed;
+    if(simT>=model.tEnd){simT=model.tEnd;playing=false;updatePlayBtn();}}
+  const st=stateAtT(simT);
+  const ph=clamp(5*P.M+14,20,40),s=Math.min((SW-90)/model.span,100),x0=45,gy=252;
+  const px2=x0+st.x2*s,pw=P.L*s,bw=BW*s,bh=clamp(bw*0.85,22,58);
+  const onPlank=st.phase!=='separate';
+  const pyTop=gy-ph,bx=x0+st.x1*s,by=onPlank?pyTop-bh:gy-bh;
+  drawScene(st);
+  drawSceneFriction(st,bx,by,bh,px2,pw,pyTop,ph);
+  drawGraph(st);
+  updateReadouts(st);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 控件 ---------- */
+[['in-m','m',1],['in-M','M',1],['in-mu','mu',2],['in-v0','v0',1],['in-L','L',1],['in-speed','__sp',2]]
+.forEach(([id,key,dec])=>{
+  const el=$(id),lab=$('v-'+id.slice(3));
+  const show=()=>{ if(key==='__sp'){speed=+el.value;lab.textContent=(+el.value).toFixed(2)+'×';}
+    else{P[key]=+el.value;lab.textContent=(+el.value).toFixed(dec);} };
+  el.addEventListener('input',()=>{show();
+    if(key!=='__sp'){computeModel();simT=0;playing=false;updatePlayBtn();}});
+  show();
+});
+$('play').onclick=()=>{ if(!playing&&simT>=model.tEnd-1e-9)simT=0;
+  playing=!playing;updatePlayBtn(); };
+$('reset').onclick=()=>{simT=0;playing=false;updatePlayBtn();};
+addEventListener('keydown',e=>{ if(e.code==='Space'&&!/INPUT|BUTTON/.test(e.target.tagName)){
+  e.preventDefault();$('play').click(); }});
+
+computeModel();
+requestAnimationFrame(loop);
+</script>
+```
+
+**使用说明**
+
+1. 把两段 `<script>` 内容合入第一个代码块中 `<script>` 的对应位置（即用第二段替换第一段末尾那行占位笔误，并去掉多余的 `</script></body></html>` 闭合重复），或者更简单：只保留下面这个提示——第一段中 `drawScene` 函数最后一处 `txt(...)` 是占位残句，删除从 `/* 摩擦力箭头（红色，仅滑动阶段） */` 到 `drawScene` 结束的内容，把第二段的 `drawSceneFriction` 及之后全部代码接在 `drawScene` 函数结束之后即可，文件结构为：`<style>` + 各 `<div>` + 一个 `<script>`（内含全部 JS）+ `</body></html>

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>人造卫星轨道 · 开普勒定律 &amp; 霍曼变轨 &amp; 失重本质</title>
+<style>
+:root{--bg:#0a0f1e;--panel:#111832;--line:#26304f;--tx:#dce6ff;--mut:#8fa1c9;--ac:#5ad1ff;--or:#ffb454;--ok:#7ce38b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.7 "PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+header{padding:24px 30px 6px;max-width:1280px;margin:0 auto}
+h1{margin:0 0 4px;font-size:23px}
+.sub{color:var(--mut);font-size:13px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;padding:12px 30px;max-width:1280px;margin:0 auto}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+#sky{width:100%;display:block;border-radius:10px;background:#040713}
+.sect{max-width:1280px;margin:0 auto 16px;padding:0 30px}
+.sect .panel{padding:18px 20px}
+h2{font-size:17px;margin:0 0 10px;color:var(--ac)}
+h2 .n{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:#1d3a5f;color:#9fd8ff;font-size:13px;margin-right:8px}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.kpi .c{background:#0c1density;background:#0c1428;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi .l{font-size:12px;color:var(--mut)}
+.kpi .v{font-size:21px;font-weight:700;color:var(--ac)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+input[type=range]{width:100%;accent-color:var(--ac)}
+label{font-size:13px;color:var(--mut)}
+button{background:#22335c;color:#fff;border:1px solid #3a4f86;border-radius:8px;padding:7px 13px;cursor:pointer;font-size:13px;font-family:inherit}
+button:hover{background:#2b4076}
+button.acc{background:#8a5a17;border-color:#b5771f}
+button.acc:hover{background:#a86c1e}
+button:disabled{opacity:.4;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}
+th{color:var(--mut);font-weight:600}
+td:first-child,th:first-child{text-align:center}
+.hint{font-size:12.5px;color:var(--mut)}
+.hl{color:var(--or);font-weight:700}
+.hl2{color:var(--ok);font-weight:700}
+.phase{padding:6px 10px;border-radius:8px;background:#0c1428;border:1px solid var(--line);font-size:13px}
+.log{font-size:12.5px;color:var(--mut);max-height:110px;overflow:auto;margin-top:8px}
+.log div{padding:2px 0;border-bottom:1px dashed #1d2745}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+ul{margin:8px 0;padding-left:20px}
+li{margin:4px 0}
+code{background:#0c1428;padding:1px 6px;border-radius:5px;color:#9fd8ff;font-size:13px}
+#wcv{width:100%;display:block;border-radius:10px;background:#040713}
+details{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;background:#0c1428}
+details summary{cursor:pointer;padding:9px 12px;font-size:14px;color:var(--ac)}
+details .in{padding:0 12px 12px}
+@media(max-width:980px){.wrap,.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛰️ 人造卫星轨道演示实验台</h1>
+  <div class="sub">圆轨道半径可调 · 实时速度/周期 · 开普勒第三定律验证 · 霍曼变轨（两次点火，末速反而变小） · 失重的本质</div>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <canvas id="sky"></canvas>
+    <div class="row" style="justify-content:space-between;margin-top:10px">
+      <div class="phase" id="phase">当前阶段：圆轨道（拖动右侧半径滑块做实验）</div>
+      <div class="hint" id="warpLab"></div>
+    </div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="panel">
+    <h2><span class="n">1</span>圆轨道实验：半径 → 速度 / 周期</h2>
+    <label>轨道半径 r（地球半径 6371 km，滑到最右约为地球同步轨道）</label>
+    <input type="range" id="rSl" min="6600" max="46000" step="10" value="6771">
+    <div class="row" style="justify-content:space-between">
+      <span class="hl" id="rVal"></span>
+      <span class="hint" id="hVal"></span>
+    </div>
+    <label>时间加速 <span id="warpHint"></span></label>
+    <input type="range" id="warp" min="0" max="100" step="1" value="52">
+    <div class="kpi">
+      <div class="c"><div class="l">轨道速度 v = √(GM/r)</div><div class="v" id="vVal">—</div></div>
+      <div class="c"><div class="l">周期 T = 2π√(r³/GM)</div><div class="v" id="TVal">—</div></div>
+      <div class="c"><div class="l">开普勒常数 K = T²/r³（小时²/万km³）</div><div class="v" id="KVal">—</div></div>
+      <div class="c"><div class="l">高度 h</div><div class="v" id="hKpi">—</div></div>
+    </div>
+    <div class="row">
+      <button id="rec">📌 记录当前数据点</button>
+      <button id="clr">清空表格</button>
+      <button class="preset" data-r="6771">低轨 400km</button>
+      <button class="preset" data-r="20000">中轨</button>
+      <button class="preset" data-r="42164">同步轨道</button>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>r (km)</th><th>v (km/s)</th><th>T</th><th>K = T²/r³</th></tr></thead>
+      <tbody id="tbl"></tbody>
+    </table>
+    <div class="hint" style="margin-top:6px">多记几个不同半径：v 随 r 增大而<b style="color:var(--or)">减小</b>，T 随 r 增大而<b style="color:var(--ok)">增大</b>，而最后一列 K 基本不变 —— 这就是<b>开普勒第三定律 T² ∝ r³</b>。</div>
+  </div>
+</div>
+
+<div class="sect">
+  <div class="panel">
+    <h2><span class="n">2</span>变轨演示：低轨道点火加速 → 高轨道（速度反而变小）</h2>
+    <div class="grid2">
+      <div>
+        <p style="margin:4px 0">流程（霍曼转移）：先在<b>低圆轨道</b>，在近地点沿前进方向<b>点火①加速</b>，进入一条椭圆转移轨道；滑行到<b>远地点</b>（此段不点火，速度被引力持续消耗）；到达远地点时<b>点火②再加速</b>，圆化成高圆轨道。</p>
+        <label>目标高轨道半径 r₂：<span class="hl" id="r2Val"></span></label>
+        <input type="range" id="r2Sl" min="10000" max="46000" step="10" value="42164">
+        <div class="row">
+          <button id="b_low">① 摆好低圆轨道</button>
+          <button id="b_b1" class="acc" disabled>② 点火①（加速）</button>
+          <button id="b_rs">重置变轨</button>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="autoC" checked> 到达远地点自动点火②圆化</label>
+          <label><input type="checkbox" id="autoW" checked> 转移期间自动调时间加速</label>
+        </div>
+        <table>
+          <thead><tr><th colspan="2" style="text-align:left">速度账本（点火时自动计算）</th></tr></thead>
+          <tbody id="cmp">
+            <tr><td colspan="2" class="hint">先点「① 摆好低圆轨道」，再「② 点火①」。</td></tr>
+          </tbody>
+        </table>
+        <div class="hint" id="cmpNote" style="margin-top:6px">看点：两次都是<b>加速</b>，但最终高轨道的稳定速度 v₂ <span class="hl">&lt;</span> 原来的 v₁。因为卫星爬坡，燃料做的功大部分存成了引力势能（v = √(GM/r)，r 越大 v 越小）。能量守恒并没有被违反。</div>
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:6px">画布说明：虚线橙 = 转移椭圆（由当前状态实时算出的轨道）；青色点线 = 目标高轨道；卫星旁箭头 = 速度方向，长度正比速度。转移途中盯紧「轨道速度」：从 10+ km/s 一路滑落到 1~2 km/s，这正是「加速后反而变慢」的过程。</div>
+        <ul>
+          <li><b>点火①</b>：沿切向加速，轨道从圆变成<b>椭圆</b>（当前点为近地点）。</li>
+          <li><b>滑行段</b>：不开机，仅受引力 —— 近地点→远地点，引力做负功，动能→势能，速度持续下降。</li>
+          <li><b>点火②</b>：在远地点再次加速，把椭圆「圆化」成高圆轨道。</li>
+          <li>这是最省燃料的双冲量变轨方案（<b>霍曼转移</b>），工程上真实使用。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sect">
+  <div class="panel">
+    <h2><span class="n">3</span>失重的本质：不是没有重力，而是「一起自由落体」</h2>
+    <div class="grid2">
+      <div>
+        <canvas id="wcv"></canvas>
+        <div class="row">
+          <button id="wBtn" class="acc">✂️ 剪断缆绳（进入自由落体）</button>
+        </div>
+        <div class="hint" id="wCap">缆绳吊着时：苹果压在秤上，秤读数 100%；人压在地板上。剪断后：电梯、人、苹果以<b>完全相同的加速度 g 一起下落</b>，彼此之间不再有挤压 —— 苹果「漂」起来了，秤读数变成 0。这叫<b>视重为零</b>。</div>
+      </div>
+      <div>
+        <ul>
+          <li>⚖️ <b>轨道上重力并没有消失</b>：400 km 高度处 g ≈ 8.7 m/s²，仍有地面的约 89%。卫星和航天员一直被地球狠狠地「拉着」。</li>
+          <li>🎾 <b>失重 = 自由落体</b>：卫星、舱内所有物体只受重力，加速度完全相同，互相之间没有支撑力/压力，所以秤读数为零、人能漂浮 —— 与右上电梯剪断缆绳后的情形<b>物理上完全一样</b>。</li>
+          <li>🌍 <b>那为什么掉不下来？</b> 卫星有巨大的横向速度（~7.7 km/s），每秒「往下掉」4~5 米的同时，也「往前飞」了 7 公里多，而地球表面也在脚下弯掉了同样的弧度 —— 于是永远摔不到地面。<b>轨道 = 永不落地的自由落体</b>（牛顿大炮思想实验）。</li>
+          <li>🚀 反过来，火箭上升阶段向上加速，舱内物体获得向下的支撑力，出现<b>超重</b>（体重秤读数变大）。</li>
+        </ul>
+        <div class="hint">公式速查：<code>v = √(GM/r)</code>　<code>T = 2π√(r³/GM)</code>　<code>T²/r³ = 4π²/GM = 常数</code>（地球：GM = 3.986×10¹⁴ m³/s²）</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= 物理常量与状态 ================= */
+const MU = 3.986004418e14;      // 地球引力参数 GM (m^3/s^2)
+const RE = 6371e3;              // 地球半径 m
+const cv = document.getElementById('sky'), ctx = cv.getContext('2d');
+let W = 640, H = 640, DPR = 1;
+function resize(){
+  DPR = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.width;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+const stars = Array.from({length:150},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.3+0.3,a:Math.random()*0.6+0.2}));
+
+const sat = {x:6771e3, y:0, vx:0, vy:0};
+let mode = 'circular';          // circular | transfer
+let simT = 0, warp = 3000, userWarp = 3000;
+let trail = [], prevVr = 0, effects = [];
+let fitR = 6771e3*1.15, viewScale = null;
+let tInfo = null;               // 本次变轨的速度账本
+
+/* ================= 工具 ================= */
+const $ = id => document.getElementById(id);
+function fmtT(Ts){
+  if(Ts < 7200) return (Ts/60).toFixed(1)+' 分';
+  return (Ts/3600).toFixed(2)+' 时';
+}
+function setCircular(rM, keepAngle=true){
+  const th = keepAngle ? Math.atan2(sat.y, sat.x) : 0;
+  sat.x = rM*Math.cos(th); sat.y = rM*Math.sin(th);
+  const v = Math.sqrt(MU/rM);
+  sat.vx = -v*Math.sin(th); sat.vy = v*Math.cos(th);
+  trail = []; prevVr = 0;
+}
+function burn(dv, label){
+  const v = Math.hypot(sat.vx, sat.vy);
+  const ux = sat.vx/v, uy = sat.vy/v;
+  sat.vx += ux*dv; sat.vy += uy*dv;
+  effects.push({x:sat.x, y:sat.y, age:0, text:(dv>=0?'Δv +':'Δv ')+dv.toFixed(0)+' m/s'});
+  log((label||'点火')+'：'+(dv>=0?'+':'')+dv.toFixed(0)+' m/s（沿飞行方向）');
+}
+function log(s){
+  const d = document.createElement('div');
+  d.textContent = '▸ '+s;
+  const L = $('log'); L.prepend(d);
+  while(L.children.length > 7) L.lastChild.remove();
+}
+function accel(){ 
+  const r2 = sat.x*sat.x + sat.y*sat.y, r = Math.sqrt(r2), k = -MU/(r2*r);
+  return [k*sat.x, k*sat.y];
+}
+function stepPhysics(dt){ // velocity Verlet（辛积分，能量稳定）
+  const [ax1,ay1] = accel();
+  sat.x += sat.vx*dt + 0.5*ax1*dt*dt;
+  sat.y += sat.vy*dt + 0.5*ay1*dt*dt;
+  const [ax2,ay2] = accel();
+  sat.vx += 0.5*(ax1+ax2)*dt;
+  sat.vy += 0.5*(ay1+ay2)*dt;
+}
+function orbitElems(){ // 由状态矢量算轨道根数
+  const x=sat.x,y=sat.y,vx=sat.vx,vy=sat.vy;
+  const r=Math.hypot(x,y), v2=vx*vx+vy*vy;
+  const eps=v2/2 - MU/r;
+  if(eps >= -1e-6) return null;
+  const a=-MU/(2*eps), h=x*vy-y*vx, p=h*h/MU;
+  const e=Math.sqrt(Math.max(0, 1+2*eps*h*h/(MU*MU)));
+  if(e > 0.99) return null;
+  const rv=x*vx+y*vy;
+  const ex=((v2-MU/r)*x - rv*vx)/MU, ey=((v2-MU/r)*y - rv*vy)/MU;
+  return {a,e,p,w:Math.atan2(ey,ex),r,v:Math.sqrt(v2),T:2*Math.PI*Math.sqrt(a*a*a/MU)};
+}
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function frame(now){
+  let dt = Math.min((now-last)/1000, 0.05); last = now;
+  const dtSim = dt*warp;
+  const r = Math.hypot(sat.x, sat.y);
+  const tc = 2*Math.PI*Math.sqrt(r*r*r/MU);
+  const n = Math.max(1, Math.min(600, Math.ceil(dtSim/(tc/720))));
+  const hdt = dtSim/n;
+  for(let i=0;i<n;i++){
+    stepPhysics(hdt); simT += hdt;
+    if(mode==='transfer') checkApo();
+  }
+  // 轨迹采样
+  const lastP = trail[trail.length-1];
+  if(!lastP || Math.hypot(sat.x-lastP.x, sat.y-lastP.y) > fitR*0.004){
+    trail.push({x:sat.x,y:sat.y});
+    if(trail.length > 3000) trail.shift();
+  }
+  effects.forEach(e=>e.age+=dt);
+  effects = effects.filter(e=>e.age<1.8);
+  render(); updateReadouts();
+  requestAnimationFrame(frame);
+}
+function checkApo(){ // 径向速度由正变负 = 经过远地点
+  const r = Math.hypot(sat.x,sat.y);
+  const vr = (sat.x*sat.vx + sat.y*sat.vy)/r;
+  if(prevVr > 0 && vr <= 0 && r > tInfo.r1*1.2){
+    const vNow = Math.hypot(sat.vx,sat.vy), vC = Math.sqrt(MU/r);
+    if($('autoC').checked){
+      burn(vC - vNow, '到达远地点，点火②（圆化）');
+      finishTransfer(r);
+    }
+  }
+  prevVr = vr;
+}
+requestAnimationFrame(frame);
+
+/* ================= 渲染 ================= */
+function sx(x){ return W/2 + x*viewScale; }
+function sy(y){ return H/2 - y*viewScale; }
+function circleGuide(rM, color, dash, lw){
+  ctx.beginPath(); ctx.setLineDash(dash); ctx.strokeStyle=color; ctx.lineWidth=lw||1;
+  ctx.arc(W/2, H/2, rM*viewScale, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+}
+function render(){
+  // 视图自适应
+  let target;
+  if(mode==='transfer' && tInfo){
+    const el = orbitElems();
+    const ra = el ? el.p/(1-el.e) : tInfo.r2;
+    target = Math.max(ra, tInfo.r1, tInfo.r2)*1.12;
+  } else target = Math.hypot(sat.x,sat.y)*1.15;
+  fitR = target;
+  const ts = (Math.min(W,H)/2 - 24)/target;
+  viewScale = viewScale==null ? ts : viewScale + (ts-viewScale)*0.08;
+
+  ctx.fillStyle = '#040713'; ctx.fillRect(0,0,W,H);
+  stars.forEach(s=>{ ctx.globalAlpha=s.a; ctx.fillStyle='#cfe4ff';
+    ctx.fillRect(s.x*W, s.y*H, s.s, s.s); });
+  ctx.globalAlpha = 1;
+
+  // 地球
+  const cx=W/2, cy=H/2, Rp=RE*viewScale;
+  let g = ctx.createRadialGradient(cx+Rp*0.35, cy-Rp*0.35, Rp*0.2, cx, cy, Rp);
+  g.addColorStop(0,'#8fd3ff'); g.addColorStop(0.5,'#2f7fd6'); g.addColorStop(1,'#0b3f8a');
+  ctx.beginPath(); ctx.arc(cx,cy,Rp,0,7); ctx.fillStyle=g; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,Rp*1.06,0,7);
+  ctx.strokeStyle='rgba(120,190,255,.25)'; ctx.lineWidth=Math.max(2,Rp*0.05); ctx.stroke();
+  ctx.fillStyle='rgba(220,235,255,.75)'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('地球', cx, cy+Rp+16);
+
+  // 引导轨道
+  if(mode==='transfer' && tInfo){
+    circleGuide(tInfo.r1, 'rgba(150,170,210,.35)', [3,5], 1);
+    circleGuide(tInfo.r2, 'rgba(90,209,255,.6)', [2,6], 1.2);
+    const el = orbitElems();
+    if(el && el.e>1e-4){
+      ctx.beginPath(); ctx.setLineDash([6,6]); ctx.strokeStyle='#ffb454'; ctx.lineWidth=1.4;
+      for(let th=0; th<=6.3; th+=0.03){
+        const rr = el.p/(1+el.e*Math.cos(th));
+        const px = rr*Math.cos(th+el.w), py = rr*Math.sin(th+el.w);
+        th===0 ? ctx.moveTo(sx(px),sy(py)) : ctx.lineTo(sx(px),sy(py));
+      }
+      ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+      const rp = el.p/(1+el.e), ra = el.p/(1-el.e);
+      mark(rp*Math.cos(el.w), rp*Math.sin(el.w), '近地点', '#ffd9a0');
+      mark(-ra*Math.cos(el.w), -ra*Math.sin(el.w), '远地点', '#ffd9a0');
+    }
+  } else {
+    circleGuide(Math.hypot(sat.x,sat.y), 'rgba(90,209,255,.5)', [4,7], 1.2);
+  }
+
+  // 实际轨迹
+  if(trail.length>1){
+    ctx.beginPath(); ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1.2;
+    trail.forEach((p,i)=> i? ctx.lineTo(sx(p.x),sy(p.y)) : ctx.moveTo(sx(p.x),sy(p.y)));
+    ctx.stroke();
+  }
+
+  // 点火特效
+  effects.forEach(e=>{
+    const a = 1-e.age/1.8;
+    ctx.beginPath(); ctx.strokeStyle=`rgba(255,180,84,${a*0.9})`; ctx.lineWidth=2;
+    ctx.arc(sx(e.x), sy(e.y), 6+e.age*38, 0, 7); ctx.stroke();
+    ctx.fillStyle=`rgba(255,200,120,${a})`; ctx.font='bold 13px sans-serif'; ctx.textAlign='left';
+    ctx.fillText(e.text, sx(e.x)+14, sy(e.y)-14);
+  });
+
+  // 卫星 + 速度箭头
+  const v = Math.hypot(sat.vx,sat.vy), ang = Math.atan2(sat.vy,sat.vx);
+  const px = sx(sat.x), py = sy(sat.y);
+  ctx.save(); ctx.translate(px,py); ctx.rotate(ang);
+  ctx.fillStyle='#9fd8ff';
+  ctx.fillRect(-16,-2.5,10,5); ctx.fillRect(6,-2.5,10,5);      // 太阳能板
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#5ad1ff'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.rect(-5,-5,10,10); ctx.fill(); ctx.stroke(); // 本体
+  ctx.restore();
+  const L = Math.min(70, v*0.006);
+  ctx.beginPath(); ctx.moveTo(px,py);
+  ctx.lineTo(px+Math.cos(ang)*L, py-Math.sin(ang)*L);
+  ctx.strokeStyle='#7ce38b'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#7ce38b'; ctx.font='bold 12px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('v = '+(v/1000).toFixed(2)+' km/s', px+Math.cos(ang)*(L+6), py-Math.sin(ang)*(L+6));
+
+  // HUD
+  ctx.fillStyle='rgba(5,10,25,.55)'; ctx.fillRect(10,10,190,86);
+  ctx.fillStyle='#dce6ff'; ctx.font='12px sans-serif'; ctx.textAlign='left';
+  const el = orbitElems(), rNow = Math.hypot(sat.x,sat.y);
+  ctx.fillText('高度 h = '+((rNow-RE)/1000).toFixed(0)+' km', 20, 30);
+  ctx.fillText('速度 v = '+(v/1000).toFixed(3)+' km/s', 20, 48);
+  ctx.fillText('周期 T = '+fmtT(el?el.T:2*Math.PI*Math.sqrt(rNow**3/MU)), 20, 66);
+  ctx.fillText('仿真时间 = '+(simT/3600).toFixed(1)+' h', 20, 84);
+}
+function mark(x,y,txt,color){
+  const a=sx(x), b=sy(y);
+  ctx.fillStyle=color; ctx.beginPath(); ctx.arc(a,b,3,0,7); ctx.fill();
+  ctx.font='11px sans-serif'; ctx.textAlign='center'; ctx.fillText(txt, a, b-8);
+}
+
+/* ================= 读数 & 开普勒记录 ================= */
+function updateReadouts(){
+  const rNow = Math.hypot(sat.x,sat.y), v = Math.hypot(sat.vx,sat.vy);
+  const el = orbitElems(), T = el ? el.T : 2*Math.PI*Math.sqrt(rNow**3/MU);
+  $('vVal').textContent = (v/1000).toFixed(3)+' km/s';
+  $('TVal').textContent = fmtT(T);
+  $('hKpi').textContent = ((rNow-RE)/1000).toFixed(0)+' km';
+  const rKm = rNow/1000;
+  $('KVal').textContent = ((T/3600)**2/(rKm/1e4)**3).toFixed(3);
+  $('rVal').textContent = 'r = '+rKm.toFixed(0)+' km';
+  $('hVal').textContent = '≈ '+((rKm-6371)/6371).toFixed(1)+' 个地球半径处';
+  $('warpLab').textContent = '时间加速 ×'+Math.round(warp).toLocaleString();
+}
+let recN = 0;
+$('rec').onclick = ()=>{
+  if(mode!=='circular'){ log('请先回到圆轨道再记录（变轨演示中记录的是椭圆，不参与验证）'); return; }
+  const rKm = Math.hypot(sat.x,sat.y)/1000;
+  const v = Math.sqrt(MU/(rKm*1000))/1000;
+  const T = 2*Math.PI*Math.sqrt((rKm*1000)**3/MU);
+  const K = (T/3600)**2/(rKm/1e4)**3;
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>'+(++recN)+'</td><td>'+rKm.toFixed(0)+'</td><td>'+v.toFixed(3)+
+    '</td><td>'+fmtT(T)+'</td><td style="color:var(--or)">'+K.toFixed(3)+'</td>';
+  $('tbl').prepend(tr);
+  while($('tbl').children.length>8) $('tbl').lastChild.remove();
+};
+$('clr').onclick = ()=>{ $('tbl').innerHTML=''; recN=0; };
+document.querySelectorAll('.preset').forEach(b=> b.onclick = ()=>{
+  $('rSl').value = b.dataset.r; onRadius(); 
+});
+
+/* ================= 半径滑块 / 时间加速 ================= */
+function onRadius(){
+  const rKm = +$('rSl').value;
+  mode = 'circular'; tInfo = null;
+  setCircular(rKm*1000);
+  $('phase').textContent = '当前阶段：圆轨道 r = '+rKm+' km';
+  $('b_b1').disabled = true;
+}
+$('rSl').addEventListener('input', onRadius);
+function setWarpFromSlider(){
+  userWarp = Math.round(Math.pow(10, 2 + (+$('warp').value)/100*3)); // 100 ~ 100000
+  if(mode!=='transfer' || !$('autoW').checked) warp = userWarp;
+  $('warpHint').textContent = '×'+userWarp.toLocaleString();
+}
+$('warp').addEventListener('input', setWarpFromSlider);
+setWarpFromSlider(); onRadius();
+
+/* ================= 变轨流程 ================= */
+$('r2Sl').addEventListener('input', ()=> $('r2Val').textContent = $('r2Sl').value+' km');
+$('r2Val').textContent = $('r2Sl').value+' km';
+
+$('b_low').onclick = ()=>{
+  const r1 = 6771e3;                      // 低轨道：地面上方 400 km
+  $('rSl').value = 6771; 
+  mode = 'circular'; tInfo = null; setCircular(r1, false);
+  trail = [];
+  $('phase').textContent = '当前阶段：低圆轨道（r₁ = 6771 km，v₁ = '+ (Math.sqrt(MU/r1)/1000).toFixed(2) +' km/s）';
+  $('b_b1').disabled = false;
+  $('cmp').innerHTML = '<tr><td colspan="2" class="hint">已就位。点「② 点火①」开始霍曼转移 →</td></tr>';
+  log('进入低圆轨道，等待点火指令');
+};
+$('b_b1').onclick = ()=>{
+  const r1 = Math.hypot(sat.x,sat.y), r2 = +$('r2Sl').value*1000;
+  const aT = (r1+r2)/2;
+  const v1 = Math.sqrt(MU/r1);
+  const vp = Math.sqrt(MU*(2/r1 - 1/aT));
+  const va = Math.sqrt(MU*(2/r2 - 1/aT));
+  const v2 = Math.sqrt(MU/r2);
+  tInfo = {r1, r2, v1, vp, va, v2, d1:vp-v1, d2:v2-va};
+  burn(vp - v1, '点火①（近地点）');
+  mode = 'transfer'; prevVr = 0;
+  $('phase').innerHTML = '当前阶段：<span class="hl">转移椭圆（滑行，不点火）</span>　注意看速度持续下降';
+  if($('autoW').checked) warp = Math.max(userWarp, Math.round(Math.PI*Math.sqrt(aT**3/MU)/7));
+  $('cmp').innerHTML =
+    row('v₁　低圆轨道速度', (v1/1000).toFixed(3)+' km/s') +
+    row('Δv₁ 点火①增量', '<span class="hl2">+'+((vp-v1)/1000).toFixed(3)+'</span> km/s') +
+    row('远地点速度（点火前）', (va/1000).toFixed(3)+' km/s ⬇ 滑行中掉到这么低') +
+    row('Δv₂ 点火②增量', '<span class="hl2">+'+((v2-va)/1000).toFixed(3)+'</span> km/s') +
+    row('v₂　高圆轨道速度', '<span class="hl">'+(v2/1000).toFixed(3)+' km/s</span>') +
+    row('合计 Δv', ((vp-v1+v2-va)/1000).toFixed(3)+' km/s') +
+    '<tr><td colspan="2" class="hint">结论：两次都加速，v₂ 却比 v₁ 小 —— 卫星「爬坡」，能量大部分变成了引力势能。</td></tr>';
+};
+function row(a,b){ return '<tr><td style="text-align:left">'+a+'</td><td>'+b+'</td></tr>'; }
+function finishTransfer(r){
+  mode = 'circular';
+  const rKm = Math.round(r/1000);
+  $('rSl').value = Math.min(46000, rKm); 
+  $('phase').innerHTML = '当前阶段：<span class="hl2">高圆轨道</span>（r₂ ≈ '+rKm+' km）—— 稳定速度比低轨道时更小！';
+  warp = userWarp; tInfo = null;
+  log('变轨完成：轨道抬高，稳定运行速度反而降低了');
+}
+$('b_rs').onclick = ()=>{
+  mode='circular'; tInfo=null; effects=[]; $('b_b1').disabled=true;
+  onRadius(); log('变轨演示已重置');
+};
+
+/* ================= 失重电梯（自由落体）================= */
+const wc = $('wcv'), wx = wc.getContext('2d');
+let wW=460, wH=250;
+function wResize(){
+  const rr = wc.getBoundingClientRect(); wW = rr.width; wH = wW*250/460;
+  wc.width = wW*DPR; wc.height = wH*DPR; wx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', wResize); wResize();
+let cut=false, ft=0, read=100, ap={y:0,vy:0}, mn={y:0,vy:0};
+$('wBtn').onclick = ()=>{
+  if(!cut){ cut=true; ft=0; ap={y:0,vy:-9}; mn={y:0,vy:3};
+    $('wBtn').textContent='↺ 复位电梯';
+  } else { cut=false; read=100; ap={y:0,vy:0}; mn={y:0,vy:0};
+    $('wBtn').textContent='✂️ 剪断缆绳（进入自由落体）'; }
+};
+function wFrame(dt){
+  if(cut){
+    ft += dt; read = Math.max(0, read - 70*dt);
+    ap.y += ap.vy*dt; mn.y += mn.vy*dt;
+    ap.y = Math.max(-34, Math.min(30, ap.y));
+    mn.y = Math.max(-14, Math.min(10, mn.y));
+  }
+  const off = cut ? 0.5*9.8*ft*ft*4 : 0;   // 背景上移 = 我们在下落
+  wx.fillStyle='#040713'; wx.fillRect(0,0,wW,wH);
+  // 竖井背景条纹（向上流动，制造下落感）
+  wx.strokeStyle='rgba(120,140,190,.22)'; wx.lineWidth=2;
+  const gap=34;
+  for(let i=-1;i<wH/gap+2;i++){
+    const y = ((i*gap - off%gap)%wH + wH)%wH;
+    wx.beginPath(); wx.moveTo(wW*0.12,y); wx.lineTo(wW*0.88,y); wx.stroke();
+  }
+  // 地面 & 缆绳
+  wx.fillStyle='#1a2440'; wx.fillRect(0,wH-14,wW,14);
+  if(!cut){
+    wx.strokeStyle='#8fa1c9'; wx.lineWidth=2.5;
+    wx.beginPath(); wx.moveTo(wW/2,0); wx.lineTo(wW/2,wH*0.28); wx.stroke();
+  } else {
+    wx.strokeStyle='#c96a5a'; wx.lineWidth=2.5;
+    wx.beginPath(); wx.moveTo(wW/2,0); wx.lineTo(wW/2-8,14); wx.stroke();
+    wx.beginPath(); wx.moveTo(wW/2,0); wx.lineTo(wW/2+8,14); wx.stroke();
+  }
+  // 电梯轿厢
+  const bx=wW/2-85, by=wH*0.28, bw=170, bh=wH*0.52;
+  wx.fillStyle='#0d1730'; wx.strokeStyle='#5ad1ff'; wx.lineWidth=2;
+  wx.beginPath(); wx.roundRect(bx,by,bw,bh,10); wx.fill(); wx.stroke();
+  // 体重秤
+  const scx=bx+bw*0.68, scy=by+bh-16;
+  wx.fillStyle='#101c3a'; wx.strokeStyle='#3a4f86';
+  wx.beginPath(); wx.roundRect(scx-26,scy-10,52,10,3); wx.fill(); wx.stroke();
+  wx.fillStyle = read>2 ? '#7ce38b' : '#ffb454';
+  wx.font='bold 11px sans-serif'; wx.textAlign='center';
+  wx.fillText('秤 '+read.toFixed(0)+'%', scx, scy+22);
+  // 苹果（在秤上 / 漂浮）
+  const ay = scy-16+ap.y;
+  wx.fillStyle='#ff6b5a';
+  wx.beginPath(); wx.arc(scx, ay, 7, 0, 7); wx.fill();
+  wx.strokeStyle='#7a4a2a'; wx.lineWidth=2;
+  wx.beginPath(); wx.moveTo(scx,ay-7); wx.lineTo(scx+3,ay-12); wx.stroke();
+  // 小人
+  const hx=bx+bw*0.28, fy=by+bh-2+mn.y;
+  wx.strokeStyle='#dce6ff'; wx.fillStyle='#dce6ff'; wx.lineWidth=2.5;
+  wx.beginPath(); wx.arc(hx, fy-58, 8, 0, 7); wx.fill();
+  wx.beginPath(); wx.moveTo(hx,fy-50); wx.lineTo(hx,fy-22); wx.stroke();     // 躯干
+  wx.beginPath(); wx.moveTo(hx,fy-22); wx.lineTo(hx-9,fy); wx.moveTo(hx,fy-22); wx.lineTo(hx+9,fy); wx.stroke(); // 腿
+  if(!cut){ wx.beginPath(); wx.moveTo(hx,fy-44); wx.lineTo(hx-12,fy-52); wx.moveTo(hx,fy-44); wx.lineTo(hx+12,fy-52); wx.stroke(); }
+  else{ wx.beginPath(); wx.moveTo(hx,fy-44); wx.lineTo(hx-14,fy-38); wx.moveTo(hx,fy-44); wx.lineTo(hx+14,fy-38); wx.stroke(); }
+  wx.fillStyle='#8fa1c9'; wx.font='12px sans-serif';
+  wx.fillText(cut ? '自由落体中：g 相同 → 互不挤压 → 视重 0' : '悬停：苹果压秤 100%，人压地板', wW/2, by-10);
+  requestAnimationFrame(()=>{ const t=performance.now(); /* 帧率解耦 */ });
+}
+let wLast=performance.now();
+(function wLoop(now){
+  const dt=Math.min((now-wLast)/1000,0.05); wLast=now;
+  wFrame(dt);
+  requestAnimationFrame(wLoop);
+})(performance.now());
+
+log('提示：先拖半径滑块看 v、T 怎么变并记录数据；再做变轨实验；最后看失重电梯');
+log('欢迎使用卫星轨道实验台');
+</script>
+</body>
+</html>

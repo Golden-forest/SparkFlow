@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>氢原子能级跃迁演示</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      /* Dark stage: photon / spectral colors are the subject, they need a dark ground. */
+      --sim-bg: #070d1c;
+      --sim-surface: #101a30;
+      --sim-surface-soft: #0c1426;
+      --sim-text: #e9effc;
+      --sim-muted: #8ea1c0;
+      --sim-border: #24344f;
+      --sim-grid: #16223a;
+      --sim-accent: #38bdf8;
+      --sim-accent-deep: #0ea5e9;
+      --sim-accent-soft: #10344a;
+      --sim-positive: #34d399;
+      --sim-warning: #fbbf24;
+      --sim-danger: #f87171;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific additions (extend, not replace, the base set) */
+      --sim-uv: #a78bfa;
+      --sim-ir: #d2805c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 14% 0%, rgba(56, 189, 248, 0.10), transparent 30%),
+        radial-gradient(circle at 90% 6%, rgba(251, 191, 36, 0.06), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible, .hit:focus-visible { outline: 3px solid rgba(56, 189, 248, 0.55); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 54px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+    .status { border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: #9ddcf7; font-weight: 700; white-space: nowrap; font-size: 0.9rem; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(320px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(16, 26, 48, 0.92); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border-radius: 18px; background: linear-gradient(160deg, #0a1124 0%, #0d1730 55%, #101a36 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 11px 13px; border: 1px solid var(--sim-border); border-radius: 14px; background: linear-gradient(150deg, #0d1830, #0b1222); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.22rem; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+    .metric .chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.95rem; font-weight: 700; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--sim-border); box-shadow: 0 0 8px rgba(255, 255, 255, 0.12); flex: none; }
+    .spectrum { padding: 12px 16px 10px; }
+    .spectrum h2 { margin: 0 0 2px; font-size: 0.95rem; }
+    .spectrum .sub { color: var(--sim-muted); font-size: 0.72rem; margin: 0 0 6px; }
+    #spectrum { width: 100%; height: auto; display: block; }
+    .model-note { padding: 13px 16px; display: grid; align-content: start; gap: 10px; overflow: auto; }
+    .insight { margin: 0; padding: 11px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(251, 191, 36, 0.08); color: #fde9b8; font-weight: 650; font-size: 0.92rem; line-height: 1.5; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto auto minmax(200px, 0.9fr) minmax(200px, 1.1fr); gap: 14px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: #14203a; cursor: pointer; font-weight: 700; font-size: 0.88rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; white-space: nowrap; }
+    button:hover { border-color: #35507a; background: #1a2a4a; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #04121f; background: linear-gradient(135deg, #7dd3fc, var(--sim-accent)); box-shadow: 0 8px 20px rgba(56, 189, 248, 0.25); }
+    button.primary:hover { background: linear-gradient(135deg, #9be0ff, #38bdf8); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .dock-hint { color: var(--sim-muted); font-size: 0.75rem; line-height: 1.45; align-self: center; }
+    /* --- scene svg --- */
+    .level { stroke: #7e97c2; stroke-width: 3; stroke-linecap: round; transition: stroke .2s ease, stroke-width .2s ease; }
+    .level.current { stroke: #cfe6ff; stroke-width: 4; }
+    .level.hot { stroke: #ffffff; stroke-width: 4; }
+    .level.inf { stroke: #55688c; stroke-dasharray: 7 8; stroke-width: 2.5; }
+    .lvl-label { fill: #a9bcd9; font-size: 13.5px; font-weight: 700; text-anchor: end; }
+    .lvl-label .e { fill: #7387a8; font-weight: 500; font-size: 12px; }
+    .zone-text { fill: #5c6f92; font-size: 11px; }
+    .axis { stroke: #55688c; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .hit { fill: transparent; cursor: pointer; }
+    .hit:hover { fill: rgba(56, 189, 248, 0.07); }
+    .hit:focus-visible { stroke: var(--sim-accent); stroke-width: 2; }
+    #electronGlow { fill: rgba(125, 211, 252, 0.22); animation: ePulse 2.6s ease-in-out infinite; }
+    @keyframes ePulse { 0%, 100% { r: 17; opacity: .55; } 50% { r: 23; opacity: .95; } }
+    .app.paused #electronGlow { animation-play-state: paused; }
+    #electron { fill: #bfe3ff; stroke: #04121f; stroke-width: 2.5; filter: drop-shadow(0 0 7px rgba(147, 216, 255, 0.9)); }
+    .photon-label { font-size: 12.5px; font-weight: 750; text-anchor: middle; paint-order: stroke; stroke: rgba(4, 10, 24, 0.85); stroke-width: 3.5px; }
+    .arrow-label { font-size: 12.5px; font-weight: 750; paint-order: stroke; stroke: rgba(4, 10, 24, 0.85); stroke-width: 3.5px; }
+    #arrowLine { stroke-width: 3.5; stroke-linecap: round; }
+    .spec-tick { stroke: #3b4f74; stroke-width: 1; }
+    .spec-num { fill: #6d80a3; font-size: 10px; text-anchor: middle; }
+    .spec-name { font-size: 13px; font-weight: 800; text-anchor: middle; }
+    .spec-trans { fill: #7d90b0; font-size: 10.5px; text-anchor: middle; }
+    .spec-count { fill: var(--sim-accent); font-size: 11px; font-weight: 800; text-anchor: middle; }
+    .spec-zone { font-size: 10.5px; fill: #5c6f92; }
+    @media (max-width: 960px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 780 / 540; }
+      .dock-hint { grid-column: 1 / -1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: data-zone structure preserved (scene-first). -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>氢原子能级跃迁演示</h1>
+        <p>玻尔模型：点击能级线向上吸收光子、向下自发辐射放出光子；光子能量＝能级差，巴尔末系呈现不同颜色。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪 · 基态 n=1</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">氢原子能级图</h2>
+          <span>点击能级线：向上＝吸收光子 · 向下＝自发辐射（E<sub>n</sub> = −13.6/n² eV）</span>
+        </div>
+        <svg id="scene" viewBox="0 0 780 540" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">氢原子能级图：n=1 至 n=6 能级与电离极限，电子在能级间跃迁，吸收或放出光子。</desc>
+          <defs>
+            <linearGradient id="sceneBg" x1="0" y1="0" x2="1" y2="1">
+              <stop stop-color="#0a1124"/><stop offset="1" stop-color="#111c3a"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="780" height="540" fill="url(#sceneBg)"/>
+          <g id="sceneStatic"></g>
+          <g id="arrowG" opacity="0">
+            <line id="arrowLine" x1="430" y1="0" x2="430" y2="0"></line>
+            <polygon id="arrowHead" points=""></polygon>
+            <text id="arrowLabel1" class="arrow-label" x="444" y="0"></text>
+            <text id="arrowLabel2" class="arrow-label" x="444" y="0"></text>
+          </g>
+          <g id="photonInG" opacity="0">
+            <path id="photonInTrail" d="M -16 0 q -6 -8 -12 0 q -6 8 -12 0 q -6 -8 -12 0" fill="none" stroke-width="3" stroke-linecap="round"></path>
+            <circle id="photonInDot" r="7" stroke="#04121f" stroke-width="2"></circle>
+            <text id="photonInLabel" class="photon-label" y="-15"></text>
+          </g>
+          <g id="photonOutG" opacity="0">
+            <path id="photonOutTrail" d="M -16 0 q -6 -8 -12 0 q -6 8 -12 0 q -6 -8 -12 0" fill="none" stroke-width="3" stroke-linecap="round"></path>
+            <circle id="photonOutDot" r="7" stroke="#04121f" stroke-width="2"></circle>
+            <text id="photonOutLabel" class="photon-label" y="-15"></text>
+          </g>
+          <circle id="electronGlow" cx="360" cy="496" r="20"></circle>
+          <circle id="electron" cx="360" cy="496" r="9"></circle>
+          <g id="hits"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>当前能级</small><strong id="rN">n = 1</strong></div>
+            <div class="metric"><small>能量 E<sub>n</sub></small><strong id="rE">−13.60 eV</strong></div>
+            <div class="metric"><small>最近光子能量 ΔE</small><strong id="rDE">—</strong></div>
+            <div class="metric"><small>光子波长 λ</small><strong id="rLambda">—</strong></div>
+            <div class="metric"><small>光子系列</small><strong><span class="chip"><span id="rDot" class="dot"></span><span id="rSeries">—</span></span></strong></div>
+            <div class="metric"><small>可见光发射次数</small><strong id="rCount">0</strong></div>
+          </div>
+        </section>
+
+        <section class="panel spectrum" aria-label="巴尔末系光谱">
+          <h2>巴尔末系光谱（跃迁到 n=2）</h2>
+          <p class="sub">发射对应光子时谱线闪烁并计数；颜色由波长决定。</p>
+          <svg id="spectrum" viewBox="0 0 360 118" role="img" aria-label="巴尔末系可见光谱，含 Hα Hβ Hγ Hδ 四条谱线">
+            <g id="specStatic"></g>
+            <g id="specLines"></g>
+          </svg>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="观察结论">
+          <p id="insight" class="insight" aria-live="polite">点击能级线：选更高能级＝吸收光子向上跃迁；选更低能级＝自发辐射向下放出光子。</p>
+          <p>E<sub>n</sub> = −13.6/n² eV；光子能量 ΔE = E<sub>m</sub> − E<sub>n</sub>；λ = hc/ΔE（hc ≈ 1240 eV·nm）。</p>
+          <p>量子化规则：只有能量<b>恰好等于</b>能级差的光子才能被吸收；向下跃迁自发辐射放出光子。</p>
+          <p>教学视图：能级竖直间距为示意（上密下疏），能量与波长均为真实计算值；紫外/红外光子以示意色标注（不可见）。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="autoBtn" class="primary" type="button" aria-pressed="false">▶ 自动演示</button>
+        <button id="pauseBtn" type="button">⏸ 暂停</button>
+        <button id="resetBtn" type="button">↺ 重置</button>
+      </div>
+      <div class="actions">
+        <button id="balmerBtn" type="button">🌈 巴尔末系演示</button>
+      </div>
+      <div class="control">
+        <label for="speedInput">演示速度 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.5" max="2" step="0.1" value="1">
+      </div>
+      <p class="dock-hint">自动演示＝随机激发与自发辐射循环；暂停后点击能级线为“步进模式”，瞬时完成跃迁。</p>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ---------- physics kernel (pure, DOM-free; oracle-testable) ---------- */
+    const PHYS = {
+      RY: 13.6,            // ionization energy of ground state, eV
+      HC: 1239.841984,     // hc in eV·nm
+      MAX_N: 6,
+      energy(n) { return -PHYS.RY / (n * n); },
+      photonEnergy(from, to) { return Math.abs(PHYS.energy(to) - PHYS.energy(from)); },
+      wavelength(from, to) { return PHYS.HC / PHYS.photonEnergy(from, to); },
+      seriesOf(to) { return to === 1 ? "lyman" : to === 2 ? "balmer" : "paschen"; },
+      balmerName(from) { return ({ 3: "Hα", 4: "Hβ", 5: "Hγ", 6: "Hδ" })[from] || null; },
+      resonantTarget(from, ePhoton) {           // quantization rule: absorb only exact matches
+        for (let to = from + 1; to <= PHYS.MAX_N; to += 1) {
+          if (Math.abs(PHYS.photonEnergy(from, to) - ePhoton) < 1e-9) return to;
+        }
+        return null;
+      },
+      wavelengthToRGB(nm) {                     // visible band: Bruton-style approximation
+        if (nm < 380) return [172, 140, 255];   // UV marker (stylized, not a real color)
+        if (nm > 760) return [224, 122, 92];    // IR marker (stylized, not a real color)
+        let r = 0, g = 0, b = 0;
+        if (nm < 440) { r = (440 - nm) / 60; b = 1; }
+        else if (nm < 490) { g = (nm - 440) / 50; b = 1; }
+        else if (nm < 510) { g = 1; b = (510 - nm) / 20; }
+        else if (nm < 580) { r = (nm - 510) / 70; g = 1; }
+        else if (nm < 645) { r = 1; g = (645 - nm) / 65; }
+        else { r = 1; }
+        let f = 1;
+        if (nm < 420) f = 0.30 + 0.70 * (nm - 380) / 40;
+        else if (nm > 700) f = 0.30 + 0.70 * (760 - nm) / 60;
+        const c = (v) => Math.round(255 * Math.pow(Math.max(0.16, v) * f, 0.85));
+        return [c(r), c(g), c(b)];
+      }
+    };
+    const SERIES_LABEL = { lyman: "莱曼系 · 紫外", balmer: "巴尔末系 · 可见", paschen: "帕邢系 · 红外" };
+
+    /* ---------- scene geometry (SVG user units) ---------- */
+    const Y = { 1: 496, 2: 322, 3: 254, 4: 202, 5: 156, 6: 112, inf: 64 };
+    const LX1 = 172, LX2 = 560, EX = 360, AX = 430;
+
+    /* ---------- timing (sim seconds; reduced-motion shortens) ---------- */
+    const TIMING = { photonIn: 0.9, jumpUp: 0.6, jumpDown: 0.55, emitDelay: 0.18, photonOut: 1.0, fade: 0.35, idle: 1.2, seqGap: 0.9 };
+
+    const parameterSchema = [
+      { key: "speed", label: "演示速度", type: "slider", min: 0.5, max: 2, step: 0.1, default: 1, unit: "×" }
+    ];
+
+    /* ---------- authoritative state ---------- */
+    const state = {
+      clock: true, auto: false, t: 0, speed: 1, n: 1,
+      transition: null, lastPhoton: null,
+      counts: { "3-2": 0, "4-2": 0, "5-2": 0, "6-2": 0 },
+      flash: { t: -1e9, key: null },
+      idleSince: 0, rngState: 20250923, seq: null, seqDone: false,
+      note: null, noteT: -1e9, reducedMotion: false, lastTimestamp: null
+    };
+
+    const elements = {};
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const clamp01 = (v) => clamp(v, 0, 1);
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const lerp = (a, b, q) => a + (b - a) * q;
+    const ease = (q) => (q < 0.5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2);
+    const fmtE = (e) => e.toFixed(2).replace("-", "−");
+    const fmtL = (l) => String(Math.round(l));
+    const minus = (s) => String(s).replace("-", "−");
+
+    function rng() {  // mulberry32, seeded -> reproducible auto demo
+      state.rngState |= 0; state.rngState = (state.rngState + 0x6d2b79f5) | 0;
+      let z = Math.imul(state.rngState ^ (state.rngState >>> 15), 1 | state.rngState);
+      z = (z + Math.imul(z ^ (z >>> 7), 61 | z)) ^ z;
+      return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+    }
+
+    function colorName(lambda) {
+      if (lambda < 380) return "紫外";
+      if (lambda > 760) return "红外";
+      if (lambda >= 630) return "红光";
+      if (lambda >= 470) return "青光";
+      if (lambda >= 425) return "蓝光";
+      return "紫光";
+    }
+
+    function photonProps(from, to) {
+      const dE = PHYS.photonEnergy(from, to);
+      const lambda = PHYS.HC / dE;
+      const lo = Math.min(from, to), hi = Math.max(from, to); // series depends on the lower level
+      const series = PHYS.seriesOf(lo);
+      const rgb = PHYS.wavelengthToRGB(lambda);
+      return {
+        from, to, lo, hi, dE, lambda, series,
+        name: series === "balmer" ? PHYS.balmerName(hi) : null,
+        visible: lambda >= 380 && lambda <= 760,
+        color: "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")",
+        band: colorName(lambda)
+      };
+    }
+
+    function durations() {
+      return state.reducedMotion
+        ? { photonIn: 0.18, jump: 0.18, emitDelay: 0.05, photonOut: 0.22, fade: 0.1 }
+        : { photonIn: TIMING.photonIn, jump: 0, emitDelay: TIMING.emitDelay, photonOut: TIMING.photonOut, fade: TIMING.fade };
+    }
+
+    function note(text) { state.note = text; state.noteT = state.t; }
+
+    function emitPhoton(props) {
+      state.lastPhoton = props;
+      const key = props.hi + "-2";   // Balmer emission: higher level -> n=2
+      if (props.series === "balmer" && Object.prototype.hasOwnProperty.call(state.counts, key)) {
+        state.counts[key] += 1;
+        state.flash = { t: state.t, key: key };
+      } else {
+        state.flash = { t: state.t, key: props.series };
+      }
+    }
+
+    function requestTransition(target) {
+      if (!Number.isInteger(target) || target < 1 || target > PHYS.MAX_N) return;
+      if (state.transition) { note("跃迁进行中，请稍候（暂停时可用“重置”清空当前跃迁）。"); return; }
+      if (target === state.n) { note("电子已在 n=" + target + "：请点击其他能级。"); return; }
+      const props = photonProps(state.n, target);
+      if (!state.clock) {                      // step mode: instant, no time-based motion
+        state.n = target; state.lastPhoton = props;
+        if (target < props.from) emitPhoton(props);
+        state.idleSince = state.t;
+        return;
+      }
+      const d = durations();
+      d.jump = target > state.n ? TIMING.jumpUp : TIMING.jumpDown;
+      if (state.reducedMotion) d.jump = 0.18;
+      state.transition = {
+        kind: target > state.n ? "absorb" : "emit",
+        from: state.n, to: target, elapsed: 0, d: d, props: props,
+        fired: { hit: false, spawn: false, arrive: false }
+      };
+    }
+
+    function updateTransition(dt) {
+      const tr = state.transition;
+      if (!tr) return;
+      tr.elapsed += dt;
+      const D = tr.d;
+      if (tr.kind === "absorb") {
+        if (!tr.fired.hit && tr.elapsed >= D.photonIn) { tr.fired.hit = true; state.lastPhoton = tr.props; }
+        if (!tr.fired.arrive && tr.elapsed >= D.photonIn + D.jump) {
+          tr.fired.arrive = true; state.n = tr.to; state.idleSince = state.t;
+        }
+        if (tr.elapsed >= D.photonIn + D.jump + 0.05) state.transition = null;
+      } else {
+        if (!tr.fired.spawn && tr.elapsed >= D.emitDelay) { tr.fired.spawn = true; emitPhoton(tr.props); }
+        if (!tr.fired.arrive && tr.elapsed >= D.jump) {
+          tr.fired.arrive = true; state.n = tr.to; state.idleSince = state.t;
+        }
+        if (tr.elapsed >= D.emitDelay + D.photonOut + D.fade) state.transition = null;
+      }
+    }
+
+    function autoStep() {
+      if (state.n === 1) requestTransition(2 + Math.floor(rng() * 4));       // excite to 2..5
+      else requestTransition(1 + Math.floor(rng() * (state.n - 1)));         // decay to lower
+    }
+
+    const BALMER_STEPS = [2, 3, 2, 4, 2, 5, 2, 6, 2];  // absorb visible, emit same color, x4
+
+    function startBalmerDemo() {
+      reset();
+      state.clock = true;
+      state.seq = { steps: BALMER_STEPS, idx: 0 };
+      state.seqDone = false;
+    }
+
+    /* ---------- static scene construction ---------- */
+    function buildScene() {
+      const g = elements.sceneStatic;
+      let s = "";
+      s += '<text class="axis-label" x="24" y="38">能量 E / eV（向上增大）</text>';
+      s += '<line class="axis" x1="40" y1="506" x2="40" y2="46"></line>';
+      s += '<polygon class="axis" fill="#55688c" points="40,38 35,50 45,50"></polygon>';
+      // ionization continuum
+      s += '<rect x="' + LX1 + '" y="22" width="' + (LX2 - LX1) + '" height="42" fill="rgba(120,150,200,0.05)"/>';
+      s += '<text class="zone-text" x="' + ((LX1 + LX2) / 2) + '" y="44" text-anchor="middle">电离区（自由电子，E ≥ 0）</text>';
+      s += '<line id="lvl-inf" class="level inf" x1="' + LX1 + '" y1="' + Y.inf + '" x2="' + LX2 + '" y2="' + Y.inf + '"/>';
+      s += '<text class="lvl-label" x="' + (LX1 - 12) + '" y="' + (Y.inf + 4) + '">n=∞ <tspan class="e" dx="8">0 eV（电离极限）</tspan></text>';
+      for (let n = 1; n <= PHYS.MAX_N; n += 1) {
+        s += '<line id="lvl-' + n + '" class="level" x1="' + LX1 + '" y1="' + Y[n] + '" x2="' + LX2 + '" y2="' + Y[n] + '"/>';
+        s += '<text class="lvl-label" x="' + (LX1 - 12) + '" y="' + (Y[n] + 4) + '">n=' + n + ' <tspan class="e" dx="8">' + fmtE(PHYS.energy(n)) + ' eV</tspan></text>';
+      }
+      g.innerHTML = s;
+
+      let h = "";
+      for (let n = 1; n <= PHYS.MAX_N; n += 1) {
+        h += '<rect id="hit-' + n + '" class="hit" x="150" y="' + (Y[n] - 19) + '" width="432" height="38" tabindex="0" role="button" aria-label="能级 n=' + n + '（' + fmtE(PHYS.energy(n)) + ' eV）：点击跃迁到该能级"></rect>';
+      }
+      elements.hits.innerHTML = h;
+      for (let n = 1; n <= PHYS.MAX_N; n += 1) {
+        const rect = elements.hits.querySelector("#hit-" + n);
+        rect.addEventListener("click", () => requestTransition(n));
+        rect.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); requestTransition(n); }
+        });
+      }
+    }
+
+    /* Balmer lines positioned from the model wavelength, not hardcoded pixels */
+    function specX(lambda) { return 22 + (lambda - 380) * 316 / 380; }
+
+    function buildSpectrum() {
+      const st = elements.specStatic;
+      let s = "";
+      s += '<rect x="6" y="20" width="16" height="36" fill="rgba(167,139,250,0.14)"/>';
+      s += '<rect x="338" y="20" width="16" height="36" fill="rgba(224,122,92,0.14)"/>';
+      s += '<rect x="22" y="20" width="316" height="36" fill="#04070f" stroke="#26385c" stroke-width="1"/>';
+      // faint real-spectrum gradient across the visible band
+      s += '<rect x="22" y="20" width="316" height="36" fill="url(#rainbow)" opacity="0.16"/>';
+      s += '<defs><linearGradient id="rainbow" x1="0" x2="1">' +
+        [380, 420, 460, 500, 540, 580, 620, 660, 700, 760].map((wl) => {
+          const c = PHYS.wavelengthToRGB(wl);
+          return '<stop offset="' + ((wl - 380) / 380).toFixed(4) + '" stop-color="rgb(' + c[0] + "," + c[1] + "," + c[2] + ')"/>';
+        }).join("") + "</linearGradient></defs>";
+      [400, 500, 600, 700].forEach((wl) => {
+        const x = specX(wl);
+        s += '<line class="spec-tick" x1="' + x + '" y1="56" x2="' + x + '" y2="61"/>';
+        s += '<text class="spec-num" x="' + x + '" y="71">' + wl + '</text>';
+      });
+      s += '<text class="spec-zone" x="14" y="71" text-anchor="middle">紫外</text>';
+      s += '<text class="spec-zone" x="346" y="71" text-anchor="middle">红外</text>';
+      s += '<text class="spec-zone" x="14" y="98">莱曼系</text>';
+      s += '<text class="spec-zone" x="346" y="98" text-anchor="start">帕邢系</text>';
+      s += '<text class="spec-num" x="180" y="113" text-anchor="middle">波长 λ / nm（380 – 760 为可见光区）</text>';
+      st.innerHTML = s;
+
+      let l = "";
+      for (let from = 3; from <= 6; from += 1) {
+        const lambda = PHYS.wavelength(from, 2);
+        const x = specX(lambda);
+        const rgb = PHYS.wavelengthToRGB(lambda);
+        const col = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        l += '<g id="specg-' + from + '-2">';
+        l += '<circle id="specglow-' + from + '-2" cx="' + x + '" cy="38" r="0" fill="' + col + '" opacity="0"/>';
+        l += '<rect id="specline-' + from + '-2" x="' + (x - 2.2) + '" y="20" width="4.4" height="36" rx="1.5" fill="' + col + '" opacity="0.9"/>';
+        l += '<text id="specname-' + from + '-2" class="spec-name" x="' + x + '" y="88" fill="' + col + '">' + PHYS.balmerName(from) + '</text>';
+        l += '<text class="spec-trans" x="' + x + '" y="100">' + from + '→2 · ' + fmtL(lambda) + ' nm</text>';
+        l += '<text id="speccount-' + from + '-2" class="spec-count" x="' + x + '" y="24" opacity="0"></text>';
+        l += "</g>";
+      }
+      elements.specLines.innerHTML = l;
+      // UV / IR flash targets
+      let z = "";
+      z += '<circle id="specglow-lyman" cx="14" cy="38" r="0" fill="#a78bfa" opacity="0"/>';
+      z += '<circle id="specglow-paschen" cx="346" cy="38" r="0" fill="#d2805c" opacity="0"/>';
+      elements.specLines.insertAdjacentHTML("beforeend", z);
+    }
+
+    /* ---------- render (derives everything from state) ---------- */
+    function electronPos() {
+      if (!state.transition) return { x: EX, y: Y[state.n] };
+      const tr = state.transition, D = tr.d;
+      let q = 1;
+      if (tr.kind === "absorb") {
+        if (tr.elapsed < D.photonIn) return { x: EX, y: Y[tr.from] };
+        q = ease(clamp01((tr.elapsed - D.photonIn) / D.jump));
+      } else {
+        q = ease(clamp01(tr.elapsed / D.jump));
+      }
+      return { x: EX + Math.sin(q * Math.PI) * 26, y: lerp(Y[tr.from], Y[tr.to], q) };
+    }
+
+    function statusText() {
+      const tr = state.transition;
+      let s = tr ? "跃迁中 " + tr.from + "→" + tr.to : (state.n === 1 ? "基态" : "激发态") + " n=" + state.n;
+      if (state.seq) s += " · 巴尔末系演示";
+      else if (state.auto) s += " · 自动";
+      if (!state.clock) s += " · 已暂停";
+      return s;
+    }
+
+    function insightText() {
+      if (state.note && state.t - state.noteT < 2.2) return state.note;
+      const tr = state.transition;
+      if (tr) {
+        const p = tr.props;
+        if (tr.kind === "absorb") {
+          return "吸收光子：能量恰好等于能级差 " + fmtE(p.dE) + " eV（λ=" + fmtL(p.lambda) + " nm，" + p.band +
+            (p.visible ? "" : "，不可见") + "），电子从 n=" + p.from + " 跃迁到 n=" + p.to + "。";
+        }
+        const tail = p.series === "balmer" ? "—— 巴尔末系 " + p.name + " 线" :
+          p.series === "lyman" ? "—— 莱曼系（紫外，不可见）" : "—— 帕邢系（红外，不可见）";
+        return "自发辐射：n=" + p.from + "→n=" + p.to + " 放出 " + fmtE(p.dE) + " eV 光子（λ=" + fmtL(p.lambda) +
+          " nm，" + p.band + "）" + tail + "。";
+      }
+      if (!state.clock) return "已暂停（步进模式）：点击能级线可瞬时完成跃迁，便于逐步讲解。";
+      if (state.seqDone) return "巴尔末系演示完成：Hα–Hδ 四条可见谱线分别对应 3→2、4→2、5→2、6→2，能级差越大、波长越短、颜色越偏紫。";
+      if (state.lastPhoton) {
+        const p = state.lastPhoton;
+        return "当前 n=" + state.n + "。上一次光子：" + fmtE(p.dE) + " eV · λ=" + fmtL(p.lambda) + " nm（" + p.band + "）。再点击能级线继续。";
+      }
+      return "点击能级线：选更高能级＝吸收光子向上跃迁；选更低能级＝自发辐射向下放出光子。";
+    }
+
+    function render() {
+      const pos = electronPos();
+      elements.electron.setAttribute("cx", pos.x); elements.electron.setAttribute("cy", pos.y);
+      elements.electronGlow.setAttribute("cx", pos.x); elements.electronGlow.setAttribute("cy", pos.y);
+      const tr = state.transition;
+
+      // level highlighting
+      for (let n = 1; n <= PHYS.MAX_N; n += 1) {
+        const line = elements.sceneStatic.querySelector("#lvl-" + n);
+        let cls = "level";
+        if (n === state.n && !tr) cls += " current";
+        if (tr && (n === tr.from || n === tr.to)) cls += " hot";
+        line.setAttribute("class", cls);
+      }
+
+      // transition arrow + photons
+      elements.arrowG.setAttribute("opacity", "0");
+      elements.photonInG.setAttribute("opacity", "0");
+      elements.photonOutG.setAttribute("opacity", "0");
+      if (tr) {
+        const D = tr.d, p = tr.props;
+        const jumpStart = tr.kind === "absorb" ? D.photonIn : 0;
+        const jumpEnd = jumpStart + D.jump;
+        if (tr.elapsed >= jumpStart && tr.elapsed <= jumpEnd + 0.15) {
+          const up = tr.to < tr.from; // smaller n is lower on screen -> upward jump raises n
+          const y1 = Y[tr.from], y2 = Y[tr.to];
+          const head = up ? y2 + 10 : y2 - 10;
+          elements.arrowLine.setAttribute("y1", y1); elements.arrowLine.setAttribute("y2", head);
+          elements.arrowLine.setAttribute("stroke", p.color);
+          const dir = up ? -1 : 1;
+          elements.arrowHead.setAttribute("points",
+            AX + "," + (y2 + dir * -2) + " " + (AX - 6.5) + "," + (y2 - dir * 12) + " " + (AX + 6.5) + "," + (y2 - dir * 12));
+          elements.arrowHead.setAttribute("fill", p.color);
+          const mid = (y1 + y2) / 2;
+          elements.arrowLabel1.setAttribute("y", mid - 4);
+          elements.arrowLabel2.setAttribute("y", mid + 14);
+          elements.arrowLabel1.setAttribute("fill", p.color);
+          elements.arrowLabel2.setAttribute("fill", p.color);
+          elements.arrowLabel1.textContent = (tr.kind === "absorb" ? "↑ 吸收 " : "↓ 辐射 ") + fmtE(p.dE) + " eV";
+          elements.arrowLabel2.textContent = "λ=" + fmtL(p.lambda) + " nm · " + p.band;
+          elements.arrowG.setAttribute("opacity", "1");
+        }
+        if (tr.kind === "absorb" && tr.elapsed < D.photonIn) {
+          const q = clamp01(tr.elapsed / D.photonIn);
+          const x = lerp(-40, EX, q);
+          elements.photonInG.setAttribute("transform", "translate(" + x + "," + Y[tr.from] + ")");
+          elements.photonInG.setAttribute("opacity", "1");
+          [elements.photonInDot, elements.photonInTrail].forEach((el) => el.setAttribute("fill", p.color));
+          elements.photonInDot.setAttribute("fill", p.color);
+          elements.photonInTrail.setAttribute("stroke", p.color);
+          elements.photonInLabel.setAttribute("fill", p.color);
+          elements.photonInLabel.textContent = fmtE(p.dE) + " eV · " + fmtL(p.lambda) + " nm" + (p.visible ? "" : " · " + p.band);
+        }
+        if (tr.kind === "emit" && tr.fired.spawn) {
+          const q = clamp01((tr.elapsed - D.emitDelay) / D.photonOut);
+          const fadeQ = clamp01((tr.elapsed - D.emitDelay - D.photonOut) / D.fade);
+          const x = lerp(EX, 830, q);
+          elements.photonOutG.setAttribute("transform", "translate(" + x + "," + Y[tr.to] + ")");
+          elements.photonOutG.setAttribute("opacity", String(1 - fadeQ));
+          elements.photonOutDot.setAttribute("fill", p.color);
+          elements.photonOutTrail.setAttribute("stroke", p.color);
+          elements.photonOutLabel.setAttribute("fill", p.color);
+          elements.photonOutLabel.textContent = fmtE(p.dE) + " eV · " + fmtL(p.lambda) + " nm" + (p.visible ? "" : " · " + p.band);
+        }
+      }
+
+      // readouts
+      elements.rN.textContent = "n = " + state.n;
+      elements.rE.textContent = fmtE(PHYS.energy(state.n)) + " eV";
+      const p = state.lastPhoton;
+      elements.rDE.textContent = p ? fmtE(p.dE) + " eV" : "—";
+      elements.rLambda.textContent = p ? fmtL(p.lambda) + " nm" : "—";
+      elements.rSeries.textContent = p ? SERIES_LABEL[p.series] + "（" + p.band + "）" : "—";
+      elements.rDot.style.background = p ? p.color : "var(--sim-border)";
+      elements.rCount.textContent = String(Object.values(state.counts).reduce((a, b) => a + b, 0));
+
+      // spectrum flash + counts
+      const age = state.t - state.flash.t;
+      const intensity = clamp01(1 - age / 0.9);
+      ["3-2", "4-2", "5-2", "6-2", "lyman", "paschen"].forEach((key) => {
+        const glow = elements.specLines.querySelector("#specglow-" + key);
+        if (!glow) return;
+        const on = state.flash.key === key && intensity > 0;
+        glow.setAttribute("r", on ? String(6 + 12 * intensity) : "0");
+        glow.setAttribute("opacity", on ? String(0.75 * intensity) : "0");
+      });
+      for (let from = 3; from <= 6; from += 1) {
+        const key = from + "-2";
+        const cnt = elements.specLines.querySelector("#speccount-" + key);
+        const line = elements.specLines.querySelector("#specline-" + key);
+        const boost = state.flash.key === key ? 0.9 + 0.1 * intensity : 0.9;
+        line.setAttribute("opacity", String(clamp01(boost)));
+        cnt.textContent = state.counts[key] > 0 ? "×" + state.counts[key] : "";
+        cnt.setAttribute("opacity", state.counts[key] > 0 ? "1" : "0");
+      }
+
+      elements.status.textContent = statusText();
+      elements.insight.textContent = insightText();
+      elements.autoBtn.textContent = state.auto ? "■ 停止自动" : "▶ 自动演示";
+      elements.autoBtn.setAttribute("aria-pressed", state.auto ? "true" : "false");
+      elements.pauseBtn.textContent = state.clock ? "⏸ 暂停" : "▶ 继续";
+      elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+      elements.app.classList.toggle("paused", !state.clock);
+    }
+
+    /* ---------- lifecycle ---------- */
+    function update(dt) {
+      if (!state.clock) return;
+      const simDt = clamp(finite(dt, 0), 0, 0.05) * state.speed;
+      state.t += simDt;
+      updateTransition(simDt);
+      if (!state.transition) {
+        if (state.seq) {
+          if (state.t - state.idleSince > TIMING.seqGap) {
+            const target = state.seq.steps[state.seq.idx];
+            state.seq.idx += 1;
+            if (state.seq.idx >= state.seq.steps.length) { state.seq = null; state.seqDone = true; state.auto = false; }
+            if (target !== state.n) requestTransition(target);
+          }
+        } else if (state.auto && state.t - state.idleSince > TIMING.idle) {
+          autoStep();
+        }
+      }
+    }
+
+    function start() { state.auto = true; state.clock = true; state.seq = null; }
+    function pause() { state.clock = false; }
+    function reset() {
+      state.clock = true; state.auto = false; state.t = 0; state.n = 1;
+      state.transition = null; state.lastPhoton = null;
+      state.counts = { "3-2": 0, "4-2": 0, "5-2": 0, "6-2": 0 };
+      state.flash = { t: -1e9, key: null };
+      state.idleSince = 0; state.rngState = 20250923;
+      state.seq = null; state.seqDone = false; state.note = null; state.noteT = -1e9;
+      state.lastTimestamp = null;
+      render();
+    }
+    function setParameters(values) {
+      const def = parameterSchema[0];
+      state.speed = clamp(finite(Number(values.speed), def.default), def.min, def.max);
+      elements.speedInput.value = String(state.speed);
+      render();
+    }
+    function getState() {
+      return {
+        clock: state.clock, auto: state.auto, t: state.t, speed: state.speed, n: state.n,
+        transition: state.transition, lastPhoton: state.lastPhoton, counts: { ...state.counts },
+        seqActive: !!state.seq
+      };
+    }
+    function getReadouts() {
+      const p = state.lastPhoton;
+      return {
+        n: state.n, energy: PHYS.energy(state.n), running: state.clock,
+        photonEnergy: p ? p.dE : null, wavelength: p ? p.lambda : null,
+        series: p ? p.series : null, visiblePhotons: Object.values(state.counts).reduce((a, b) => a + b, 0)
+      };
+    }
+
+    /* ---------- oracle checks (pure physics, headless-runnable) ---------- */
+    function runModelChecks() {
+      const near = (a, b, tol) => Math.abs(a - b) <= tol;
+      const cases = [];
+      cases.push({ name: "能级公式 E1 = −13.6 eV", pass: near(PHYS.energy(1), -13.6, 1e-9), expected: "-13.6", actual: PHYS.energy(1), tolerance: "1e-9" });
+      cases.push({ name: "能级公式 E2/E1 = 1/4", pass: near(PHYS.energy(2) / PHYS.energy(1), 0.25, 1e-12), expected: "0.25", actual: PHYS.energy(2) / PHYS.energy(1), tolerance: "1e-12" });
+      cases.push({ name: "能级公式 E3 = −1.511 eV", pass: near(PHYS.energy(3), -13.6 / 9, 1e-12), expected: String(-13.6 / 9), actual: PHYS.energy(3), tolerance: "1e-12" });
+      const balmerTextbook = [[3, 656.3], [4, 486.1], [5, 434.0], [6, 410.2]];
+      balmerTextbook.forEach(([from, lam]) => {
+        const got = PHYS.wavelength(from, 2);
+        cases.push({ name: "巴尔末系 λ(" + from + "→2) ≈ " + lam + " nm", pass: near(got, lam, 0.6), expected: lam + " nm", actual: got.toFixed(3) + " nm", tolerance: "0.6 nm" });
+      });
+      const tele = PHYS.photonEnergy(3, 2) + PHYS.photonEnergy(2, 1) - PHYS.photonEnergy(3, 1);
+      cases.push({ name: "能量差可加性 ΔE(3→2)+ΔE(2→1)=ΔE(3→1)", pass: Math.abs(tele) < 1e-9, expected: "0", actual: tele, tolerance: "1e-9" });
+      cases.push({ name: "莱曼系极限 λ(∞→1) ≈ 91.18 nm", pass: near(PHYS.HC / 13.6, 91.18, 0.05), expected: "91.18 nm", actual: (PHYS.HC / 13.6).toFixed(3) + " nm", tolerance: "0.05 nm" });
+      cases.push({ name: "巴尔末系极限 λ(∞→2) ≈ 364.6 nm", pass: near(PHYS.HC / 3.4, 364.6, 0.25), expected: "364.6 nm", actual: (PHYS.HC / 3.4).toFixed(3) + " nm", tolerance: "0.25 nm" });
+      cases.push({ name: "量子化吸收：10.2 eV 光子从 n=1 恰可共振至 n=2", pass: PHYS.resonantTarget(1, 10.2) === 2, expected: "2", actual: String(PHYS.resonantTarget(1, 10.2)), tolerance: "exact" });
+      cases.push({ name: "量子化吸收：2.5 eV 光子从 n=1 不被吸收", pass: PHYS.resonantTarget(1, 2.5) === null, expected: "null", actual: String(PHYS.resonantTarget(1, 2.5)), tolerance: "exact" });
+      const l32 = PHYS.wavelength(3, 2), l42 = PHYS.wavelength(4, 2), l52 = PHYS.wavelength(5, 2), l62 = PHYS.wavelength(6, 2);
+      cases.push({ name: "巴尔末系波长单调：λ(3→2)>λ(4→2)>λ(5→2)>λ(6→2)", pass: l32 > l42 && l42 > l52 && l52 > l62, expected: "656>486>434>410", actual: fmtL(l32) + ">" + fmtL(l42) + ">" + fmtL(l52) + ">" + fmtL(l62), tolerance: "strict" });
+      let worst = 0;
+      for (let a = 1; a <= 6; a += 1) for (let b = 1; b <= 6; b += 1) {
+        if (a === b) continue;
+        worst = Math.max(worst, Math.abs(PHYS.wavelength(a, b) * PHYS.photonEnergy(a, b) - PHYS.HC));
+      }
+      cases.push({ name: "全部 30 个跃迁对满足 λ·ΔE = hc", pass: worst < 1e-6, expected: "0", actual: worst, tolerance: "1e-6" });
+      const abs13 = photonProps(1, 3);
+      cases.push({ name: "吸收光子归类：1→3 吸收 102.6 nm 属莱曼系（紫外）", pass: abs13.series === "lyman" && !abs13.visible && Math.abs(abs13.lambda - 102.57) < 0.05, expected: "lyman / 102.57 nm", actual: abs13.series + " / " + abs13.lambda.toFixed(2) + " nm", tolerance: "0.05 nm" });
+      const abs23 = photonProps(2, 3);
+      cases.push({ name: "吸收光子归类：2→3 吸收 656 nm 属巴尔末系 Hα（可见）", pass: abs23.series === "balmer" && abs23.visible && abs23.name === "Hα", expected: "balmer / Hα", actual: abs23.series + " / " + abs23.name, tolerance: "exact" });
+      return cases;
+    }
+
+    /* ---------- boot ---------- */
+    function bindControls() {
+      elements.autoBtn.addEventListener("click", () => { if (state.auto) { state.auto = false; } else { start(); } });
+      elements.pauseBtn.addEventListener("click", () => { state.clock = !state.clock; state.lastTimestamp = null; });
+      elements.resetBtn.addEventListener("click", reset);
+      elements.balmerBtn.addEventListener("click", startBalmerDemo);
+      elements.speedInput.addEventListener("input", () => setParameters({ speed: elements.speedInput.value }));
+    }
+
+    function init() {
+      const q = (sel) => document.querySelector(sel);
+      ["app", "status", "sceneStatic", "hits", "arrowG", "arrowLine", "arrowHead", "arrowLabel1", "arrowLabel2",
+        "photonInG", "photonInDot", "photonInTrail", "photonInLabel",
+        "photonOutG", "photonOutDot", "photonOutTrail", "photonOutLabel",
+        "electron", "electronGlow", "specStatic", "specLines",
+        "rN", "rE", "rDE", "rLambda", "rSeries", "rDot", "rCount",
+        "insight", "autoBtn", "pauseBtn", "resetBtn", "balmerBtn", "speedInput", "speedOutput"
+      ].forEach((id) => { elements[id] = q("#" + id); });
+      state.reducedMotion = (typeof matchMedia === "function") && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      buildScene();
+      buildSpectrum();
+      bindControls();
+      setParameters({ speed: 1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (typeof document !== "undefined" && typeof requestAnimationFrame === "function") init();
+  })();
+  </script>
+</body>
+</html>

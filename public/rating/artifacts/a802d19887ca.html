@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RC 电路充放电演示：单刀双掷开关</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* 语义扩展色（基于基础层）：充电=青，放电=琥珀 */
+      --sim-charge: #0f9fba;
+      --sim-charge-deep: #08758a;
+      --sim-charge-soft: #d9f4f7;
+      --sim-discharge: #d97a06;
+      --sim-discharge-deep: #8a5200;
+      --sim-discharge-soft: #fdeecd;
+      --sim-wire: #303a4a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.45); outline-offset: 2px; }
+
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.45rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15, 159, 186, 0.22); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; font-size: 0.92rem; }
+    .status.charge { background: var(--sim-charge-soft); color: var(--sim-charge-deep); border-color: rgba(15, 159, 186, 0.35); }
+    .status.discharge { background: var(--sim-discharge-soft); color: var(--sim-discharge-deep); border-color: rgba(217, 122, 6, 0.35); }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.62fr) minmax(340px, 0.9fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255, 255, 255, 0.94); border: 1px solid rgba(148, 163, 184, 0.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+
+    .scene-panel { min-height: 420px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 330px; display: block; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: 18px; background: linear-gradient(150deg, #fbfdff 0%, #f1f8fa 55%, #fdf9ef 100%); }
+
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 12px; }
+    .chart-card { padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+    #chart { width: 100%; height: 100%; min-height: 260px; display: block; }
+
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 12px 14px; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.74rem; font-weight: 640; }
+    .metric strong { font-size: 1.34rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .metric.tau-c strong { color: var(--sim-charge-deep); }
+    .metric.tau-d strong { color: var(--sim-discharge-deep); }
+
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+    .model-note h2 { margin: 0; font-size: 0.95rem; }
+    .insight { margin: 0; padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; line-height: 1.5; font-size: 0.92rem; }
+    .model-note .note-line { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+
+    .controls { padding: 12px 16px; display: grid; grid-template-columns: auto auto minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; font-size: 0.88rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; white-space: nowrap; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15, 159, 186, 0.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45); }
+    .switch-seg { display: flex; gap: 6px; }
+    .switch-seg button { padding: 9px 11px; }
+    .switch-seg button.on-charge { background: var(--sim-charge-soft); color: var(--sim-charge-deep); border-color: rgba(15, 159, 186, 0.45); }
+    .switch-seg button.on-discharge { background: var(--sim-discharge-soft); color: var(--sim-discharge-deep); border-color: rgba(217, 122, 6, 0.45); }
+    .switch-seg button.on-idle { background: #e6ebf2; color: var(--sim-text); border-color: #c3cedd; }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speed { display: flex; align-items: center; gap: 6px; }
+    .speed .speed-label { font-size: 0.78rem; font-weight: 700; color: var(--sim-text); }
+    .speed button { padding: 7px 9px; font-size: 0.8rem; }
+    .speed button.on-speed { background: var(--sim-accent-soft); color: var(--sim-accent-deep); border-color: rgba(15, 159, 186, 0.45); }
+
+    /* 电路 SVG */
+    .wire { fill: none; stroke: var(--sim-wire); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke .2s, opacity .2s, filter .2s; }
+    .wire.dim { opacity: 0.22; }
+    .wire.charge-on { stroke: var(--sim-charge); filter: drop-shadow(0 0 5px rgba(15, 159, 186, 0.5)); }
+    .wire.discharge-on { stroke: var(--sim-discharge); filter: drop-shadow(0 0 5px rgba(217, 122, 6, 0.45)); }
+    .symbol { stroke: var(--sim-wire); stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .lbl { fill: #334155; font-size: 16px; font-weight: 660; }
+    .sub { fill: #64748b; font-size: 13px; font-weight: 520; }
+    .switch-lever { stroke: #222c3b; stroke-width: 7; stroke-linecap: round; cursor: grab; touch-action: none; }
+    .switch-knob { fill: #222c3b; cursor: pointer; touch-action: none; }
+    .contact { fill: #fff; stroke: #222c3b; stroke-width: 4; pointer-events: none; }
+    .contact.live { fill: var(--sim-accent); }
+    #contactDown.live { fill: var(--sim-discharge); }
+    .contact-hit { fill: transparent; cursor: pointer; }
+    .particle { pointer-events: none; }
+    .charge-sign { font-size: 16px; font-weight: 800; dominant-baseline: middle; text-anchor: middle; pointer-events: none; }
+    .lamp-glow { fill: #ffd77a; opacity: 0; }
+    .lamp-core { fill: #fff7d8; stroke: #394150; stroke-width: 4; }
+    .lamp-filament { stroke: #6b7280; stroke-width: 3; fill: none; stroke-linecap: round; }
+    .tau-chip .chip-card { fill: rgba(255, 255, 255, 0.92); stroke: var(--sim-border); stroke-width: 1.5; }
+    .tau-chip .chip-bar { stroke: none; }
+    .tau-chip.live-c .chip-card { stroke: var(--sim-charge); stroke-width: 2.5; }
+    .tau-chip.live-d .chip-card { stroke: var(--sim-discharge); stroke-width: 2.5; }
+    .tau-chip text { font-size: 14px; font-weight: 720; fill: #334155; }
+    .dir-arrow { pointer-events: none; }
+    .node-dot { fill: var(--sim-wire); }
+
+    @media (max-width: 1280px) {
+      .controls { grid-template-columns: auto auto minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr); }
+      .speed { grid-column: 1 / -1; justify-content: flex-start; }
+    }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 920 / 560; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .actions { grid-column: 1 / -1; }
+      .speed { grid-column: 1 / -1; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <!-- AppShell 稳定外壳：保留 data-zone 结构与运行时钩子 -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>RC 电路充放电演示</h1>
+        <p>单刀双掷开关：掷向电源充电，掷向电阻＋小灯泡放电；调 R、C 看时间常数 τ 的变化。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已断开 · 待开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">电路演示</h2>
+          <span>点击上 / 下触点，或拖动拨杆 · 拨动开关即开始计时</span>
+        </div>
+        <svg id="scene" viewBox="0 0 920 560" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">单刀双掷开关电路：上支路为电源 U0，下支路为小灯泡，公共支路为电阻 R 与电容 C 串联。粒子表示电流方向与大小。</desc>
+          <defs>
+            <filter id="lampBlur" x="-120%" y="-120%" width="340%" height="340%">
+              <feGaussianBlur stdDeviation="18"/>
+            </filter>
+          </defs>
+
+          <!-- 上支路（充电回路）：上触点 — 电源 U0 — 右母线 -->
+          <path id="topLeadLeft" class="wire" d="M140 130 V70 H330"/>
+          <line class="symbol" x1="330" y1="44" x2="330" y2="96"/>
+          <line class="symbol" x1="356" y1="54" x2="356" y2="86" stroke-width="6"/>
+          <path id="topLeadRight" class="wire" d="M356 70 H760 V260"/>
+          <text id="u0Lbl" class="lbl" x="343" y="30" text-anchor="middle">电源 U₀ = 6.0 V</text>
+          <text class="sub" x="322" y="116" text-anchor="middle">＋</text>
+          <text class="sub" x="368" y="116" text-anchor="middle">－</text>
+
+          <!-- 下支路（放电回路）：下触点 — 小灯泡 — 右母线 -->
+          <path id="bottomLeadLeft" class="wire" d="M140 390 V450 H423"/>
+          <circle id="lampGlow" class="lamp-glow" cx="455" cy="450" r="40" filter="url(#lampBlur)"/>
+          <circle class="lamp-core" cx="455" cy="450" r="32"/>
+          <path id="lampFilament" class="lamp-filament" d="M437 450 C444 430 450 470 457 450 C464 430 470 470 477 450"/>
+          <path id="bottomLeadRight" class="wire" d="M487 450 H760 V260"/>
+          <text class="lbl" x="455" y="516" text-anchor="middle">小灯泡（R灯 = 2 kΩ）</text>
+
+          <!-- 单刀双掷开关 -->
+          <circle id="contactUp" class="contact" cx="140" cy="130" r="8"/>
+          <circle id="contactDown" class="contact" cx="140" cy="390" r="8"/>
+          <circle id="contactPole" class="contact" cx="205" cy="260" r="7"/>
+          <line id="switchLever" class="switch-lever" x1="205" y1="260" x2="205" y2="260"/>
+          <circle id="switchKnob" class="switch-knob" cx="205" cy="260" r="11"/>
+          <circle id="hitUp" class="contact-hit" cx="140" cy="130" r="24"/>
+          <circle id="hitDown" class="contact-hit" cx="140" cy="390" r="24"/>
+          <text class="sub" x="112" y="122" text-anchor="end">上触点·充电</text>
+          <text class="sub" x="112" y="408" text-anchor="end">下触点·放电</text>
+          <text class="sub" x="205" y="292" text-anchor="middle">公共端</text>
+
+          <!-- 公共支路：电容 C — 电阻 R -->
+          <path id="branchLeft" class="wire" d="M205 260 H305"/>
+          <line class="symbol" x1="305" y1="218" x2="305" y2="302"/>
+          <line class="symbol" x1="319" y1="218" x2="319" y2="302"/>
+          <path id="branchMidA" class="wire" d="M327 260 H405"/>
+          <rect x="405" y="238" width="115" height="44" rx="3" fill="none" stroke="#303a4a" stroke-width="4"/>
+          <path id="branchMidB" class="wire" d="M520 260 H760"/>
+          <text id="cLbl" class="lbl" x="312" y="196" text-anchor="middle">电容 C = 1000 μF</text>
+          <text id="rLbl" class="lbl" x="462" y="196" text-anchor="middle">电阻 R = 3.0 kΩ</text>
+          <line class="symbol" x1="492" y1="210" x2="464" y2="240" stroke-width="3"/>
+          <polygon points="464,240 469,226 478,234" fill="#334155"/>
+          <circle class="node-dot" cx="760" cy="260" r="6"/>
+
+          <!-- 电容极板电荷符号 -->
+          <g id="chargeSigns" opacity="0.25"></g>
+
+          <!-- 电流粒子 -->
+          <g id="particles"></g>
+
+          <!-- 右母线电流方向箭头 -->
+          <g id="dirArrow" class="dir-arrow" opacity="0">
+            <polygon id="arrowHead" points="760,142 750,162 770,162" fill="#0f9fba"/>
+            <rect id="arrowTail" x="755" y="162" width="10" height="26" rx="3" fill="#0f9fba"/>
+            <text id="dirText" class="sub" x="782" y="172" style="font-weight:700">电流方向</text>
+          </g>
+
+          <!-- 时间常数卡片（内侧空白区） -->
+          <g id="tauChipC" class="tau-chip">
+            <rect class="chip-card" x="520" y="308" width="214" height="42" rx="10"/>
+            <rect class="chip-bar" x="520" y="308" width="5" height="42" fill="#0f9fba"/>
+            <text id="tauChipCText" x="536" y="335">τ充 = RC = 3.0 s</text>
+          </g>
+          <g id="tauChipD" class="tau-chip">
+            <rect class="chip-card" x="520" y="360" width="214" height="42" rx="10"/>
+            <rect class="chip-bar" x="520" y="360" width="5" height="42" fill="#d97a06"/>
+            <text id="tauChipDText" x="536" y="387">τ放 = (R＋R灯)C = 5.0 s</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-card" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">U<sub>C</sub> – t 曲线（充放电同图）</h2>
+            <span>虚线为 63.2% / 36.8% τ 参考线</span>
+          </div>
+          <canvas id="chart" role="img" aria-label="电容电压随时间变化的曲线图，充电段为青色上升，放电段为琥珀色下降，灰色为上次运行对比"></canvas>
+        </section>
+
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>电容电压 U<sub>C</sub></small><strong id="ucRead">0.00 V</strong></div>
+            <div class="metric"><small>回路电流 i（充电为＋）</small><strong id="iRead">+0.00 mA</strong></div>
+            <div class="metric tau-c"><small>充电 τ充 = RC</small><strong id="tauCRead">3.00 s</strong></div>
+            <div class="metric tau-d"><small>放电 τ放 = (R＋R灯)C</small><strong id="tauDRead">5.00 s</strong></div>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-labelledby="note-title">
+          <h2 id="note-title">原理说明</h2>
+          <p id="insight" class="insight">把开关掷向「充电」或「放电」开始演示；调整 R、C 观察 τ 的变化。</p>
+          <p class="note-line">教学模型：充电 U<sub>C</sub> = U₀(1−e<sup>−t/τ充</sup>)，放电 U<sub>C</sub> = U₀·e<sup>−t/τ放</sup>；τ充 = RC，τ放 = (R＋R灯)C。约 3τ–5τ 视为充／放电基本完成。</p>
+          <p class="note-line">理想化：忽略电源内阻与导线电阻；灯泡按定值电阻 R灯 = 2 kΩ 处理（真实灯泡电阻随温度变化）；τ 只由 R、C 决定，与 U₀ 无关。重置后保留上次曲线（灰色虚线）便于对比。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button" aria-pressed="false">▶ 开始</button>
+        <button id="pauseBtn" type="button" aria-pressed="false">❚❚ 暂停</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="switch-seg" role="group" aria-label="单刀双掷开关位置">
+        <button id="swCharge" type="button" data-mode="charge" aria-pressed="false">⬆ 充电</button>
+        <button id="swIdle" type="button" data-mode="idle" aria-pressed="true">⏸ 断开</button>
+        <button id="swDischarge" type="button" data-mode="discharge" aria-pressed="false">⬇ 放电</button>
+      </div>
+      <div class="control">
+        <label for="rInput">电阻 R <output id="rOutput">3.0 kΩ</output></label>
+        <input id="rInput" type="range" min="1" max="20" step="0.5" value="3">
+      </div>
+      <div class="control">
+        <label for="cInput">电容 C <output id="cOutput">1000 μF</output></label>
+        <input id="cInput" type="range" min="100" max="3000" step="50" value="1000">
+      </div>
+      <div class="control">
+        <label for="u0Input">电源电压 U₀ <output id="u0Output">6.0 V</output></label>
+        <input id="u0Input" type="range" min="3" max="12" step="0.5" value="6">
+      </div>
+      <div class="speed" role="group" aria-label="演示速度">
+        <span class="speed-label">速度</span>
+        <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+        <button type="button" data-speed="1" aria-pressed="true">1×</button>
+        <button type="button" data-speed="2" aria-pressed="false">2×</button>
+        <button type="button" data-speed="4" aria-pressed="false">4×</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ---------- 物理内核（与 DOM 无关，可被无头检查直接调用） ---------- */
+    const R_LAMP = 2000; // 小灯泡定值电阻（Ω），只在放电回路中
+
+    const KERNEL = {
+      // 精确指数步进：任意步长细分下结果不变（指数结合律）
+      chargeStep: (u, u0, tau, dt) => u0 - (u0 - u) * Math.exp(-dt / tau),
+      dischargeStep: (u, tau, dt) => u * Math.exp(-dt / tau),
+      // 电流符号约定：充电方向为正（经电源流向电容），放电为负
+      current: (u, mode, r, u0) => {
+        if (mode === "charge") return (u0 - u) / r;
+        if (mode === "discharge") return -u / (r + R_LAMP);
+        return 0;
+      }
+    };
+
+    /* ---------- 参数模式（内部单位为 SI） ---------- */
+    const PARAM_SCHEMA = {
+      R:     { min: 1000, max: 20000, step: 500,  def: 3000, fmt: v => (v / 1000).toFixed(1) + " kΩ" },
+      C:     { min: 1e-4, max: 3e-3,  step: 5e-5, def: 1e-3, fmt: v => Math.round(v * 1e6) + " μF" },
+      U0:    { min: 3,    max: 12,    step: 0.5,  def: 6,    fmt: v => v.toFixed(1) + " V" },
+      speed: { min: 0.25, max: 8,    step: 0.25, def: 1,    fmt: v => v + "×" }
+    };
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    function snapParam(v, key) {
+      const s = PARAM_SCHEMA[key];
+      const n = Math.round((v - s.min) / s.step); // 先取整到步长网格，再夹取范围
+      return clamp(s.min + n * s.step, s.min, s.max);
+    }
+
+    /* ---------- 唯一权威状态 ---------- */
+    const state = {
+      running: false, mode: "idle", t: 0, uc: 0,
+      R: PARAM_SCHEMA.R.def, C: PARAM_SCHEMA.C.def, U0: PARAM_SCHEMA.U0.def, speed: 1,
+      lastTs: null, lastSampleT: 0,
+      history: [{ t: 0, uc: 0, i: 0, mode: "idle" }],
+      ghost: null,            // 上次运行的 U_C 曲线（重置时捕获，用于 τ 对比）
+      parts: [],              // 电流粒子 { el, ph }
+      signCount: -1,
+      reduced: false
+    };
+
+    let els = null; // 仅在浏览器 init() 中构建；无头环境保持 null
+
+    const tauC = () => state.R * state.C;
+    const tauD = () => (state.R + R_LAMP) * state.C;
+    const curI = () => KERNEL.current(state.uc, state.mode, state.R, state.U0);
+
+    /* ---------- 粒子路径（正向 = 传统电流方向） ---------- */
+    const CHARGE_PATH = [
+      [356, 70], [330, 70], [140, 70], [140, 130], [205, 260],
+      [305, 260], [319, 260], [405, 260], [520, 260], [760, 260],
+      [760, 70], [356, 70]
+    ];
+    const DISCHARGE_PATH = [
+      [305, 260], [205, 260], [140, 390], [140, 450], [423, 450],
+      [487, 450], [760, 450], [760, 260], [520, 260], [405, 260],
+      [319, 260], [305, 260]
+    ];
+    function buildPath(pts) {
+      const seg = []; let total = 0;
+      for (let k = 1; k < pts.length; k++) {
+        const len = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+        seg.push({ len, start: total }); total += len;
+      }
+      return { pts, seg, total };
+    }
+    const PATHS = { charge: buildPath(CHARGE_PATH), discharge: buildPath(DISCHARGE_PATH) };
+    function pointOnPath(p, dist) {
+      const d = ((dist % p.total) + p.total) % p.total;
+      for (let k = 0; k < p.seg.length; k++) {
+        const s = p.seg[k];
+        if (d <= s.start + s.len) {
+          const u = (d - s.start) / s.len;
+          return [p.pts[k][0] + (p.pts[k + 1][0] - p.pts[k][0]) * u,
+                  p.pts[k][1] + (p.pts[k + 1][1] - p.pts[k][1]) * u];
+        }
+      }
+      return p.pts[p.pts.length - 1];
+    }
+
+    /* ---------- 采样与推进 ---------- */
+    function pushSample(mode) {
+      state.history.push({ t: state.t, uc: state.uc, i: curI(), mode: mode || state.mode });
+      if (state.history.length > 6000) state.history.shift();
+    }
+
+    function advanceParticles(dt) {
+      const i = curI();
+      if (state.mode === "idle" || Math.abs(i) < 1e-9 || state.reduced) return;
+      const path = state.mode === "charge" ? PATHS.charge : PATHS.discharge;
+      const inten = clamp(Math.abs(i) / Math.max(state.U0 / state.R, 1e-12), 0, 1);
+      const pxPerS = 70 + 300 * Math.pow(inten, 0.6);
+      for (const p of state.parts) p.ph = (p.ph + (pxPerS * dt) / path.total + 1) % 1;
+    }
+
+    function advance(dt) {
+      if (!(dt > 0) || !state.running) return;
+      if (state.mode === "charge") state.uc = KERNEL.chargeStep(state.uc, state.U0, tauC(), dt);
+      else if (state.mode === "discharge") state.uc = KERNEL.dischargeStep(state.uc, tauD(), dt);
+      if (state.uc < 1e-6) state.uc = 0; // 放电数值终止阈值（1 μV）
+      state.uc = finite(state.uc, 0);
+      state.t = finite(state.t + dt, 0);
+      if (state.t - state.lastSampleT >= 0.04) { state.lastSampleT = state.t; pushSample(); }
+      advanceParticles(dt);
+    }
+
+    function update(dtReal) {
+      advance(clamp(finite(dtReal, 0), 0, 0.05) * state.speed);
+    }
+
+    /* ---------- 生命周期 ---------- */
+    function applyMode(m) {
+      if (m !== "charge" && m !== "discharge" && m !== "idle") return;
+      if (m === state.mode) return;
+      pushSample(state.mode); // 在切换瞬间用旧模式闭合曲线段（颜色边界精确）
+      state.mode = m;
+      pushSample(m);          // 用新模式开启新段
+    }
+
+    function setMode(m) {
+      applyMode(m);
+      state.running = true;   // 物理动作即“开始”：拨动开关立刻开始/恢复计时
+      render();
+    }
+
+    function start() { state.running = true; render(); }
+    function pause() { state.running = false; render(); }
+
+    function reset() {
+      if (state.history.length > 1) state.ghost = state.history.map(s => ({ t: s.t, uc: s.uc }));
+      state.running = false;
+      state.mode = "idle";
+      state.t = 0; state.uc = 0; state.lastSampleT = 0;
+      state.history = [{ t: 0, uc: 0, i: 0, mode: "idle" }];
+      state.lastTs = null;
+      render();
+    }
+
+    function setParameters(values) {
+      const v = values || {};
+      for (const key of ["R", "C", "U0", "speed"]) {
+        if (v[key] !== undefined) state[key] = snapParam(finite(Number(v[key]), PARAM_SCHEMA[key].def), key);
+      }
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running, mode: state.mode, t: state.t, uc: state.uc,
+        R: state.R, C: state.C, U0: state.U0, speed: state.speed,
+        tauCharge: tauC(), tauDischarge: tauD(),
+        history: state.history.map(s => ({ t: s.t, uc: s.uc, i: s.i, mode: s.mode })),
+        ghost: state.ghost ? state.ghost.length : 0
+      };
+    }
+
+    function getReadouts() {
+      return { t: state.t, uc: state.uc, i: curI(), tauCharge: tauC(), tauDischarge: tauD(), mode: state.mode, running: state.running };
+    }
+
+    /* ---------- 渲染 ---------- */
+    const MODE_CN = { charge: "充电中", discharge: "放电中", idle: "已断开" };
+    const SEG_COLOR = { charge: "#0f9fba", discharge: "#d97a06", idle: "#98a2b3" };
+
+    function insightText() {
+      if (!state.running && state.t === 0) return "把开关掷向「充电」或「放电」开始演示；调整 R、C 观察 τ 的变化。";
+      if (!state.running) return "已暂停：曲线、粒子与读数全部冻结。";
+      if (state.mode === "idle") return "开关断开：i = 0，U_C 保持不变（图上为灰色水平段）。";
+      const r = state.U0 > 0 ? state.uc / state.U0 : 0;
+      if (state.mode === "charge") {
+        if (r < 0.632) return "充电初期：电压差最大 → 电流最大，U_C 上升最快。";
+        if (r < 0.95) return "已越过 63.2%·U₀（约 1 个 τ充）：电流减小，上升变缓。";
+        if (r < 0.993) return "接近充满：电流趋近 0，U_C 缓慢逼近 U₀（约 5τ 充满）。";
+        return "基本充满（>5τ）：i ≈ 0，可掷向「放电」对比。";
+      }
+      if (r > 0.368) return "放电初期：电流反向（读数为负），灯泡最亮，U_C 衰减最快。";
+      if (r > 0.05) return "已低于 36.8%·U₀（约 1 个 τ放）：灯泡变暗，衰减变缓。";
+      return "放电尾声：U_C → 0，灯泡熄灭，电流消失。";
+    }
+
+    function updateCircuit() {
+      const leverTo = { charge: [140, 130], idle: [140, 260], discharge: [140, 390] }[state.mode];
+      els.lever.setAttribute("x2", leverTo[0]);
+      els.lever.setAttribute("y2", leverTo[1]);
+      els.contactUp.classList.toggle("live", state.mode === "charge");
+      els.contactDown.classList.toggle("live", state.mode === "discharge");
+
+      const chargeIds = ["topLeadLeft", "topLeadRight", "branchLeft", "branchMidA", "branchMidB"];
+      const dischargeIds = ["bottomLeadLeft", "bottomLeadRight", "branchLeft", "branchMidA", "branchMidB"];
+      const wires = [els.topLeadLeft, els.topLeadRight, els.bottomLeadLeft, els.bottomLeadRight, els.branchLeft, els.branchMidA, els.branchMidB];
+      for (const w of wires) {
+        w.classList.remove("charge-on", "discharge-on", "dim");
+        if (state.mode === "charge") w.classList.add(chargeIds.includes(w.id) ? "charge-on" : "dim");
+        else if (state.mode === "discharge") w.classList.add(dischargeIds.includes(w.id) ? "discharge-on" : "dim");
+      }
+
+      // 元件标签与 τ 卡片（随参数即时更新）
+      els.u0Lbl.textContent = "电源 U₀ = " + PARAM_SCHEMA.U0.fmt(state.U0);
+      els.rLbl.textContent = "电阻 R = " + PARAM_SCHEMA.R.fmt(state.R);
+      els.cLbl.textContent = "电容 C = " + PARAM_SCHEMA.C.fmt(state.C);
+      els.tauChipCText.textContent = "τ充 = RC = " + tauC().toFixed(1) + " s";
+      els.tauChipDText.textContent = "τ放 = (R＋R灯)C = " + tauD().toFixed(1) + " s";
+      els.tauChipC.classList.toggle("live-c", state.mode === "charge");
+      els.tauChipD.classList.toggle("live-d", state.mode === "discharge");
+
+      // 极板电荷符号：数量与浓度 ∝ U_C / U₀（＋极板为左极板）
+      const ratio = state.U0 > 0 ? clamp(state.uc / state.U0, 0, 1) : 0;
+      const n = Math.round(ratio * 6);
+      if (n !== state.signCount) {
+        state.signCount = n;
+        while (els.chargeSigns.firstChild) els.chargeSigns.removeChild(els.chargeSigns.firstChild);
+        const NS = "http://www.w3.org/2000/svg";
+        const ys = [224, 237, 250, 270, 283, 296];
+        for (let k = 0; k < n; k++) {
+          const plus = document.createElementNS(NS, "text");
+          plus.setAttribute("x", 291); plus.setAttribute("y", ys[k]);
+          plus.setAttribute("class", "charge-sign"); plus.setAttribute("fill", "#dc2626");
+          plus.textContent = "＋";
+          const minus = document.createElementNS(NS, "text");
+          minus.setAttribute("x", 333); minus.setAttribute("y", ys[k]);
+          minus.setAttribute("class", "charge-sign"); minus.setAttribute("fill", "#2563eb");
+          minus.textContent = "－";
+          els.chargeSigns.appendChild(plus); els.chargeSigns.appendChild(minus);
+        }
+      }
+      els.chargeSigns.setAttribute("opacity", ratio > 0 ? String(0.35 + 0.65 * ratio) : "0.22");
+
+      // 灯泡亮度 ∝ 放电电流
+      const i = curI();
+      const inten = state.mode === "discharge" ? clamp(Math.abs(i) / Math.max(state.U0 / (state.R + R_LAMP), 1e-12), 0, 1) : 0;
+      els.lampGlow.setAttribute("opacity", inten > 0 ? String(0.06 + 0.8 * Math.pow(inten, 0.6)) : "0");
+      els.lampGlow.setAttribute("r", String(34 + 26 * inten));
+      els.lampFilament.setAttribute("stroke", inten > 0.05 ? "#d97706" : "#6b7280");
+
+      // 电流方向箭头：充电时右母线电流向上（电源回路），放电时向下（灯泡回路）
+      const showArrow = state.mode !== "idle" && Math.abs(i) > 1e-9;
+      els.dirArrow.setAttribute("opacity", showArrow ? "1" : "0");
+      if (showArrow) {
+        const up = state.mode === "charge";
+        const col = up ? "#0f9fba" : "#d97a06";
+        els.arrowHead.setAttribute("points", up ? "760,142 750,162 770,162" : "760,378 750,358 770,358");
+        els.arrowHead.setAttribute("fill", col);
+        els.arrowTail.setAttribute("x", "755"); els.arrowTail.setAttribute("y", up ? "162" : "332");
+        els.arrowTail.setAttribute("fill", col);
+        els.dirText.setAttribute("x", "782"); els.dirText.setAttribute("y", up ? "172" : "368");
+        els.dirText.setAttribute("fill", up ? "#08758a" : "#8a5200");
+      }
+
+      updateParticles(i);
+    }
+
+    function updateParticles(i) {
+      const active = !state.reduced && state.mode !== "idle" && Math.abs(i) > 2e-9;
+      const inten = clamp(Math.abs(i) / Math.max(state.U0 / state.R, 1e-12), 0, 1);
+      const desired = active ? Math.max(3, Math.round(4 + 16 * inten)) : 0;
+      while (state.parts.length < desired) {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("r", "4.5"); c.setAttribute("class", "particle");
+        els.particles.appendChild(c);
+        state.parts.push({ el: c, ph: Math.random() });
+      }
+      while (state.parts.length > desired) state.parts.pop().el.remove();
+      const path = state.mode === "charge" ? PATHS.charge : PATHS.discharge;
+      const col = state.mode === "charge" ? "#0f9fba" : "#d97a06";
+      for (const p of state.parts) {
+        const pt = pointOnPath(path, p.ph * path.total);
+        p.el.setAttribute("cx", pt[0]); p.el.setAttribute("cy", pt[1]);
+        p.el.setAttribute("fill", col);
+        p.el.setAttribute("opacity", String(0.5 + 0.45 * inten));
+      }
+    }
+
+    function drawChart() {
+      const cv = els.chart;
+      const rect = cv.getBoundingClientRect();
+      const w = Math.max(80, rect.width), h = Math.max(80, rect.height);
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const W = Math.floor(w * dpr), H = Math.floor(h * dpr);
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      const ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const pad = { l: 46, r: 14, t: 30, b: 34 };
+      const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      if (pw < 40 || ph < 40) return;
+
+      const maxT = Math.max(15, state.t);
+      const yMax = Math.max(state.U0, state.uc, 1) * 1.08;
+      const X = t => pad.l + (t / maxT) * pw;
+      const Y = v => pad.t + (1 - v / yMax) * ph;
+      const FONT = '11px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = FONT;
+
+      // 网格与刻度
+      ctx.strokeStyle = "#e8edf4"; ctx.fillStyle = "#7a8798"; ctx.lineWidth = 1;
+      for (let k = 0; k <= 5; k++) {
+        const y = pad.t + ph * k / 5;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        const val = yMax * (1 - k / 5);
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText(val.toFixed(yMax < 10 ? 1 : 0), pad.l - 7, y);
+      }
+      for (let k = 0; k <= 6; k++) {
+        const x = pad.l + pw * k / 6;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        const val = maxT * k / 6;
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(val.toFixed(maxT < 10 ? 1 : 0), x, h - pad.b + 7);
+      }
+      ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h - pad.b); ctx.lineTo(w - pad.r, h - pad.b); ctx.stroke();
+      ctx.fillStyle = "#64748b"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("U_C / V", 6, 4);
+      ctx.textAlign = "right"; ctx.fillText("t / s", w - 4, h - 18);
+
+      // τ 参考线：63.2% / 36.8%
+      const y63 = Y(0.632 * state.U0), y37 = Y(0.368 * state.U0);
+      ctx.save(); ctx.setLineDash([6, 5]); ctx.lineWidth = 1.6;
+      ctx.strokeStyle = "rgba(15, 159, 186, 0.55)";
+      ctx.beginPath(); ctx.moveTo(pad.l, y63); ctx.lineTo(w - pad.r, y63); ctx.stroke();
+      ctx.strokeStyle = "rgba(217, 122, 6, 0.55)";
+      ctx.beginPath(); ctx.moveTo(pad.l, y37); ctx.lineTo(w - pad.r, y37); ctx.stroke();
+      ctx.restore();
+      ctx.font = '11px sans-serif'; ctx.textBaseline = "bottom"; ctx.textAlign = "right";
+      ctx.fillStyle = "#08758a"; ctx.fillText("63.2%（1τ充）", w - pad.r - 4, y63 - 2);
+      ctx.fillStyle = "#8a5200"; ctx.fillText("36.8%（1τ放）", w - pad.r - 4, y37 - 2);
+
+      // 上次运行的对比曲线（灰色虚线，裁剪到当前时间轴）
+      if (state.ghost && state.ghost.length > 1) {
+        ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = "#a8b2c0"; ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        let started = false;
+        for (let k = 0; k < state.ghost.length; k++) {
+          const p = state.ghost[k];
+          if (p.t > maxT) {
+            const q = state.ghost[k - 1];
+            const u = (maxT - q.t) / (p.t - q.t);
+            if (u > 0) { const x = X(maxT), y = Y(q.uc + (p.uc - q.uc) * u); started ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+            break;
+          }
+          const x = X(p.t), y = Y(p.uc);
+          started ? ctx.lineTo(x, y) : ctx.moveTo(x, y); started = true;
+        }
+        ctx.stroke(); ctx.restore();
+      }
+
+      // 本次运行：按采样段的模式着色（左端样本的模式即该段模式）
+      const hist = state.history;
+      ctx.lineWidth = 2.6; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (let k = 1; k < hist.length; k++) {
+        const a = hist[k - 1], b = hist[k];
+        ctx.strokeStyle = SEG_COLOR[a.mode] || SEG_COLOR.idle;
+        ctx.beginPath(); ctx.moveTo(X(a.t), Y(a.uc)); ctx.lineTo(X(b.t), Y(b.uc)); ctx.stroke();
+      }
+      if (hist.length > 0) {
+        ctx.fillStyle = SEG_COLOR[state.mode] || SEG_COLOR.idle;
+        ctx.beginPath(); ctx.arc(X(state.t), Y(state.uc), 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6; ctx.stroke();
+      }
+
+      // 图例
+      ctx.font = FONT; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+      const legend = [["#0f9fba", "充电", false], ["#d97a06", "放电", false], ["#98a2b3", "断开", false], ["#a8b2c0", "上次", true]];
+      let lx = w - pad.r - 4;
+      for (let k = legend.length - 1; k >= 0; k--) {
+        const [col, txt, dashed] = legend[k];
+        const tw = ctx.measureText(txt).width;
+        lx -= tw;
+        ctx.fillStyle = "#5b6779"; ctx.fillText(txt, lx, 14);
+        lx -= 16;
+        ctx.strokeStyle = col; ctx.lineWidth = dashed ? 1.8 : 3;
+        if (dashed) ctx.setLineDash([4, 3]); else ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(lx + 2, 14); ctx.lineTo(lx + 14, 14); ctx.stroke();
+        ctx.setLineDash([]);
+        lx -= 12;
+      }
+    }
+
+    function render() {
+      if (!els) return; // 无头环境：跳过所有 DOM 工作
+      const i = curI();
+      const modeTxt = MODE_CN[state.mode] + (state.running ? " · 运行中" : (state.t > 0 ? " · 已暂停" : " · 待开始"));
+      els.status.textContent = modeTxt;
+      els.status.className = "status " + (state.mode === "idle" ? "" : state.mode);
+
+      els.ucRead.textContent = state.uc.toFixed(2) + " V";
+      els.iRead.textContent = (i >= 0 ? "+" : "") + (i * 1000).toFixed(2) + " mA";
+      els.tauCRead.textContent = tauC().toFixed(2) + " s";
+      els.tauDRead.textContent = tauD().toFixed(2) + " s";
+
+      els.rOutput.textContent = PARAM_SCHEMA.R.fmt(state.R);
+      els.cOutput.textContent = PARAM_SCHEMA.C.fmt(state.C);
+      els.u0Output.textContent = PARAM_SCHEMA.U0.fmt(state.U0);
+      if (Math.abs(+els.rInput.value * 1000 - state.R) > 1) els.rInput.value = String(state.R / 1000);
+      if (Math.abs(+els.cInput.value * 1e-6 - state.C) > 1e-9) els.cInput.value = String(Math.round(state.C * 1e6));
+      if (Math.abs(+els.u0Input.value - state.U0) > 1e-9) els.u0Input.value = String(state.U0);
+
+      els.startBtn.setAttribute("aria-pressed", String(state.running));
+      els.pauseBtn.setAttribute("aria-pressed", String(!state.running && state.t > 0));
+      for (const b of els.switchBtns) {
+        const on = b.dataset.mode === state.mode;
+        b.setAttribute("aria-pressed", String(on));
+        b.classList.toggle("on-charge", on && b.dataset.mode === "charge");
+        b.classList.toggle("on-discharge", on && b.dataset.mode === "discharge");
+        b.classList.toggle("on-idle", on && b.dataset.mode === "idle");
+      }
+      for (const b of els.speedBtns) {
+        const on = +b.dataset.speed === state.speed;
+        b.setAttribute("aria-pressed", String(on));
+        b.classList.toggle("on-speed", on);
+      }
+
+      els.insight.textContent = insightText();
+      updateCircuit();
+      drawChart();
+    }
+
+    /* ---------- 模型检查（纯内核，可在浏览器或无头环境运行） ---------- */
+    function runModelChecks() {
+      const out = [];
+      const add = (name, pass, expected, actual, tol) => out.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tol) });
+      const R = 3000, C = 1e-3, U0 = 6, RL = R_LAMP;
+      const tc = R * C, td = (R + RL) * C;
+
+      // 1. 充电解析解
+      {
+        let u = 0; const dt = 1 / 60, T = 2 * tc;
+        for (let t = 0; t < T - 1e-12; t += dt) u = KERNEL.chargeStep(u, U0, tc, dt);
+        const ex = U0 * (1 - Math.exp(-T / tc));
+        add("充电解析律 u=U₀(1−e^(−t/τ)) @t=2τ", Math.abs(u - ex) <= 1e-9 * U0, ex.toFixed(9) + " V", u.toFixed(9) + " V", "rel≤1e-9");
+      }
+      // 2. 放电解析解
+      {
+        let u = U0; const dt = 1 / 60, T = 3 * td;
+        for (let t = 0; t < T - 1e-12; t += dt) u = KERNEL.dischargeStep(u, td, dt);
+        const ex = U0 * Math.exp(-T / td);
+        add("放电解析律 u=u₀·e^(−t/τ放) @t=3τ", Math.abs(u - ex) <= 1e-9 * U0, ex.toFixed(9) + " V", u.toFixed(9) + " V", "rel≤1e-9");
+      }
+      // 3. 任意步长细分不变性（指数结合律）
+      {
+        const u1 = KERNEL.chargeStep(1.2, U0, tc, 1.7);
+        let u2 = 1.2;
+        for (let k = 0; k < 170; k++) u2 = KERNEL.chargeStep(u2, U0, tc, 0.01);
+        add("步长细分不变性 dt=1.7 vs 170×0.01", Math.abs(u1 - u2) <= 1e-12, u1.toExponential(12), u2.toExponential(12), "|Δ|≤1e-12");
+      }
+      // 4. 1τ 阈值（63.2% / 36.8%）
+      {
+        const uc1 = KERNEL.chargeStep(0, U0, tc, tc);
+        const ud1 = KERNEL.dischargeStep(U0, td, td);
+        add("1τ 阈值：充至 1−e⁻¹，放至 e⁻¹",
+          Math.abs(uc1 / U0 - (1 - Math.E ** -1)) <= 1e-12 && Math.abs(ud1 / U0 - Math.E ** -1) <= 1e-12,
+          "0.6321 / 0.3679", (uc1 / U0).toFixed(6) + " / " + (ud1 / U0).toFixed(6), "abs≤1e-12");
+      }
+      // 5. 5τ 完成度
+      {
+        const uc5 = KERNEL.chargeStep(0, U0, tc, 5 * tc);
+        const ud5 = KERNEL.dischargeStep(U0, td, 5 * td);
+        add("5τ：充电≥99.32%，放电≤0.68%",
+          Math.abs(uc5 / U0 - (1 - Math.E ** -5)) <= 1e-12 && Math.abs(ud5 / U0 - Math.E ** -5) <= 1e-12,
+          "0.99326 / 0.00674", (uc5 / U0).toFixed(5) + " / " + (ud5 / U0).toFixed(5), "abs≤1e-12");
+      }
+      // 6. τ 与 U₀ 无关（归一化曲线重合）
+      {
+        let uA = 0, uB = 0; const dt = 1 / 50, T = 2 * tc;
+        for (let t = 0; t < T - 1e-12; t += dt) { uA = KERNEL.chargeStep(uA, 6, tc, dt); uB = KERNEL.chargeStep(uB, 12, tc, dt); }
+        add("τ 与 U₀ 无关（U₀=6 与 12 归一化重合）", Math.abs(uA / 6 - uB / 12) <= 1e-12, (uA / 6).toFixed(12), (uB / 12).toFixed(12), "|Δ|≤1e-12");
+      }
+      // 7. R 加倍 → τ 加倍（半充时间翻倍）
+      {
+        const halfTime = r => { let u = 0, t = 0; const tau = r * C, dt = 1e-3; while (u < U0 / 2 && t < 1e5) { u = KERNEL.chargeStep(u, U0, tau, dt); t += dt; } return t; };
+        const t1 = halfTime(3000), t2 = halfTime(6000);
+        add("R 加倍 → 半充时间翻倍（t½=τ·ln2）", Math.abs(t2 / t1 - 2) <= 2e-3, "2.000", (t2 / t1).toFixed(5), "abs≤2e-3");
+      }
+      // 8. 电流符号约定与欧姆定律
+      {
+        const ic = KERNEL.current(1, "charge", R, U0);
+        const idis = KERNEL.current(U0, "discharge", R, U0);
+        const i0 = KERNEL.current(3, "idle", R, U0);
+        const ok = Math.abs(ic - (U0 - 1) / R) <= 1e-15 && ic > 0 &&
+                   Math.abs(idis + U0 / (R + RL)) <= 1e-15 && idis < 0 && i0 === 0;
+        add("电流符号：充电＋ / 放电－ / 断开 0，且满足欧姆定律", ok,
+          "+1.667 mA / −1.200 mA / 0", (ic * 1e3).toFixed(3) + " / " + (idis * 1e3).toFixed(3) + " / " + (i0 * 1e3).toFixed(0) + " mA", "精确");
+      }
+      // 9. 退化与边界
+      {
+        const uMin = KERNEL.chargeStep(0, U0, PARAM_SCHEMA.R.min * PARAM_SCHEMA.C.min, 0.5);
+        const uZero = KERNEL.dischargeStep(0, td, 5);
+        const uFull = KERNEL.chargeStep(U0, U0, tc, 5);
+        add("边界：极小 τ 有限、u=0 放电保持 0、u=U₀ 充电保持 U₀",
+          Number.isFinite(uMin) && uZero === 0 && uFull === U0,
+          "finite / 0 / " + U0, uMin.toFixed(4) + " / " + uZero + " / " + uFull, "精确");
+      }
+      // 10. 放电更慢：τ放/τ充 = (R+R灯)/R
+      {
+        const ratio = ((R + RL) * C) / (R * C);
+        add("τ放/τ充 = (R＋R灯)/R = 5/3", Math.abs(ratio - 5 / 3) <= 1e-12, "1.6667", ratio.toFixed(6), "abs≤1e-12");
+      }
+      return out;
+    }
+
+    /* ---------- 浏览器初始化 ---------- */
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      for (const b of els.switchBtns) b.addEventListener("click", () => setMode(b.dataset.mode));
+      els.rInput.addEventListener("input", () => setParameters({ R: +els.rInput.value * 1000 }));
+      els.cInput.addEventListener("input", () => setParameters({ C: +els.cInput.value * 1e-6 }));
+      els.u0Input.addEventListener("input", () => setParameters({ U0: +els.u0Input.value }));
+      for (const b of els.speedBtns) b.addEventListener("click", () => setParameters({ speed: +b.dataset.speed }));
+      els.hitUp.addEventListener("click", () => setMode("charge"));
+      els.hitDown.addEventListener("click", () => setMode("discharge"));
+
+      const svg = els.scene;
+      const svgPoint = evt => {
+        const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+        return pt.matrixTransform(svg.getScreenCTM().inverse());
+      };
+      let dragging = false;
+      const dragMove = evt => {
+        if (!dragging) return;
+        const p = svgPoint(evt);
+        if (p.y < 190) setMode("charge");
+        else if (p.y > 330) setMode("discharge");
+        else setMode("idle");
+      };
+      const dragEnd = () => { dragging = false; };
+      els.knob.addEventListener("pointerdown", e => { dragging = true; els.knob.setPointerCapture(e.pointerId); });
+      els.lever.addEventListener("pointerdown", e => { dragging = true; els.lever.setPointerCapture(e.pointerId); });
+      els.knob.addEventListener("pointermove", dragMove);
+      els.knob.addEventListener("pointerup", dragEnd);
+      els.knob.addEventListener("pointercancel", dragEnd);
+      els.lever.addEventListener("pointermove", dragMove);
+      els.lever.addEventListener("pointerup", dragEnd);
+      els.lever.addEventListener("pointercancel", dragEnd);
+
+      window.addEventListener("resize", render);
+    }
+
+    function init() {
+      els = {
+        status: document.querySelector("#status"),
+        scene: document.querySelector("#scene"),
+        lever: document.querySelector("#switchLever"),
+        knob: document.querySelector("#switchKnob"),
+        contactUp: document.querySelector("#contactUp"),
+        contactDown: document.querySelector("#contactDown"),
+        topLeadLeft: document.querySelector("#topLeadLeft"),
+        topLeadRight: document.querySelector("#topLeadRight"),
+        bottomLeadLeft: document.querySelector("#bottomLeadLeft"),
+        bottomLeadRight: document.querySelector("#bottomLeadRight"),
+        branchLeft: document.querySelector("#branchLeft"),
+        branchMidA: document.querySelector("#branchMidA"),
+        branchMidB: document.querySelector("#branchMidB"),
+        u0Lbl: document.querySelector("#u0Lbl"),
+        rLbl: document.querySelector("#rLbl"),
+        cLbl: document.querySelector("#cLbl"),
+        tauChipC: document.querySelector("#tauChipC"),
+        tauChipD: document.querySelector("#tauChipD"),
+        tauChipCText: document.querySelector("#tauChipCText"),
+        tauChipDText: document.querySelector("#tauChipDText"),
+        chargeSigns: document.querySelector("#chargeSigns"),
+        particles: document.querySelector("#particles"),
+        dirArrow: document.querySelector("#dirArrow"),
+        arrowHead: document.querySelector("#arrowHead"),
+        arrowTail: document.querySelector("#arrowTail"),
+        dirText: document.querySelector("#dirText"),
+        lampGlow: document.querySelector("#lampGlow"),
+        lampFilament: document.querySelector("#lampFilament"),
+        chart: document.querySelector("#chart"),
+        ucRead: document.querySelector("#ucRead"),
+        iRead: document.querySelector("#iRead"),
+        tauCRead: document.querySelector("#tauCRead"),
+        tauDRead: document.querySelector("#tauDRead"),
+        insight: document.querySelector("#insight"),
+        rInput: document.querySelector("#rInput"), rOutput: document.querySelector("#rOutput"),
+        cInput: document.querySelector("#cInput"), cOutput: document.querySelector("#cOutput"),
+        u0Input: document.querySelector("#u0Input"), u0Output: document.querySelector("#u0Output"),
+        startBtn: document.querySelector("#startBtn"),
+        pauseBtn: document.querySelector("#pauseBtn"),
+        resetBtn: document.querySelector("#resetBtn"),
+        switchBtns: [...document.querySelectorAll(".switch-seg button")],
+        speedBtns: [...document.querySelectorAll(".speed button")],
+        hitUp: document.querySelector("#hitUp"),
+        hitDown: document.querySelector("#hitDown")
+      };
+      state.reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      bindControls();
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, setMode, runModelChecks };
+
+    if (typeof document !== "undefined" && document.querySelector) init();
+  })();
+  </script>
+</body>
+</html>

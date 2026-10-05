@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>圆周运动的脱离与抛出方向 · 交互仿真</title>
+<style>
+  :root{
+    --bg:#0e1420; --panel:#161f31; --panel2:#1c2740; --line:#2a3a5c;
+    --txt:#dbe6f5; --dim:#8fa3c4; --acc:#4da3ff; --ok:#3ddc97; --warn:#ff6b6b; --gold:#ffc857;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:14px}
+  header{max-width:1340px;margin:0 auto 10px}
+  header h1{font-size:20px;letter-spacing:1px}
+  header p{font-size:12.5px;color:var(--dim);margin-top:3px}
+  .tabs{display:flex;gap:8px;max-width:1340px;margin:0 auto 10px}
+  .tabs button{flex:1;padding:9px 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+    color:var(--dim);font-size:14px;cursor:pointer;transition:.15s}
+  .tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}
+  .wrap{max-width:1340px;margin:0 auto;display:grid;grid-template-columns:320px 1fr;gap:12px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .side{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .card h3{font-size:13.5px;color:var(--acc);margin-bottom:8px;letter-spacing:.5px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0;font-size:13px}
+  .row label{width:96px;color:var(--dim);flex-shrink:0}
+  .row input[type=range]{flex:1;accent-color:var(--acc)}
+  .row .val{width:74px;text-align:right;font-family:ui-monospace,Menlo,monospace;color:var(--gold)}
+  .btn{width:100%;padding:9px;border:none;border-radius:8px;background:var(--warn);color:#fff;
+    font-size:14.5px;font-weight:600;cursor:pointer;margin-top:6px}
+  .btn:hover{filter:brightness(1.15)}
+  .btn:disabled{background:#3a4560;color:#7c8aa5;cursor:not-allowed}
+  .readout{font-size:12.5px;line-height:1.85;background:var(--panel2);border-radius:8px;padding:9px 11px;
+    font-family:ui-monospace,Menlo,monospace}
+  .readout b{color:var(--gold);font-weight:600}
+  .bars .bar{margin:7px 0}
+  .bars .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:3px}
+  .bars .track{height:14px;background:#0b111d;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .bars .fill{height:100%;border-radius:7px;transition:width .12s linear}
+  .teach{font-size:12.5px;line-height:1.8;color:var(--dim)}
+  .teach li{margin-left:16px;margin-bottom:3px}
+  .teach b{color:var(--ok)}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px}
+  canvas{width:100%;border-radius:8px;background:#0a0f19;display:block}
+  .ctrls{display:flex;gap:10px}
+  .ctrls button{flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);
+    color:var(--txt);font-size:14px;cursor:pointer}
+  .ctrls button:hover{border-color:var(--acc)}
+  .hide{display:none!important}
+  #status2{font-size:13px;margin-top:7px;padding:6px 9px;border-radius:6px;background:var(--panel2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎡 圆周运动中物体的脱离与抛出方向</h1>
+  <p>向心力由实际受力提供（绳张力 / 静摩擦）；脱离后物体沿速度方向（切线）做匀速直线运动。</p>
+</header>
+
+<div class="tabs">
+  <button id="tab1" class="on">模式一 · 断绳</button>
+  <button id="tab2">模式二 · 摩擦转盘</button>
+  <button id="tab3">附属 · 砂轮火星</button>
+</div>
+
+<div class="wrap">
+  <div class="side">
+
+    <!-- 模式一面板 -->
+    <div class="card" id="panel1">
+      <h3>模式一 · 光滑桌面 + 轻绳</h3>
+      <div class="row"><label>角速度 ω</label><input type="range" id="s1w" min="1" max="6" step="0.1" value="5"><span class="val" id="v1w">5.0 rad/s</span></div>
+      <div class="row"><label>半径 r</label><input type="range" id="s1r" min="0.1" max="0.5" step="0.01" value="0.4"><span class="val" id="v1r">0.40 m</span></div>
+      <button class="btn" id="btnCut">✂ 剪断绳子</button>
+      <div class="readout" id="ro1"></div>
+    </div>
+
+    <!-- 模式二面板 -->
+    <div class="card hide" id="panel2">
+      <h3>模式二 · 摩擦转盘（m = 0.2 kg）</h3>
+      <div class="row"><label>角速度 ω</label><input type="range" id="s2w" min="0" max="6" step="0.05" value="2"><span class="val" id="v2w">2.00 rad/s</span></div>
+      <div class="row"><label>摩擦系数 μ</label><input type="range" id="s2m" min="0.1" max="1" step="0.01" value="0.5"><span class="val" id="v2m">0.50</span></div>
+      <div class="bars">
+        <div class="bar"><div class="cap"><span>所需向心力 mω²r</span><span id="bNeedT"></span></div>
+          <div class="track"><div class="fill" id="bNeed" style="background:var(--acc)"></div></div></div>
+        <div class="bar"><div class="cap"><span>最大静摩擦 μmg</span><span id="bMaxT"></span></div>
+          <div class="track"><div class="fill" id="bMax" style="background:var(--ok)"></div></div></div>
+      </div>
+      <div id="status2"></div>
+    </div>
+
+    <!-- 模式三面板 -->
+    <div class="card hide" id="panel3">
+      <h3>附属演示 · 砂轮边缘的火星</h3>
+      <p class="teach">高速砂轮边缘磨下的炽热微粒，脱离砂轮后<b>沿切线方向</b>（即该点速度方向）飞出，而不是沿半径飞出——与断绳实验同理。</p>
+      <div class="readout" id="ro3"></div>
+    </div>
+
+    <div class="card">
+      <h3>📌 教学要点</h3>
+      <ul class="teach">
+        <li>向心力不是新的力，由<b>实际受力</b>提供：绳的张力、静摩擦力等。</li>
+        <li>剪断绳 / 摩擦不足后，向心力消失，物体<b>沿切线（速度方向）飞出</b>，做匀速直线运动。</li>
+        <li>"沿半径飞出"是常见误解：半径方向并无速度分量。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv" width="940" height="600"></canvas>
+    <div class="ctrls">
+      <button id="btnPlay">⏸ 暂停</button>
+      <button id="btnReset">⟳ 重置</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const W = 940, H = 600, CX = 470, CY = 300, PPM = 400;   // 逻辑尺寸与像素/米
+const G = 10;
+
+let mode = 1, playing = true, slowmo = 0;                  // slowmo: 剩余慢放秒数（真实时间）
+
+/* ---------- 通用绘图工具 ---------- */
+function arrow(x1,y1,x2,y2,color,w=2,label){
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy); if(L<4) return;
+  const ux=dx/L, uy=dy/L, hs=8;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=w;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2-ux*hs,y2-uy*hs); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-ux*hs-uy*hs*0.5, y2-uy*hs+ux*hs*0.5);
+  ctx.lineTo(x2-ux*hs+uy*hs*0.5, y2-uy*hs-ux*hs*0.5);
+  ctx.closePath(); ctx.fill();
+  if(label){ ctx.font="12px ui-monospace,Menlo"; ctx.fillText(label, x2+ux*10-14, y2+uy*10-6); }
+}
+function label(txt,x,y,color="#8fa3c4",size=12,align="left"){
+  ctx.font=size+"px 'PingFang SC',system-ui"; ctx.fillStyle=color; ctx.textAlign=align; ctx.fillText(txt,x,y); ctx.textAlign="left";
+}
+function badge(txt){ // 左上角慢放标记
+  ctx.fillStyle="#ffc857"; ctx.globalAlpha=.92; ctx.beginPath(); ctx.roundRect(14,14,86,30,8); ctx.fill(); ctx.globalAlpha=1;
+  label("🐢 "+txt,57,34,"#1a1408",14,"center");
+}
+
+/* ---------- 模式一：断绳 ---------- */
+const M1 = { w:5, r:0.4, cut:false, ang:-Math.PI/2, pos:{x:0,y:0}, vel:{x:0,y:0},
+             cutPos:null, trail:[], vecs:[], lastV:null, dist:0 };
+function m1Reset(){ Object.assign(M1,{cut:false,ang:-Math.PI/2,trail:[],vecs:[],dist:0,cutPos:null}); document.getElementById('btnCut').disabled=false; }
+function m1Cut(){
+  if(M1.cut) return;
+  M1.cut=true; M1.cutPos={...M1.pos}; M1.trail=[{...M1.pos}]; M1.dist=0;
+  slowmo=1.6; document.getElementById('btnCut').disabled=true;
+}
+function m1Update(dt){
+  const r=M1.r;
+  if(!M1.cut){
+    M1.ang += M1.w*dt;
+    M1.pos = {x:r*Math.cos(M1.ang), y:r*Math.sin(M1.ang)};
+    M1.vel = {x:-M1.w*r*Math.sin(M1.ang), y:M1.w*r*Math.cos(M1.ang)};
+  }else{
+    M1.pos.x+=M1.vel.x*dt; M1.pos.y+=M1.vel.y*dt;
+    M1.trail.push({...M1.pos});
+    M1.dist += Math.hypot(M1.vel.x,M1.vel.y)*dt;
+    if(M1.dist>0.11){ M1.dist=0; M1.vecs.push({p:{...M1.pos}, v:{...M1.vel}}); }
+  }
+}
+function m1Draw(){
+  const px=CX+M1.pos.x*PPM, py=CY+M1.pos.y*PPM;
+  // 桌面
+  ctx.fillStyle="#131c2e"; ctx.beginPath(); ctx.roundRect(30,40,W-60,H-80,26); ctx.fill();
+  ctx.strokeStyle="#2a3a5c"; ctx.lineWidth=2; ctx.stroke();
+  label("光滑水平桌面（俯视）",52,H-42);
+  // 轨道虚线圆
+  ctx.setLineDash([5,6]); ctx.strokeStyle="#33456b"; ctx.beginPath();
+  ctx.arc(CX,CY,M1.r*PPM,0,7); ctx.stroke(); ctx.setLineDash([]);
+  // 中心立柱
+  ctx.fillStyle="#5b6c8f"; ctx.beginPath(); ctx.arc(CX,CY,11,0,7); ctx.fill();
+  ctx.strokeStyle="#0a0f19"; ctx.lineWidth=2; ctx.stroke();
+  label("立柱",CX,CY+30,"#8fa3c4",11,"center");
+  if(!M1.cut){
+    // 绳 + 张力
+    ctx.strokeStyle="#d9e4f5"; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(px,py); ctx.stroke();
+    const rx=-Math.cos(M1.ang), ry=-Math.sin(M1.ang);
+    arrow(px+rx*14,py+ry*14,px+rx*58,py+ry*58,"#ff9f43",2,"T");
+    label("T = mω²r（提供向心力）",px+rx*70+6,py+ry*70,"#ff9f43");
+  }else{
+    const c={x:CX+M1.cutPos.x*PPM, y:CY+M1.cutPos.y*PPM};
+    // 错误轨迹：沿半径虚线
+    let ux=(M1.cutPos.x)/M1.r, uy=(M1.cutPos.y)/M1.r;
+    ctx.setLineDash([9,8]); ctx.strokeStyle="#ff6b6b"; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.x+ux*2.6*PPM, c.y+uy*2.6*PPM); ctx.stroke();
+    label("✗ 误解：沿半径（飞出方向）飞出", c.x+ux*2.6*PPM-8, c.y+uy*2.6*PPM+16,"#ff6b6b",13,"right");
+    // 真实轨迹：沿切线
+    const sp=Math.hypot(M1.vel.x,M1.vel.y); ux=M1.vel.x/sp; uy=M1.vel.y/sp;
+    ctx.setLineDash([]); ctx.strokeStyle="rgba(61,220,151,.35)"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(c.x+ux*2.6*PPM, c.y+uy*2.6*PPM); ctx.stroke();
+    label("✓ 真实：沿切线（速度方向）匀速直线运动", c.x+ux*2.6*PPM-8, c.y+uy*2.6*PPM-12,"#3ddc97",13,"right");
+    // 实际拖尾
+    ctx.strokeStyle="#3ddc97"; ctx.lineWidth=2;
+    ctx.beginPath(); M1.trail.forEach((p,i)=> i?ctx.lineTo(CX+p.x*PPM,CY+p.y*PPM):ctx.moveTo(CX+p.x*PPM,CY+p.y*PPM)); ctx.stroke();
+    // 逐帧叠加的速度矢量（大小、方向都不变！）
+    M1.vecs.forEach(o=>{
+      const ox=CX+o.p.x*PPM, oy=CY+o.p.y*PPM, L=Math.hypot(o.v.x,o.v.y)*0.055*PPM;
+      const n=Math.hypot(o.v.x,o.v.y);
+      arrow(ox,oy,ox+o.v.x/n*L,oy+o.v.y/n*L,"#ffc857",1.6);
+    });
+    label("金色箭头：逐帧叠加的速度矢量（大小方向均不变）",52,64,"#ffc857",12.5);
+  }
+  // 小球 + 当前速度矢量
+  ctx.fillStyle="#4da3ff"; ctx.beginPath(); ctx.arc(px,py,9,0,7); ctx.fill();
+  ctx.strokeStyle="#0a0f19"; ctx.lineWidth=2; ctx.stroke();
+  const sp=Math.hypot(M1.vel.x,M1.vel.y);
+  if(sp>0.01) arrow(px,py,px+M1.vel.x/sp*sp*0.055*PPM, py+M1.vel.y/sp*sp*0.055*PPM, "#ffc857",2.5,"v");
+}
+
+/* ---------- 模式二：摩擦转盘 ---------- */
+const M2 = { w:2, mu:0.5, m:0.2, R:0.5, r0:0.4, ang:-Math.PI/2, tableA:0,
+             sliding:false, slideT:0, fell:false, pos:{x:0,y:0}, vel:{x:0,y:0}, vrelLen:0 };
+function m2Reset(){ Object.assign(M2,{ang:-Math.PI/2,tableA:0,sliding:false,slideT:0,fell:false,vrelLen:0});
+  M2.pos={x:M2.r0*Math.cos(M2.ang),y:M2.r0*Math.sin(M2.ang)}; M2.vel={x:0,y:0}; }
+function m2Need(){ return M2.m*M2.w*M2.w*M2.r0; }
+function m2Max(){ return M2.mu*M2.m*G; }
+function m2Update(dt){
+  M2.tableA += M2.w*dt;
+  if(!M2.sliding){
+    if(M2.w>0.001) M2.ang += M2.w*dt;
+    M2.pos={x:M2.r0*Math.cos(M2.ang), y:M2.r0*Math.sin(M2.ang)};
+    if(m2Need() > m2Max()+1e-9){          // 超过临界 → 开始滑动
+      M2.sliding=true; M2.slideT=0; slowmo=1.6;
+      M2.vel={x:-M2.w*M2.r0*Math.sin(M2.ang), y:M2.w*M2.r0*Math.cos(M2.ang)};
+    }
+  }else if(!M2.fell){
+    M2.slideT+=dt;
+    // 转盘该点速度 ω×r，摩擦力沿相对速度反方向
+    const vtx=-M2.w*M2.pos.y, vty=M2.w*M2.pos.x;
+    const rvx=M2.vel.x-vtx, rvy=M2.vel.y-vty, rl=Math.hypot(rvx,rvy);
+    M2.vrelLen=rl;
+    if(rl>1e-4){ const f=M2.mu*G; M2.vel.x-=f*rvx/rl*dt; M2.vel.y-=f*rvy/rl*dt; }
+    M2.pos.x+=M2.vel.x*dt; M2.pos.y+=M2.vel.y*dt;
+    if(Math.hypot(M2.pos.x,M2.pos.y)>=M2.R){ M2.fell=true; }
+  }
+}
+function m2Draw(){
+  const RP=M2.R*PPM;
+  // 转盘
+  ctx.fillStyle="#1a2438"; ctx.beginPath(); ctx.arc(CX,CY,RP,0,7); ctx.fill();
+  ctx.strokeStyle="#4da3ff"; ctx.lineWidth=3; ctx.stroke();
+  // 旋转辐条（体现转盘在转）
+  ctx.strokeStyle="#33456b"; ctx.lineWidth=2;
+  for(let i=0;i<8;i++){ const a=M2.tableA+i*Math.PI/4;
+    ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(CX+RP*0.92*Math.cos(a),CY+RP*0.92*Math.sin(a)); ctx.stroke(); }
+  ctx.fillStyle="#5b6c8f"; ctx.beginPath(); ctx.arc(CX,CY,8,0,7); ctx.fill();
+  label("电动转盘  R = 0.5 m",CX,H-30,"#8fa3c4",13,"center");
+  const px=CX+M2.pos.x*PPM, py=CY+M2.pos.y*PPM;
+  // r 半径标注
+  ctx.setLineDash([4,5]); ctx.strokeStyle="#33456b"; ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(px,py); ctx.stroke(); ctx.setLineDash([]);
+  label("r = "+M2.r0.toFixed(2)+" m",(CX+px)/2+6,(CY+py)/2-6);
+  // 摩擦力箭头
+  if(!M2.sliding){
+    if(M2.w>0.001){
+      const rl=Math.hypot(M2.pos.x,M2.pos.y), ux=-M2.pos.x/rl, uy=-M2.pos.y/rl;
+      arrow(px+ux*12,py+uy*12,px+ux*62,py+uy*62,"#3ddc97",2.5,"f");
+      label("静摩擦 f = mω²r（指向圆心）",px+ux*76,py+uy*76,"#3ddc97");
+    }
+  }else if(!M2.fell){
+    const vpx=-M2.pos.y, vpy=M2.pos.x, rl=Math.hypot(M2.pos.x,M2.pos.y);
+    const vtx=-M2.w*M2.pos.y, vty=M2.w*M2.pos.x;
+    let rvx=M2.vel.x-vtx, rvy=M2.vel.y-vty, L=Math.hypot(rvx,rvy);
+    if(L>1e-3){ rvx/=L; rvy/=L;
+      arrow(px,py,px-rvx*55,py-rvy*55,"#ff9f43",2.5,"f");
+      label("滑动摩擦（阻碍相对滑动）",px-rvx*70,py-rvy*70,"#ff9f43",12);
+    }
+    // 速度矢量
+    const s=Math.hypot(M2.vel.x,M2.vel.y);
+    if(s>0.02){ arrow(px,py,px+M2.vel.x/s*55,py+M2.vel.y/s*55,"#ffc857",2,"v"); }
+    label("物块沿螺旋线向外滑动…",CX,60,"#ff9f43",14,"center");
+  }else{
+    label("⚠ 物块已滑出转盘边缘！",CX,60,"#ff6b6b",15,"center");
+  }
+  // 物块
+  ctx.fillStyle="#ffc857"; ctx.beginPath(); ctx.roundRect(px-10,py-10,20,20,4); ctx.fill();
+  ctx.strokeStyle="#0a0f19"; ctx.lineWidth=2; ctx.stroke();
+  label("m = 0.2 kg",px,py-16,"#ffc857",11,"center");
+}
+
+/* ---------- 模式三：砂轮火星 ---------- */
+const M3 = { a:0, w:7, parts:[], contact:-0.55, R:120 };
+function m3Reset(){ M3.parts=[]; }
+function m3Update(dt){
+  M3.a += M3.w*dt;
+  // 接触点在砂轮右下缘
+  const cxp=CX+M3.R*Math.cos(M3.contact), cyp=CY+M3.R*Math.sin(M3.contact);
+  for(let i=0;i<4;i++){
+    const tangA=M3.contact+Math.PI/2;                     // 逆时针转 → 该点速度沿 +π/2 切向
+    const sp=(0.75+Math.random()*0.45)*M3.w*M3.R;
+    const ja=tangA+(Math.random()-0.5)*0.7;
+    M3.parts.push({x:cxp,y:cyp,vx:sp*Math.cos(ja),vy:sp*Math.sin(ja),
+                   life:0.7+Math.random()*0.7,t:0});
+  }
+  M3.parts.forEach(p=>{ p.t+=dt; p.vy+=420*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; });
+  M3.parts=M3.parts.filter(p=>p.t<p.life);
+}
+function m3Draw(){
+  // 砂轮
+  ctx.fillStyle="#3a4560"; ctx.beginPath(); ctx.arc(CX,CY,M3.R,0,7); ctx.fill();
+  ctx.strokeStyle="#8fa3c4"; ctx.lineWidth=3; ctx.stroke();
+  ctx.strokeStyle="#5b6c8f"; ctx.lineWidth=2;
+  for(let i=0;i<12;i++){ const a=M3.a+i*Math.PI/6;
+    ctx.beginPath(); ctx.moveTo(CX+(M3.R-24)*Math.cos(a),CY+(M3.R-24)*Math.sin(a));
+    ctx.lineTo(CX+M3.R*Math.cos(a),CY+M3.R*Math.sin(a)); ctx.stroke(); }
+  ctx.fillStyle="#1a2438"; ctx.beginPath(); ctx.arc(CX,CY,20,0,7); ctx.fill();
+  // 工件
+  const cxp=CX+(M3.R+34)*Math.cos(M3.contact), cyp=CY+(M3.R+34)*Math.sin(M3.contact);
+  ctx.save(); ctx.translate(cxp,cyp); ctx.rotate(M3.contact);
+  ctx.fillStyle="#5b6c8f"; ctx.beginPath(); ctx.roundRect(-14,-30,28,60,5); ctx.fill();
+  ctx.restore(); label("工件",cxp,cyp+52,"#8fa3c4",12,"center");
+  // 火星（短线段，沿速度方向）
+  M3.parts.forEach(p=>{
+    const a=Math.max(0,1-p.t/p.life), sp=Math.hypot(p.vx,p.vy);
+    if(sp<1) return;
+    ctx.strokeStyle=`rgba(${255},${Math.floor(120+110*a)},${Math.floor(40*a)},${a})`;
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y);
+    ctx.lineTo(p.x-p.vx/sp*Math.min(14,sp*0.03), p.y-p.vy/sp*Math.min(14,sp*0.03)); ctx.stroke();
+  });
+  // 切线方向说明
+  const tx=CX+M3.R*Math.cos(M3.contact), ty=CY+M3.R*Math.sin(M3.contact);
+  const tangA=M3.contact+Math.PI/2;
+  arrow(tx,ty,tx+95*Math.cos(tangA),ty+95*Math.sin(tangA),"#3ddc97",2.5);
+  label("火星沿切线方向飞出",tx+100*Math.cos(tangA)+6,ty+100*Math.sin(tangA),"#3ddc97",13);
+  label("砂轮边缘微粒脱离后沿速度方向（切线）飞出",52,H-30,"#8fa3c4",13);
+}
+
+/* ---------- 面板刷新 ---------- */
+const $=id=>document.getElementById(id);
+function refreshPanel(){
+  if(mode===1){
+    const v=M1.w*M1.r, ac=M1.w*M1.w*M1.r;
+    $('ro1').innerHTML =
+      `线速度 v = ωr = <b>${v.toFixed(2)} m/s</b><br>`+
+      `向心加速度 ω²r = <b>${ac.toFixed(2)} m/s²</b><br>`+
+      `状态：<b>${M1.cut?'已剪断 → 匀速直线运动':'匀速圆周运动'}</b>`;
+  }else if(mode===2){
+    const need=m2Need(), max=m2Max(), wc=Math.sqrt(M2.mu*G/M2.r0);
+    const s=Math.max(need,max)*1.15;
+    $('bNeed').style.width=Math.min(100,need/s*100)+'%';
+    $('bMax').style.width=Math.min(100,max/s*100)+'%';
+    $('bNeedT').textContent=need.toFixed(2)+' N'; $('bMaxT').textContent=max.toFixed(2)+' N';
+    let msg, col;
+    if(!M2.sliding){
+      if(need<=max){ msg=`✅ 静摩擦足够，物块随转盘匀速转动<br>临界角速度 ω<sub>c</sub> = √(μg/r) = <b style="color:var(--gold)">${wc.toFixed(2)} rad/s</b>`; col='var(--ok)'; }
+    }else if(!M2.fell){ msg='⚠ 所需向心力超过最大静摩擦，物块正在滑动！'; col='var(--warn)'; }
+    else{ msg='⚠ 物块已滑出转盘边缘！'; col='var(--warn)'; }
+    $('status2').innerHTML=`<span style="color:${col}">${msg}</span>`;
+  }else{
+    $('ro3').innerHTML=`火星微粒脱离瞬间速度方向 = 接触点切线方向<br>与断绳实验同理：沿<b>速度方向</b>做匀速直线运动`;
+  }
+}
+
+/* ---------- 主循环 ---------- */
+let lastT=performance.now();
+function loop(now){
+  let rdt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  let ts=1;
+  if(slowmo>0){ slowmo-=rdt; ts = slowmo>0.5 ? 0.10 : 0.10+(1-slowmo/0.5)*0.90; }
+  const dt = playing ? rdt*ts : 0;
+
+  if(mode===1) m1Update(dt); else if(mode===2) m2Update(dt); else m3Update(dt);
+
+  ctx.clearRect(0,0,W,H);
+  if(mode===1) m1Draw(); else if(mode===2) m2Draw(); else m3Draw();
+  if(ts<0.95 && playing) badge("慢 放");
+  refreshPanel();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 事件绑定 ---------- */
+function switchMode(m){
+  mode=m;
+  [1,2,3].forEach(i=>{ $('tab'+i).classList.toggle('on',i===m); $('panel'+i).classList.toggle('hide',i!==m); });
+}
+$('tab1').onclick=()=>switchMode(1);
+$('tab2').onclick=()=>{ if(mode!==2) m2Reset(); switchMode(2); };
+$('tab3').onclick=()=>switchMode(3);
+
+$('s1w').oninput=e=>{ M1.w=+e.target.value; $('v1w').textContent=M1.w.toFixed(1)+' rad/s'; if(M1.cut)m1Reset(); };
+$('s1r').oninput=e=>{ M1.r=+e.target.value; $('v1r').textContent=M1.r.toFixed(2)+' m'; m1Reset(); };
+$('btnCut').onclick=m1Cut;
+
+$('s2w').oninput=e=>{ M2.w=+e.target.value; $('v2w').textContent=M2.w.toFixed(2)+' rad/s'; };
+$('s2m').oninput=e=>{ M2.mu=+e.target.value; $('v2m').textContent=M2.mu.toFixed(2); };
+
+$('btnPlay').onclick=()=>{ playing=!playing; $('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放'; };
+$('btnReset').onclick=()=>{ if(mode===1)m1Reset(); else if(mode===2)m2Reset(); else m3Reset(); };
+
+m1Reset(); m2Reset(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

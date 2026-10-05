@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>一维碰撞交互仿真 · 动量守恒与动能</title>
+<style>
+  :root{
+    --bg:#eef2f7; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --m1:#f59e0b; --m2:#3b82f6; --ok:#059669; --bad:#dc2626; --accent:#10b981;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:18px 24px 4px}
+  h1{margin:0;font-size:22px}
+  header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .layout{display:flex;gap:16px;padding:12px 24px;align-items:flex-start;flex-wrap:wrap}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .controls{padding:14px 16px;width:270px;flex:0 0 auto}
+  .controls h2{margin:0 0 10px;font-size:15px}
+  .ctl{margin-bottom:12px}
+  .ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--ink);margin-bottom:4px}
+  .ctl .val{font-variant-numeric:tabular-nums;color:var(--muted)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .btns{display:flex;gap:8px;margin-top:6px}
+  button{flex:1;padding:8px 0;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;cursor:pointer}
+  button.secondary{background:#475569}
+  button:hover{filter:brightness(1.08)}
+  .opts{margin-top:10px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+  .stage{flex:1 1 620px;min-width:320px;padding:12px}
+  canvas{width:100%;height:320px;display:block;border-radius:8px;background:#dbe7f3}
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;padding:0 24px 8px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .panel h3{margin:0 0 8px;font-size:14px}
+  .kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;font-variant-numeric:tabular-nums}
+  .kv b{font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{padding:5px 4px;text-align:right;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  .good{color:var(--ok);font-weight:600}
+  .bad{color:var(--bad);font-weight:600}
+  .teach{margin:8px 24px 24px;padding:14px 18px}
+  .teach h2{margin:0 0 8px;font-size:16px}
+  .teach li{margin:6px 0;font-size:13.5px;line-height:1.7}
+  code{background:#f1f5f9;padding:1px 6px;border-radius:5px;font-size:12.5px}
+  .chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>一维碰撞交互仿真</h1>
+  <p>光滑水平轨道 · <span class="chip" style="background:var(--m1)"></span>m₁ 从左向右运动，与 <span class="chip" style="background:var(--m2)"></span>m₂ 碰撞（v₂ 可为负，即 m₂ 向左运动）。调整参数，观察动量与动能的守恒与损失。</p>
+</header>
+
+<div class="layout">
+  <!-- 控制面板 -->
+  <aside class="controls card">
+    <h2>参数设置</h2>
+    <div class="ctl"><label>质量 m₁ <span class="val" id="vm1">2.0 kg</span></label>
+      <input type="range" id="sm1" min="0.1" max="10" step="0.1" value="2"></div>
+    <div class="ctl"><label>质量 m₂ <span class="val" id="vm2">4.0 kg</span></label>
+      <input type="range" id="sm2" min="0.1" max="10" step="0.1" value="4"></div>
+    <div class="ctl"><label>初速度 v₁ <span class="val" id="vv1">6.0 m/s</span></label>
+      <input type="range" id="sv1" min="-10" max="10" step="0.1" value="6"></div>
+    <div class="ctl"><label>初速度 v₂ <span class="val" id="vv2">0.0 m/s</span></label>
+      <input type="range" id="sv2" min="-10" max="10" step="0.1" value="0"></div>
+    <div class="ctl"><label>恢复系数 e <span class="val" id="ve">1.00（弹性）</span></label>
+      <input type="range" id="se" min="0" max="1" step="0.01" value="1">
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">e = 1 弹性 · e = 0 完全非弹性（碰后共速）</div></div>
+
+    <div class="btns">
+      <button id="playBtn">▶ 播放</button>
+      <button id="resetBtn" class="secondary">↺ 重置</button>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="autoSlow" checked> 碰撞时刻自动慢放 2 秒（×0.15）</label>
+      <label style="display:flex;justify-content:space-between">播放速度
+        <input type="range" id="speed" min="0.25" max="2" step="0.05" value="1" style="width:120px"></label>
+      <span style="font-size:11px">快捷键：空格 = 播放/暂停，R = 重置</span>
+    </div>
+  </aside>
+
+  <!-- 画布 -->
+  <main class="stage card">
+    <canvas id="cv"></canvas>
+  </main>
+</div>
+
+<!-- 数据面板 -->
+<div class="panels">
+  <div class="panel">
+    <h3>实时数据</h3>
+    <div class="kv"><span>v₁（当前）</span><b id="rv1">—</b></div>
+    <div class="kv"><span>v₂（当前）</span><b id="rv2">—</b></div>
+    <div class="kv"><span>总动量 p = m₁v₁+m₂v₂</span><b id="pNow">—</b></div>
+    <div class="kv"><span>总动能 KE</span><b id="keNow">—</b></div>
+    <div class="kv"><span>状态</span><b id="status">待碰撞</b></div>
+  </div>
+
+  <div class="panel">
+    <h3>碰撞记录（前 / 后对比）</h3>
+    <table>
+      <tr><th>物理量</th><th>碰前</th><th>碰后</th><th>变化</th></tr>
+      <tr><td>v₁ (m/s)</td><td id="bv1">—</td><td id="av1">—</td><td id="dv1">—</td></tr>
+      <tr><td>v₂ (m/s)</td><td id="bv2">—</td><td id="av2">—</td><td id="dv2">—</td></tr>
+      <tr><td>p (kg·m/s)</td><td id="bp">—</td><td id="ap">—</td><td id="dp">—</td></tr>
+      <tr><td>KE (J)</td><td id="bke">—</td><td id="ake">—</td><td id="dke">—</td></tr>
+    </table>
+    <div class="kv" style="margin-top:6px"><span>动量</span><b id="momV" class="good">—</b></div>
+    <div class="kv"><span>动能</span><b id="keV">—</b></div>
+  </div>
+
+  <div class="panel">
+    <h3>理论预测（按当前滑块值）</h3>
+    <div class="kv"><span>碰后 v₁′</span><b id="tv1">—</b></div>
+    <div class="kv"><span>碰后 v₂′</span><b id="tv2">—</b></div>
+    <div class="kv"><span>动能损失 ΔKE</span><b id="tdke">—</b></div>
+    <div class="kv"><span>损失比例</span><b id="tdpct">—</b></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6">
+      v₁′ = [(m₁−e·m₂)v₁ + (1+e)m₂v₂] / (m₁+m₂)<br>
+      ΔKE = ½·(m₁m₂/(m₁+m₂))·(1−e²)·(v₁−v₂)²
+    </div>
+  </div>
+</div>
+
+<!-- 教学要点 -->
+<section class="teach card">
+  <h2>教学要点</h2>
+  <ol>
+    <li><b>动量守恒恒成立</b>：光滑轨道水平方向无外力，无论 e 取何值，碰前与碰后总有 p = m₁v₁ + m₂v₂ 相等。</li>
+    <li><b>动能只在弹性碰撞（e = 1）时守恒</b>：e &lt; 1 时动能部分转化为内能/形变能，损失 ΔKE = ½·(m₁m₂/(m₁+m₂))·(1−e²)·(v₁−v₂)²。</li>
+    <li><b>完全非弹性碰撞（e = 0）动能损失最大</b>：碰后两球共速（黏合模型），此时 (1−e²) 取最大，ΔKE 达到峰值——但动量依然守恒。</li>
+    <li><b>速度交换特例</b>：e = 1 且 m₁ = m₂ 时，两球速度互换（v₁′ = v₂，v₂′ = v₁）。</li>
+  </ol>
+</section>
+
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0;
+
+function fitCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', fitCanvas);
+
+/* ---------- 状态 ---------- */
+const S = {
+  m1:2, m2:4, v1:6, v2:0, e:1,          // 滑块参数
+  x1:8, x2:13, w1:6, w2:0,              // 位置(m)与当前速度
+  playing:false, collided:false,
+  pre:null, post:null, contactX:0,
+  simT:0, flashT:-99, slowUntil:0,
+  userSpeed:1, autoSlow:true
+};
+const rad = m => 0.55*Math.cbrt(m);     // 球半径（米），随质量增大
+
+function reset(){
+  S.x1 = 8; S.x2 = 13;
+  S.w1 = S.v1; S.w2 = S.v2;
+  S.collided = false; S.pre = null; S.post = null;
+  S.simT = 0; S.flashT = -99; S.slowUntil = 0;
+}
+
+/* ---------- 物理 ---------- */
+function step(dt){
+  S.x1 += S.w1*dt; S.x2 += S.w2*dt;
+  if(!S.collided){
+    const rr = rad(S.m1) + rad(S.m2);
+    if(S.x2 - S.x1 <= rr){
+      const mid = (S.x1 + S.x2)/2;
+      S.x1 = mid - rr/2; S.x2 = mid + rr/2;      // 精确贴合，避免穿透
+      S.contactX = mid;
+      const m1=S.m1, m2=S.m2, e=S.e, u1=S.w1, u2=S.w2, M=m1+m2;
+      S.pre = {p:m1*u1+m2*u2, ke:.5*m1*u1*u1+.5*m2*u2*u2, v1:u1, v2:u2};
+      const n1 = ((m1-e*m2)*u1 + (1+e)*m2*u2)/M;
+      const n2 = ((m2-e*m1)*u2 + (1+e)*m1*u1)/M;
+      S.w1 = n1; S.w2 = n2;
+      S.post = {p:m1*n1+m2*n2, ke:.5*m1*n1*n1+.5*m2*n2*n2, v1:n1, v2:n2};
+      S.collided = true; S.flashT = S.simT;
+      if(S.autoSlow) S.slowUntil = performance.now() + 2000;   // 碰撞慢放 2 秒
+    }
+  }
+}
+function predict(){
+  const m1=S.m1,m2=S.m2,e=S.e,u1=S.v1,u2=S.v2,M=m1+m2;
+  return {
+    v1:((m1-e*m2)*u1+(1+e)*m2*u2)/M,
+    v2:((m2-e*m1)*u2+(1+e)*m1*u1)/M,
+    dke:.5*(m1*m2/M)*(1-e*e)*(u1-u2)**2
+  };
+}
+
+/* ---------- 绘制 ---------- */
+function arrow(x0,y0,x1,y1,color){
+  const dx=x1-x0, len=Math.hypot(dx,y1-y0); if(len<1) return;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y0); ctx.stroke();
+  const s=Math.sign(dx)||1, h=8;
+  ctx.beginPath(); ctx.moveTo(x1,y0); ctx.lineTo(x1-s*h,y0-h*.6); ctx.lineTo(x1-s*h,y0+h*.6); ctx.closePath(); ctx.fill();
+}
+function line(x0,y0,x1,y1,c,w){ctx.strokeStyle=c;ctx.lineWidth=w||1;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();}
+
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#f2f7fc'); g.addColorStop(1,'#d8e5f2');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  const PPM = W/26;                          // 每米像素
+  const camX = (S.x1+S.x2)/2 - 13;           // 相机跟随两球中点
+  const X = x => (x-camX)*PPM;
+  const trackY = H*0.74;
+
+  // 刻度
+  for(let m=Math.floor(camX); m<=Math.ceil(camX+26); m++){
+    const px = X(m), major = m%5===0;
+    line(px,trackY,px,trackY+(major?12:6), major?'#94a3b8':'#cbd5e1', major?1.5:1);
+    if(major){ctx.fillStyle='#64748b';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText(m+' m',px,trackY+26);}
+  }
+  line(0,trackY,W,trackY,'#334155',3);       // 轨道
+
+  // 碰撞闪光
+  const ft = S.simT - S.flashT;
+  if(ft>=0 && ft<0.7){
+    const a = 1-ft/0.7, cx = X(S.contactX);
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+    ctx.setLineDash([5,4]); line(cx,trackY-70,cx,trackY+6,'#ef4444',2); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(cx,trackY-14,10+ft*90,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#ef4444'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('碰撞！', cx, trackY-90);
+    ctx.restore();
+  }
+
+  drawBall(X(S.x1), trackY, rad(S.m1)*PPM, '#f59e0b', '1', S.w1, 'v₁');
+  drawBall(X(S.x2), trackY, rad(S.m2)*PPM, '#3b82f6', '2', S.w2, 'v₂');
+
+  // 状态角标
+  ctx.textAlign='left'; ctx.font='12px sans-serif'; ctx.fillStyle='#334155';
+  let st = '状态：';
+  if(!S.collided) st += (S.w1<=S.w2+1e-9 ? 'v₁ ≤ v₂，两球不会相撞' : '待碰撞');
+  else st += '已碰撞';
+  ctx.fillText(st, 12, 20);
+  if(S.simT>0){ctx.fillStyle='#64748b';ctx.fillText('仿真时间 '+S.simT.toFixed(2)+' s', 12, 38);}
+
+  // 慢放徽标
+  if(now < S.slowUntil){
+    ctx.save(); ctx.fillStyle='rgba(15,23,42,.75)';
+    const t='⏱ 慢放 ×0.15'; ctx.font='bold 13px sans-serif';
+    const w=ctx.measureText(t).width+20;
+    ctx.beginPath(); ctx.roundRect(W-w-10,10,w,26,13); ctx.fill();
+    ctx.fillStyle='#fde68a'; ctx.textAlign='center'; ctx.fillText(t, W-10-w/2, 27);
+    ctx.restore();
+  }
+}
+function drawBall(px, trackY, r, color, num, v, vName){
+  const py = trackY - r - 2;
+  const glow = (S.simT - S.flashT < 0.5);
+  ctx.save();
+  if(glow){ctx.shadowColor=color; ctx.shadowBlur=25;}       // 碰撞高亮
+  const rg = ctx.createRadialGradient(px-r*.35,py-r*.4,r*.15,px,py,r);
+  rg.addColorStop(0,'#ffffff'); rg.addColorStop(.25,color); rg.addColorStop(1,shade(color));
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle='rgba(15,23,42,.35)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='#0f172a'; ctx.font='bold '+Math.max(11,r*.5)+'px sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(num, px, py+1);
+  ctx.textBaseline='alphabetic';
+
+  // 速度矢量
+  if(Math.abs(v) > 0.05){
+    const len = Math.max(-90, Math.min(90, v*9));
+    arrow(px, py-r-30, px+len, py-r-30, color);
+    ctx.fillStyle=color; ctx.font='bold 12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(vName+' = '+v.toFixed(1)+' m/s', px + (Math.abs(len)>40?0:Math.sign(len)*0), py-r-42);
+  }
+  // 质量标注（轨道下方）
+  ctx.fillStyle='#334155'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('m'+num+' = '+S['m'+num].toFixed(1)+' kg', px, trackY+42);
+}
+function shade(hex){
+  const n=parseInt(hex.slice(1),16), f=.62;
+  return 'rgb('+((n>>16&255)*f|0)+','+((n>>8&255)*f|0)+','+((n&255)*f|0)+')';
+}
+
+/* ---------- 数据面板 ---------- */
+const fmt=(n,d=2)=>(Math.abs(n)<1e-9?0:n).toFixed(d);
+function updateStats(){
+  $('rv1').textContent = fmt(S.w1)+' m/s';
+  $('rv2').textContent = fmt(S.w2)+' m/s';
+  $('pNow').textContent = fmt(S.m1*S.w1+S.m2*S.w2)+' kg·m/s';
+  $('keNow').textContent = fmt(.5*S.m1*S.w1**2+.5*S.m2*S.w2**2)+' J';
+  $('status').textContent = !S.collided ? (S.w1<=S.w2+1e-9?'不会相撞':'待碰撞')
+                              : (performance.now()<S.slowUntil?'碰撞！慢放中':'碰后');
+
+  if(S.pre && S.post){
+    $('bv1').textContent=fmt(S.pre.v1); $('av1').textContent=fmt(S.post.v1); $('dv1').textContent=fmt(S.post.v1-S.pre.v1);
+    $('bv2').textContent=fmt(S.pre.v2); $('av2').textContent=fmt(S.post.v2); $('dv2').textContent=fmt(S.post.v2-S.pre.v2);
+    $('bp').textContent=fmt(S.pre.p);   $('ap').textContent=fmt(S.post.p);   $('dp').textContent=fmt(S.post.p-S.pre.p);
+    $('bke').textContent=fmt(S.pre.ke); $('ake').textContent=fmt(S.post.ke); $('dke').textContent=fmt(S.post.ke-S.pre.ke);
+    const dp=S.post.p-S.pre.p;
+    $('momV').textContent = Math.abs(dp)<1e-6*Math.max(1,Math.abs(S.pre.p)) ? '✓ 守恒（无外力）' : '✗ '+fmt(dp);
+    $('momV').className = 'good';
+    const dke=S.post.ke-S.pre.ke, pct=S.pre.ke>1e-9?dke/S.pre.ke*100:0;
+    if(S.e>=0.999){ $('keV').textContent='✓ 守恒（弹性碰撞）'; $('keV').className='good'; }
+    else{ $('keV').textContent='✗ 损失 '+fmt(-dke,2)+' J（'+fmt(-pct,1)+'%）'+(S.e<0.005?' ← 最大损失':''); $('keV').className='bad'; }
+  }else{
+    ['bv1','av1','dv1','bv2','av2','dv2','bp','ap','dp','bke','ake','dke'].forEach(i=>$(i).textContent='—');
+    $('momV').textContent='—'; $('momV').className=''; $('keV').textContent='—'; $('keV').className='';
+  }
+  const P=predict(), ke0=.5*S.m1*S.v1**2+.5*S.m2*S.v2**2;
+  $('tv1').textContent=fmt(P.v1)+' m/s'; $('tv2').textContent=fmt(P.v2)+' m/s';
+  $('tdke').textContent=fmt(P.dke)+' J';
+  $('tdpct').textContent=ke0>1e-9?fmt(P.dke/ke0*100,1)+'%':'—';
+}
+
+/* ---------- 控件 ---------- */
+function bindSlider(id, lbl, key, isV){
+  $(id).addEventListener('input', ev=>{
+    const v=parseFloat(ev.target.value); S[key]=v;
+    $(lbl).textContent = key==='e' ? v.toFixed(2)+(v>=0.999?'（弹性）':v<=0.001?'（完全非弹性）':'') : v.toFixed(1)+(key[0]==='m'?' kg':' m/s');
+    if(isV && !S.collided) S['w'+key[1]] = v;   // 碰前可实时改速度
+    if(key==='e' && !S.collided){/* e 在碰撞时才使用 */}
+  });
+}
+bindSlider('sm1','vm1','m1'); bindSlider('sm2','vm2','m2');
+bindSlider('sv1','vv1','v1',true); bindSlider('sv2','vv2','v2',true);
+bindSlider('se','ve','e');
+
+$('playBtn').addEventListener('click', togglePlay);
+$('resetBtn').addEventListener('click', ()=>{reset(); setPlay(false);});
+$('autoSlow').addEventListener('change', e=>S.autoSlow=e.target.checked);
+$('speed').addEventListener('input', e=>S.userSpeed=parseFloat(e.target.value));
+function setPlay(p){S.playing=p; $('playBtn').textContent = p?'⏸ 暂停':'▶ 播放';}
+function togglePlay(){setPlay(!S.playing);}
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space'){e.preventDefault(); togglePlay();}
+  if(e.key==='r'||e.key==='R'){reset(); setPlay(false);}
+});
+
+/* ---------- 主循环 ---------- */
+let last = performance.now();
+function frame(now){
+  const dtReal = Math.min((now-last)/1000, 0.05); last = now;
+  if(S.playing){
+    const slow = (now < S.slowUntil) ? 0.15 : 1;       // 碰撞后 2 秒慢放
+    const dt = dtReal * slow * S.userSpeed;
+    step(dt); S.simT += dt;
+  }
+  draw(now); updateStats();
+  requestAnimationFrame(frame);
+}
+fitCanvas(); reset(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

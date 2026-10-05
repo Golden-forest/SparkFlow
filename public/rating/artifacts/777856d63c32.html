@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单光子双缝干涉 · 交互演示</title>
+<style>
+:root{
+  --bg:#0b0f17; --panel:rgba(17,24,39,.8); --line:#243149; --txt:#dbe6f5;
+  --dim:#8fa3c0; --accent:#5ec8ff; --accent2:#ffb45e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1100px 600px at 15% -10%, #15213c 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, #0f2330 0%, transparent 55%),
+    var(--bg);
+  color:var(--txt);
+  font:14px/1.6 "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  min-height:100vh; padding:16px;
+}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+header h1{font-size:20px;margin:0;letter-spacing:1px}
+header p{margin:3px 0 0;color:var(--dim);font-size:13px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:stretch}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px}
+.panel h2{font-size:13px;margin:2px 4px 8px;color:var(--accent);font-weight:600;letter-spacing:2px}
+canvas{display:block;width:100%;border-radius:10px}
+#apparatus,#screenView{height:520px;background:#05070d}
+.ctrl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 18px}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+.ctl label b{color:var(--txt);font-weight:600}
+.ctl input[type=range]{width:100%;accent-color:var(--accent)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-left:6px;border:1px solid #ffffff30}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+button{
+  background:#1b2740;color:var(--txt);border:1px solid var(--line);
+  padding:7px 16px;border-radius:9px;font-size:13px;cursor:pointer;transition:.15s;
+}
+button:hover{background:#24345a;border-color:#3b5586}
+button.primary{background:linear-gradient(135deg,#1c6ea8,#2f9fd8);border-color:#3fa9e0}
+button.primary:hover{filter:brightness(1.15)}
+.chk{font-size:13px;color:var(--dim);display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--accent)}
+.stats{margin-top:8px;font-size:13px;color:var(--dim)}
+.stats b{color:var(--accent2);font-weight:600}
+.hint{margin:4px 0 0;font-size:12px;color:#5f7292}
+@media (max-width:980px){.grid{grid-template-columns:1fr}#apparatus,#screenView{height:440px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>单光子双缝干涉 · Single-Photon Double-Slit Experiment</h1>
+    <p>光子一颗一颗发射，随机穿过某条缝；落点看似杂乱，累积后干涉条纹逐渐浮现 —— 概率由波的强度分布 |ψ|² 决定。</p>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <div class="panel">
+        <h2>实验装置（俯视示意）</h2>
+        <canvas id="apparatus"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2>参数控制</h2>
+        <div class="ctrl-grid">
+          <div class="ctl">
+            <label>波长 λ <span><b id="vLam">550</b> nm<span class="swatch" id="sw"></span></span></label>
+            <input type="range" id="lam" min="400" max="700" step="2" value="550">
+          </div>
+          <div class="ctl">
+            <label>缝宽 a <span><b id="vA">20</b> μm</span></label>
+            <input type="range" id="slitA" min="5" max="60" step="1" value="20">
+          </div>
+          <div class="ctl">
+            <label>缝间距 d <span><b id="vD">100</b> μm</span></label>
+            <input type="range" id="slitD" min="20" max="300" step="2" value="100">
+          </div>
+          <div class="ctl">
+            <label>发射速率 <span><b id="vR">28</b> 颗/秒</span></label>
+            <input type="range" id="rate" min="0" max="100" step="1" value="48">
+          </div>
+        </div>
+        <div class="btns">
+          <button id="btnRun" class="primary">▶ 开始发射</button>
+          <button id="btnOne">发射一颗</button>
+          <button id="btnClear">清空屏幕</button>
+          <label class="chk"><input type="checkbox" id="chkWave" checked>波动视图（波前）</label>
+          <label class="chk"><input type="checkbox" id="chkTheory" checked>理论强度曲线</label>
+        </div>
+        <div class="stats">
+          已探测光子 N = <b id="stN">0</b> ｜ 条纹间距 Δy = λL/d ≈ <b id="stDy">5.50</b> mm ｜ 中央包络半宽 λL/a ≈ <b id="stEnv">27.5</b> mm
+        </div>
+        <p class="hint">提示：调节 λ / a / d 会清空累积重新开始；空格键 = 开始 / 暂停。装置图为示意，缝尺寸未按真实比例。</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>屏幕 · 光子累积 &amp; 干涉强度</h2>
+      <canvas id="screenView"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================= 物理 ================= */
+const PHYS = { L: 1.0, H: 45e-3 };          // 屏距 1 m，屏半高 45 mm
+let lam = 550e-9, slitA = 20e-6, slitD = 100e-6;
+
+function I(y){                               // Fraunhofer 双缝强度，y 单位米
+  const b = Math.PI * slitA * y / (lam * PHYS.L);
+  const al = Math.PI * slitD * y / (lam * PHYS.L);
+  const s = b === 0 ? 1 : Math.sin(b) / b;
+  return Math.cos(al) ** 2 * s * s;
+}
+/* 逆变换采样表（按 I(y) 抽取落点） */
+const SAMP_N = 1600;
+const cdf = new Float64Array(SAMP_N + 1);
+function rebuildCDF(){
+  const dy = 2 * PHYS.H / SAMP_N;
+  let acc = 0;
+  for (let i = 0; i < SAMP_N; i++){
+    const y = -PHYS.H + i * dy;
+    acc += (I(y) + I(y + dy)) * 0.5;
+    cdf[i + 1] = acc;
+  }
+}
+function sampleY(){
+  const u = Math.random() * cdf[SAMP_N];
+  let lo = 0, hi = SAMP_N;
+  while (hi - lo > 1){ const m = (lo + hi) >> 1; if (cdf[m] < u) lo = m; else hi = m; }
+  const t = (u - cdf[lo]) / ((cdf[lo + 1] - cdf[lo]) || 1);
+  return -PHYS.H + (lo + t) * (2 * PHYS.H / SAMP_N);
+}
+function wl2rgb(nm){
+  let r=0,g=0,b=0;
+  if(nm<440){r=-(nm-440)/60;b=1;}
+  else if(nm<490){g=(nm-440)/50;b=1;}
+  else if(nm<510){g=1;b=-(nm-510)/20;}
+  else if(nm<580){r=(nm-510)/70;g=1;}
+  else if(nm<645){r=1;g=-(nm-645)/65;}
+  else r=1;
+  let f=1;
+  if(nm<420)f=.35+.65*(nm-400)/20; else if(nm>690)f=.35+.65*(700-nm)/10;
+  const q=v=>Math.round(255*Math.pow(Math.min(1,Math.max(0,v))*f,0.8));
+  return [q(r),q(g),q(b)];
+}
+let color = wl2rgb(550), colStr = 'rgb(120,220,120)';
+
+/* ================= 画布 ================= */
+const appC = document.getElementById('apparatus');
+const scrC = document.getElementById('screenView');
+function bind(c){
+  const ctx = c.getContext('2d');
+  const fit = () => {
+    const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    c.width = Math.max(1, Math.round(r.width * dpr));
+    c.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  fit(); new ResizeObserver(fit).observe(c);
+  return ctx;
+}
+const actx = bind(appC), sctx = bind(scrC);
+
+/* 累积光点离屏画布（归一化坐标，抗窗口缩放） */
+const accC = document.createElement('canvas'); accC.width = 64; accC.height = 460;
+const accX = accC.getContext('2d');
+
+/* ================= 状态 ================= */
+let running = false, rate = 28, acc = 0, totalN = 0;
+const photons = [], flashes = [], sflash = [];
+const NB = 150;
+const counts = new Float32Array(NB);
+const TRAVEL = 0.75;   // 单颗光子飞行时间（秒）
+
+/* ================= 几何 ================= */
+function mainGeom(){
+  const w = appC.clientWidth, h = appC.clientHeight, cy = h / 2;
+  const sx = 66, ex = w - 86, bx = sx + (ex - sx) * 0.30;
+  const ppm = (h - 70) / (2 * PHYS.H / 1e-3);           // 像素/毫米
+  return {
+    w, h, cy, sx, ex, bx, ppm,
+    slitOff: 18 + (slitD * 1e6 - 20) / 280 * 102,        // 示意（非比例）
+    slitGap: 9 + (slitA * 1e6 - 5) / 55 * 11,
+    y2p: ymm => cy - ymm * ppm
+  };
+}
+
+/* ================= 光子 ================= */
+function spawn(){
+  const g = mainGeom();
+  const ym = sampleY();                                   // 米
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const slitY = g.cy + side * g.slitOff + (Math.random() - 0.5) * g.slitGap * 0.5;
+  const pts = [[g.sx + 22, g.cy], [g.bx, slitY], [g.ex - 4, g.y2p(ym / 1e-3)]];
+  const lens = [];
+  let total = 0;
+  for (let i = 0; i < pts.length - 1; i++){
+    const l = Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]);
+    lens.push(l); total += l;
+  }
+  photons.push({ pts, lens, total, ym, t: 0, ph: Math.random() * 6.28 });
+}
+function posAt(p){
+  const d = p.total * p.t;
+  for (let i = 0; i < p.pts.length - 1; i++){
+    if (d <= p.lens[i] || i === p.pts.length - 2){
+      const f = Math.min(1, d / (p.lens[i] || 1));
+      return [p.pts[i][0] + (p.pts[i+1][0]-p.pts[i][0]) * f,
+              p.pts[i][1] + (p.pts[i+1][1]-p.pts[i][1]) * f];
+    }
+  }
+  return p.pts[p.pts.length - 1];
+}
+function land(p){
+  totalN++;
+  const v = (PHYS.H - p.ym) / (2 * PHYS.H);               // 0 顶部
+  const bi = Math.min(NB - 1, Math.max(0, Math.floor((p.ym + PHYS.H) / (2 * PHYS.H) * NB)));
+  counts[bi]++;
+  const [r, g2, b] = color;
+  const x = 10 + Math.random() * 44, y = v * 460;
+  accX.globalCompositeOperation = 'lighter';
+  accX.fillStyle = `rgba(${r},${g2},${b},0.10)`;
+  accX.beginPath(); accX.arc(x, y, 3.2, 0, 6.29); accX.fill();
+  accX.fillStyle = `rgba(${r},${g2},${b},0.85)`;
+  accX.beginPath(); accX.arc(x, y, 1.1, 0, 6.29); accX.fill();
+  flashes.push({ x: p.pts[2][0], y: p.pts[2][1], age: 0 });
+  sflash.push({ v, age: 0 });
+}
+
+/* ================= 主循环 ================= */
+let lastT = performance.now(), statTick = 0;
+function frame(now){
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  if (running){
+    acc += rate * dt;
+    while (acc >= 1){ acc--; if (photons.length < 400) spawn(); }
+  }
+  for (let i = photons.length - 1; i >= 0; i--){
+    photons[i].t += dt / TRAVEL;
+    if (photons[i].t >= 1){ land(photons[i]); photons.splice(i, 1); }
+  }
+  for (let i = flashes.length - 1; i >= 0; i--){ flashes[i].age += dt; if (flashes[i].age > .4) flashes.splice(i,1); }
+  for (let i = sflash.length - 1; i >= 0; i--){ sflash[i].age += dt; if (sflash[i].age > .4) sflash.splice(i,1); }
+
+  drawMain(now / 1000);
+  drawScreen();
+  statTick += dt;
+  if (statTick > 0.15){ statTick = 0; updateStats(); }
+  requestAnimationFrame(frame);
+}
+
+/* ================= 主视图绘制 ================= */
+function drawMain(t){
+  const g = mainGeom(), ctx = actx, w = g.w, h = g.h;
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#080c16'); bg.addColorStop(1, '#04060c');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+  // 光轴
+  ctx.strokeStyle = 'rgba(120,150,200,.16)'; ctx.setLineDash([4,7]);
+  ctx.beginPath(); ctx.moveTo(g.sx + 22, g.cy); ctx.lineTo(g.ex - 8, g.cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 波动视图：双缝发出的圆形波前
+  if (chkWave.checked){
+    const sp = (g.ex - g.bx) / 1.5, maxR = g.ex - g.bx + 60, n = 9;
+    ctx.save(); ctx.beginPath(); ctx.rect(g.bx + 3, 0, w - g.bx - 3, h); ctx.clip();
+    ctx.lineWidth = 1.2;
+    for (const s of [-1, 1]){
+      const cyy = g.cy + s * g.slitOff;
+      for (let k = 0; k < n; k++){
+        const r = ((t * sp) + k * (maxR / n)) % maxR;
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.15 * (1 - r / maxR) + 0.02).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(g.bx, cyy, r, 0, 6.29); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 衍射包络虚线 + 条纹刻度
+  if (chkTheory.checked){
+    const yEnv = lam * PHYS.L / slitA / 1e-3;             // mm
+    ctx.strokeStyle = 'rgba(180,200,230,.22)'; ctx.setLineDash([5,6]); ctx.lineWidth = 1;
+    for (const s of [-1, 1]){
+      ctx.beginPath(); ctx.moveTo(g.bx + 4, g.cy); ctx.lineTo(g.ex - 5, g.y2p(s * yEnv)); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    const dyF = lam * PHYS.L / slitD / 1e-3;
+    ctx.strokeStyle = 'rgba(127,227,255,.5)';
+    for (let k = -12; k <= 12; k++){
+      const y = k * dyF; if (Math.abs(y) > PHYS.H / 1e-3) continue;
+      const py = g.y2p(y);
+      ctx.beginPath(); ctx.moveTo(g.ex - 6, py); ctx.lineTo(g.ex - 1, py); ctx.stroke();
+    }
+    // 屏左侧理论强度曲线
+    const amp = 68, shimmer = 0.75 + 0.25 * Math.sin(t * 2.2);
+    ctx.beginPath();
+    for (let i = 0; i <= 150; i++){
+      const ym = -PHYS.H + i * (2 * PHYS.H / 150);
+      const x = g.ex - 12 - I(ym) * amp, yy = g.y2p(ym / 1e-3);
+      i ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy);
+    }
+    ctx.strokeStyle = `rgba(94,200,255,${(0.85 * shimmer).toFixed(2)})`; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.lineTo(g.ex - 12, g.y2p(-PHYS.H / 1e-3)); ctx.lineTo(g.ex - 12, g.y2p(PHYS.H / 1e-3)); ctx.closePath();
+    ctx.fillStyle = `rgba(94,200,255,${(0.10 * shimmer).toFixed(2)})`; ctx.fill();
+    ctx.fillStyle = 'rgba(94,200,255,.65)'; ctx.font = '11px sans-serif';
+    ctx.fillText('理论强度 I(y)', g.ex - 12 - amp, g.y2p(PHYS.H / 1e-3) - 6);
+    ctx.fillStyle = 'rgba(180,200,230,.4)';
+    ctx.fillText('衍射包络', g.bx + 14, g.y2p(yEnv) - 5);
+  }
+
+  // 光源
+  const devW = 44, devH = 54;
+  ctx.fillStyle = '#1a2436'; ctx.strokeStyle = '#33456a'; ctx.lineWidth = 1.5;
+  roundRect(ctx, g.sx - devW, g.cy - devH / 2, devW, devH, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#0d1524'; ctx.fillRect(g.sx - 12, g.cy - 8, 12, 16);
+  if (running){
+    const pl = 0.5 + 0.5 * Math.sin(t * 6);
+    const rg = ctx.createRadialGradient(g.sx, g.cy, 0, g.sx, g.cy, 22 + pl * 8);
+    rg.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},.55)`);
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(g.sx, g.cy, 30 + pl * 8, 0, 6.29); ctx.fill();
+  }
+  ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+  ctx.beginPath(); ctx.arc(g.sx, g.cy, 3.5, 0, 6.29); ctx.fill();
+  ctx.fillStyle = '#9db4d6'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('单光子源', g.sx - devW / 2, g.cy + devH / 2 + 16);
+
+  // 双缝挡板
+  const bx = g.bx, half = g.slitGap / 2;
+  ctx.fillStyle = '#2b3a52'; ctx.strokeStyle = '#465d85'; ctx.lineWidth = 1;
+  for (const s of [-1, 1]){
+    const cyS = g.cy + s * g.slitOff;
+    ctx.fillRect(bx - 5, cyS - half, 10, half * 2);
+    ctx.strokeRect(bx - 5, cyS - half, 10, half * 2);
+  }
+  const topGap = g.cy - g.slitOff + half, botGap = g.cy + g.slitOff - half;
+  ctx.fillRect(bx - 5, 12, 10, topGap - 12); ctx.strokeRect(bx - 5, 12, 10, topGap - 12);
+  ctx.fillRect(bx - 5, botGap, 10, h - 24 - (botGap - 12)); ctx.strokeRect(bx - 5, botGap, 10, h - 24 - (botGap - 12));
+  ctx.strokeStyle = 'rgba(160,190,230,.35)'; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.arc(bx, g.cy, Math.max(46, g.slitOff + 26), 0, 6.29); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#9db4d6'; ctx.textAlign = 'center';
+  ctx.fillText('双缝（示意放大）', bx, h - 20);
+
+  // 屏幕
+  ctx.fillStyle = 'rgba(200,220,255,.10)'; ctx.fillRect(g.ex - 4, 12, 9, h - 24);
+  ctx.strokeStyle = 'rgba(200,220,255,.4)'; ctx.strokeRect(g.ex - 4, 12, 9, h - 24);
+  ctx.fillStyle = '#9db4d6';
+  ctx.save(); ctx.translate(g.ex + 22, g.cy); ctx.rotate(Math.PI / 2);
+  ctx.fillText('屏幕（探测面）', 0, 0); ctx.restore();
+
+  // 飞行中的光子（彗尾 + 闪烁）
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const p of photons){
+    const tw = 0.8 + 0.4 * Math.sin(t * 12 + p.ph);
+    for (let k = 5; k >= 0; k--){
+      const pt = posAt({ ...p, t: Math.max(0, p.t - k * 0.02) });
+      const a = (1 - k / 6) * 0.5, rr = (1 - k / 7) * 2.6 * tw;
+      const rg = ctx.createRadialGradient(pt[0], pt[1], 0, pt[0], pt[1], rr * 3);
+      rg.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},${a})`);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(pt[0], pt[1], rr * 3, 0, 6.29); ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // 落点闪光
+  for (const f of flashes){
+    const k = f.age / 0.4;
+    ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${(1 - k) * 0.8})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(f.x + 1, f.y, 2 + k * 12, 0, 6.29); ctx.stroke();
+  }
+
+  // 信息框
+  ctx.textAlign = 'left'; ctx.font = '12px monospace';
+  const info = [
+    `λ = ${(lam*1e9).toFixed(0)} nm    a = ${(slitA*1e6).toFixed(0)} μm    d = ${(slitD*1e6).toFixed(0)} μm`,
+    `L = 1.00 m    Δy = λL/d = ${(lam*PHYS.L/slitD*1e3).toFixed(2)} mm    N = ${totalN}`
+  ];
+  ctx.fillStyle = 'rgba(6,10,18,.75)'; ctx.fillRect(14, 12, 330, 44);
+  ctx.strokeStyle = '#243149'; ctx.strokeRect(14, 12, 330, 44);
+  ctx.fillStyle = '#9db4d6';
+  ctx.fillText(info[0], 24, 30); ctx.fillText(info[1], 24, 47);
+}
+function roundRect(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+/* ================= 屏幕面板绘制 ================= */
+function drawScreen(){
+  const ctx = sctx, w = scrC.clientWidth, h = scrC.clientHeight;
+  ctx.fillStyle = '#05070d'; ctx.fillRect(0, 0, w, h);
+  const x0 = 46, sw = 56, y0 = 42, sh = h - 84;
+  const toPy = v => y0 + v * sh;                            // v: 0 顶 → 1 底
+
+  // 累积光点条带
+  ctx.fillStyle = '#01030a'; ctx.fillRect(x0 - 1, y0 - 1, sw + 2, sh + 2);
+  ctx.drawImage(accC, x0, y0, sw, sh);
+  ctx.strokeStyle = 'rgba(140,170,215,.45)'; ctx.strokeRect(x0 - 1, y0 - 1, sw + 2, sh + 2);
+
+  // mm 刻度
+  ctx.font = '10px monospace'; ctx.fillStyle = '#7b90b0'; ctx.textAlign = 'right';
+  ctx.strokeStyle = 'rgba(140,170,215,.4)';
+  for (let m = -40; m <= 40; m += 10){
+    const py = toPy((PHYS.H / 1e-3 - m) / (2 * PHYS.H / 1e-3));
+    ctx.beginPath(); ctx.moveTo(x0 - 5, py); ctx.lineTo(x0 - 1, py); ctx.stroke();
+    ctx.fillText(m, x0 - 8, py + 3);
+  }
+  ctx.save(); ctx.translate(12, y0 + sh / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#7b90b0'; ctx.fillText('y / mm', 0, 0); ctx.restore();
+
+  // 落点闪烁
+  for (const f of sflash){
+    const k = f.age / 0.4;
+    ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${(1 - k) * 0.9})`;
+    ctx.beginPath(); ctx.arc(x0 + sw / 2, toPy(f.v), 1 + k * 9, 0, 6.29); ctx.stroke();
+  }
+
+  // 直方图
+  const hx = x0 + sw + 30, hw = w - hx - 14;
+  let maxC = 1;
+  for (let i = 0; i < NB; i++) if (counts[i] > maxC) maxC = counts[i];
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},.55)`;
+  const bh = sh / NB;
+  for (let i = 0; i < NB; i++){
+    if (!counts[i]) continue;
+    ctx.fillRect(hx, y0 + i * bh, counts[i] / maxC * hw, Math.max(1, bh - 0.6));
+  }
+  ctx.strokeStyle = 'rgba(140,170,215,.25)';
+  ctx.strokeRect(hx, y0, hw, sh);
+
+  // 理论曲线（按当前最大计数归一化，与直方图同刻度）
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++){
+    const v = i / 200, ym = PHYS.H - v * 2 * PHYS.H;
+    const x = hx + I(ym) * hw, py = y0 + v * sh;
+    i ? ctx.lineTo(x, py) : ctx.moveTo(x, py);
+  }
+  ctx.strokeStyle = 'rgba(127,227,255,.95)'; ctx.lineWidth = 1.8; ctx.stroke();
+
+  // 标题、图例、计数
+  ctx.textAlign = 'left'; ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#dbe6f5'; ctx.fillText('累积直方图 ← 光子落点', x0, 26);
+  ctx.textAlign = 'right'; ctx.font = '13px monospace';
+  ctx.fillStyle = '#ffb45e'; ctx.fillText('N = ' + totalN, w - 14, 26);
+  ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},.9)`;
+  ctx.fillRect(hx, h - 30, 12, 8);
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText(' 光子计数', hx + 15, h - 22);
+  ctx.strokeStyle = 'rgba(127,227,255,.95)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(hx, h - 12); ctx.lineTo(hx + 12, h - 12); ctx.stroke();
+  ctx.fillStyle = '#8fa3c0'; ctx.fillText(' 理论强度 |ψ|²（对照）', hx + 15, h - 8);
+}
+
+/* ================= 控件 ================= */
+const $ = id => document.getElementById(id);
+const chkWave = $('chkWave'), chkTheory = $('chkTheory');
+
+function resetAccum(){
+  totalN = 0; counts.fill(0); photons.length = 0; flashes.length = 0; sflash.length = 0;
+  accX.globalCompositeOperation = 'source-over';
+  accX.clearRect(0, 0, accC.width, accC.height);
+}
+function applyColor(){
+  color = wl2rgb(lam * 1e9);
+  colStr = `rgb(${color[0]},${color[1]},${color[2]})`;
+  $('sw').style.background = colStr;
+}
+function updateStats(){
+  $('stN').textContent = totalN;
+  $('stDy').textContent = (lam * PHYS.L / slitD * 1e3).toFixed(2);
+  $('stEnv').textContent = (lam * PHYS.L / slitA * 1e3).toFixed(1);
+}
+function setRun(v){
+  running = v;
+  $('btnRun').textContent = v ? '⏸ 暂停发射' : '▶ 开始发射';
+}
+
+$('lam').addEventListener('input', e => {
+  lam = e.target.value * 1e-9; $('vLam').textContent = e.target.value;
+  applyColor(); rebuildCDF(); resetAccum(); updateStats();
+});
+$('slitA').addEventListener('input', e => {
+  slitA = e.target.value * 1e-6; $('vA').textContent = e.target.value;
+  rebuildCDF(); resetAccum(); updateStats();
+});
+$('slitD').addEventListener('input', e => {
+  slitD = e.target.value * 1e-6; $('vD').textContent = e.target.value;
+  rebuildCDF(); resetAccum(); updateStats();
+});
+$('rate').addEventListener('input', e => {
+  rate = Math.round(Math.pow(10, e.target.value / 100 * 3));
+  $('vR').textContent = rate;
+});
+$('btnRun').addEventListener('click', () => setRun(!running));
+$('btnOne').addEventListener('click', () => spawn());
+$('btnClear').addEventListener('click', resetAccum);
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/INPUT|BUTTON/.test(document.activeElement.tagName)){
+    e.preventDefault(); setRun(!running);
+  }
+});
+
+/* ================= 启动 ================= */
+rebuildCDF(); applyColor(); updateStats();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

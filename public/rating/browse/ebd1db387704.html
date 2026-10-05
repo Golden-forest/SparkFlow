@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>气体压强的微观本质 · 分子撞壁统计仿真</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.12), transparent 26%),
+        radial-gradient(circle at 94% 6%, rgba(245, 158, 11, 0.09), transparent 24%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.38); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 4px; font-size: clamp(1.45rem, 2.1vw, 1.85rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; }
+    .status.paused { background: #eef2f7; border-color: var(--sim-border); color: #536071; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(300px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+
+    /* ---- stage: chamber + tube + gauge ---- */
+    .stage-panel { min-height: 430px; padding: 14px 14px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .stage-flex { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(196px, 232px); gap: 0; }
+    .chamber-wrap { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+    #chamber { width: 100%; height: 100%; min-height: 300px; display: block; border-radius: 14px; touch-action: none; }
+    .chamber-caption { padding: 6px 4px 0; color: var(--sim-muted); font-size: 12px; }
+    .tube { display: flex; align-items: center; justify-content: center; }
+    .tube i {
+      display: block; width: 100%; height: 16px; border-radius: 8px;
+      background: linear-gradient(#e7eef5, #b9c9d9 55%, #9db2c6);
+      border: 1px solid #93a9be;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .tube i::before, .tube i::after {
+      content: ""; position: absolute; width: 6px; height: 24px; border-radius: 3px;
+      background: #c7d5e2; border: 1px solid #9db2c6; margin: -5px 0 0 -3px;
+    }
+    .tube i::before { margin-left: -6px; }
+    .tube i::after { margin-left: calc(100% - 1px); }
+    .tube { position: relative; }
+    .gauge-wrap { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; align-items: center; }
+    #gauge { width: 100%; height: 100%; min-height: 220px; display: block; }
+    .gauge-read { text-align: center; padding: 2px 0 2px; }
+    .gauge-read small { display: block; color: var(--sim-muted); font-size: 11px; margin-bottom: 2px; }
+    .gauge-read strong { font-size: 1.5rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent-deep); }
+    .gauge-read strong.over { color: var(--sim-danger); }
+    .gauge-read strong em { font-style: normal; font-size: 0.8rem; color: var(--sim-muted); font-weight: 650; margin-left: 3px; }
+
+    /* ---- evidence ---- */
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 11px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 14px; background: linear-gradient(150deg, #f8fcfd, #f3f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 11.5px; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric strong em { font-style: normal; font-size: .72rem; color: var(--sim-muted); margin-left: 3px; font-weight: 600; }
+    .metric.hero { background: linear-gradient(150deg, #eaf9fc, #dff3f7); border-color: rgba(15,159,186,.3); }
+    .metric.hero strong { font-size: 1.5rem; color: var(--sim-accent-deep); }
+    .walls { margin-top: 11px; padding: 10px 12px; border: 1px dashed rgba(15,159,186,.35); border-radius: 12px; background: #f6fbfd; }
+    .walls small { display: block; color: var(--sim-muted); font-size: 11.5px; margin-bottom: 6px; }
+    .wall-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-variant-numeric: tabular-nums; }
+    .wall-row b { display: block; font-size: 0.95rem; }
+    .wall-row span { font-size: 11px; color: var(--sim-muted); }
+    .chart-card { padding: 12px 14px 10px; min-height: 170px; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .chart-title h3 { margin: 0; font-size: 0.95rem; }
+    .chart-title span { font-size: 11px; color: var(--sim-muted); }
+    #pChart { width: 100%; height: 100%; min-height: 130px; display: block; }
+    .model-note { padding: 13px 16px; display: grid; align-content: start; gap: 10px; overflow: auto; }
+    .insight { margin: 0; padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff7e8; color: #7a4d07; font-weight: 640; font-size: 0.86rem; line-height: 1.55; }
+    .model-note .note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+
+    /* ---- controls dock ---- */
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(175px, 1.15fr); gap: 16px; align-items: center; border-radius: 18px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 730; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,.45); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+
+    @media (max-width: 1020px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .side { grid-template-rows: auto auto auto; }
+      .stage-panel { min-height: 0; }
+      #chamber { min-height: 0; height: auto; aspect-ratio: 12 / 5; }
+      .controls { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .stage-flex { grid-template-columns: 1fr; }
+      .tube { display: none; }
+      #gauge { min-height: 0; height: auto; aspect-ratio: 1; }
+      .controls { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>气体压强的微观本质</h1>
+        <p>压强 = 大量分子撞壁冲量的统计平均 —— 压力表指针的抖动，就是统计涨落</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    </header>
+
+    <main class="main">
+      <section class="panel stage-panel" data-zone="stage" aria-labelledby="stage-title">
+        <div class="panel-head">
+          <h2 id="stage-title">密闭气室 · 压力表</h2>
+          <span id="stageStat">撞壁 0 次/s · 气室 8.0 × 5 m</span>
+        </div>
+        <div class="stage-flex">
+          <div class="chamber-wrap">
+            <canvas id="chamber" aria-label="微观放大的密闭气室：分子运动与撞壁闪光，左侧为可拖动活塞"></canvas>
+            <div class="chamber-caption">微观放大视图 · 分子颜色随速率变化（慢 = 蓝，快 = 红）· 壁上闪光 = 一次撞壁（大小 ∝ 冲量）· 活塞可拖动</div>
+          </div>
+          <div class="tube" aria-hidden="true"><i></i></div>
+          <div class="gauge-wrap">
+            <svg id="gauge" viewBox="0 0 240 240" role="img" aria-label="压力表：指针读数由单位时间撞壁冲量统计得出，会随机抖动"></svg>
+            <div class="gauge-read">
+              <small>表压（撞壁冲量统计）</small>
+              <strong id="gaugeKpa">0.0 <em>kPa</em></strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric hero"><small>表压（统计读数）</small><strong id="pNow">0.0<em>kPa</em></strong></div>
+            <div class="metric"><small>理论值 n·m⟨v²⟩/2</small><strong id="pTheory">0.0<em>kPa</em></strong></div>
+            <div class="metric"><small>读数波动 ±σ（涨落）</small><strong id="jitter">±0.0<em>kPa</em></strong></div>
+            <div class="metric"><small>撞壁频率</small><strong id="hitRate">0<em>次/s</em></strong></div>
+            <div class="metric"><small>分子数 N</small><strong id="nRead">60</strong></div>
+            <div class="metric"><small>平均速率 v</small><strong id="vRead">500<em>m/s</em></strong></div>
+          </div>
+          <div class="walls">
+            <small>四个壁面分别测得的压强（几乎相等 → 压强与“重量下压”无关）</small>
+            <div class="wall-row">
+              <div><b id="wLeft">0.0</b><span>左壁 kPa</span></div>
+              <div><b id="wRight">0.0</b><span>右壁 kPa</span></div>
+              <div><b id="wTop">0.0</b><span>顶壁 kPa</span></div>
+              <div><b id="wBottom">0.0</b><span>底壁 kPa</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-card">
+          <div class="chart-title"><h3>压强 P – t</h3><span>实线 = 统计读数 · 虚线 = 理论值</span></div>
+          <canvas id="pChart" aria-label="压强随时间变化的曲线：统计读数围绕理论值上下涨落"></canvas>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">观察指针：它在读数附近不停抖动——这是撞壁次数随机起伏造成的统计涨落。</p>
+          <p class="note">模型：2D 理想气体，分子为质点、互不碰撞，与器壁发生弹性碰撞；压强 = 单位时间撞壁总冲量 ÷ 周长（读数按示教标定折算为 kPa，比例关系严格成立）。活塞压缩按等温处理（不改变分子速率）。本模型不含重力——请注意四个壁面的压强几乎相等：压强来自各方向撞击的统计平均，不是分子“有重量压出来”的。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="nInput">分子数 N <output id="nOutput">60</output></label>
+        <input id="nInput" type="range" min="10" max="280" step="10" value="60">
+      </div>
+      <div class="control">
+        <label for="vInput">分子速率 v <output id="vOutput">500 m/s</output></label>
+        <input id="vInput" type="range" min="150" max="600" step="10" value="500">
+      </div>
+      <div class="control">
+        <label for="wInput">活塞位置（气室宽度） <output id="wOutput">8.0 m</output></label>
+        <input id="wInput" type="range" min="4" max="12" step="0.1" value="8">
+      </div>
+    </section>
+  </div>
+
+  <script id="model-kernel">
+  /* Pure physics kernel: 2-D ideal gas in a rectangular chamber with a movable piston wall.
+     No DOM access. Deterministic (seeded RNG). Pressure is measured as the wall-impulse
+     rate per unit wall length (the statistical definition), smoothed by an EWM window. */
+  const GasKernel = (() => {
+    "use strict";
+    const KERNEL_DT = 1 / 240;   // fixed physical step (s)
+    const TAU = 0.06;            // EWM window for pressure statistics (s)
+    const TAU_RATE = 0.3;        // EWM window for collision-rate display (s)
+    const KPA_PER_UNIT = 4e-4;   // teaching calibration: default state reads 75 kPa
+    const CHAMBER_H = 5;         // chamber height (model m), fixed
+    const FLASH_LIFETIME = 0.12; // wall-hit flash retention (s), rendering only
+    const FLASH_CAP = 240;
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, f) { return Number.isFinite(v) ? v : f; }
+
+    function normalizeParams(params) {
+      const src = params || {};
+      return {
+        n: Math.round(clamp(finite(Number(src.n), 60), 10, 280)),
+        v: clamp(finite(Number(src.v), 500), 150, 600),
+        w: clamp(finite(Number(src.w), 8), 4, 12)
+      };
+    }
+
+    function createModel(params, seed) {
+      const p = normalizeParams(params);
+      const rand = mulberry32(finite(seed, 20260929));
+      const mols = [];
+      for (let i = 0; i < p.n; i += 1) {
+        const x = 0.15 + rand() * Math.max(0.1, p.w - 0.3);
+        const y = 0.15 + rand() * (CHAMBER_H - 0.3);
+        const ang = rand() * Math.PI * 2;
+        mols.push({ x, y, vx: Math.cos(ang) * p.v, vy: Math.sin(ang) * p.v });
+      }
+      return {
+        t: 0, n: p.n, v: p.v, w: p.w, mols, rand,
+        ewm: { p: 0, left: 0, right: 0, top: 0, bottom: 0, rate: 0 },
+        hitsTotal: 0, events: []
+      };
+    }
+
+    // Exact 1-D fold across [a, b]: new position plus hit counts on each wall.
+    function foldAxis(pos, vel, a, b, dt) {
+      const span = b - a;
+      const s = (pos - a) + vel * dt;
+      const n = Math.floor(s / span);
+      const r = s - n * span;
+      const even = ((n % 2) + 2) % 2 === 0;
+      const newPos = even ? a + r : b - r;
+      let hitsA = 0, hitsB = 0;
+      if (n > 0) { hitsB = Math.floor((n + 1) / 2); hitsA = Math.floor(n / 2); }
+      else if (n < 0) { const q = -n; hitsA = Math.floor((q + 1) / 2); hitsB = Math.floor(q / 2); }
+      return [newPos, hitsA, hitsB];
+    }
+
+    // One fixed physical step. Returns the wall-impulse delta delivered this step.
+    function step(model, dt, wantEvents) {
+      const w = model.w, h = CHAMBER_H;
+      let dJL = 0, dJR = 0, dJT = 0, dJB = 0, hits = 0;
+      const events = wantEvents ? model.events : null;
+      for (let i = 0; i < model.mols.length; i += 1) {
+        const mol = model.mols[i];
+        const fx = foldAxis(mol.x, mol.vx, 0, w, dt);
+        mol.x = fx[0];
+        // odd number of wall crossings on this axis -> velocity component reverses
+        if ((fx[1] + fx[2]) % 2 === 1) mol.vx = -mol.vx;
+        if (fx[1] > 0) {
+          const imp = 2 * Math.abs(mol.vx);
+          dJL += imp * fx[1]; hits += fx[1];
+          if (events) for (let k = 0; k < fx[1]; k += 1) events.push({ t: model.t, wall: "left", pos: mol.y, imp });
+        }
+        if (fx[2] > 0) {
+          const imp = 2 * Math.abs(mol.vx);
+          dJR += imp * fx[2]; hits += fx[2];
+          if (events) for (let k = 0; k < fx[2]; k += 1) events.push({ t: model.t, wall: "right", pos: mol.y, imp });
+        }
+        const fy = foldAxis(mol.y, mol.vy, 0, h, dt);
+        mol.y = fy[0];
+        if ((fy[1] + fy[2]) % 2 === 1) mol.vy = -mol.vy;
+        if (fy[1] > 0) {
+          const imp = 2 * Math.abs(mol.vy);
+          dJB += imp * fy[1]; hits += fy[1];
+          if (events) for (let k = 0; k < fy[1]; k += 1) events.push({ t: model.t, wall: "bottom", pos: mol.x, imp });
+        }
+        if (fy[2] > 0) {
+          const imp = 2 * Math.abs(mol.vy);
+          dJT += imp * fy[2]; hits += fy[2];
+          if (events) for (let k = 0; k < fy[2]; k += 1) events.push({ t: model.t, wall: "top", pos: mol.x, imp });
+        }
+      }
+      model.t += dt;
+      const perim = 2 * (w + h);
+      const decay = Math.exp(-dt / TAU);
+      const gain = 1 - decay;
+      const rate = (dJL + dJR + dJT + dJB) / (dt * perim);
+      model.ewm.p = model.ewm.p * decay + rate * gain;
+      model.ewm.left = model.ewm.left * decay + (dJL / (dt * h)) * gain;
+      model.ewm.right = model.ewm.right * decay + (dJR / (dt * h)) * gain;
+      model.ewm.top = model.ewm.top * decay + (dJT / (dt * w)) * gain;
+      model.ewm.bottom = model.ewm.bottom * decay + (dJB / (dt * w)) * gain;
+      const decayR = Math.exp(-dt / TAU_RATE);
+      model.ewm.rate = model.ewm.rate * decayR + (hits / dt) * (1 - decayR);
+      model.hitsTotal += hits;
+      if (wantEvents) trimEvents(model);
+      return { dJL, dJR, dJT, dJB, hits };
+    }
+
+    function trimEvents(model) {
+      const cutoff = model.t - FLASH_LIFETIME;
+      const ev = model.events;
+      let first = 0;
+      while (first < ev.length && ev[first].t < cutoff) first += 1;
+      if (first > 0) ev.splice(0, first);
+      if (ev.length > FLASH_CAP) ev.splice(0, ev.length - FLASH_CAP);
+    }
+
+    // Parameter operations (isothermal semantics: volume changes never alter speeds).
+    function setN(model, n) {
+      const target = Math.round(clamp(finite(Number(n), model.n), 10, 280));
+      while (model.mols.length < target) {
+        const x = 0.15 + model.rand() * Math.max(0.1, model.w - 0.3);
+        const y = 0.15 + model.rand() * (CHAMBER_H - 0.3);
+        const ang = model.rand() * Math.PI * 2;
+        model.mols.push({ x, y, vx: Math.cos(ang) * model.v, vy: Math.sin(ang) * model.v });
+      }
+      if (model.mols.length > target) model.mols.length = target;
+      model.n = model.mols.length;
+    }
+    function setV(model, v) {
+      const target = clamp(finite(Number(v), model.v), 150, 600);
+      const r = model.v === 0 ? 1 : target / model.v;
+      for (let i = 0; i < model.mols.length; i += 1) {
+        model.mols[i].vx *= r; model.mols[i].vy *= r;
+      }
+      model.v = target;
+    }
+    function setW(model, w) {
+      const target = clamp(finite(Number(w), model.w), 4, 12);
+      for (let i = 0; i < model.mols.length; i += 1) {
+        model.mols[i].x = foldAxis(model.mols[i].x, 0, 0, target, 0)[0];
+      }
+      model.w = target;
+    }
+
+    // Analytic expectation: p = n_density * m * <v^2> / 2 with m = 1 (2-D ideal gas).
+    function theoretical(model) {
+      const count = model.mols.length;
+      if (count === 0) return 0;
+      let sum = 0;
+      for (let i = 0; i < count; i += 1) {
+        const mol = model.mols[i];
+        sum += mol.vx * mol.vx + mol.vy * mol.vy;
+      }
+      return count * (sum / count) / (2 * model.w * CHAMBER_H);
+    }
+    function meanSpeed(model) {
+      const count = model.mols.length;
+      if (count === 0) return 0;
+      let sum = 0;
+      for (let i = 0; i < count; i += 1) {
+        const mol = model.mols[i];
+        sum += Math.hypot(mol.vx, mol.vy);
+      }
+      return sum / count;
+    }
+    function jitterSigma(model) {
+      const hitsInTau = Math.max(2, model.ewm.rate * TAU);
+      return (model.ewm.p / Math.sqrt(hitsInTau)) * KPA_PER_UNIT;
+    }
+    function readouts(model) {
+      return {
+        t: model.t,
+        pressureKpa: model.ewm.p * KPA_PER_UNIT,
+        theoryKpa: theoretical(model) * KPA_PER_UNIT,
+        jitterKpa: jitterSigma(model),
+        hitRate: model.ewm.rate,
+        n: model.mols.length,
+        vMean: meanSpeed(model),
+        area: model.w * CHAMBER_H,
+        wallsKpa: {
+          left: model.ewm.left * KPA_PER_UNIT,
+          right: model.ewm.right * KPA_PER_UNIT,
+          top: model.ewm.top * KPA_PER_UNIT,
+          bottom: model.ewm.bottom * KPA_PER_UNIT
+        },
+        hitsTotal: model.hitsTotal
+      };
+    }
+
+    // Long-run deterministic simulation used by model checks (no events, raw accumulation).
+    function simulateStats(opts) {
+      const o = opts || {};
+      const m = createModel({ n: o.n, v: o.v, w: o.w }, finite(o.seed, 1));
+      const dt = finite(o.dt, KERNEL_DT);
+      const warmup = finite(o.warmup, 2);
+      const T = finite(o.T, 25);
+      const sampleEvery = finite(o.sampleEvery, 0.05);
+      let JL = 0, JR = 0, JT = 0, JB = 0, recT = 0, hitsRec = 0;
+      let ewm = 0, nextSample = warmup + 0.5;
+      const samples = [];
+      const steps = Math.max(1, Math.round(T / dt));
+      for (let i = 0; i < steps; i += 1) {
+        const r = step(m, dt, false);
+        if (m.t >= warmup) {
+          JL += r.dJL; JR += r.dJR; JT += r.dJT; JB += r.dJB;
+          recT += dt; hitsRec += r.hits;
+          const perim = 2 * (m.w + CHAMBER_H);
+          const decay = Math.exp(-dt / TAU);
+          ewm = ewm * decay + ((r.dJL + r.dJR + r.dJT + r.dJB) / (dt * perim)) * (1 - decay);
+          if (m.t >= nextSample) { samples.push(ewm); nextSample += sampleEvery; }
+        }
+      }
+      const perim = 2 * (m.w + CHAMBER_H);
+      const pMean = (JL + JR + JT + JB) / (recT * perim);
+      const used = samples.slice(Math.min(samples.length, Math.round(0.6 / sampleEvery)));
+      let mean = 0;
+      for (let i = 0; i < used.length; i += 1) mean += used[i];
+      mean = used.length ? mean / used.length : 0;
+      let varAcc = 0;
+      for (let i = 0; i < used.length; i += 1) varAcc += (used[i] - mean) * (used[i] - mean);
+      const pStd = used.length > 1 ? Math.sqrt(varAcc / (used.length - 1)) : 0;
+      let drift = 0;
+      for (let i = 0; i < m.mols.length; i += 1) {
+        drift = Math.max(drift, Math.abs(Math.hypot(m.mols[i].vx, m.mols[i].vy) - m.v));
+      }
+      return {
+        pMean, pStd, pTheory: theoretical(m),
+        wallMean: {
+          left: JL / (recT * CHAMBER_H), right: JR / (recT * CHAMBER_H),
+          top: JT / (recT * m.w), bottom: JB / (recT * m.w)
+        },
+        hitsPerSec: hitsRec / recT, speedDrift: drift, samples: used.length
+      };
+    }
+
+    function pct(actual, expected) { return Math.abs(actual - expected) / Math.abs(expected); }
+
+    function runModelChecks() {
+      const out = [];
+      const add = (name, pass, expected, actual, tolerance) => out.push({ name, pass, expected, actual, tolerance });
+
+      // 1. Ordinary case: measured mean pressure matches the analytic value at defaults.
+      const base = simulateStats({ n: 60, v: 500, w: 8, T: 25, seed: 11 });
+      add("默认参数：统计均值 = 理论值", pct(base.pMean, base.pTheory) < 0.03,
+        base.pTheory.toFixed(1) + "（模型单位）", base.pMean.toFixed(1), "±3%");
+
+      // 2. P proportional to N (same speed, same seed).
+      const n1 = simulateStats({ n: 60, v: 500, w: 8, T: 25, seed: 11 });
+      const n2 = simulateStats({ n: 240, v: 500, w: 8, T: 25, seed: 11 });
+      add("分子数 ×4（N=60→240）：压强 ×4", pct(n2.pMean / n1.pMean, 4) < 0.03,
+        "×4", "×" + (n2.pMean / n1.pMean).toFixed(3), "±3%");
+
+      // 3. P proportional to v squared.
+      const s1 = simulateStats({ n: 120, v: 300, w: 8, T: 25, seed: 21 });
+      const s2 = simulateStats({ n: 120, v: 600, w: 8, T: 25, seed: 21 });
+      add("速率 ×2（v=300→600）：压强 ×4", pct(s2.pMean / s1.pMean, 4) < 0.035,
+        "×4", "×" + (s2.pMean / s1.pMean).toFixed(3), "±3.5%");
+
+      // 4. Isothermal compression: halving width doubles pressure.
+      const w1 = simulateStats({ n: 100, v: 400, w: 8, T: 25, seed: 31 });
+      const w2 = simulateStats({ n: 100, v: 400, w: 4, T: 25, seed: 31 });
+      add("等温压缩（宽 8→4，面积减半）：压强 ×2", pct(w2.pMean / w1.pMean, 2) < 0.03,
+        "×2", "×" + (w2.pMean / w1.pMean).toFixed(3), "±3%");
+
+      // 5. Wall symmetry (ensemble): a single finite-N realization keeps a fixed
+      //    quasi-periodic offset, so isotropy is tested on the multi-seed average.
+      const seeds = [41, 42, 43, 44, 45, 46, 47, 48];
+      const accWall = { left: 0, right: 0, top: 0, bottom: 0 };
+      let accMean = 0, worstSingle = 0;
+      for (let i = 0; i < seeds.length; i += 1) {
+        const s = simulateStats({ n: 120, v: 500, w: 8, T: 40, seed: seeds[i] });
+        accWall.left += s.wallMean.left; accWall.right += s.wallMean.right;
+        accWall.top += s.wallMean.top; accWall.bottom += s.wallMean.bottom;
+        accMean += s.pMean;
+        worstSingle = Math.max(worstSingle,
+          pct(s.wallMean.left, s.pMean), pct(s.wallMean.right, s.pMean),
+          pct(s.wallMean.top, s.pMean), pct(s.wallMean.bottom, s.pMean));
+      }
+      const keys = ["left", "right", "top", "bottom"];
+      let worstEns = 0;
+      for (let i = 0; i < keys.length; i += 1) worstEns = Math.max(worstEns, pct(accWall[keys[i]] / seeds.length, accMean / seeds.length));
+      add("四壁压强相等（各向同性，8 种子系综）", worstEns < 0.015,
+        "系综各壁偏差 < 1.5%", "系综最大 " + (worstEns * 100).toFixed(2) + "%（单次实现最大 " + (worstSingle * 100).toFixed(1) + "%）", "±1.5%");
+
+      // 6. Speed conservation (elastic walls, no inter-molecular collisions).
+      add("分子速率严格守恒（弹性反射）", base.speedDrift < 1e-6,
+        "漂移 < 1e-6 m/s", base.speedDrift.toExponential(2) + " m/s", "1e-6");
+
+      // 7. Relative fluctuation scales as 1/sqrt(N).
+      const f1 = simulateStats({ n: 20, v: 500, w: 8, T: 40, seed: 51 });
+      const f2 = simulateStats({ n: 180, v: 500, w: 8, T: 40, seed: 51 });
+      const relRatio = (f1.pStd / f1.pMean) / (f2.pStd / f2.pMean);
+      add("涨落 σ/⟨p⟩ ∝ 1/√N（N=20 对比 180）", Math.abs(relRatio - 3) / 3 < 0.25,
+        "≈ ×3", "×" + relRatio.toFixed(2), "±25%");
+
+      // 8. Step-halving convergence.
+      const c1 = simulateStats({ n: 60, v: 500, w: 8, T: 25, seed: 61, dt: 1 / 120 });
+      const c2 = simulateStats({ n: 60, v: 500, w: 8, T: 25, seed: 61, dt: 1 / 480 });
+      add("步长减半收敛（dt 1/120 对比 1/480）",
+        pct(c1.pMean, c2.pMean) < 0.02 && pct(c2.pMean, c2.pTheory) < 0.03,
+        "|Δ| < 2% 且贴合理论", (pct(c1.pMean, c2.pMean) * 100).toFixed(2) + "%", "2%");
+
+      // 9. Determinism: identical seeds reproduce identical results.
+      const d1 = simulateStats({ n: 80, v: 450, w: 7, T: 10, seed: 71 });
+      const d2 = simulateStats({ n: 80, v: 450, w: 7, T: 10, seed: 71 });
+      add("可复现性（相同种子）", d1.pMean === d2.pMean,
+        "完全一致", d1.pMean === d2.pMean ? "一致" : "不一致", "精确相等");
+
+      return out;
+    }
+
+    return {
+      KERNEL_DT, TAU, KPA_PER_UNIT, CHAMBER_H, FLASH_LIFETIME,
+      createModel, normalizeParams, step, setN, setV, setW,
+      theoretical, meanSpeed, readouts, simulateStats, runModelChecks
+    };
+  })();
+  </script>
+  <script>
+  /* UI layer: derives every visual (molecules, flashes, gauge needle, chart, readouts,
+     insight text) from the single authoritative GasKernel model state. */
+  (() => {
+    "use strict";
+    const K = GasKernel;
+    const DT = K.KERNEL_DT;
+    const parameterSchema = [
+      { key: "n", label: "分子数 N", type: "slider", min: 10, max: 280, step: 10, default: 60, unit: "" },
+      { key: "v", label: "分子速率 v", type: "slider", min: 150, max: 600, step: 10, default: 500, unit: "m/s" },
+      { key: "w", label: "活塞位置（气室宽度）", type: "slider", min: 4, max: 12, step: 0.1, default: 8, unit: "m" }
+    ];
+    const MAX_KPA = 1000;        // gauge full scale
+    const HISTORY_SPAN = 30;     // chart rolling window (s)
+    const SAMPLE_EVERY = 0.05;   // chart sampling period (s)
+    const WORLD_W = 12;          // chamber track world width (m) for drawing
+
+    const state = {
+      running: false, model: null, lastTs: null, acc: 0,
+      history: [], lastSampleT: -1,
+      drag: false, changes: {}, reducedMotion: false
+    };
+    const els = {
+      status: document.querySelector("#status"),
+      stageStat: document.querySelector("#stageStat"),
+      chamber: document.querySelector("#chamber"),
+      gauge: document.querySelector("#gauge"),
+      gaugeKpa: document.querySelector("#gaugeKpa"),
+      pNow: document.querySelector("#pNow"), pTheory: document.querySelector("#pTheory"),
+      jitter: document.querySelector("#jitter"), hitRate: document.querySelector("#hitRate"),
+      nRead: document.querySelector("#nRead"), vRead: document.querySelector("#vRead"),
+      wLeft: document.querySelector("#wLeft"), wRight: document.querySelector("#wRight"),
+      wTop: document.querySelector("#wTop"), wBottom: document.querySelector("#wBottom"),
+      pChart: document.querySelector("#pChart"),
+      insight: document.querySelector("#insight"),
+      nInput: document.querySelector("#nInput"), nOutput: document.querySelector("#nOutput"),
+      vInput: document.querySelector("#vInput"), vOutput: document.querySelector("#vOutput"),
+      wInput: document.querySelector("#wInput"), wOutput: document.querySelector("#wOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, f) { return Number.isFinite(v) ? v : f; }
+
+    function fitCanvas(canvas) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(60, Math.floor(rect.width * dpr));
+      const h = Math.max(60, Math.floor(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w: rect.width, h: rect.height };
+    }
+
+    // Shared chamber geometry (drawing and pointer mapping use the same mapping).
+    function chamberLayout(cw, ch) {
+      const marginL = 64, marginR = 12, marginT = 14, marginB = 14;
+      const s = Math.min((cw - marginL - marginR) / WORLD_W, (ch - marginT - marginB) / K.CHAMBER_H);
+      const boxW = WORLD_W * s, boxH = K.CHAMBER_H * s;
+      const boxX = marginL + (cw - marginL - marginR - boxW) / 2;
+      const boxY = marginT + (ch - marginT - marginB - boxH) / 2;
+      const gasRight = boxX + boxW;
+      const gasLeft = gasRight - state.model.w * s;
+      return { s, boxX, boxY, boxW, boxH, gasLeft, gasRight };
+    }
+
+    function lerpHex(h1, h2, q) {
+      const a = parseInt(h1.slice(1), 16), b = parseInt(h2.slice(1), 16);
+      const r = Math.round(((a >> 16) & 255) + (((b >> 16) & 255) - ((a >> 16) & 255)) * q);
+      const g = Math.round(((a >> 8) & 255) + (((b >> 8) & 255) - ((a >> 8) & 255)) * q);
+      const bl = Math.round((a & 255) + ((b & 255) - (a & 255)) * q);
+      return "rgb(" + r + "," + g + "," + bl + ")";
+    }
+    function speedColor(speed) {
+      if (speed <= 500) return lerpHex("#3f74e8", "#12a5b8", (speed - 150) / 350);
+      return lerpHex("#12a5b8", "#e8583a", clamp((speed - 500) / 100, 0, 1));
+    }
+
+    function drawChamber() {
+      const fit = fitCanvas(els.chamber);
+      const ctx = fit.ctx, cw = fit.w, ch = fit.h;
+      const m = state.model;
+      ctx.clearRect(0, 0, cw, ch);
+      const geo = chamberLayout(cw, ch);
+
+      // dead track (left of the piston) + gas region
+      ctx.fillStyle = "#edf1f6";
+      ctx.fillRect(geo.boxX, geo.boxY - 4, geo.boxW, geo.boxH + 8);
+      const grad = ctx.createLinearGradient(0, geo.boxY, 0, geo.boxY + geo.boxH);
+      grad.addColorStop(0, "#f3fbfd");
+      grad.addColorStop(1, "#e6f5f8");
+      ctx.fillStyle = grad;
+      ctx.fillRect(geo.gasLeft, geo.boxY, geo.gasRight - geo.gasLeft, geo.boxH);
+
+      // fixed walls (right / top / bottom)
+      ctx.strokeStyle = "#3d4c63";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(geo.gasRight, geo.boxY);
+      ctx.lineTo(geo.gasRight, geo.boxY + geo.boxH);
+      ctx.moveTo(geo.gasLeft, geo.boxY);
+      ctx.lineTo(geo.gasRight, geo.boxY);
+      ctx.moveTo(geo.gasLeft, geo.boxY + geo.boxH);
+      ctx.lineTo(geo.gasRight, geo.boxY + geo.boxH);
+      ctx.stroke();
+
+      // wall-hit flashes: radius grows with impulse, alpha fades with age
+      if (!state.reducedMotion) {
+        for (let i = 0; i < m.events.length; i += 1) {
+          const ev = m.events[i];
+          const q = (m.t - ev.t) / K.FLASH_LIFETIME;
+          if (q < 0 || q > 1) continue;
+          let x = 0, y = 0;
+          if (ev.wall === "left") { x = geo.gasLeft; y = geo.boxY + ev.pos * geo.s; }
+          else if (ev.wall === "right") { x = geo.gasRight; y = geo.boxY + ev.pos * geo.s; }
+          else if (ev.wall === "top") { x = geo.gasLeft + ev.pos * geo.s; y = geo.boxY; }
+          else { x = geo.gasLeft + ev.pos * geo.s; y = geo.boxY + geo.boxH; }
+          const base = 3 + 9 * Math.min(1, ev.imp / 1200);
+          ctx.beginPath();
+          ctx.arc(x, y, base * (0.6 + q), 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(15, 159, 186, " + (0.34 * (1 - q)).toFixed(3) + ")";
+          ctx.fill();
+        }
+      }
+
+      // molecules
+      for (let i = 0; i < m.mols.length; i += 1) {
+        const mol = m.mols[i];
+        const px = geo.gasLeft + mol.x * geo.s;
+        const py = geo.boxY + mol.y * geo.s;
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = speedColor(m.v);
+        ctx.fill();
+      }
+
+      // piston body + rod + handle
+      const pw = 26;
+      const px0 = geo.gasLeft - pw;
+      const steel = ctx.createLinearGradient(0, geo.boxY, 0, geo.boxY + geo.boxH);
+      steel.addColorStop(0, "#eef3f8");
+      steel.addColorStop(0.5, "#c4d2e0");
+      steel.addColorStop(1, "#9fb2c6");
+      ctx.fillStyle = steel;
+      ctx.fillRect(px0, geo.boxY - 6, pw, geo.boxH + 12);
+      ctx.strokeStyle = "#5c6f88";
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(px0, geo.boxY - 6, pw, geo.boxH + 12);
+      ctx.beginPath();
+      for (let yy = geo.boxY - 2; yy < geo.boxY + geo.boxH + 6; yy += 11) {
+        ctx.moveTo(px0 + 3, yy);
+        ctx.lineTo(px0 + pw - 3, yy - 7);
+      }
+      ctx.strokeStyle = "rgba(92,111,136,.4)";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      const midY = geo.boxY + geo.boxH / 2;
+      ctx.fillStyle = "#8fa3ba";
+      ctx.fillRect(geo.boxX - 10, midY - 5, px0 - (geo.boxX - 10) + 1, 10);
+      ctx.beginPath();
+      ctx.arc(geo.boxX - 10, midY, 8, 0, Math.PI * 2);
+      ctx.fillStyle = "#5c6f88";
+      ctx.fill();
+      ctx.fillStyle = "#5c6f88";
+      ctx.font = "600 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("活塞（可拖动 / 用滑块）", px0 + pw / 2, geo.boxY + geo.boxH + 26);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(92,111,136,.85)";
+      ctx.font = "600 12px sans-serif";
+      ctx.fillText("气室 " + m.w.toFixed(1) + " × " + K.CHAMBER_H + " m", geo.gasLeft + 8, geo.boxY + 18);
+    }
+
+    function buildGauge() {
+      const pt = (ang, r) => [120 + r * Math.cos(ang * Math.PI / 180), 120 + r * Math.sin(ang * Math.PI / 180)];
+      const parts = [];
+      parts.push('<circle cx="120" cy="120" r="112" fill="#ffffff" stroke="#c3d2df" stroke-width="3"/>');
+      parts.push('<circle cx="120" cy="120" r="104" fill="none" stroke="#eef3f8" stroke-width="1.5"/>');
+      const a0 = pt(135, 96), a1 = pt(405, 96);
+      parts.push('<path d="M' + a0[0].toFixed(1) + " " + a0[1].toFixed(1) + ' A96 96 0 1 1 ' + a1[0].toFixed(1) + " " + a1[1].toFixed(1) + '" fill="none" stroke="#dfe8f1" stroke-width="7" stroke-linecap="round"/>');
+      for (let kp = 0; kp <= MAX_KPA; kp += 50) {
+        const q = kp / MAX_KPA, ang = 135 + 270 * q, major = kp % 200 === 0;
+        const p1 = pt(ang, major ? 82 : 88), p2 = pt(ang, 96);
+        parts.push('<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) + '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) + '" stroke="' + (major ? "#334155" : "#94a3b8") + '" stroke-width="' + (major ? 3 : 1.8) + '" stroke-linecap="round"/>');
+        if (major) {
+          const tp = pt(ang, 68);
+          parts.push('<text x="' + tp[0].toFixed(1) + '" y="' + (tp[1] + 4.5).toFixed(1) + '" text-anchor="middle" font-size="13.5" font-weight="700" fill="#475569">' + kp + "</text>");
+        }
+      }
+      parts.push('<text x="120" y="163" text-anchor="middle" font-size="14" font-weight="700" fill="#657188">kPa</text>');
+      parts.push('<text x="120" y="180" text-anchor="middle" font-size="9.5" fill="#94a3b8">单位时间撞壁冲量统计</text>');
+      parts.push('<g id="gTheory"><polygon points="0,-7 5.5,4 -5.5,4" fill="#d97706"/></g>');
+      parts.push('<g id="gNeedle"><line x1="120" y1="134" x2="120" y2="40" stroke="#dc2626" stroke-width="4" stroke-linecap="round"/><line x1="120" y1="134" x2="120" y2="110" stroke="#dc2626" stroke-width="7" stroke-linecap="round"/></g>');
+      parts.push('<circle cx="120" cy="120" r="10" fill="#22304a"/><circle cx="120" cy="120" r="4" fill="#e8eefc"/>');
+      els.gauge.innerHTML = parts.join("");
+    }
+
+    function updateGauge(r) {
+      const needle = els.gauge.querySelector("#gNeedle");
+      const theory = els.gauge.querySelector("#gTheory");
+      const q = clamp(r.pressureKpa / MAX_KPA, 0, 1);
+      needle.setAttribute("transform", "rotate(" + (270 * q - 135).toFixed(2) + " 120 120)");
+      const ang = 135 + 270 * clamp(r.theoryKpa / MAX_KPA, 0, 1);
+      const rad = ang * Math.PI / 180;
+      const mx = 120 + 103 * Math.cos(rad), my = 120 + 103 * Math.sin(rad);
+      theory.setAttribute("transform", "translate(" + mx.toFixed(1) + "," + my.toFixed(1) + ") rotate(" + (ang - 90).toFixed(1) + ")");
+      els.gaugeKpa.innerHTML = r.pressureKpa.toFixed(1) + " <em>kPa</em>";
+      els.gaugeKpa.classList.toggle("over", r.pressureKpa > MAX_KPA);
+    }
+
+    function updateReadouts(r) {
+      els.pNow.innerHTML = r.pressureKpa.toFixed(1) + "<em>kPa</em>";
+      els.pTheory.innerHTML = r.theoryKpa.toFixed(1) + "<em>kPa</em>";
+      els.jitter.innerHTML = "±" + r.jitterKpa.toFixed(1) + "<em>kPa</em>";
+      els.hitRate.innerHTML = Math.round(r.hitRate).toLocaleString("zh-CN") + "<em>次/s</em>";
+      els.nRead.textContent = String(r.n);
+      els.vRead.innerHTML = r.vMean.toFixed(0) + "<em>m/s</em>";
+      els.wLeft.textContent = r.wallsKpa.left.toFixed(1);
+      els.wRight.textContent = r.wallsKpa.right.toFixed(1);
+      els.wTop.textContent = r.wallsKpa.top.toFixed(1);
+      els.wBottom.textContent = r.wallsKpa.bottom.toFixed(1);
+      els.stageStat.textContent = "撞壁 " + Math.round(r.hitRate).toLocaleString("zh-CN") +
+        " 次/s · 气室 " + state.model.w.toFixed(1) + " × " + K.CHAMBER_H + " m · t = " + r.t.toFixed(1) + " s";
+    }
+
+    function drawChart() {
+      const fit = fitCanvas(els.pChart);
+      const ctx = fit.ctx, cw = fit.w, ch = fit.h;
+      ctx.clearRect(0, 0, cw, ch);
+      const pad = { l: 46, r: 12, t: 10, b: 25 };
+      const pw = cw - pad.l - pad.r, ph = ch - pad.t - pad.b;
+      const hist = state.history;
+      const lastT = hist.length ? hist[hist.length - 1].t : 0;
+      const t0 = Math.max(0, lastT - HISTORY_SPAN);
+      const t1 = Math.max(HISTORY_SPAN, lastT);
+      let vmax = 60;
+      for (let i = 0; i < hist.length; i += 1) {
+        if (hist[i].t >= t0) vmax = Math.max(vmax, hist[i].p, hist[i].th);
+      }
+      const yMax = Math.max(100, Math.ceil(vmax * 1.18 / 25) * 25);
+      const X = (t) => pad.l + ((t - t0) / (t1 - t0)) * pw;
+      const Y = (v) => pad.t + (1 - v / yMax) * ph;
+      ctx.strokeStyle = "#e8edf4";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#8a95a8";
+      ctx.font = "11px sans-serif";
+      for (let k = 0; k <= 4; k += 1) {
+        const y = pad.t + ph * k / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(cw - pad.r, y); ctx.stroke();
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText(String(Math.round(yMax * (1 - k / 4))), pad.l - 7, y);
+      }
+      for (let k = 0; k <= 6; k += 1) {
+        const x = pad.l + pw * k / 6;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ph); ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(String(Math.round(t0 + (t1 - t0) * k / 6)) + " s", x, pad.t + ph + 6);
+      }
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillStyle = "#657188";
+      ctx.fillText("kPa", 8, 6);
+      if (hist.length < 2) {
+        ctx.fillStyle = "#9aa7ba";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = "12.5px sans-serif";
+        ctx.fillText("开始运行后，这里记录压强随时间的变化", pad.l + pw / 2, pad.t + ph / 2);
+        return;
+      }
+      // theory (dashed amber)
+      ctx.setLineDash([6, 5]);
+      ctx.strokeStyle = "#d97706";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < hist.length; i += 1) {
+        if (hist[i].t < t0) continue;
+        const x = X(hist[i].t), y = clamp(Y(hist[i].th), pad.t, pad.t + ph);
+        if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+      }
+      ctx.stroke();
+      // measured (solid teal)
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#0f9fba";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      started = false;
+      for (let i = 0; i < hist.length; i += 1) {
+        if (hist[i].t < t0) continue;
+        const x = X(hist[i].t), y = clamp(Y(hist[i].p), pad.t, pad.t + ph);
+        if (started) ctx.lineTo(x, y); else { ctx.moveTo(x, y); started = true; }
+      }
+      ctx.stroke();
+    }
+
+    function updateInsight(r) {
+      const m = state.model;
+      let msg;
+      if (!state.running && m.t === 0) {
+        msg = "按「开始」：分子开始无规则运动，撞壁冲量被累计成压力表读数——注意指针会抖。";
+      } else if (!state.running) {
+        msg = "已暂停：分子停住，不再产生新的撞壁冲量，指针与读数冻结。按「开始」恢复。";
+      } else if (m.t - (state.changes.w ? state.changes.w.t : -99) < 2.5) {
+        msg = state.changes.w.dir > 0
+          ? "活塞回退中：气室体积增大 → 单位体积分子数减少 → 撞壁变疏 → 压强下降。"
+          : "活塞压缩中：气室体积减小 → 单位体积分子数增多 → 撞壁更频繁 → 压强升高（等温过程 p ∝ 1/V）。";
+      } else if (m.t - (state.changes.v ? state.changes.v.t : -99) < 2.5) {
+        msg = state.changes.v.dir > 0
+          ? "分子整体提速：撞壁更频繁、每次冲量更大 → 压强按 v² 迅速升高（分子颜色变红）。"
+          : "分子整体减速：撞壁变疏、每次冲量变小 → 压强下降（分子颜色变蓝）。";
+      } else if (m.t - (state.changes.n ? state.changes.n.t : -99) < 2.5) {
+        msg = "分子数改变：统计样本大小变了 → 分子越多，指针抖动越小、读数越稳（σ ∝ 1/√N）。";
+      } else if (r.n <= 40) {
+        msg = "分子很少：撞壁事件稀疏 → 指针大幅抖动。“压强”对少量分子几乎没有意义——它是大量分子撞壁的统计平均。";
+      } else {
+        msg = "指针在读数附近不停抖动：单次撞壁是随机的，压强是大量撞壁的平均效果。看四个壁面：读数几乎相等——压强来自各方向的撞击，不是分子重量“压”出来的。";
+      }
+      els.insight.textContent = msg;
+    }
+
+    function updateStatus() {
+      if (state.running) {
+        els.status.textContent = "运行中 · t = " + state.model.t.toFixed(1) + " s";
+        els.status.classList.remove("paused");
+      } else {
+        els.status.textContent = "已暂停";
+        els.status.classList.add("paused");
+      }
+    }
+
+    function render() {
+      const r = K.readouts(state.model);
+      drawChamber();
+      updateGauge(r);
+      updateReadouts(r);
+      drawChart();
+      updateInsight(r);
+      updateStatus();
+    }
+
+    function update(dtReal) {
+      if (!state.running) return;
+      state.acc += clamp(finite(dtReal, 0), 0, 0.033);
+      let guard = 0;
+      while (state.acc >= DT - 1e-9 && guard < 12) {
+        K.step(state.model, DT, true);
+        state.acc -= DT;
+        guard += 1;
+      }
+      if (guard >= 12) state.acc = 0; // drop backlog after tab suspension
+      const m = state.model;
+      if (m.t - state.lastSampleT >= SAMPLE_EVERY) {
+        state.lastSampleT = m.t;
+        const r = K.readouts(m);
+        state.history.push({ t: m.t, p: r.pressureKpa, th: r.theoryKpa });
+        const cutoff = m.t - HISTORY_SPAN;
+        while (state.history.length > 2 && state.history[0].t < cutoff) state.history.shift();
+      }
+    }
+
+    function start() {
+      state.running = true;
+      els.startBtn.setAttribute("aria-pressed", "true");
+      render();
+    }
+    function pause() {
+      state.running = false;
+      els.startBtn.setAttribute("aria-pressed", "false");
+      render();
+    }
+    function reset() {
+      pause();
+      state.model = K.createModel(null, 20260929);
+      state.history = [{ t: 0, p: 0, th: K.readouts(state.model).theoryKpa }];
+      state.acc = 0;
+      state.lastTs = null;
+      state.lastSampleT = -1;
+      state.changes = {};
+      syncControls();
+      render();
+    }
+
+    function clampParam(key, value) {
+      const def = parameterSchema.find((d) => d.key === key);
+      return clamp(finite(value, def.default), def.min, def.max);
+    }
+    function setParameters(values) {
+      const m = state.model;
+      const src = values || {};
+      const cur = { n: m.n, v: m.v, w: m.w };
+      const next = {
+        n: clampParam("n", src.n === undefined ? cur.n : Number(src.n)),
+        v: clampParam("v", src.v === undefined ? cur.v : Number(src.v)),
+        w: clampParam("w", src.w === undefined ? cur.w : Number(src.w))
+      };
+      if (Math.abs(next.w - cur.w) > 1e-9) {
+        state.changes.w = { t: m.t, dir: next.w > cur.w ? 1 : -1 };
+        K.setW(m, next.w);
+      }
+      if (Math.abs(next.v - cur.v) > 1e-9) {
+        state.changes.v = { t: m.t, dir: next.v > cur.v ? 1 : -1 };
+        K.setV(m, next.v);
+      }
+      if (next.n !== cur.n) {
+        state.changes.n = { t: m.t };
+        K.setN(m, next.n);
+      }
+      syncControls();
+      render();
+    }
+    function syncControls() {
+      const m = state.model;
+      els.nInput.value = String(m.n);
+      els.vInput.value = String(m.v);
+      els.wInput.value = String(m.w);
+      els.nOutput.textContent = String(m.n);
+      els.vOutput.textContent = m.v.toFixed(0) + " m/s";
+      els.wOutput.textContent = m.w.toFixed(1) + " m";
+    }
+
+    function getState() {
+      return {
+        running: state.running, t: state.model.t,
+        n: state.model.n, v: state.model.v, w: state.model.w,
+        history: state.history.map((s) => ({ t: s.t, p: s.p, th: s.th }))
+      };
+    }
+    function getReadouts() {
+      const r = K.readouts(state.model);
+      r.running = state.running;
+      return r;
+    }
+
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      els.nInput.addEventListener("input", () => setParameters({ n: els.nInput.value }));
+      els.vInput.addEventListener("input", () => setParameters({ v: els.vInput.value }));
+      els.wInput.addEventListener("input", () => setParameters({ w: els.wInput.value }));
+
+      els.chamber.addEventListener("pointerdown", (e) => {
+        const rect = els.chamber.getBoundingClientRect();
+        const px = e.clientX - rect.left, py = e.clientY - rect.top;
+        const geo = chamberLayout(rect.width, rect.height);
+        if (Math.abs(px - geo.gasLeft) < 26 && py > geo.boxY - 10 && py < geo.boxY + geo.boxH + 10) {
+          state.drag = true;
+          els.chamber.setPointerCapture(e.pointerId);
+        }
+      });
+      els.chamber.addEventListener("pointermove", (e) => {
+        const rect = els.chamber.getBoundingClientRect();
+        const px = e.clientX - rect.left, py = e.clientY - rect.top;
+        const geo = chamberLayout(rect.width, rect.height);
+        if (state.drag) {
+          const w = clamp((geo.gasRight - px) / geo.s, 4, 12);
+          setParameters({ w });
+        } else {
+          const near = Math.abs(px - geo.gasLeft) < 26 && py > geo.boxY - 10 && py < geo.boxY + geo.boxH + 10;
+          els.chamber.style.cursor = near ? "ew-resize" : "default";
+        }
+      });
+      const endDrag = () => { state.drag = false; };
+      els.chamber.addEventListener("pointerup", endDrag);
+      els.chamber.addEventListener("pointercancel", endDrag);
+      window.addEventListener("resize", render);
+    }
+
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function init() {
+      state.reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      buildGauge();
+      bindControls();
+      reset();
+      start(); // classroom demo: alive on load
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: K.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

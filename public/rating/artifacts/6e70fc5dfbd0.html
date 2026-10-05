@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>布朗运动 · 显微镜视野仿真</title>
+<style>
+  :root{
+    --bg:#0a0f17; --card:#101724; --line:#223047; --ink:#dde6f2; --muted:#8ea0b8;
+    --accent:#45d5c8; --accent2:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 700px at 75% -10%, #13223c 0%, var(--bg) 55%);
+    color:var(--ink);
+    font:15px/1.65 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 34px}
+  header h1{font-size:1.35rem;margin:0 0 4px;letter-spacing:.5px}
+  header p{margin:0;color:var(--muted);font-size:.86rem}
+  .main{display:grid;grid-template-columns:minmax(320px,1fr) 400px;gap:16px;margin-top:16px;align-items:start}
+  @media(max-width:920px){.main{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,#121a29 0%,#0f1622 100%);
+    border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px #0004}
+  .card h2{font-size:14px;margin:0 0 10px;color:#c8ece7;display:flex;align-items:center;gap:8px;font-weight:600}
+  .card h2::before{content:"";width:4px;height:14px;background:var(--accent);border-radius:2px;flex:none}
+  .stack{display:flex;flex-direction:column;gap:16px}
+
+  /* 视野 */
+  #field{display:block;width:100%;aspect-ratio:1/1;border-radius:12px;cursor:pointer}
+  .fieldbar{display:flex;justify-content:space-between;align-items:center;
+    margin-top:8px;font-size:13px;color:var(--muted)}
+  .fieldbar b{color:var(--ink);font-variant-numeric:tabular-nums}
+  #status{font-weight:600}
+  #status.ok{color:#69dd9a} #status.paused{color:var(--accent2)}
+  .hint{font-size:12px;color:#6d7f96;margin-top:6px}
+
+  /* 按钮 */
+  .btnrow{display:flex;flex-wrap:wrap;gap:8px}
+  button{background:#1a2436;border:1px solid #2c3b55;color:var(--ink);
+    padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;transition:.15s;line-height:1.2}
+  button:hover{background:#22314b;border-color:#41598a}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#04211e;font-weight:700}
+  button.primary:hover{filter:brightness(1.12)}
+  button.off{opacity:.5}
+  .ctl{margin:12px 0 4px}
+  .ctl .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:3px}
+  .ctl output{color:var(--ink);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  select{background:#1a2436;color:var(--ink);border:1px solid #2c3b55;border-radius:8px;padding:5px 8px;font-size:13px}
+  .inline{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--muted)}
+  .kv{background:#0d1522;border:1px solid #1e2c42;border-radius:9px;padding:7px 10px;margin-top:10px;
+    font-size:12.5px;color:#aebdd2}
+  .kv b{color:var(--accent2);font-variant-numeric:tabular-nums}
+
+  /* 统计图 */
+  #chart{width:100%;height:205px;display:block;background:#0b1220;border:1px solid #1c2942;border-radius:10px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:7px}
+  .legend i{display:inline-block;width:20px;height:0;border-top:2.5px solid var(--accent);vertical-align:middle;margin-right:5px;border-radius:2px}
+  .legend i.th{border-top-style:dashed;border-top-width:2px;border-color:#8fa3bd}
+  .note{font-size:11.5px;color:#6d7f96;margin-top:6px}
+
+  /* 读数 */
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .stat{background:#0d1522;border:1px solid #1e2c42;border-radius:10px;padding:8px 11px}
+  .stat b{display:block;font-size:17px;font-weight:700;color:var(--accent2);font-variant-numeric:tabular-nums}
+  .stat span{font-size:11.5px;color:var(--muted)}
+  #dots{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
+  .dot{width:26px;height:26px;border-radius:50%;border:2px solid #0000;padding:0;flex:none}
+  .dot.sel{border-color:#fff;box-shadow:0 0 9px #fff6}
+  .selname{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:6px}
+  .selname i{width:11px;height:11px;border-radius:50%;display:inline-block}
+
+  /* 教学要点 */
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:16px}
+  .note-card{background:#0f1725;border:1px solid #1e2c42;border-left:3px solid var(--accent);
+    border-radius:10px;padding:10px 14px;font-size:13.5px;color:#c7d3e4}
+  .note-card b{color:#dff6f2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🔬 布朗运动 · 显微镜视野仿真</h1>
+    <p>1827 年布朗观察到悬浮花粉微粒的无规则折线运动 —— 液体分子热运动的间接证据。颗粒每 0.4 s（模拟时间）随机改向一次，步长满足 ⟨s²⟩ ∝ T / r。</p>
+  </header>
+
+  <div class="main">
+    <!-- 左：视野 -->
+    <div class="card">
+      <canvas id="field"></canvas>
+      <div class="fieldbar">
+        <span id="status" class="ok">● 运行中</span>
+        <span>模拟时间 t = <b id="time">0.0</b> s　·　比例尺见视野左下（1 u = 1 视野单位）</span>
+      </div>
+      <div class="hint">💡 点击视野中的颗粒（或右侧色点）可切换 / 取消追踪；白色虚线为被追踪颗粒自统计起点以来的位移矢量。</div>
+    </div>
+
+    <!-- 右：控制与统计 -->
+    <div class="stack">
+      <div class="card">
+        <h2>播放控制</h2>
+        <div class="btnrow">
+          <button id="playBtn" class="primary">⏸ 暂停</button>
+          <button id="resetBtn" title="颗粒重新随机摆位，时间与统计全部归零">↺ 重置</button>
+          <button id="clearBtn" title="清空轨迹线，并以当前位置为新的统计起点重新记录">🧹 清除轨迹</button>
+          <button id="molBtn">🫧 分子：开</button>
+        </div>
+        <div class="inline">
+          <span>播放速度（模拟时间 / 真实时间）</span>
+          <select id="speedSel">
+            <option value="0.25">0.25×</option>
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>可调参数</h2>
+        <div class="ctl">
+          <div class="lab"><span>热力学温度 T</span><output id="Tlab"></output></div>
+          <input type="range" id="TSlider" min="300" max="600" step="10" value="300">
+        </div>
+        <div class="ctl">
+          <div class="lab"><span>颗粒半径 r</span><output id="rlab"></output></div>
+          <input type="range" id="rSlider" min="0.5" max="2" step="0.1" value="1">
+        </div>
+        <div class="ctl">
+          <div class="lab"><span>颗粒数量</span><output id="nlab"></output></div>
+          <input type="range" id="nSlider" min="3" max="10" step="1" value="6">
+        </div>
+        <div class="kv">当前微观模型：每 <b>0.4 s</b> 随机改向一次，RMS 步长 √⟨s²⟩ ≈ <b id="stepLab"></b> 视野单位（T=300 K、r=1.0 μm 时为 8 u）</div>
+      </div>
+
+      <div class="card">
+        <h2>统计：全部颗粒平均 ⟨r²⟩ – t</h2>
+        <canvas id="chart"></canvas>
+        <div class="legend">
+          <span><i></i>模拟值（N 颗平均）</span>
+          <span><i class="th"></i>理论 ⟨r²⟩ = (⟨s²⟩/τ)·t（无边界）</span>
+        </div>
+        <div class="note">视野有限、颗粒在边界反射，长时间后模拟曲线会低于理论直线而趋于饱和（受限扩散）。</div>
+        <div class="stats">
+          <div class="stat"><b id="r2Now">0</b><span>⟨r²⟩ 模拟值 / u²</span></div>
+          <div class="stat"><b id="r2Th">0</b><span>⟨r²⟩ 理论值（当前 T、r）/ u²</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>追踪颗粒读数</h2>
+        <div id="dots"></div>
+        <div class="selname" id="selName"></div>
+        <div class="stats">
+          <div class="stat"><b id="pathEl">—</b><span>路程 L（累计）/ u</span></div>
+          <div class="stat"><b id="dispEl">—</b><span>位移 |Δr| 大小 / u</span></div>
+          <div class="stat"><b id="ratioEl">—</b><span>路程 / 位移</span></div>
+          <div class="stat"><b id="stepCount">0</b><span>已走过的折线段数</span></div>
+        </div>
+        <div class="note">路程只增不减，位移却时大时小 —— L 始终 ≥ |Δr|。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 教学要点 -->
+  <div class="notes">
+    <div class="note-card"><b>🔀 无主导方向，永不停息</b><br>每颗颗粒的轨迹都是不断转折的折线，朝各方向运动的机会均等；无论观察多久，运动都不会衰减静止。</div>
+    <div class="note-card"><b>🌡️ 温度越高、颗粒越小越剧烈</b><br>模型中 ⟨s²⟩ ∝ T/r：调高温度或减小半径，步长立即变大，⟨r²⟩–t 曲线斜率随之变陡。可对比不同参数下的折线疏密。</div>
+    <div class="note-card"><b>🔬 反映 ≠ 等于</b><br>半透明小点是液体分子（仅示意）：其速率远大于颗粒、方向更加杂乱，真实比例下还要快数百倍、多千亿倍。花粉颗粒远大于分子，其折线运动只是海量分子撞击的统计结果。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ================= 常量与状态 ================= */
+const VIEW_R  = 100;     // 视野半径（视野单位 u）
+const MARGIN_U= 10;      // 画布内边距
+const SEG_T   = 0.4;     // 颗粒改向周期（模拟秒）
+const BASE_S2 = 64;      // T=300K、r=1μm 时的 ⟨s²⟩（即 RMS 步长 8u）
+const TRAIL_MAX = 900;   // 每颗颗粒轨迹点上限
+const STAT_DT = 0.2;     // 统计采样间隔（模拟秒）
+const N_MOL   = 130;     // 分子数量
+const MOL_BASE= 170;     // 分子基准速率 u/s（∝√T；颗粒典型速率约 20 u/s）
+const PI2 = Math.PI*2;
+
+let T=300, rUm=1.0, N=6;
+let speed=1, running=true, showMol=true;
+let simTime=0, statTimer=0, samples=[];      // samples: {t, v}
+let particles=[], molecules=[];
+let selected=1;                              // 被追踪颗粒编号，null=未选
+const COLORS=['#ffd166','#4fd1c5','#ff8fab','#9df28a','#7aa2ff','#f4a261',
+              '#e0aaff','#ff6b6b','#89f7a5','#fca311'];
+
+/* ================= 工具 ================= */
+let gSpare=null;
+function gauss(){                          // 标准正态（Box–Muller）
+  if(gSpare!==null){const v=gSpare;gSpare=null;return v;}
+  let u,v,s2;
+  do{u=Math.random()*2-1;v=Math.random()*2-1;s2=u*u+v*v;}while(s2>=1||s2===0);
+  const m=Math.sqrt(-2*Math.log(s2)/s2);
+  gSpare=v*m; return u*m;
+}
+const s2Mean=()=>BASE_S2*(T/300)/rUm;      // ⟨s²⟩ ∝ T/r
+const partRadiusU=()=>1.1+2.1*rUm;         // 颗粒绘制半径（视野单位）
+
+/* ================= 颗粒模型 ================= */
+function resampleSeg(p){                   // 新的一段：二维高斯位移 → 方向均匀、E[|s|²]=⟨s²⟩
+  const sigma=Math.sqrt(s2Mean()/2);
+  const gx=gauss()*sigma, gy=gauss()*sigma;
+  const len=Math.hypot(gx,gy)||1e-9;
+  p.dx=gx/len; p.dy=gy/len; p.spd=len/SEG_T;
+}
+function advance(p,dt){                    // 沿当前段推进，边界处反射
+  const dist=p.spd*dt;
+  p.x+=p.dx*dist; p.y+=p.dy*dist; p.pathLen+=dist;
+  const lim=VIEW_R-partRadiusU()-0.5, d2=p.x*p.x+p.y*p.y;
+  if(d2>lim*lim){
+    const d=Math.sqrt(d2)||1e-9, nx=p.x/d, ny=p.y/d;
+    p.x=nx*lim; p.y=ny*lim;
+    const dot=p.dx*nx+p.dy*ny;
+    if(dot>0){ p.dx-=2*dot*nx; p.dy-=2*dot*ny;
+      const m=Math.hypot(p.dx,p.dy)||1; p.dx/=m; p.dy/=m; }
+  }
+}
+function stepParticle(p,dt){
+  let remain=dt, guard=0;
+  while(remain>1e-9 && guard++<100){
+    if(p.segT>=SEG_T-1e-9){                // 一段结束：记录轨迹点并重采样
+      p.trail.push([p.x,p.y]);
+      if(p.trail.length>TRAIL_MAX) p.trail.splice(0,p.trail.length-TRAIL_MAX);
+      p.steps=(p.steps||0)+1;
+      resampleSeg(p); p.segT=0;
+      if(remain<=1e-9) break;
+      continue;
+    }
+    const step=Math.min(remain,SEG_T-p.segT);
+    advance(p,step);
+    remain-=step; p.segT+=step;
+  }
+}
+function initParticles(n){
+  particles=[]; const placed=[];
+  for(let i=0;i<n;i++){
+    let x=0,y=0;
+    for(let tr=0;tr<60;tr++){              // 随机摆位，尽量避免重叠
+      const a=Math.random()*PI2, d=Math.sqrt(Math.random())*VIEW_R*0.55;
+      x=Math.cos(a)*d; y=Math.sin(a)*d;
+      if(placed.every(q=>Math.hypot(x-q[0],y-q[1])>14)) break;
+    }
+    placed.push([x,y]);
+    particles.push({id:i+1,color:COLORS[i%COLORS.length],
+      x,y,x0:x,y0:y, dx:1,dy:0,spd:0,segT:SEG_T,
+      trail:[],pathLen:0,steps:0});
+  }
+  if(selected===null){} else if(selected>n) selected=n;
+  buildDots();
+}
+function resetRecords(){                   // 以当前位置为新的统计起点
+  simTime=0; statTimer=0; samples=[];
+  for(const p of particles){ p.x0=p.x; p.y0=p.y; p.pathLen=0; p.steps=0; p.trail=[[p.x,p.y]]; }
+}
+
+/* ================= 分子（仅示意） ================= */
+function resampleMol(m){
+  const a=Math.random()*PI2;
+  const v=MOL_BASE*Math.sqrt(T/300)*(0.5+Math.random());
+  m.vx=Math.cos(a)*v; m.vy=Math.sin(a)*v;
+  m.t=0.02+Math.random()*0.06;             // 极短时间内就乱改方向
+}
+function initMolecules(){
+  molecules=[];
+  for(let i=0;i<N_MOL;i++){
+    const a=Math.random()*PI2, d=Math.sqrt(Math.random())*(VIEW_R-4);
+    const m={x:Math.cos(a)*d,y:Math.sin(a)*d,vx:0,vy:0,t:0,r:0.8+Math.random()*0.7};
+    resampleMol(m); molecules.push(m);
+  }
+}
+function stepMolecules(dt){
+  const lim=VIEW_R-1.5;
+  for(const m of molecules){
+    m.x+=m.vx*dt; m.y+=m.vy*dt; m.t-=dt;
+    const d2=m.x*m.x+m.y*m.y;
+    if(d2>lim*lim){
+      const d=Math.sqrt(d2)||1e-9,nx=m.x/d,ny=m.y/d;
+      m.x=nx*lim; m.y=ny*lim;
+      const dot=m.vx*nx+m.vy*ny;
+      if(dot>0){m.vx-=2*dot*nx;m.vy-=2*dot*ny;}
+    }
+    if(m.t<=0) resampleMol(m);
+  }
+}
+
+/* ================= 模拟推进 ================= */
+function simulate(dt){
+  simTime+=dt;
+  for(const p of particles) stepParticle(p,dt);
+  if(showMol) stepMolecules(dt);
+  statTimer+=dt;
+  while(statTimer>=STAT_DT){
+    statTimer-=STAT_DT;
+    let s=0;
+    for(const p of particles) s+=(p.x-p.x0)*(p.x-p.x0)+(p.y-p.y0)*(p.y-p.y0);
+    samples.push({t:simTime, v:particles.length? s/particles.length : 0});
+    if(samples.length>6000) samples.splice(0,1000);
+  }
+}
+
+/* ================= 主视野绘制 ================= */
+const fieldC=document.getElementById('field'), fx=fieldC.getContext('2d');
+function strokePoly(x,pts,color,alpha,w){
+  if(pts.length<2)return;
+  x.beginPath(); x.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) x.lineTo(pts[i][0],pts[i][1]);
+  x.globalAlpha=alpha; x.strokeStyle=color; x.lineWidth=w;
+  x.lineJoin='round'; x.lineCap='round'; x.stroke(); x.globalAlpha=1;
+}
+function drawField(){
+  const dpr=window.devicePixelRatio||1, css=fieldC.clientWidth;
+  if(css<10)return;
+  const px=Math.round(css*dpr);
+  if(fieldC.width!==px){fieldC.width=px;fieldC.height=px;}
+  fx.setTransform(dpr,0,0,dpr,0,0);
+  fx.fillStyle='#0d1522'; fx.fillRect(0,0,css,css);
+  const k=css/(2*(VIEW_R+MARGIN_U));
+  fx.translate(css/2,css/2); fx.scale(k,k);
+
+  // 视野底盘（暗场风格）
+  const g=fx.createRadialGradient(0,0,VIEW_R*0.1,0,0,VIEW_R);
+  g.addColorStop(0,'#0a1a1c'); g.addColorStop(0.75,'#071114'); g.addColorStop(1,'#030a0d');
+  fx.beginPath(); fx.arc(0,0,VIEW_R,0,PI2); fx.fillStyle=g; fx.fill();
+  // 刻度环
+  fx.strokeStyle='rgba(90,140,150,.28)'; fx.lineWidth=0.6;
+  for(let i=0;i<24;i++){
+    const a=i*Math.PI/12, len=(i%6===0?5.5:3.8);
+    fx.beginPath();
+    fx.moveTo(Math.cos(a)*(VIEW_R-2.2),Math.sin(a)*(VIEW_R-2.2));
+    fx.lineTo(Math.cos(a)*(VIEW_R-len),Math.sin(a)*(VIEW_R-len));
+    fx.stroke();
+  }
+  fx.beginPath(); fx.arc(0,0,VIEW_R,0,PI2);
+  fx.strokeStyle='#3d6270'; fx.lineWidth=1.4; fx.stroke();
+  fx.beginPath(); fx.arc(0,0,VIEW_R+2.5,0,PI2);
+  fx.strokeStyle='rgba(61,98,112,.35)'; fx.lineWidth=0.7; fx.stroke();
+
+  fx.save();
+  fx.beginPath(); fx.arc(0,0,VIEW_R-1,0,PI2); fx.clip();
+
+  // 分子（半透明小点）
+  if(showMol){
+    fx.fillStyle='rgba(150,215,225,.32)';
+    fx.beginPath();
+    for(const m of molecules){ fx.moveTo(m.x+m.r,m.y); fx.arc(m.x,m.y,m.r,0,PI2); }
+    fx.fill();
+  }
+
+  // 轨迹（旧段更淡，新段更亮；被追踪者加粗）
+  for(const p of particles){
+    const sel=p.id===selected, pts=p.trail;
+    if(pts.length>=1){
+      const half=Math.floor(pts.length/2);
+      strokePoly(fx,pts.slice(0,half+1),p.color, sel?0.22:0.13, sel?1.6:1.1);
+      const rec=pts.slice(half); rec.push([p.x,p.y]);
+      strokePoly(fx,rec,p.color, sel?0.95:0.5, sel?2.4:1.5);
+    }
+  }
+
+  // 被追踪颗粒：位移矢量虚线 + 起点标记
+  const sp=particles.find(q=>q.id===selected);
+  if(sp){
+    fx.setLineDash([2.5,2.5]);
+    fx.strokeStyle='rgba(255,255,255,.55)'; fx.lineWidth=0.7;
+    fx.beginPath(); fx.moveTo(sp.x0,sp.y0); fx.lineTo(sp.x,sp.y); fx.stroke();
+    fx.setLineDash([]);
+    fx.beginPath(); fx.arc(sp.x0,sp.y0,2.4,0,PI2);
+    fx.strokeStyle=sp.color; fx.globalAlpha=.9; fx.lineWidth=1; fx.stroke(); fx.globalAlpha=1;
+  }
+
+  // 颗粒本体
+  const pr=partRadiusU();
+  for(const p of particles){
+    const sel=p.id===selected;
+    if(sel){
+      const rr=pr+4+Math.sin(performance.now()/300)*0.7;   // 呼吸光环
+      fx.setLineDash([3,2.4]);
+      fx.beginPath(); fx.arc(p.x,p.y,rr,0,PI2);
+      fx.strokeStyle='rgba(255,255,255,.9)'; fx.lineWidth=0.9; fx.stroke();
+      fx.setLineDash([]);
+      fx.fillStyle='#fff'; fx.font='700 5px system-ui'; fx.textAlign='left';
+      fx.fillText('#'+p.id, p.x+rr+2, p.y-rr+1.5);
+    }
+    const g2=fx.createRadialGradient(p.x-pr*0.35,p.y-pr*0.35,pr*0.15,p.x,p.y,pr);
+    g2.addColorStop(0,'#ffffff'); g2.addColorStop(0.4,p.color); g2.addColorStop(1,'rgba(0,0,0,.55)');
+    fx.beginPath(); fx.arc(p.x,p.y,pr,0,PI2);
+    fx.fillStyle=g2; fx.fill();
+    fx.strokeStyle='rgba(0,0,0,.35)'; fx.lineWidth=0.5; fx.stroke();
+  }
+  fx.restore();
+
+  // 比例尺
+  const sy=VIEW_R*0.88, sx=-VIEW_R*0.78;
+  fx.strokeStyle='rgba(200,220,230,.55)'; fx.lineWidth=0.8;
+  fx.beginPath();
+  fx.moveTo(sx,sy); fx.lineTo(sx+20,sy);
+  fx.moveTo(sx,sy-2.5); fx.lineTo(sx,sy+2.5);
+  fx.moveTo(sx+20,sy-2.5); fx.lineTo(sx+20,sy+2.5);
+  fx.stroke();
+  fx.fillStyle='rgba(200,220,230,.65)'; fx.font='4.5px system-ui'; fx.textAlign='left';
+  fx.fillText('20 u', sx+24, sy+1.6);
+}
+
+/* ================= 统计图绘制 ================= */
+const chartC=document.getElementById('chart'), cx=chartC.getContext('2d');
+function fmt(v){
+  if(v>=10000) return (v/1000).toFixed(1)+'k';
+  if(v>=100)  return String(Math.round(v));
+  return v.toFixed(1);
+}
+function drawChart(){
+  const dpr=window.devicePixelRatio||1, w=chartC.clientWidth, h=chartC.clientHeight;
+  if(w<10)return;
+  if(chartC.width!==Math.round(w*dpr)){chartC.width=Math.round(w*dpr);chartC.height=Math.round(h*dpr);}
+  cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,w,h);
+  const L=48,R=8,Tm=16,B=24, pw=w-L-R, ph=h-Tm-B;
+  const slope=s2Mean()/SEG_T;
+  const xMax=Math.max(20,simTime*1.05);
+  let yMax=slope*xMax;
+  for(const s of samples) if(s.v>yMax) yMax=s.v;
+  yMax=Math.max(yMax,50)*1.1;
+  const X=t=>L+t/xMax*pw, Y=v=>Tm+ph-v/yMax*ph;
+
+  cx.font='10px system-ui';
+  cx.strokeStyle='rgba(120,150,180,.14)'; cx.lineWidth=1; cx.fillStyle='#7f92ab';
+  for(let i=0;i<=4;i++){
+    const gx=L+pw*i/4, gy=Tm+ph*i/4;
+    cx.beginPath();cx.moveTo(gx,Tm);cx.lineTo(gx,Tm+ph);cx.stroke();
+    cx.beginPath();cx.moveTo(L,gy);cx.lineTo(L+pw,gy);cx.stroke();
+    cx.textAlign='center'; cx.fillText(fmt(xMax*i/4),gx,h-8);
+    cx.textAlign='right';  cx.fillText(fmt(yMax*(4-i)/4),L-5,gy+3.5);
+  }
+  cx.textAlign='left'; cx.fillStyle='#9db0c8';
+  cx.fillText('⟨r²⟩ / u²', 2, 10);
+  cx.fillText('t / s', w-R-30, h-8);
+
+  // 理论虚线
+  cx.strokeStyle='#8fa3bd'; cx.setLineDash([5,4]); cx.lineWidth=1.2;
+  cx.beginPath(); cx.moveTo(X(0),Y(0)); cx.lineTo(X(xMax),Y(slope*xMax)); cx.stroke();
+  cx.setLineDash([]);
+
+  // 模拟曲线
+  if(samples.length>1){
+    cx.strokeStyle='#45d5c8'; cx.lineWidth=1.8;
+    cx.beginPath(); cx.moveTo(X(0),Y(0));
+    for(const s of samples) cx.lineTo(X(s.t),Y(s.v));
+    cx.stroke();
+    const last=samples[samples.length-1];
+    cx.beginPath(); cx.arc(X(last.t),Y(last.v),2.5,0,PI2);
+    cx.fillStyle='#45d5c8'; cx.fill();
+  }else{
+    cx.fillStyle='#5c7089'; cx.textAlign='center';
+    cx.fillText('等待数据…', L+pw/2, Tm+ph/2);
+  }
+}
+
+/* ================= 读数与界面同步 ================= */
+const $=id=>document.getElementById(id);
+const timeEl=$('time'),statusEl=$('status'),pathEl=$('pathEl'),dispEl=$('dispEl'),
+      ratioEl=$('ratioEl'),stepCountEl=$('stepCount'),selName=$('selName'),
+      r2NowEl=$('r2Now'),r2ThEl=$('r2Th'),dotsEl=$('dots');
+function updateReadouts(){
+  timeEl.textContent=simTime.toFixed(1);
+  statusEl.textContent=running?'● 运行中':'‖ 已暂停';
+  statusEl.className=running?'ok':'paused';
+  const p=particles.find(q=>q.id===selected);
+  if(p){
+    selName.innerHTML='<i style="background:'+p.color+'"></i>正在追踪：颗粒 #'+p.id;
+    const disp=Math.hypot(p.x-p.x0,p.y-p.y0);
+    pathEl.textContent=p.pathLen.toFixed(1);
+    dispEl.textContent=disp.toFixed(1);
+    ratioEl.textContent=disp>0.5?(p.pathLen/disp).toFixed(1):'—';
+    stepCountEl.textContent=p.steps||0;
+  }else{
+    selName.innerHTML='<i style="background:#33415a"></i>未选择（点击视野中的颗粒可追踪）';
+    pathEl.textContent=dispEl.textContent=ratioEl.textContent='—';
+    stepCountEl.textContent='—';
+  }
+  r2NowEl.textContent=samples.length?samples[samples.length-1].v.toFixed(0):'0';
+  r2ThEl.textContent=(s2Mean()/SEG_T*simTime).toFixed(0);
+}
+function syncLabels(){
+  $('Tlab').textContent=T+' K ≈ '+(T-273.15).toFixed(1)+' °C';
+  $('rlab').textContent=rUm.toFixed(1)+' μm';
+  $('nlab').textContent=N+' 颗';
+  $('stepLab').textContent=Math.sqrt(s2Mean()).toFixed(1);
+}
+function buildDots(){
+  dotsEl.innerHTML='';
+  for(const p of particles){
+    const b=document.createElement('button');
+    b.className='dot'+(p.id===selected?' sel':'');
+    b.style.background=p.color; b.title='颗粒 #'+p.id;
+    b.onclick=()=>{ selected=(selected===p.id)?null:p.id; syncDots(); };
+    dotsEl.appendChild(b);
+  }
+}
+function syncDots(){
+  [...dotsEl.children].forEach((b,i)=>b.classList.toggle('sel',i+1===selected));
+}
+
+/* ================= 事件绑定 ================= */
+function togglePlay(){
+  running=!running;
+  const b=$('playBtn');
+  b.textContent=running?'⏸ 暂停':'▶ 开始';
+  b.classList.toggle('primary',true);
+}
+$('playBtn').onclick=togglePlay;
+$('resetBtn').onclick=()=>{ initParticles(N); resetRecords(); syncDots(); };
+$('clearBtn').onclick=resetRecords;
+$('molBtn').onclick=e=>{
+  showMol=!showMol;
+  e.currentTarget.textContent=showMol?'🫧 分子：开':'🫧 分子：关';
+  e.currentTarget.classList.toggle('off',!showMol);
+};
+$('speedSel').onchange=e=>speed=parseFloat(e.target.value);
+$('TSlider').oninput=e=>{T=+e.target.value;syncLabels();};
+$('rSlider').oninput=e=>{rUm=+e.target.value;syncLabels();};
+$('nSlider').oninput=e=>{N=+e.target.value;initParticles(N);resetRecords();syncLabels();};
+
+fieldC.addEventListener('click',e=>{
+  const rect=fieldC.getBoundingClientRect();
+  const k=rect.width/(2*(VIEW_R+MARGIN_U));
+  const ux=(e.clientX-rect.left-rect.width/2)/k;
+  const uy=(e.clientY-rect.top-rect.height/2)/k;
+  let best=null,bd=1e9;
+  for(const p of particles){
+    const d=Math.hypot(p.x-ux,p.y-uy);
+    if(d<bd){bd=d;best=p;}
+  }
+  selected=(best&&bd<14)?best.id:null;
+  syncDots();
+});
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space' && !/^(INPUT|SELECT|BUTTON|TEXTAREA)$/.test(e.target.tagName)){
+    e.preventDefault(); togglePlay();
+  }
+});
+
+/* ================= 主循环 ================= */
+let last=performance.now();
+function frame(now){
+  let dt=(now-last)/1000; last=now;
+  dt=Math.min(dt,0.05);
+  if(running) simulate(dt*speed);
+  drawField(); drawChart(); updateReadouts();
+  requestAnimationFrame(frame);
+}
+
+/* ================= 初始化 ================= */
+initParticles(N);
+initMolecules();
+resetRecords();
+syncLabels();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

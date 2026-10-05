@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>游标卡尺 &amp; 螺旋测微器 读数练习</title>
+<style>
+:root{--bd:#c9ced6;--bg:#f5f7fa;--tx:#22303f;--ac:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:16px 22px 4px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{font-size:13px;color:#5a6675}
+.tabs{display:flex;gap:8px;padding:10px 22px}
+.tab{padding:8px 20px;border:1px solid var(--bd);background:#fff;border-radius:8px;cursor:pointer;font-size:15px}
+.tab.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:#fff;border:1px solid var(--bd);border-radius:12px;margin:0 22px 22px;padding:14px 16px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;font-size:14px}
+label{font-size:13px;color:#44505e}
+select,button,input{font:inherit}
+select,input{padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:#fff}
+button{padding:6px 14px;border:1px solid var(--bd);border-radius:8px;background:#fff;cursor:pointer}
+button:hover{background:#eef2ff}
+button.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+button.pri:hover{background:#1d4fc0}
+canvas{display:block;width:100%;max-width:1000px;height:auto;border:1px solid #dfe3ea;border-radius:8px;background:#fff;touch-action:none}
+.fields{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0 10px}
+.f label{display:block;margin-bottom:3px}
+.f input{width:110px}
+.fb{font-size:15px;font-weight:700;margin-left:6px}
+.ok{color:#16a34a}.bad{color:#dc2626}
+#msgC,#msgM{font-weight:600}
+details{font-size:13px;color:#44505e;margin-top:8px}
+details div{background:#f2f6ff;border:1px solid #dbe6ff;border-radius:8px;padding:8px 12px;line-height:1.8}
+.hide{display:none}
+.hint{font-size:12px;color:#7a8595;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+<h1>游标卡尺 &amp; 螺旋测微器 读数练习</h1>
+<div class="sub">自己拖动游标 / 转动鼓轮，先查零位，再读数、修正，最后填入并检查。画面只给刻度，不给答案。</div>
+</header>
+
+<div class="tabs">
+<button class="tab on" id="tabC">游标卡尺</button>
+<button class="tab" id="tabM">螺旋测微器</button>
+</div>
+
+<!-- ============ 游标卡尺 ============ -->
+<section class="card" id="paneC">
+<div class="row">
+<label>游标分度
+<select id="selN"><option value="10">10 分度（0.1 mm）</option><option value="20" selected>20 分度（0.05 mm）</option><option value="50">50 分度（0.02 mm）</option></select>
+</label>
+<label>零误差设定
+<select id="selCe"><option value="r" selected>随机（含正负）</option><option value="0">无（=0）</option><option value="0.02">+0.02</option><option value="-0.02">−0.02</option><option value="0.05">+0.05</option><option value="-0.05">−0.05</option><option value="0.1">+0.10</option><option value="-0.1">−0.10</option></select>
+</label>
+<button class="pri" id="btnNewC">新题目</button>
+<button id="btnZeroC">闭合量爪（查零位）</button>
+<button id="btnMeasC">放回工件（测量）</button>
+</div>
+<canvas id="cvC"></canvas>
+<div class="hint">用鼠标按住黄色游标左右拖动（会自动吸附到刻度对齐位置）。闭合量爪后可读取零误差。</div>
+<div class="fields">
+<div class="f"><label>① 零误差 δ（mm，带符号）</label><input type="number" step="0.001" id="inCE"><span class="fb" id="fbCE"></span></div>
+<div class="f"><label>② 卡尺示数（mm）</label><input type="number" step="0.001" id="inCS"><span class="fb" id="fbCS"></span></div>
+<div class="f"><label>③ 修正后长度（mm）</label><input type="number" step="0.001" id="inCL"><span class="fb" id="fbCL"></span></div>
+</div>
+<div class="row"><button class="pri" id="btnChkC">检查</button><button id="btnClrC">清空</button><span id="msgC"></span></div>
+<details><summary>读数方法提示（不含本题答案）</summary><div>
+卡尺示数 = 主尺整毫米数 + 游标对齐格数 × 精度（10分度 0.1 / 20分度 0.05 / 50分度 0.02 mm）。<br>
+零误差 δ：量爪并拢时游标 0 刻线相对主尺 0 刻线的读数（偏右为正、偏左为负）。<br>
+被测长度 = 示数 − δ。
+</div></details>
+</section>
+
+<!-- ============ 螺旋测微器 ============ -->
+<section class="card hide" id="paneM">
+<div class="row">
+<label>零误差设定
+<select id="selMe"><option value="r" selected>随机（含正负）</option><option value="0">无（=0）</option><option value="0.02">+0.02</option><option value="-0.02">−0.02</option><option value="0.05">+0.05</option><option value="-0.05">−0.05</option></select>
+</label>
+<label><input type="checkbox" id="chkEst" style="vertical-align:-2px"> 出题含估读位（半格 0.005 mm）</label>
+<button class="pri" id="btnNewM">新题目</button>
+<button id="btnZeroM">闭合测砧（查零位）</button>
+<button id="btnMeasM">放回工件（测量）</button>
+</div>
+<canvas id="cvM"></canvas>
+<div class="hint">拖动下方圆盘旋转鼓轮，或在滚轮上滚动微调（每格 0.01 mm）；也可水平拖动上方螺杆。下方圆盘为鼓轮（微分筒）正视图，红色指针为固定基准线。</div>
+<div class="fields">
+<div class="f"><label>① 零误差 δ（mm，带符号）</label><input type="number" step="0.001" id="inME"><span class="fb" id="fbME"></span></div>
+<div class="f"><label>② 测微器示数（mm）</label><input type="number" step="0.001" id="inMS"><span class="fb" id="fbMS"></span></div>
+<div class="f"><label>③ 修正后长度（mm）</label><input type="number" step="0.001" id="inML"><span class="fb" id="fbML"></span></div>
+</div>
+<div class="row"><button class="pri" id="btnChkM">检查</button><button id="btnClrM">清空</button><span id="msgM"></span></div>
+<details><summary>读数方法提示（不含本题答案）</summary><div>
+示数 = 固定刻度（先看鼓轮边缘过了几整毫米，再判断半毫米刻线是否露出）+ 鼓轮格数 × 0.01 mm（可估读一位到 0.001 mm）。<br>
+零误差 δ：测砧并拢时的示数（鼓轮 0 线在基准线上方/已过零为正，未到零为负，例如闭合读 0.48 即 δ = −0.02）。<br>
+被测长度 = 示数 − δ。
+</div></details>
+</section>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const snap=(v,s)=>+(Math.round(v/s)*s).toFixed(5);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+function fitCv(cv,w,h){const d=window.devicePixelRatio||1;cv.width=w*d;cv.height=h*d;cv.getContext('2d').setTransform(d,0,0,d,0,0);}
+function px(cv,logicalW,ev){const r=cv.getBoundingClientRect();return{x:(ev.clientX-r.left)*logicalW/r.width,y:(ev.clientY-r.top)*logicalW/r.width*(cv.height/cv.getBoundingClientRect().height?1:1)};}
+/* 上面 px 对 y 需按高度比换算，改用统一函数 */
+function loc(cv,LW,LH,ev){const r=cv.getBoundingClientRect();return{x:(ev.clientX-r.left)*LW/r.width,y:(ev.clientY-r.top)*LH/r.height};}
+const rint=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+
+/* ---------------- 标签页 ---------------- */
+$('#tabC').onclick=()=>{ $('#tabC').classList.add('on');$('#tabM').classList.remove('on');$('#paneC').classList.remove('hide');$('#paneM').classList.add('hide'); };
+$('#tabM').onclick=()=>{ $('#tabM').classList.add('on');$('#tabC').classList.remove('on');$('#paneM').classList.remove('hide');$('#paneC').classList.add('hide'); };
+
+/* ---------------- 零误差档位解析 ---------------- */
+function pickE(selId,snapP,defMax){ const v=$('#'+selId).value;
+  if(v==='r'){ return snap((rint(-defMax,defMax)/100),snapP)===0&&false? 0 : snap(rint(-Math.round(defMax/snapP*100)/100*100,0)/100*0+ (rint(-Math.round(defMax/snapP),Math.round(defMax/snapP)))*snapP, snapP); }
+  const f=parseFloat(v); if(f===0)return 0;
+  let s=snap(f,snapP); if(s===0)s=snapP*Math.sign(f); return s;
+}
+/* 简化版（上面保留会乱，直接用这个） */
+function pickErr(selId,P,maxAbs){ const v=$('#'+selId).value;
+  if(v==='r'){ const n=Math.round(maxAbs/P); return rint(-n,n)*P; }
+  const f=parseFloat(v); if(f===0)return 0;
+  let s=snap(f,P); if(s===0)s=P*Math.sign(f); return +s.toFixed(5);
+}
+
+/* ================= 游标卡尺 ================= */
+const cal={N:20,e:0,pos:15,saved:15,zero:false,
+  get P(){return {10:0.1,20:0.05,50:0.02}[this.N];}, get tol(){return this.P/2+0.0015;}};
+const cvC=$('#cvC'),gC=cvC.getContext('2d'),CW=1000,CH=280;fitCv(cvC,CW,CH);
+const CMM=6,COX=70,CY=92;
+
+function newCal(keepE){
+  const P=cal.P;
+  if(!keepE) cal.e=pickErr('selCe',P,0.10);
+  const L=snap(3+Math.random()*115,P);
+  cal.pos=cal.saved=+(cal.e+L).toFixed(4); cal.zero=false;
+  clearFB('C'); drawCal();
+}
+function drawCal(){
+  const g=gC,N=cal.N,P=cal.P,pos=cal.pos,e=cal.e,L=+(pos-e).toFixed(4);
+  g.clearRect(0,0,CW,CH);
+  g.font='12px sans-serif';g.fillStyle='#67788c';g.textAlign='left';
+  g.fillText('主尺',COX+150*CMM+6,CY-20);
+  /* 工件 */
+  if(!cal.zero&&L>0.05){g.fillStyle='#bcd7f7';g.fillRect(COX-1,18,L*CMM,32);g.strokeStyle='#7fa8dd';g.strokeRect(COX-1,18,L*CMM,32);}
+  /* 量爪 */
+  const x0=COX+pos*CMM;
+  g.fillStyle='#9aa5b1';g.fillRect(COX-17,12,16,40);
+  g.fillStyle='#7d8996';g.fillRect(x0-17,12,16,40);
+  /* 主尺身 */
+  g.fillStyle='#e3e8ee';g.fillRect(COX-30,48,150*CMM+90,44);
+  g.strokeStyle='#98a2ad';g.strokeRect(COX-30,48,150*CMM+90,44);
+  /* 主尺刻度 */
+  g.strokeStyle='#2b2b2b';g.lineWidth=1;g.beginPath();
+  for(let i=0;i<=150;i++){const x=COX+i*CMM,l=i%10===0?24:i%5===0?17:10;g.moveTo(x,CY);g.lineTo(x,CY-l);}
+  g.stroke();
+  g.fillStyle='#2b2b2b';g.font='11px sans-serif';g.textAlign='center';
+  for(let i=0;i<=150;i+=10)g.fillText(i,COX+i*CMM,CY-28);
+  /* 游标滑块 */
+  const bx0=x0-16,bx1=x0+(N-1)*CMM+16;
+  g.fillStyle='#ffd45e';g.fillRect(bx0,95,bx1-bx0,52);
+  g.strokeStyle='#b58a13';g.strokeRect(bx0,95,bx1-bx0,52);
+  g.strokeStyle='#2b2b2b';g.beginPath();
+  for(let j=0;j<=N;j++){const x=x0+j*(N-1)/N*CMM,l=j%5===0?18:9;g.moveTo(x,98);g.lineTo(x,98+l);}
+  g.stroke();
+  g.fillStyle='#2b2b2b';g.font='9px sans-serif';
+  for(let j=0;j<=N;j+=5)g.fillText(j,x0+j*(N-1)/N*CMM,140);
+  g.font='12px sans-serif';g.fillStyle='#67788c';g.textAlign='left';
+  g.fillText('游标（'+N+' 分度）',bx1+8,120);
+  if(cal.zero){g.fillStyle='#c2410c';g.font='bold 14px sans-serif';g.fillText('⚠ 量爪已并拢：请读取零误差 δ',COX,14);}
+}
+let dragC=false,offC=0;
+function hitCal(p){const x0=COX+cal.pos*CMM,N=cal.N;return p.y>88&&p.y<150&&p.x>x0-26&&p.x<x0+(N-1)*CMM+26;}
+cvC.addEventListener('pointerdown',ev=>{const p=loc(cvC,CW,CH,ev);if(hitCal(p)){dragC=true;offC=cal.pos-(p.x-COX)/CMM;cvC.setPointerCapture(ev.pointerId);}});
+cvC.addEventListener('pointermove',ev=>{if(!dragC)return;const p=loc(cvC,CW,CH,ev);
+  cal.pos=clamp(snap((p.x-COX)/CMM+offC,cal.P),cal.e,cal.e+135);cal.zero=(cal.pos-cal.e<cal.P/2);drawCal();});
+cvC.addEventListener('pointerup',()=>dragC=false);
+$('#selN').onchange=()=>{cal.N=+$('#selN').value;newCal(false);};
+$('#selCe').onchange=()=>newCal(false);
+$('#btnNewC').onclick=()=>newCal(false);
+$('#btnZeroC').onclick=()=>{if(!cal.zero)cal.saved=cal.pos;cal.pos=cal.e;cal.zero=true;drawCal();};
+$('#btnMeasC').onclick=()=>{cal.pos=cal.zero?cal.saved:cal.pos;cal.zero=false;drawCal();};
+
+/* ================= 螺旋测微器 ================= */
+const mic={e:0,pos:5,saved:5,zero:false,tol:0.006,get est(){return $('#chkEst').checked;},get step(){return this.est?0.005:0.01;}};
+const cvM=$('#cvM'),gM=cvM.getContext('2d'),MW=1000,MH=500;fitCv(cvM,MW,MH);
+const MMM=14,MOX=90,AY=88,MCX=560,MCY=330,MR=128;
+
+function newMic(keepE){
+  if(!keepE) mic.e=pickErr('selMe',0.01,0.05);
+  let L=rint(2,20)+rint(0,49)*0.01;
+  if(mic.est&&Math.random()<0.5)L+=0.005;
+  mic.pos=mic.saved=+(mic.e+L).toFixed(4);mic.zero=false;
+  clearFB('M');drawMic();
+}
+function drawMic(){
+  const g=gM,pos=mic.pos,e=mic.e,L=+(pos-e).toFixed(5);
+  g.clearRect(0,0,MW,MH);
+  /* 工件 */
+  if(!mic.zero&&L>0.02){g.fillStyle='#bcd7f7';g.fillRect(MOX-34,52,34+L*MMM,72);g.strokeStyle='#7fa8dd';g.strokeRect(MOX-34,52,34+L*MMM,72);}
+  /* 固定套管 */
+  g.fillStyle='#e3e8ee';g.fillRect(MOX-60,46,25*MMM+150,84);
+  g.strokeStyle='#98a2ad';g.strokeRect(MOX-60,46,25*MMM+150,84);
+  g.fillStyle='#9aa5b1';g.fillRect(MOX-60,36,26,104); /* 测砧 */
+  g.strokeStyle='#7d8996';g.strokeRect(MOX-60,36,26,104);
+  /* 轴线 */
+  g.strokeStyle='#5a6570';g.beginPath();g.moveTo(MOX-58,AY);g.lineTo(MOX+25*MMM+10,AY);g.stroke();
+  /* 毫米刻度（上侧，画到 -1 以便读负零误差） */
+  g.strokeStyle='#2b2b2b';g.lineWidth=1;g.beginPath();
+  for(let i=-1;i<=25;i++){const x=MOX+i*MMM,l=i%5===0?30:20;g.moveTo(x,AY);g.lineTo(x,AY-l);}
+  for(let j=-1;j<=25;j++){const x=MOX+(j+0.5)*MMM;g.moveTo(x,AY);g.lineTo(x,AY+18);}
+  g.stroke();
+  g.fillStyle='#2b2b2b';g.font='11px sans-serif';g.textAlign='center';
+  for(let i=0;i<=25;i+=5)g.fillText(i,MOX+i*MMM,AY-36);
+  /* 螺杆 + 鼓轮体（遮挡露出刻度） */
+  const xd=MOX+pos*MMM;
+  g.fillStyle='#c7ced8';g.fillRect(xd,50,700-xd+60,78);
+  g.strokeStyle='#7d8996';g.strokeRect(xd,50,760-xd,78);
+  g.strokeStyle='#1f2937';g.lineWidth=2;g.beginPath();g.moveTo(xd,50);g.lineTo(xd,128);g.stroke();g.lineWidth=1;
+  /* 连接鼓轮 */
+  g.fillStyle='#aeb7c2';g.beginPath();g.moveTo(640,126);g.lineTo(730,126);g.lineTo(742,MCY-MR+6);g.lineTo(628,MCY-MR+6);g.closePath();g.fill();g.strokeStyle='#7d8996';g.stroke();
+  /* 鼓轮圆盘 */
+  g.beginPath();g.arc(MCX,MCY,MR,0,7);g.fillStyle='#eef2f7';g.fill();g.strokeStyle='#5a6570';g.lineWidth=2;g.stroke();g.lineWidth=1;
+  const k=pos*50;
+  g.strokeStyle='#2b2b2b';g.beginPath();
+  for(let j=0;j<50;j++){const a=(-90+(j-k)*7.2)*Math.PI/180,l=j%5===0?26:13;
+    g.moveTo(MCX+Math.cos(a)*(MR-6),MCY+Math.sin(a)*(MR-6));
+    g.lineTo(MCX+Math.cos(a)*(MR-6-l),MCY+Math.sin(a)*(MR-6-l));}
+  g.stroke();
+  g.fillStyle='#2b2b2b';g.font='11px sans-serif';g.textAlign='center';
+  for(let j=0;j<50;j+=5){const a=(-90+(j-k)*7.2)*Math.PI/180;
+    g.fillText(j,MCX+Math.cos(a)*(MR-44),MCY+Math.sin(a)*(MR-44)+4);}
+  g.font='12px sans-serif';g.fillStyle='#67788c';g.fillText('鼓轮（微分筒）正视图 ×0.01 mm',MCX,MCY+4);
+  /* 固定基准指针 */
+  g.strokeStyle='#dc2626';g.lineWidth=2;g.beginPath();g.moveTo(MCX,MCY-MR-16);g.lineTo(MCX,MCY-MR+42);g.stroke();
+  g.fillStyle='#dc2626';g.beginPath();g.moveTo(MCX-7,MCY-MR-18);g.lineTo(MCX+7,MCY-MR-18);g.lineTo(MCX,MCY-MR-4);g.closePath();g.fill();g.lineWidth=1;
+  g.font='12px sans-serif';g.textAlign='left';g.fillStyle='#67788c';
+  g.fillText('固定刻度（套管）',MOX+25*MMM+18,AY-40);
+  if(mic.zero){g.fillStyle='#c2410c';g.font='bold 14px sans-serif';g.fillText('⚠ 测砧已并拢：请读取零误差 δ',MOX-55,20);}
+}
+let dragM=0,mA0=0,mP0=0,mlast=0;
+function angAt(p){return Math.atan2(p.y-MCY,p.x-MCX);}
+cvM.addEventListener('pointerdown',ev=>{const p=loc(cvM,MW,MH,ev);
+  const d=Math.hypot(p.x-MCX,p.y-MCY);
+  if(d<MR+14){dragM=1;mA0=angAt(p);mlast=mA0;mP0=mic.pos;}
+  else if(p.y<175&&p.x>MOX-10){dragM=2;mP0=mic.pos;offC=(p.x-MOX)/MMM;}
+  if(dragM)cvM.setPointerCapture(ev.pointerId);});
+cvM.addEventListener('pointermove',ev=>{if(!dragM)return;const p=loc(cvM,MW,MH,ev);
+  if(dragM===1){let a=angAt(p);let da=a-mlast;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;mlast=a;
+    mic.pos=clamp(snap(mic.pos+da/(2*Math.PI)*0.5,mic.step),mic.e,mic.e+22);}
+  else{mic.pos=clamp(snap(mP0+(p.x-MOX)/MMM-offC,mic.step),mic.e,mic.e+22);}
+  mic.zero=(mic.pos-mic.e<0.004);drawMic();});
+cvM.addEventListener('pointerup',()=>dragM=0);
+cvM.addEventListener('wheel',ev=>{ev.preventDefault();
+  mic.pos=clamp(snap(mic.pos+(ev.deltaY<0?0.01:-0.01),0.001),mic.e,mic.e+22);
+  mic.zero=(mic.pos-mic.e<0.004);drawMic();},{passive:false});
+$('#selMe').onchange=()=>newMic(false);
+$('#chkEst').onchange=()=>newMic(true);
+$('#btnNewM').onclick=()=>newMic(false);
+$('#btnZeroM').onclick=()=>{if(!mic.zero)mic.saved=mic.pos;mic.pos=mic.e;mic.zero=true;drawMic();};
+$('#btnMeasM').onclick=()=>{mic.pos=mic.zero?mic.saved:mic.pos;mic.zero=false;drawMic();};
+
+/* ================= 检查与反馈 ================= */
+function val(id){const v=$('#in'+id).value;return v===''?null:parseFloat(v);}
+function mark(id,ok){const s=$('#fb'+id);s.textContent=ok?'✓':'✗';s.className='fb '+(ok?'ok':'bad');return ok;}
+function clearFB(t){['E','S','L'].forEach(k=>{const s=$('#fb'+t+k);s.textContent='';s.className='fb';});$('#msg'+t).textContent='';['E','S','L'].forEach(k=>$('#in'+t+k).value='');}
+function check(t,tool){
+  const eT=tool.e,sT=tool.pos,lT=+(sT-eT).toFixed(5),tol=tool.tol,need=tool.needE!==false;
+  const eV=val(t+'E'),sV=val(t+'S'),lV=val(t+'L');
+  let a=true,b=true,c=true;
+  if(eV===null)a=false;else a=Math.abs(eV-eT)<tol;
+  if(sV===null)b=false;else b=Math.abs(sV-sT)<tol;
+  if(lV===null)c=false;else c=Math.abs(lV-lT)<tol;
+  mark(t+'E',a);mark(t+'S',b);mark(t+'L',c);
+  $('#msg'+t).textContent=(a&&b&&c)?'✅ 全部正确！换一题继续练吧。':'有 ✗ 的项再想想（可利用“闭合查零位”核对 δ）。';
+  $('#msg'+t).style.color=(a&&b&&c)?'#16a34a':'#dc2626';
+}
+$('#btnChkC').onclick=()=>check('C',cal);
+$('#btnChkM').onclick=()=>check('M',mic);
+$('#btnClrC').onclick=()=>clearFB('C');
+$('#btnClrM').onclick=()=>clearFB('M');
+
+/* 初始化 */
+newCal(false);newMic(false);
+</script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点电荷库仑力与场强矢量叠加仿真</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #dce3ec; overflow: hidden; }
+  #app { display: flex; height: 100vh; }
+  aside { width: 348px; min-width: 348px; overflow-y: auto; padding: 14px; background: #131a23; border-right: 1px solid #232d3a; }
+  aside h1 { font-size: 17px; margin-bottom: 10px; color: #ffd166; }
+  .group { background: #18212c; border: 1px solid #26313f; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+  .gtitle { font-size: 12.5px; color: #8fa3ba; margin-bottom: 8px; }
+  .btnrow { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { background: #22303f; color: #dce3ec; border: 1px solid #34435a; border-radius: 7px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #2b3c50; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: #1f4d6d; border-color: #2f6f9e; }
+  button.active { background: #1f4d6d; border-color: #57a6d8; color: #fff; }
+  .citem { display: flex; align-items: center; gap: 6px; padding: 6px 4px; border-bottom: 1px dashed #263140; }
+  .citem:last-child { border-bottom: none; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: 0 0 6px rgba(255,255,255,.15); }
+  .cname { font-size: 12px; width: 86px; flex: none; white-space: nowrap; }
+  .signbtn { width: 30px; padding: 4px 0; font-weight: bold; flex: none; }
+  input[type=range] { flex: 1; min-width: 60px; accent-color: #57a6d8; }
+  .qval { font-size: 12px; width: 62px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .del { width: 26px; padding: 3px 0; color: #ff8b8b; flex: none; }
+  .prow { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .prow .dot { width: 10px; height: 10px; }
+  .prow span { white-space: nowrap; }
+  .resrow { margin-top: 8px; padding-top: 8px; border-top: 1px solid #26313f; font-size: 13px; color: #ffd166; font-variant-numeric: tabular-nums; }
+  .kv { font-size: 12.5px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+  .kv b { color: #ffd166; }
+  .hl { color: #7fd8ff; }
+  .teach { font-size: 12px; line-height: 1.7; color: #9fb2c8; }
+  .teach b { color: #cfe3ff; }
+  .teach ul { padding-left: 18px; }
+  .teach code { color: #ffd166; background: #0e151d; padding: 0 4px; border-radius: 4px; }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #topbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #131a23; border-bottom: 1px solid #232d3a; }
+  #hint { font-size: 12px; color: #7d91a8; margin-left: auto; }
+  #cwrap { flex: 1; min-height: 0; position: relative; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #pausedBadge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(200,40,40,.85); color: #fff; font-size: 13px; padding: 5px 14px; border-radius: 20px; display: none; pointer-events: none; }
+  .distitem { font-size: 12px; padding: 2px 0; font-variant-numeric: tabular-nums; color: #aebfd2; }
+  .distitem.sel { color: #ffd166; }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <h1>⚡ 电场矢量叠加 & 库仑力仿真</h1>
+    <div class="group">
+      <div class="gtitle">预设方案（一键切换）</div>
+      <div class="btnrow">
+        <button data-preset="dipole">等量异号</button>
+        <button data-preset="same">等量同号</button>
+        <button data-preset="single">单电荷</button>
+      </div>
+    </div>
+    <div class="group">
+      <div class="gtitle">点电荷（2–4 个 · 画布中可拖拽 · 点击电荷选中，最多选 2 个）</div>
+      <div id="chargeList"></div>
+      <div class="btnrow" style="margin-top:8px">
+        <button id="addCharge">＋ 添加电荷</button>
+      </div>
+    </div>
+    <div class="group">
+      <div class="gtitle">探针处场强分解（拖动画布上的 ⌖ 探针）</div>
+      <div id="probeRows"></div>
+      <div class="resrow" id="resRow"></div>
+    </div>
+    <div class="group">
+      <div class="gtitle">库仑力（需选中两个电荷）</div>
+      <div class="kv" id="forceInfo">在画布上点击两个电荷以选中。</div>
+    </div>
+    <div class="group">
+      <div class="gtitle">电荷间距（实时）</div>
+      <div id="distList"></div>
+    </div>
+    <div class="group teach">
+      <b>教学要点</b>
+      <ul>
+        <li>场强叠加遵循<b>平行四边形定则</b>：<code>E合 = E₁ + E₂ + …</code>（矢量和）</li>
+        <li>点电荷场强 <code>E = kq/r²</code>，<code>k = 8.99×10⁹ N·m²/C²</code>；规定方向：正电荷场强沿径向<b>向外</b>，负电荷<b>向内</b>（即该处正检验电荷受力方向）</li>
+        <li>库仑力 <code>F = kq₁q₂/r²</code>：同号相斥、异号相吸；由牛顿第三定律 <code>F₁₂ = −F₂₁</code>，两箭头等大反向、成对出现</li>
+      </ul>
+    </div>
+  </aside>
+  <main>
+    <div id="topbar">
+      <button id="pauseBtn" class="primary">⏸ 暂停冻结</button>
+      <button id="resetBtn">↺ 重置</button>
+      <span id="hint">拖拽电荷移动位置 · 拖拽 ⌖ 探针 · 点击电荷选中（金色圈）</span>
+    </div>
+    <div id="cwrap">
+      <canvas id="cv"></canvas>
+      <div id="pausedBadge">⏸ 已暂停：矢量已冻结</div>
+    </div>
+  </main>
+</div>
+
+script>
+'use strict';
+/* ---------- 常量与状态 ---------- */
+const K = 8.99e9;          // 库仑常数 N·m²/C²
+const PXM = 60;            // 像素/米
+const CH_R = 15;           // 电荷绘制半径(px)
+const PALETTE = ['#ff6b5e','#ffc043','#39c98e','#5e8bff'];
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const wrap = document.getElementById('cwrap');
+let W = 800, H = 560, dpr = 1;
+
+let charges = [];          // {id, x, y(米), sign, mag(μC, 0.5–5), color}
+let nextId = 1;
+let probe = { x: 0, y: 1.2 };
+let selected = [];         // 电荷 id，最多2
+let paused = false;
+let tick = 0;              // 场线流动动画时间
+let lines = [];            // 缓存电场线
+let dirty = true;          // 需要重建场线
+let drag = null;           // {type:'charge'|'probe', id, moved}
+let probeRowEls = [];      // 探针面板行引用
+
+/* ---------- 工具 ---------- */
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+function fmt(x, unit){
+  const a = Math.abs(x);
+  if (a >= 1e9) return (x/1e9).toFixed(2)+' G'+unit;
+  if (a >= 1e6) return (x/1e6).toFixed(2)+' M'+unit;
+  if (a >= 1e3) return (x/1e3).toFixed(2)+' k'+unit;
+  if (a >= 1)   return x.toFixed(2)+' '+unit;
+  if (a >= 1e-3)return (x*1e3).toFixed(2)+' m'+unit;
+  if (a >= 1e-6)return (x*1e6).toFixed(2)+' µ'+unit;
+  return (x*1e9).toFixed(2)+' n'+unit;
+}
+function qC(c){ return c.sign * c.mag * 1e-6; }
+function qLabel(c){ return (c.sign>0?'+':'−')+c.mag.toFixed(1)+' μC'; }
+function nameOf(i){ return 'q'+(i+1); }
+
+/* ---------- 场强计算（世界坐标，y 向上） ---------- */
+function fieldAt(px, py){
+  let ex=0, ey=0; const parts=[];
+  for (const c of charges){
+    const dx = px-c.x, dy = py-c.y;
+    const r2 = dx*dx+dy*dy, r = Math.sqrt(r2);
+    if (r < 0.02) return null;
+    const E = K*Math.abs(qC(c))/r2;
+    const ux = (c.sign>0?1:-1)*dx/r, uy = (c.sign>0?1:-1)*dy/r;
+    ex += E*ux; ey += E*uy;
+    parts.push({ c, Ex:E*ux, Ey:E*uy, E, r, ux, uy });
+  }
+  return { ex, ey, parts };
+}
+function dirAt(px, py){
+  const f = fieldAt(px, py);
+  if (!f) return null;
+  const m = Math.hypot(f.ex, f.ey);
+  if (m < 1e-9) return null;
+  return { x:f.ex/m, y:f.ey/m };
+}
+
+/* ---------- 电场线（RK2 积分） ---------- */
+function buildLines(){
+  lines = [];
+  const r0 = (CH_R+4)/PXM, stopR = r0*0.82, ds = 0.045;
+  const halfW = W/2/PXM + 0.4, halfH = H/2/PXM + 0.4;
+  const hasPos = charges.some(c=>c.sign>0);
+  const seeds = hasPos ? charges.filter(c=>c.sign>0) : charges;
+  for (const c of seeds){
+    const n = clamp(Math.round(6 + 4*c.mag), 8, 24);
+    const flow = c.sign > 0 ? 1 : -1;      // 路径方向与 E 的关系
+    for (let i=0;i<n;i++){
+      const a = i/n*Math.PI*2 + c.id*0.37;
+      let x = c.x + Math.cos(a)*r0, y = c.y + Math.sin(a)*r0;
+      const pts=[{x,y}], arrows=[];
+      let acc = 90;
+      for (let s=0;s<1500;s++){
+        const d1 = dirAt(x,y); if(!d1) break;
+        const mx = x + flow*d1.x*ds/2, my = y + flow*d1.y*ds/2;
+        const d2 = dirAt(mx,my) || d1;
+        x += flow*d2.x*ds; y += flow*d2.y*ds;
+        pts.push({x,y});
+        acc += ds*PXM;
+        if (acc >= 175){ arrows.push({x,y,ux:d2.x*flow,uy:d2.y*flow}); acc = 0; }
+        if (Math.abs(x)>halfW || Math.abs(y)>halfH) break;
+        let hit=false;
+        for (const o of charges){ const dx=x-o.x, dy=y-o.y; if (dx*dx+dy*dy < stopR*stopR){hit=true;break;} }
+        if (hit) break;
+      }
+      if (pts.length > 4) lines.push({ pts, arrows, flow });
+    }
+  }
+}
+
+/* ---------- 场景/预设 ---------- */
+function mkCharge(x,y,sign,mag){
+  const id = nextId++;
+  return { id, x, y, sign, mag, color: PALETTE[(id-1)%PALETTE.length] };
+}
+function applyPreset(name){
+  selected = [];
+  if (name==='single')      charges = [ mkCharge(0,0,1,3) ];
+  else if (name==='same')   charges = [ mkCharge(-2.2,0,1,2), mkCharge(2.2,0,1,2) ];
+  else                      charges = [ mkCharge(-2.2,0,1,2), mkCharge(2.2,0,-1,2) ];
+  probe = { x:0, y:1.4 };
+  dirty = true;
+  rebuildPanel();
+}
+function addCharge(){
+  if (charges.length >= 4) return;
+  const i = charges.length;
+  const x = (i%2? 1.2 : -1.2) * (1 + 0.6*Math.floor(i/2));
+  const c = mkCharge(x, 2.2 - i*0.5, (i%2? -1:1), 1);
+  charges.push(c);
+  dirty = true; rebuildPanel();
+}
+
+/* ---------- 面板 ---------- */
+const chargeListEl = document.getElementById('chargeList');
+function rebuildPanel(){
+  chargeListEl.innerHTML = '';
+  charges.forEach((c)=>{
+    const row = document.createElement('div'); row.className='citem';
+    const signTxt = c.sign>0 ? '＋' : '－';
+    row.innerHTML = `
+      <span class="dot" style="background:${c.color}"></span>
+      <span class="cname">${nameOf(charges.indexOf(c))}（${qLabel(c)}）</span>
+      <button class="signbtn">${signTxt}</button>
+      <input type="range" min="0.5" max="5" step="0.1" value="${c.mag}">
+      <span class="qval">${c.mag.toFixed(1)} μC</span>
+      <button class="del" ${charges.length<=1?'disabled':''}>×</button>`;
+    row.querySelector('.signbtn').onclick = ()=>{ if(paused)return; c.sign*=-1; dirty=true; rebuildPanel(); };
+    const slider = row.querySelector('input');
+    slider.oninput = ()=>{ if(paused)return; c.mag=parseFloat(slider.value); dirty=true; row.querySelector('.qval').textContent=c.mag.toFixed(1)+' μC'; row.querySelector('.cname').textContent = nameOf(charges.indexOf(c))+'（'+qLabel(c)+'）'; };
+    row.querySelector('.del').onclick = ()=>{ if(paused||charges.length<=1)return; charges = charges.filter(o=>o!==c); selected = selected.filter(id=>id!==c.id); dirty=true; rebuildPanel(); };
+    chargeListEl.appendChild(row);
+  });
+  document.getElementById('addCharge').disabled = charges.length>=4;
+  // 探针行
+  const pr = document.getElementById('probeRows'); pr.innerHTML=''; probeRowEls=[];
+  charges.forEach((c)=>{
+    const div = document.createElement('div'); div.className='prow';
+    div.innerHTML = `<span class="dot" style="background:${c.color}"></span>
+      <span style="width:78px">${nameOf(charges.indexOf(c))}</span>
+      <span class="e" style="width:92px;color:#cfe3ff"></span>
+      <span class="a" style="width:92px;color:#9fb2c8"></span>
+      <span class="r" style="color:#7d91a8"></span>`;
+    pr.appendChild(div);
+    probeRowEls.push({ c, e:div.querySelector('.e'), a:div.querySelector('.a'), r:div.querySelector('.r') });
+  });
+}
+
+/* ---------- 坐标变换 ---------- */
+const w2sx = x => W/2 + x*PXM;
+const w2sy = y => H/2 - y*PXM;
+const s2wx = x => (x - W/2)/PXM;
+const s2wy = y => (H/2 - y)/PXM;
+
+/* ---------- 绘制 ---------- */
+function arrow(x1,y1,x2,y2,color,width=2.5,head=9,label){
+  const dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy);
+  if (L<2){ return; }
+  const ux=dx/L, uy=dy/L;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=width;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2-ux*head*0.8,y2-uy*head*0.8); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-ux*head-uy*head*0.45, y2-uy*head+ux*head*0.45);
+  ctx.lineTo(x2-ux*head+uy*head*0.45, y2-uy*head-ux*head*0.45);
+  ctx.closePath(); ctx.fill();
+  if (label){
+    ctx.font='bold 12px system-ui';
+    ctx.fillText(label, x2+ux*10-10, y2+uy*10-6);
+  }
+}
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#0e1620'; ctx.fillRect(0,0,W,H);
+
+  // 网格（1 m）
+  ctx.strokeStyle='#1a2432'; ctx.lineWidth=1; ctx.beginPath();
+  for (let gx = W/2 % PXM; gx < W; gx += PXM){ ctx.moveTo(gx,0); ctx.lineTo(gx,H); }
+  for (let gy = H/2 % PXM; gy < H; gy += PXM){ ctx.moveTo(0,gy); ctx.lineTo(W,gy); }
+  ctx.stroke();
+
+  // 电场线（虚线流动）
+  ctx.save();
+  ctx.setLineDash([12,8]);
+  const dashT = paused ? Math.floor(tick) : tick;
+  for (const ln of lines){
+    ctx.lineDashOffset = -ln.flow * ((dashT*36) % 20);
+    ctx.strokeStyle='rgba(120,165,210,0.4)'; ctx.lineWidth=1.2;
+    ctx.beginPath();
+    ctx.moveTo(w2sx(ln.pts[0].x), w2sy(ln.pts[0].y));
+    for (let i=1;i<ln.pts.length;i++) ctx.lineTo(w2sx(ln.pts[i].x), w2sy(ln.pts[i].y));
+    ctx.stroke();
+  }
+  ctx.restore();
+  // 场线方向箭头（沿 E 方向）
+  ctx.strokeStyle='rgba(160,200,240,0.75)'; ctx.lineWidth=1.4;
+  for (const ln of lines) for (const a of ln.arrows){
+    const x=w2sx(a.x), y=w2sy(a.y), ux=a.ux, uy=-a.uy;
+    ctx.beginPath();
+    ctx.moveTo(x-ux*7-uy*4, y-uy*7+ux*4); ctx.lineTo(x,y); ctx.lineTo(x-ux*7+uy*4, y-uy*7-ux*4);
+    ctx.stroke();
+  }
+
+  // ===== 探针：分场强 + 平行四边形叠加 =====
+  const P = { x:w2sx(probe.x), y:w2sy(probe.y) };
+  const f = fieldAt(probe.x, probe.y);
+  ctx.font='12px system-ui';
+  if (f){
+    const Et = Math.hypot(f.ex, f.ey);
+    const s = 120 / (Et + 3e4);          // 统一比例尺，保证平行四边形几何闭合
+    const tipR = { x:P.x + s*f.ex, y:P.y - s*f.ey };
+    const tips = f.parts.map(p=>({ x:P.x + s*p.Ex, y:P.y - s*p.Ey }));
+    // 平行四边形补边（虚线）：各分矢量端点 → 合矢量端点
+    ctx.setLineDash([5,4]); ctx.strokeStyle='rgba(255,209,102,0.55)'; ctx.lineWidth=1.3;
+    ctx.beginPath();
+    for (const t of tips){ ctx.moveTo(t.x,t.y); ctx.lineTo(tipR.x,tipR.y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    // 分场强
+    f.parts.forEach((p,i)=>{
+      arrow(P.x,P.y,tips[i].x,tips[i].y, p.c.color, 2.5, 8, 'E'+(charges.indexOf(p.c)+1));
+    });
+    // 合场强
+    if (Et > 1) arrow(P.x,P.y,tipR.x,tipR.y,'#ffd166',3.5,11,'E合');
+  }
+  // 探针标记
+  ctx.strokeStyle='#7fd8ff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(P.x,P.y,9,0,7); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(P.x-15,P.y); ctx.lineTo(P.x+15,P.y);
+  ctx.moveTo(P.x,P.y-15); ctx.lineTo(P.x,P.y+15);
+  ctx.stroke();
+  ctx.fillStyle='#7fd8ff'; ctx.font='bold 12px system-ui';
+  ctx.fillText('探针 ⌖', P.x+14, P.y-12);
+
+  // ===== 选中两电荷：间距 + 库仑力对 =====
+  if (selected.length === 2){
+    const c1 = charges.find(c=>c.id===selected[0]);
+    const c2 = charges.find(c=>c.id===selected[1]);
+    if (c1 && c2){
+      const A={x:w2sx(c1.x),y:w2sy(c1.y)}, B={x:w2sx(c2.x),y:w2sy(c2.y)};
+      const dx=c1.x-c2.x, dy=c1.y-c2.y, r=Math.hypot(dx,dy);
+      // 连线与间距
+      ctx.setLineDash([6,5]); ctx.strokeStyle='rgba(180,200,220,0.6)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='#dbe6f2'; ctx.font='bold 13px system-ui';
+      const mx=(A.x+B.x)/2, my=(A.y+B.y)/2;
+      ctx.fillText('r = '+r.toFixed(2)+' m', mx+10, my-8);
+      // 库仑力
+      if (r > 0.05){
+        const F = K*Math.abs(qC(c1)*qC(c2))/(r*r);
+        const rep = qC(c1)*qC(c2) > 0;             // 同号排斥
+        const ux = dx/r, uy = -dy/r;               // 屏幕方向：c2 → c1
+        const L = clamp(40 + 22*Math.log10(F/1e-4), 34, 90);
+        arrow(A.x+ux*(CH_R+3), A.y+uy*(CH_R+3), A.x+ux*(CH_R+3+L), A.y+uy*(CH_R+3+L), '#ff9f43', 3, 10, 'F₂₁');
+        arrow(B.x-ux*(CH_R+3), B.y-uy*(CH_R+3), B.x-ux*(CH_R+3+L), B.y-uy*(CH_R+3+L), '#ff9f43', 3, 10, 'F₁₂');
+        ctx.fillStyle='#ffb066'; ctx.font='bold 12px system-ui';
+        ctx.fillText('F = '+fmt(F,'N')+(rep?'（排斥）':'（吸引）'), mx+10, my+12);
+      }
+    }
+  }
+
+  // ===== 电荷 =====
+  charges.forEach((c)=>{
+    const x=w2sx(c.x), y=w2sy(c.y);
+    if (selected.includes(c.id)){
+      ctx.strokeStyle='#ffd166'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(x,y,CH_R+6,0,7); ctx.stroke();
+    }
+    ctx.fillStyle=c.color;
+    ctx.beginPath(); ctx.arc(x,y,CH_R,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#0d1117'; ctx.font='bold 17px system-ui'; ctx.textAlign='center';
+    ctx.fillText(c.sign>0?'+':'−', x, y+6);
+    ctx.textAlign='left';
+    ctx.fillStyle='#c7d4e3'; ctx.font='bold 12px system-ui';
+    ctx.fillText(nameOf(charges.indexOf(c)), x+CH_R+5, y-CH_R);
+    ctx.fillStyle='#8fa3ba'; ctx.font='11.5px system-ui';
+    ctx.fillText(qLabel(c), x+CH_R+5, y-CH_R+15);
+  });
+
+  // 图例
+  ctx.fillStyle='rgba(13,17,23,0.75)'; ctx.fillRect(10,10,268,54);
+  ctx.strokeStyle='#26313f'; ctx.strokeRect(10,10,268,54);
+  ctx.font='12px system-ui';
+  ctx.fillStyle='#ffd166'; ctx.fillText('E合（粗黄）＝各分场强按平行四边形定则叠加', 18, 28);
+  ctx.fillStyle='#ff9f43'; ctx.fillText('F₁₂ / F₂₁：库仑力对（牛顿第三定律，等大反向）', 18, 45);
+  ctx.fillStyle='rgba(160,200,240,1)'; ctx.fillText('灰蓝细线为电场线，箭头沿 E 方向', 18, 60);
+}
+
+/* ---------- 面板数据实时刷新 ---------- */
+function updateReadouts(){
+  const f = fieldAt(probe.x, probe.y);
+  if (!f){
+    document.getElementById('resRow').textContent = '探针位于电荷上：E → ∞，请拖开探针';
+    probeRowEls.forEach(r=>{ r.e.textContent='—'; r.a.textContent='—'; r.r.textContent='—'; });
+  } else {
+    probeRowEls.forEach((row,i)=>{
+      const p = f.parts[i];
+      row.e.textContent = '|E|='+fmt(p.E,'N/C');
+      row.a.textContent = 'θ='+(Math.atan2(p.Ey,p.Ex)*180/Math.PI).toFixed(1)+'°';
+      row.r.textContent = 'r='+p.r.toFixed(2)+' m';
+    });
+    const Et = Math.hypot(f.ex,f.ey);
+    const th = (Math.atan2(f.ey,f.ex)*180/Math.PI).toFixed(1);
+    document.getElementById('resRow').innerHTML =
+      Et < 1 ? 'E合 ≈ 0（接近平衡点）' :
+      'E合 = '+fmt(Et,'N/C')+'，θ = '+th+'°';
+  }
+  // 库仑力面板
+  const fi = document.getElementById('forceInfo');
+  if (selected.length === 2){
+    const c1=charges.find(c=>c.id===selected[0]), c2=charges.find(c=>c.id===selected[1]);
+    if (c1&&c2){
+      const r=Math.hypot(c1.x-c2.x, c1.y-c2.y);
+      const F=K*Math.abs(qC(c1)*qC(c2))/(r*r);
+      const rep=qC(c1)*qC(c2)>0;
+      const i1=charges.indexOf(c1)+1, i2=charges.indexOf(c2)+1;
+      fi.innerHTML =
+        `<span class="hl">q${i1}</span> = ${qLabel(c1)}，<span class="hl">q${i2}</span> = ${qLabel(c2)}<br>`+
+        `间距 r = <b>${r.toFixed(2)} m</b><br>`+
+        `F = k|q${i1}q${i2}|/r² = <b>${fmt(F,'N')}</b><br>`+
+        `方向：${rep?'同号相斥（背离对方）':'异号相吸（指向对方）'}<br>`+
+        `牛顿第三定律：F₁₂ = −F₂₁（两箭头成对、等大反向）`;
+    }
+  } else fi.textContent = '在画布上点击两个电荷以选中（金色圈）。';
+  // 间距列表
+  const dl = document.getElementById('distList'); dl.innerHTML='';
+  for (let i=0;i<charges.length;i++) for (let j=i+1;j<charges.length;j++){
+    const r = Math.hypot(charges[i].x-charges[j].x, charges[i].y-charges[j].y);
+    const sel = selected.length===2 && selected.includes(charges[i].id) && selected.includes(charges[j].id);
+    const d = document.createElement('div');
+    d.className = 'distitem'+(sel?' sel':'');
+    d.textContent = `q${i+1} – q${j+1} ：${r.toFixed(2)} m`+(sel?'（选中）':'');
+    dl.appendChild(d);
+  }
+}
+
+/* ---------- 主循环 ---------- */
+function frame(){
+  if (dirty){ buildLines(); dirty=false; }
+  draw();
+  updateReadouts();
+  if (!paused) tick += 1/60;
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 交互 ---------- */
+function resize(){
+  dpr = window.devicePixelRatio || 1;
+  W = wrap.clientWidth; H = wrap.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  dirty = true;
+}
+window.addEventListener('resize', resize);
+
+function hitTest(px, py){
+  for (let i=charges.length-1;i>=0;i--){
+    const c=charges[i];
+    if (Math.hypot(px-w2sx(c.x), py-w2sy(c.y)) < CH_R+6) return {type:'charge', c};
+  }
+  if (Math.hypot(px-w2sx(probe.x), py-w2sy(probe.y)) < 16) return {type:'probe'};
+  return null;
+}
+cv.addEventListener('pointerdown', e=>{
+  if (paused) return;
+  const rect = cv.getBoundingClientRect();
+  const px = e.clientX-rect.left, py = e.clientY-rect.top;
+  const hit = hitTest(px,py);
+  if (!hit) return;
+  drag = { type:hit.type, id:hit.c?hit.c.id:null, moved:false, ox:px, oy:py };
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e=>{
+  const rect = cv.getBoundingClientRect();
+  const px = e.clientX-rect.left, py = e.clientY-rect.top;
+  if (!drag){
+    cv.style.cursor = hitTest(px,py) ? 'grab' : 'crosshair';
+    return;
+  }
+  if (paused) return;
+  const dx = px-drag.ox, dy = py-drag.oy;
+  if (Math.hypot(dx,dy) > 3) drag.moved = true;
+  if (!drag.moved) return;
+  cv.style.cursor = 'grabbing';
+  if (drag.type === 'probe'){
+    probe.x = clamp(s2wx(px), -W/2/PXM+0.2, W/2/PXM-0.2);
+    probe.y = clamp(s2wy(py), -H/2/PXM+0.2, H/2/PXM-0.2);
+  } else {
+    const c = charges.find(c=>c.id===drag.id); if(!c) return;
+    let nx = clamp(s2wx(px), -W/2/PXM+0.35, W/2/PXM-0.35);
+    let ny = clamp(s2wy(py), -H/2/PXM+0.35, H/2/PXM-0.35);
+    for (const o of charges) if (o!==c && Math.hypot(nx-o.x,ny-o.y) < 0.45){ nx=c.x; ny=c.y; break; }
+    c.x=nx; c.y=ny;
+  }
+  dirty = true;
+});
+cv.addEventListener('pointerup', e=>{
+  if (drag && !drag.moved && drag.type==='charge' && !paused){
+    if (selected.includes(drag.id)) selected = selected.filter(id=>id!==drag.id);
+    else { selected.push(drag.id); if (selected.length>2) selected.shift(); }
+  }
+  drag = null;
+});
+
+document.querySelectorAll('[data-preset]').forEach(b=>{
+  b.onclick = ()=>{ if(paused)return; applyPreset(b.dataset.preset); markPreset(b); };
+});
+function markPreset(btn){
+  document.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('active', x===btn));
+}
+document.getElementById('addCharge').onclick = ()=>{ if(!paused) addCharge(); };
+
+const pauseBtn = document.getElementById('pauseBtn');
+pauseBtn.onclick = ()=>{
+  paused = !paused;
+  pauseBtn.textContent = paused ? '▶ 继续' : '⏸ 暂停冻结';
+  document.getElementById('pausedBadge').style.display = paused ? 'block' : 'none';
+};
+document.getElementById('resetBtn').onclick = ()=>{
+  paused = false;
+  pauseBtn.textContent = '⏸ 暂停冻结';
+  document.getElementById('pausedBadge').style.display = 'none';
+  applyPreset('dipole');
+  markPreset(document.querySelector('[data-preset="dipole"]'));
+};
+
+/* ---------- 启动 ---------- */
+resize();
+applyPreset('dipole');
+markPreset(document.querySelector('[data-preset="dipole"]'));
+rebuildPanel();
+requestAnimationFrame(frame);
+script>
+</body>
+</html>

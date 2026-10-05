@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>匀变速直线运动 · 图像实验室</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific extras (extend, never replace, the base set) */
+      --sim-car-b: #d97706;
+      --sim-road: #3b4657;
+      --sim-insight-bg: #fdf4e3;
+      --sim-insight-ink: #8a5407;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(217, 119, 6, 0.07), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.4); outline-offset: 2px; }
+
+    .app {
+      width: min(1560px, 100%);
+      height: 100vh;
+      margin: 0 auto;
+      padding: 14px 18px 12px;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+      gap: 10px;
+      overflow: hidden;
+    }
+    .panel {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: var(--sim-radius-lg);
+      box-shadow: var(--sim-shadow);
+      min-width: 0;
+    }
+
+    /* ── header ─────────────────────────────────────────── */
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 4px; font-size: clamp(1.35rem, 2vw, 1.7rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.82rem; }
+    .status-pill {
+      padding: 8px 14px; border-radius: 999px; background: #e8edf4; color: #536071;
+      font-weight: 700; font-size: 0.85rem; white-space: nowrap;
+    }
+    .status-pill.running { background: var(--sim-accent-soft); color: var(--sim-accent-deep); }
+    .status-pill.finished { background: rgba(217, 119, 6, 0.14); color: var(--sim-insight-ink); }
+
+    /* ── stage: road scene + readouts ───────────────────── */
+    .stage-panel { padding: 10px 14px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+    .stage-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .stage-head h2 { margin: 0; font-size: 0.95rem; }
+    .stage-head span { color: var(--sim-muted); font-size: 0.72rem; }
+    .stage-wrap { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 12px; }
+    #scene { width: 100%; height: 100%; min-height: 140px; display: block; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: 16px; background: linear-gradient(160deg, #fbfdff 0%, #f1f7fa 60%, #fbf7ef 100%); }
+    .readouts { display: grid; grid-auto-rows: min-content; gap: 8px; align-content: start; }
+    .metric { padding: 8px 11px; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: 12px; background: var(--sim-surface-soft); }
+    .metric small { display: block; margin-bottom: 2px; color: var(--sim-muted); font-size: 0.7rem; font-weight: 600; }
+    .metric strong { font-size: 1.02rem; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+    .metric .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+
+    /* ── evidence: three time-aligned charts ────────────── */
+    .charts-row { padding: 9px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; min-height: 0; }
+    .charts-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .charts-head h2 { margin: 0; font-size: 0.95rem; }
+    .charts-head .hint { color: var(--sim-muted); font-size: 0.72rem; }
+    .legend { display: flex; gap: 10px; align-items: center; font-size: 0.78rem; font-weight: 700; }
+    .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+    .charts-grid { min-height: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .chart-card { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 7px 9px 8px; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: var(--sim-radius-md); background: rgba(255, 255, 255, 0.92); }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; padding: 0 3px 3px; }
+    .chart-title h3 { margin: 0; font-size: 0.82rem; }
+    .chart-title span { color: var(--sim-muted); font-size: 0.68rem; }
+    canvas.chart-canvas { width: 100%; height: 100%; min-height: 110px; display: block; }
+
+    /* ── insight ────────────────────────────────────────── */
+    .insight-strip {
+      display: flex; align-items: center; gap: 10px; padding: 9px 16px;
+      border-left: 4px solid var(--sim-warning); border-radius: 12px;
+      background: var(--sim-insight-bg); color: var(--sim-insight-ink); font-weight: 650; font-size: 0.86rem;
+    }
+    .insight-strip .mark { font-size: 1rem; line-height: 1; }
+    .insight-strip p { margin: 0; flex: 1; min-width: 0; }
+    .insight-strip .formula { white-space: nowrap; color: #a1701d; font-size: 0.76rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* ── controls dock ──────────────────────────────────── */
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 14px; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    .seg { display: flex; gap: 6px; }
+    .divider { width: 1px; height: 34px; background: var(--sim-border); }
+    #sliders { display: flex; flex-wrap: wrap; gap: 10px 16px; flex: 1 1 480px; min-width: 0; }
+    .control { flex: 1 1 148px; min-width: 138px; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 3px; font-size: 0.72rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; font-weight: 650; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+
+    button {
+      border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 13px;
+      color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; font-size: 0.84rem;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(0.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15, 159, 186, 0.2); }
+    button.seg-btn { padding: 7px 11px; font-size: 0.8rem; }
+    button.seg-btn[aria-pressed="true"] { background: var(--sim-accent-soft); border-color: rgba(15, 159, 186, 0.45); color: var(--sim-accent-deep); }
+
+    @media (max-width: 1120px) {
+      .charts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .chart-title h3 { font-size: 0.74rem; }
+    }
+    @media (max-width: 980px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .stage-wrap { grid-template-columns: 1fr; }
+      #scene { height: 190px; }
+      .readouts { grid-template-columns: repeat(3, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
+      canvas.chart-canvas { height: 200px; }
+      .insight-strip .formula { white-space: normal; }
+    }
+    @media (max-height: 730px) and (min-width: 981px) {
+      .app { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+      #scene { min-height: 120px; }
+      .readouts .metric { padding: 5px 9px; }
+      .readouts .metric strong { font-size: 0.9rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell — regions: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+
+    <header class="header" data-zone="header">
+      <div>
+        <h1>匀变速直线运动 · 图像实验室</h1>
+        <p>调节初速度与加速度，观察 x–t、v–t、a–t 图像与运动过程一一对应；悬停图像可回看任意时刻。</p>
+      </div>
+      <div id="status" class="status-pill" role="status" aria-live="polite">待开始</div>
+    </header>
+
+    <section class="panel stage-panel" data-zone="stage" aria-labelledby="stage-title">
+      <div class="stage-head">
+        <h2 id="stage-title">运动场景（取右为正方向）</h2>
+        <span>道路刻度按米等比 · 矢量箭头长度为示意，数值以读数为准</span>
+      </div>
+      <div class="stage-wrap">
+        <canvas id="scene" role="img" aria-label="道路上的汽车运动场景：汽车沿带米刻度的道路运动，向右为正方向，刹车模式显示停止旗帜，追及模式显示甲乙两车与间距"></canvas>
+        <aside class="readouts" id="readouts" aria-label="实时读数"></aside>
+      </div>
+    </section>
+
+    <section class="panel charts-row" data-zone="evidence" aria-labelledby="charts-title">
+      <div class="charts-head">
+        <h2 id="charts-title">同步图像 · 三图时间轴对齐</h2>
+        <span class="hint">同一竖直位置 = 同一时刻 · 交点即事件 · 悬停可回看（场景中出现虚线“影子车”）</span>
+        <div class="legend" id="legend" hidden>
+          <span><i class="dot" id="dotA"></i>甲车</span>
+          <span><i class="dot" id="dotB"></i>乙车</span>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title"><h3>x–t 位移图像</h3><span>x / m</span></div>
+          <canvas id="chartX" class="chart-canvas" role="img" aria-label="位移—时间图像：横轴为时间，纵轴为位移；两线相交表示两车相遇"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><h3>v–t 速度图像</h3><span>v / (m/s)</span></div>
+          <canvas id="chartV" class="chart-canvas" role="img" aria-label="速度—时间图像：横轴为时间，纵轴为速度；两线相交表示速度相等，图线与时间轴所围面积为位移"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title"><h3>a–t 加速度图像</h3><span>a / (m/s²)</span></div>
+          <canvas id="chartA" class="chart-canvas" role="img" aria-label="加速度—时间图像：横轴为时间，纵轴为加速度；刹车停止后加速度跳变为零"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="insight-strip" data-zone="insight" aria-live="polite">
+      <span class="mark" aria-hidden="true">💡</span>
+      <p id="insight">调节 v₀ 和 a，点击「开始」——观察三条图线如何与汽车同步生长。</p>
+      <span class="formula" id="formula">x = v₀t + ½at²</span>
+    </section>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">▶ 开始</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="divider" aria-hidden="true"></div>
+      <div class="seg" role="group" aria-label="模式切换" id="modeSwitch">
+        <button class="seg-btn" type="button" data-mode="basic" aria-pressed="true">基本模式</button>
+        <button class="seg-btn" type="button" data-mode="braking" aria-pressed="false">刹车模式</button>
+        <button class="seg-btn" type="button" data-mode="pursuit" aria-pressed="false">追及模式</button>
+      </div>
+      <div class="divider" aria-hidden="true"></div>
+      <div id="sliders"></div>
+      <div class="divider" aria-hidden="true"></div>
+      <div class="seg" role="group" aria-label="时间倍率" id="speedSwitch">
+        <button class="seg-btn" type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+        <button class="seg-btn" type="button" data-speed="1" aria-pressed="true">1×</button>
+        <button class="seg-btn" type="button" data-speed="2" aria-pressed="false">2×</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       Physics kernel — DOM-free, analytic tier.
+       Closed-form uniformly accelerated motion with exact piecewise
+       event handling (braking stop; pursuit equal-speed & meeting).
+       Exposed as globalThis.__simKernel so a Node harness can run
+       runModelChecks() without a browser.
+       ══════════════════════════════════════════════════════════════ -->
+  <script id="sim-kernel">
+  (function () {
+    "use strict";
+    var EPS = 1e-9;
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    // Legal parameter ranges (mirrored by the slider schema in the app).
+    var LIMITS = {
+      basic: {
+        v0: { min: -6, max: 12, step: 0.5, def: 2 },
+        a:  { min: -3, max: 3, step: 0.1, def: 1.5 }
+      },
+      braking: {
+        v0:     { min: 2, max: 30, step: 0.5, def: 10 },
+        abrake: { min: 1, max: 10, step: 0.5, def: 4 }
+      },
+      pursuit: {
+        gap: { min: 5, max: 60, step: 5, def: 20 },
+        va:  { min: 0, max: 12, step: 0.5, def: 4 },
+        aa:  { min: -2, max: 2, step: 0.1, def: 0 },
+        vb:  { min: 0, max: 8, step: 0.5, def: 0 },
+        ab:  { min: 0, max: 3, step: 0.1, def: 1 }
+      }
+    };
+    // Fixed observation windows (s) per mode.
+    var WINDOWS = { basic: 10, braking: 8, pursuit: 16 };
+
+    function defaults(mode) {
+      var spec = LIMITS[mode], out = {};
+      Object.keys(spec).forEach(function (k) { out[k] = spec[k].def; });
+      return out;
+    }
+
+    // Validate + clamp + snap to slider grid so repeated param changes are deterministic.
+    function sanitize(mode, params) {
+      var spec = LIMITS[mode], out = {};
+      Object.keys(spec).forEach(function (k) {
+        var s = spec[k];
+        var v = Number(params && params[k]);
+        if (!Number.isFinite(v)) v = s.def;
+        v = clamp(v, s.min, s.max);
+        out[k] = parseFloat((s.min + Math.round((v - s.min) / s.step) * s.step).toFixed(4));
+      });
+      return out;
+    }
+
+    // Piecewise closed-form state of one car at time t.
+    // Braking cars clamp at rest once v reaches 0 (tStop): no reversal.
+    function carAt(car, t) {
+      if (car.tStop !== null && t >= car.tStop) {
+        return { x: car.xStop, v: 0, a: 0, phase: "stopped" };
+      }
+      var x = car.x0 + car.v0 * t + 0.5 * car.a * t * t;
+      var v = car.v0 + car.a * t;
+      return { x: x, v: v, a: car.a, phase: v > EPS ? "forward" : (v < -EPS ? "reverse" : "momentary") };
+    }
+
+    function evalAt(sc, t) {
+      var tt = clamp(t, 0, sc.T);
+      var cars = sc.cars.map(function (c) { return carAt(c, tt); });
+      var out = { t: tt, cars: cars };
+      if (sc.mode === "pursuit") out.gap = cars[0].x - cars[1].x; // Δx = x甲 − x乙 (>0: 甲仍在前)
+      return out;
+    }
+
+    // Real roots of A t² + B t + C = 0, ascending.
+    function quadRoots(A, B, C) {
+      if (Math.abs(A) < EPS) {
+        if (Math.abs(B) < EPS) return [];
+        var lin = -C / B;
+        return Number.isFinite(lin) ? [lin] : [];
+      }
+      var disc = B * B - 4 * A * C;
+      if (disc < 0) return [];
+      var sq = Math.sqrt(disc);
+      var r1 = (-B + sq) / (2 * A), r2 = (-B - sq) / (2 * A);
+      var roots = [r1, r2].filter(Number.isFinite);
+      roots.sort(function (p, q) { return p - q; });
+      return roots;
+    }
+
+    // Exact extremes of x / v over [0, T] (candidates: ends, vertices, stop, events).
+    function boundsOf(cars, T) {
+      var ts = [0, T];
+      cars.forEach(function (c) {
+        if (c.a !== 0) { var tv = -c.v0 / c.a; if (tv > 0 && tv < T) ts.push(tv); }
+        if (c.tStop !== null && c.tStop > 0 && c.tStop < T) ts.push(c.tStop);
+      });
+      var xMin = Infinity, xMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+      ts.forEach(function (t) {
+        cars.forEach(function (c) {
+          var s = carAt(c, t);
+          if (s.x < xMin) xMin = s.x;
+          if (s.x > xMax) xMax = s.x;
+          if (s.v < vMin) vMin = s.v;
+          if (s.v > vMax) vMax = s.v;
+        });
+      });
+      xMin = Math.min(xMin, 0); xMax = Math.max(xMax, 0);
+      vMin = Math.min(vMin, 0); vMax = Math.max(vMax, 0);
+      var aMin = 0, aMax = 0;
+      cars.forEach(function (c) { aMin = Math.min(aMin, c.a); aMax = Math.max(aMax, c.a); });
+      if (!Number.isFinite(xMin)) { xMin = -1; xMax = 1; }
+      if (!Number.isFinite(vMin)) { vMin = -1; vMax = 1; }
+      return { x: [xMin, xMax], v: [vMin, vMax], a: [aMin, aMax] };
+    }
+
+    // Build the authoritative scenario: cars, exact events, axis bounds.
+    function makeScenario(mode, rawParams) {
+      var params = sanitize(mode, rawParams);
+      var T = WINDOWS[mode];
+      var cars = [], events = [];
+
+      if (mode === "basic") {
+        cars.push({ key: "A", x0: 0, v0: params.v0, a: params.a, tStop: null, xStop: null });
+        if (Math.abs(params.a) > EPS) {
+          var tv = -params.v0 / params.a;
+          if (tv > EPS && tv < T - EPS) {
+            events.push({ kind: "vzero", t: tv, chart: "v", value: 0, label: "v = 0" });
+            events.push({ kind: "xext", t: tv, chart: "x", value: carAt(cars[0], tv).x, label: "x 极值" });
+          }
+        }
+      } else if (mode === "braking") {
+        var a = -Math.abs(params.abrake);
+        var v0 = params.v0;
+        var tStop = v0 > 0 ? -v0 / a : null;           // a < 0 → tStop = v0/|a|
+        var xStop = tStop !== null ? v0 * v0 / (2 * Math.abs(a)) : null;
+        cars.push({ key: "A", x0: 0, v0: v0, a: a, tStop: tStop, xStop: xStop });
+        if (tStop !== null && tStop > EPS && tStop < T - EPS) {
+          events.push({ kind: "stop", t: tStop, chart: "v", value: 0, label: "停止" });
+          events.push({ kind: "stopx", t: tStop, chart: "x", value: xStop, label: "x停" });
+          events.push({ kind: "stopa", t: tStop, chart: "a", value: 0, label: "a → 0" });
+        }
+      } else { // pursuit — both cars pure uniformly accelerated
+        var A = { key: "A", x0: params.gap, v0: params.va, a: params.aa, tStop: null, xStop: null };
+        var B = { key: "B", x0: 0, v0: params.vb, a: params.ab, tStop: null, xStop: null };
+        cars.push(A, B);
+        var dA = params.aa - params.ab, dV = params.va - params.vb, dX = params.gap;
+        if (Math.abs(dA) > EPS) {
+          var tve = (params.vb - params.va) / dA;
+          if (tve > EPS && tve < T - EPS) {
+            events.push({ kind: "veq", t: tve, chart: "v", value: params.va + params.aa * tve, label: "速度相等" });
+          }
+          quadRoots(0.5 * dA, dV, dX).forEach(function (t) {
+            if (t > EPS && t < T - EPS) {
+              events.push({ kind: "meet", t: t, chart: "x", value: carAt(A, t).x, label: "相遇" });
+            }
+          });
+        } else if (Math.abs(dV) > EPS) {
+          var tm = -dX / dV;
+          if (tm > EPS && tm < T - EPS) {
+            events.push({ kind: "meet", t: tm, chart: "x", value: carAt(A, tm).x, label: "相遇" });
+          }
+        }
+        events.sort(function (p, q) { return p.t - q.t; });
+      }
+
+      return { mode: mode, params: params, T: T, cars: cars, events: events, bounds: boundsOf(cars, T) };
+    }
+
+    // Fixed-step advance of the authoritative time state (closed-form evaluation,
+    // so step size cannot change the physics — required for time-scale invariance).
+    function step(state, sc, dt) {
+      var d = clamp(Number.isFinite(dt) ? dt : 0, 0, 0.25);
+      state.t = clamp(state.t + d, 0, sc.T);
+      return evalAt(sc, state.t);
+    }
+
+    /* ── Oracle checks (expected values chosen before implementation) ── */
+    function runModelChecks() {
+      var checks = [];
+      function add(name, pass, expected, actual, tolerance) {
+        checks.push({ name: name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+      }
+      function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+      // 1. Ordinary case: basic v0=2, a=1.5 → x(4)=20 m, v(4)=8 m/s.
+      var sc1 = makeScenario("basic", { v0: 2, a: 1.5 });
+      var o1 = evalAt(sc1, 4);
+      add("basic closed form x(4)=20, v(4)=8 (v0=2, a=1.5)",
+        near(o1.cars[0].x, 20, 1e-9) && near(o1.cars[0].v, 8, 1e-9),
+        "x=20 m, v=8 m/s", "x=" + o1.cars[0].x.toFixed(9) + " m, v=" + o1.cars[0].v.toFixed(9) + " m/s", 1e-9);
+
+      // 2. Threshold / vertex: v0=6, a=-2 → v(3)=0, x(3)=9, vertex event at t=3.
+      var sc2 = makeScenario("basic", { v0: 6, a: -2 });
+      var o2 = evalAt(sc2, 3);
+      var ev2 = sc2.events.filter(function (e) { return e.kind === "vzero"; })[0];
+      add("vertex: v(3)=0, x(3)=9, v=0 event at t=3 (v0=6, a=-2)",
+        near(o2.cars[0].v, 0, 1e-9) && near(o2.cars[0].x, 9, 1e-9) && ev2 && near(ev2.t, 3, 1e-9),
+        "v=0, x=9 m, t=3 s", "v=" + o2.cars[0].v.toFixed(9) + ", x=" + o2.cars[0].x.toFixed(9) + ", t=" + (ev2 ? ev2.t.toFixed(9) : "none"), 1e-9);
+
+      // 3. Opposite direction / symmetry: v0=-3, a=1 → returns to origin at t=6 with v=3.
+      var sc3 = makeScenario("basic", { v0: -3, a: 1 });
+      var o3 = evalAt(sc3, 6);
+      add("opposite direction: x(6)=0, v(6)=3 (v0=-3, a=1)",
+        near(o3.cars[0].x, 0, 1e-9) && near(o3.cars[0].v, 3, 1e-9),
+        "x=0 m, v=3 m/s", "x=" + o3.cars[0].x.toFixed(9) + " m, v=" + o3.cars[0].v.toFixed(9) + " m/s", 1e-9);
+
+      // 4. Braking stop exact: v0=10, |a|=4 → tStop=2.5, xStop=12.5; at t=5 car rests.
+      var sc4 = makeScenario("braking", { v0: 10, abrake: 4 });
+      var o4 = evalAt(sc4, 5);
+      add("braking stop: tStop=2.5 s, xStop=12.5 m; at t=5 x=12.5, v=0, a=0",
+        near(sc4.cars[0].tStop, 2.5, 1e-9) && near(sc4.cars[0].xStop, 12.5, 1e-9) &&
+        near(o4.cars[0].x, 12.5, 1e-9) && o4.cars[0].v === 0 && o4.cars[0].a === 0,
+        "tStop=2.5, xStop=12.5, rest at t=5",
+        "tStop=" + sc4.cars[0].tStop.toFixed(9) + ", xStop=" + sc4.cars[0].xStop.toFixed(9) +
+        ", x(5)=" + o4.cars[0].x.toFixed(9) + ", v(5)=" + o4.cars[0].v + ", a(5)=" + o4.cars[0].a, 1e-9);
+
+      // 5. Braking misconception guard: v never negative, x never decreases.
+      var ok5 = true, sample;
+      for (var t5 = 0; t5 <= sc4.T + 1e-12; t5 += 0.25) {
+        sample = evalAt(sc4, t5);
+        if (sample.cars[0].v < -1e-12) ok5 = false;
+      }
+      for (var t5b = 0.25; t5b <= sc4.T + 1e-12; t5b += 0.25) {
+        var prev = evalAt(sc4, t5b - 0.25).cars[0].x, cur = evalAt(sc4, t5b).cars[0].x;
+        if (cur < prev - 1e-12) ok5 = false;
+      }
+      add("braking never reverses: v ≥ 0 and x non-decreasing on [0, 8] s", ok5,
+        "v ≥ 0, x monotone non-decreasing", ok5 ? "holds for all 0.25 s samples" : "violated", "1e-12");
+
+      // 6. Pursuit events exact: d=20, vA=4, aA=0, vB=0, aB=1 → v-eq t=4, meet t=4+√56.
+      var sc6 = makeScenario("pursuit", { gap: 20, va: 4, aa: 0, vb: 0, ab: 1 });
+      var evV = sc6.events.filter(function (e) { return e.kind === "veq"; })[0];
+      var evM = sc6.events.filter(function (e) { return e.kind === "meet"; })[0];
+      var tMeetExact = 4 + Math.sqrt(56);
+      var o6 = evalAt(sc6, evM ? evM.t : tMeetExact);
+      add("pursuit events: v-eq at t=4, meet at t=4+√56, |xA−xB|=0 at meet",
+        evV && near(evV.t, 4, 1e-9) && evM && near(evM.t, tMeetExact, 1e-9) &&
+        near(o6.cars[0].x - o6.cars[1].x, 0, 1e-9),
+        "t*=4 s, tMeet=" + tMeetExact.toFixed(9) + " s, Δx=0",
+        "t*=" + (evV ? evV.t.toFixed(9) : "none") + ", tMeet=" + (evM ? evM.t.toFixed(9) : "none") +
+        ", Δx=" + (o6.cars[0].x - o6.cars[1].x).toExponential(3), 1e-9);
+
+      // 7. Independent numerical oracle (Euler, dt=1e-4, B car of case 6): xB(11)=60.5.
+      var dt7 = 1e-4, xE = 0, vE = 0;
+      for (var n7 = 0; n7 < Math.round(11 / dt7); n7 += 1) { xE += vE * dt7; vE += 1 * dt7; }
+      add("independent Euler oracle (dt=1e-4): xB(11) ≈ 60.5 m",
+        near(xE, 60.5, 5e-3),
+        "xB=60.5 m ± 5e-3", "xB=" + xE.toFixed(6) + " m", 5e-3);
+
+      // 8. Step-size / time-scale invariance at t=6 (case-1 params).
+      var st60 = { t: 0 }, st240 = { t: 0 };
+      for (var n8a = 0; n8a < 360; n8a += 1) step(st60, sc1, 1 / 60);
+      for (var n8b = 0; n8b < 1440; n8b += 1) step(st240, sc1, 1 / 240);
+      var xDirect = evalAt(sc1, 6).cars[0].x, vDirect = evalAt(sc1, 6).cars[0].v;
+      var x60 = evalAt(sc1, st60.t).cars[0].x, x240 = evalAt(sc1, st240.t).cars[0].x;
+      add("step-size invariance: 1/60 vs 1/240 vs direct at t≈6 (x=39, v=11)",
+        near(x60, xDirect, 1e-9) && near(x240, xDirect, 1e-9) && near(vDirect, 11, 1e-9),
+        "x=39 m, v=11 m/s for all step sizes",
+        "x(1/60)=" + x60.toFixed(9) + ", x(1/240)=" + x240.toFixed(9) + ", direct=" + xDirect.toFixed(9), 1e-9);
+
+      // 9. Extremes stay finite (parameter-range corners).
+      var sc9a = makeScenario("braking", { v0: 30, abrake: 1 });
+      var sc9b = makeScenario("pursuit", { gap: 60, va: 12, aa: 2, vb: 8, ab: 3 });
+      var ok9 = true;
+      [sc9a, sc9b].forEach(function (sc) {
+        [0, sc.T / 2, sc.T].forEach(function (t) {
+          var o = evalAt(sc, t);
+          o.cars.forEach(function (c) {
+            if (!Number.isFinite(c.x) || !Number.isFinite(c.v) || !Number.isFinite(c.a)) ok9 = false;
+          });
+        });
+        ["x", "v", "a"].forEach(function (k) {
+          if (!sc.bounds[k].every(Number.isFinite)) ok9 = false;
+        });
+      });
+      add("parameter extremes remain finite (braking 30/1, pursuit maxima)", ok9,
+        "all states and bounds finite", ok9 ? "finite" : "non-finite value found", "finite");
+
+      return checks;
+    }
+
+    globalThis.__simKernel = {
+      LIMITS: LIMITS, WINDOWS: WINDOWS, defaults: defaults, sanitize: sanitize,
+      makeScenario: makeScenario, evalAt: evalAt, boundsOf: boundsOf, step: step,
+      runModelChecks: runModelChecks
+    };
+  })();
+  </script>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       Application — scene canvas, three aligned chart canvases,
+       controls, readouts, insight. All visuals derive from the
+       kernel scenario + one authoritative time state.
+       ══════════════════════════════════════════════════════════════ -->
+  <script id="sim-app">
+  (() => {
+    "use strict";
+    const K = globalThis.__simKernel;
+    const DT = 1 / 120;                 // fixed physical step (s of simulated time)
+    const PAD = { left: 52, right: 14, top: 16, bottom: 26 }; // identical for all charts → aligned time axes
+    const FONT = '11px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    const FONT_S = '10px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+    const CAR_LABEL = { A: "甲", B: "乙" };
+
+    // token access (single source of truth for colors = the CSS token block)
+    const cs = getComputedStyle(document.documentElement);
+    const tok = (n, f) => (cs.getPropertyValue(n) || "").trim() || f;
+    const C = {
+      text: tok("--sim-text", "#172033"), muted: tok("--sim-muted", "#657188"),
+      grid: tok("--sim-grid", "#e8edf4"), border: tok("--sim-border", "#dfe6ef"),
+      accent: tok("--sim-accent", "#0f9fba"), accentDeep: tok("--sim-accent-deep", "#08758a"),
+      carB: tok("--sim-car-b", "#d97706"), road: tok("--sim-road", "#3b4657"),
+      insightInk: tok("--sim-insight-ink", "#8a5407")
+    };
+    const CAR_COLOR = { A: C.accent, B: C.carB };
+
+    // slider schema per mode (labels are user-facing; keys match kernel LIMITS)
+    const SLIDER_SCHEMA = {
+      basic: [
+        { key: "v0", label: "初速度 v₀", unit: "m/s" },
+        { key: "a", label: "加速度 a", unit: "m/s²" }
+      ],
+      braking: [
+        { key: "v0", label: "初速度 v₀", unit: "m/s" },
+        { key: "abrake", label: "制动加速度 |a|", unit: "m/s²" }
+      ],
+      pursuit: [
+        { key: "gap", label: "初始间距 d", unit: "m" },
+        { key: "va", label: "甲车 v₀", unit: "m/s" },
+        { key: "aa", label: "甲车 a", unit: "m/s²" },
+        { key: "vb", label: "乙车 v₀", unit: "m/s" },
+        { key: "ab", label: "乙车 a", unit: "m/s²" }
+      ]
+    };
+    const CHARTS = [
+      { key: "x", canvas: "chartX", unit: "x / m", pick: (c) => c.x, fmt: (v) => v.toFixed(1) + " m" },
+      { key: "v", canvas: "chartV", unit: "v / (m/s)", pick: (c) => c.v, fmt: (v) => v.toFixed(1) + " m/s" },
+      { key: "a", canvas: "chartA", unit: "a / (m/s²)", pick: (c) => c.a, fmt: (v) => v.toFixed(1) + " m/s²" }
+    ];
+
+    const state = {
+      mode: "basic",
+      paramsByMode: { basic: K.defaults("basic"), braking: K.defaults("braking"), pursuit: K.defaults("pursuit") },
+      sc: null,                 // authoritative scenario
+      t: 0, running: false, finished: false,
+      acc: 0, lastTs: null,
+      samples: [], lastSampleT: -1,
+      speed: 1,
+      hoverFrac: null,          // pointer position as a fraction of the time axis (review cursor)
+      hoverT: null,             // derived each render: min(frac·T, current t)
+      road: { min: 0, max: 100, pxPerM: 5, tick: 10 },
+      yRanges: { x: [0, 10], v: [0, 10], a: [-2, 2] }
+    };
+
+    const els = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      readouts: document.querySelector("#readouts"),
+      legend: document.querySelector("#legend"),
+      dotA: document.querySelector("#dotA"), dotB: document.querySelector("#dotB"),
+      insight: document.querySelector("#insight"), formula: document.querySelector("#formula"),
+      sliders: document.querySelector("#sliders"),
+      startBtn: document.querySelector("#startBtn"), resetBtn: document.querySelector("#resetBtn"),
+      modeSwitch: document.querySelector("#modeSwitch"), speedSwitch: document.querySelector("#speedSwitch"),
+      chartCanvases: CHARTS.map((c) => document.querySelector("#" + c.canvas))
+    };
+    els.dotA.style.background = CAR_COLOR.A; els.dotB.style.background = CAR_COLOR.B;
+
+    /* ── small helpers ─────────────────────────────────── */
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const fmt1 = (v) => Number.isFinite(v) ? v.toFixed(1) : "—";
+    function niceStep(range, target) {
+      if (!(range > 0) || !Number.isFinite(range)) return 1;
+      const rough = range / Math.max(1, target);
+      const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+      for (const m of [1, 2, 2.5, 5, 10]) if (rough <= m * pow) return m * pow;
+      return 10 * pow;
+    }
+    function axisRange(dataMin, dataMax) {
+      if (dataMin > dataMax) [dataMin, dataMax] = [dataMax, dataMin];
+      if (dataMax - dataMin < 1e-9) { dataMin -= 1; dataMax += 1; }
+      const pad = (dataMax - dataMin) * 0.1;
+      const lo0 = dataMin - pad, hi0 = dataMax + pad;
+      const step = niceStep(hi0 - lo0, 5);
+      return [Math.floor(lo0 / step) * step, Math.ceil(hi0 / step) * step, step];
+    }
+    function fitCanvas(cv) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(cv.clientWidth * dpr));
+      const h = Math.max(1, Math.round(cv.clientHeight * dpr));
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      return dpr;
+    }
+    function rr(ctx, x, y, w, h, r) {
+      r = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+    function arrow(ctx, x1, y1, x2, y2, color, width) {
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      const head = 7;
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(ang) * 5, y2 - Math.sin(ang) * 5); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - Math.cos(ang - 0.44) * head, y2 - Math.sin(ang - 0.44) * head);
+      ctx.lineTo(x2 - Math.cos(ang + 0.44) * head, y2 - Math.sin(ang + 0.44) * head);
+      ctx.closePath(); ctx.fill();
+    }
+
+    /* ── lifecycle ─────────────────────────────────────── */
+    function snapshot(t) {
+      const o = K.evalAt(state.sc, t);
+      return { t: o.t, cars: o.cars.map((c) => ({ x: c.x, v: c.v, a: c.a })) };
+    }
+
+    function rebuild(keepRunning) {
+      state.sc = K.makeScenario(state.mode, state.paramsByMode[state.mode]);
+      state.t = 0; state.acc = 0; state.lastSampleT = -1;
+      state.samples = [snapshot(0)];
+      state.finished = false;
+      state.hoverFrac = null;
+      if (!keepRunning) state.running = false;
+
+      // road scale (fixed for the whole run → scene ↔ graph mapping stays stable)
+      const [xMin, xMax] = state.sc.bounds.x;
+      const span = Math.max(xMax - xMin, 1);
+      state.road.min = xMin - span * 0.06;
+      state.road.max = xMax + span * 0.06;
+
+      // chart y ranges
+      state.yRanges.x = axisRange(xMin, xMax);
+      state.yRanges.v = axisRange(state.sc.bounds.v[0], state.sc.bounds.v[1]);
+      state.yRanges.a = axisRange(state.sc.bounds.a[0], state.sc.bounds.a[1]);
+
+      buildSliders();
+      buildReadouts();
+      els.legend.hidden = state.mode !== "pursuit";
+      updateFormula();
+      render();
+    }
+
+    function init() {
+      buildModeButtons();
+      buildSpeedButtons();
+      bindChartHover();
+      const ro = new ResizeObserver(() => render());
+      ro.observe(els.scene);
+      els.chartCanvases.forEach((cv) => ro.observe(cv));
+      els.startBtn.addEventListener("click", () => { if (state.running) pause(); else start(); });
+      els.resetBtn.addEventListener("click", reset);
+      rebuild(false);
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      if (state.finished) { // replay from t=0
+        state.t = 0; state.acc = 0; state.lastSampleT = -1;
+        state.samples = [snapshot(0)]; state.finished = false;
+      }
+      state.running = true; render();
+    }
+    function pause() { state.running = false; render(); }
+    function reset() { state.running = false; rebuild(false); }
+    function update(dt) {
+      if (!state.running || state.finished) return;
+      state.acc = Math.min(state.acc + clamp(dt, 0, 0.05) * state.speed, 0.3);
+      let guard = 0;
+      while (state.acc >= DT && guard < 480) {
+        K.step(state, state.sc, DT);
+        state.acc -= DT; guard += 1;
+        if (state.t - state.lastSampleT >= 0.02 - 1e-12) {
+          state.samples.push(snapshot(state.t));
+          if (state.samples.length > 2400) state.samples.shift();
+          state.lastSampleT = state.t;
+        }
+        if (state.t >= state.sc.T - 1e-12) {
+          state.t = state.sc.T;
+          state.samples.push(snapshot(state.t));
+          state.running = false; state.finished = true;
+          break;
+        }
+      }
+    }
+    function setParameters(values) {
+      Object.assign(state.paramsByMode[state.mode], values);
+      rebuild(true); // parameter change restarts the experiment, preserving run intent
+    }
+    function setMode(mode) {
+      if (mode === state.mode) return;
+      state.mode = mode;
+      Array.from(els.modeSwitch.children).forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+      rebuild(false);
+    }
+    function getState() {
+      return {
+        mode: state.mode, t: state.t, running: state.running, finished: state.finished,
+        speed: state.speed, sampleCount: state.samples.length,
+        params: { ...state.paramsByMode[state.mode] }
+      };
+    }
+    function getReadouts() {
+      const o = K.evalAt(state.sc, state.t);
+      const out = { mode: state.mode, t: o.t, T: state.sc.T };
+      if (state.mode === "pursuit") {
+        out.cars = { A: { ...o.cars[0] }, B: { ...o.cars[1] } };
+        out.gap = o.gap;
+      } else {
+        out.x = o.cars[0].x; out.v = o.cars[0].v; out.a = o.cars[0].a;
+      }
+      return out;
+    }
+
+    /* ── controls DOM ──────────────────────────────────── */
+    let builtSliderMode = null;
+    // Rebuild the slider DOM only on mode change; otherwise sync values in place
+    // so an in-progress slider drag is never destroyed.
+    function buildSliders() {
+      if (builtSliderMode === state.mode) { syncSliderValues(); return; }
+      const mode = state.mode, params = state.paramsByMode[mode];
+      const limits = K.LIMITS[mode];
+      els.sliders.innerHTML = "";
+      builtSliderMode = mode;
+      SLIDER_SCHEMA[mode].forEach((s) => {
+        const lim = limits[s.key];
+        const wrap = document.createElement("div");
+        wrap.className = "control";
+        const id = "param-" + s.key;
+        wrap.innerHTML =
+          '<label for="' + id + '">' + s.label + '<output id="' + id + '-out"></output></label>' +
+          '<input id="' + id + '" type="range" min="' + lim.min + '" max="' + lim.max + '" step="' + lim.step + '" value="' + params[s.key] + '">';
+        els.sliders.appendChild(wrap);
+        const input = wrap.querySelector("input"), out = wrap.querySelector("output");
+        const show = () => { out.textContent = Number(params[s.key]).toFixed(1) + " " + s.unit; };
+        show();
+        input.addEventListener("input", () => {
+          const v = { [s.key]: Number(input.value) };
+          Object.assign(params, v);
+          out.textContent = Number(input.value).toFixed(1) + " " + s.unit;
+          setParameters(v);
+        });
+      });
+    }
+    function syncSliderValues() {
+      const params = state.paramsByMode[state.mode];
+      SLIDER_SCHEMA[state.mode].forEach((s) => {
+        const input = document.getElementById("param-" + s.key);
+        const out = document.getElementById("param-" + s.key + "-out");
+        if (input) input.value = String(params[s.key]);
+        if (out) out.textContent = Number(params[s.key]).toFixed(1) + " " + s.unit;
+      });
+    }
+    function buildModeButtons() {
+      Array.from(els.modeSwitch.children).forEach((b) =>
+        b.addEventListener("click", () => setMode(b.dataset.mode)));
+    }
+    function buildSpeedButtons() {
+      Array.from(els.speedSwitch.children).forEach((b) =>
+        b.addEventListener("click", () => {
+          state.speed = Number(b.dataset.speed);
+          Array.from(els.speedSwitch.children).forEach((x) =>
+            x.setAttribute("aria-pressed", String(x === b)));
+          render();
+        }));
+    }
+    function buildReadouts() {
+      els.readouts.innerHTML = "";
+      const chips = state.mode === "pursuit"
+        ? [
+            { id: "roT", label: "时间 t", unit: " s" },
+            { id: "roGap", label: "间距 Δx = x甲 − x乙", unit: " m" },
+            { id: "roAx", label: "甲 · 位移", unit: " m", car: "A" },
+            { id: "roAv", label: "甲 · 速度", unit: " m/s", car: "A" },
+            { id: "roBx", label: "乙 · 位移", unit: " m", car: "B" },
+            { id: "roBv", label: "乙 · 速度", unit: " m/s", car: "B" }
+          ]
+        : [
+            { id: "roT", label: "时间 t", unit: " s" },
+            { id: "roX", label: "位移 x", unit: " m" },
+            { id: "roV", label: "速度 v", unit: " m/s" },
+            { id: "roA", label: "加速度 a", unit: " m/s²" }
+          ];
+      chips.forEach((c) => {
+        const div = document.createElement("div");
+        div.className = "metric";
+        const dot = c.car ? '<i class="dot" style="background:' + CAR_COLOR[c.car] + '"></i>' : "";
+        div.innerHTML = "<small>" + dot + c.label + "</small><strong id=\"" + c.id + "\"></strong>";
+        els.readouts.appendChild(div);
+      });
+    }
+
+    /* ── hover (review cursor) ─────────────────────────── */
+    function bindChartHover() {
+      els.chartCanvases.forEach((cv) => {
+        cv.addEventListener("pointermove", (e) => {
+          const r = cv.getBoundingClientRect();
+          const plotW = r.width - PAD.left - PAD.right;
+          const frac = (((e.clientX - r.left) - PAD.left) / Math.max(1, plotW));
+          state.hoverFrac = Number.isFinite(frac) ? clamp(frac, 0, 1) : null;
+          render();
+        });
+        cv.addEventListener("pointerleave", () => { state.hoverFrac = null; render(); });
+      });
+    }
+
+    /* ── insight / formula / status ────────────────────── */
+    function updateFormula() {
+      const sc = state.sc, p = sc.params;
+      if (sc.mode === "basic") {
+        els.formula.textContent = "x = v₀t + ½at² · v = v₀ + at";
+      } else if (sc.mode === "braking") {
+        const tS = sc.cars[0].tStop, xS = sc.cars[0].xStop;
+        els.formula.textContent = tS === null
+          ? "t停 = v₀/|a|"
+          : "t停 = v₀/|a| = " + tS.toFixed(2) + " s · x停 = v₀²/(2|a|) = " + xS.toFixed(1) + " m" +
+            (tS >= sc.T ? "（超出观测窗口）" : "");
+      } else {
+        const evV = sc.events.find((e) => e.kind === "veq");
+        const evM = sc.events.filter((e) => e.kind === "meet");
+        let s = "相遇：x甲(t) = x乙(t)";
+        if (evV) s += " · 速度相等 t* = " + evV.t.toFixed(2) + " s";
+        s += evM.length ? " · 相遇 t = " + evM.map((e) => e.t.toFixed(2)).join(" / ") + " s" : " · 观测窗口内无相遇";
+        els.formula.textContent = s;
+      }
+    }
+    function insightFor(o) {
+      const sc = state.sc, c0 = o.cars[0];
+      if (state.t <= 1e-9) {
+        return sc.mode === "basic"
+          ? "调节 v₀ 和 a，点击「开始」——观察三条图线如何与汽车同步生长。"
+          : sc.mode === "braking"
+            ? "汽车以初速度 v₀ 开始刹车：注意 v–t 图线何时到达 0。"
+            : "乙车在后、甲车在前：v–t 交点 = 速度相等；x–t 交点 = 两车相遇。";
+      }
+      if (sc.mode === "basic") {
+        if (c0.a === 0 && Math.abs(c0.v) < 1e-9) return "静止：x–t 水平、v–t 与 a–t 都在 0 线上。";
+        if (c0.a === 0) return "匀速直线运动：v–t 是水平线（读数 = v），x–t 是倾斜直线，斜率 = v。";
+        if (Math.abs(c0.v) < 0.06) return "v = 0：瞬时静止，此刻 x–t 切线水平（位移极值点），随后反向。";
+        if (c0.v > 0 && c0.a > 0) return "匀加速：v–t 直线上升（斜率 = a），x–t 抛物线越来越陡。";
+        if (c0.v > 0 && c0.a < 0) return "匀减速：速度减小但位移仍在增加——v–t 下降，x–t 变缓。";
+        if (c0.v < 0 && sc.params.v0 > 0) return "速度由正变负：汽车折返（v–t 穿过 0 线），x–t 已过最高点转而下降。";
+        if (c0.v < 0 && c0.a > 0) return "向左匀减速：|v| 减小，x–t 下降且逐渐趋缓。";
+        return "反向匀加速：速度大小增大，x–t 沿下降分支变陡。";
+      }
+      if (sc.mode === "braking") {
+        const tS = sc.cars[0].tStop;
+        if (tS !== null && state.t >= tS) {
+          return "t = " + tS.toFixed(2) + " s 时 v = 0，汽车停止：v–t 保持 0，a–t 跳回 0，x–t 变水平——刹车问题不能把公式套到停止之后！";
+        }
+        return "匀减速刹车：v–t 直线下降（斜率 = −|a|），x–t 增长变慢；两图间的对应时刻处处一致。";
+      }
+      // pursuit
+      const gap = o.gap, vA = o.cars[0].v, vB = o.cars[1].v;
+      if (Math.abs(gap) <= 0.35) return "相遇！x–t 两线相交 = 两车同一位置，此刻 Δx = 0。";
+      if (gap < 0) return "乙车已超越：x–t 中乙的曲线升到甲的上方，Δx（= x甲 − x乙）变为负。";
+      if (Math.abs(vA - vB) < 0.06 && !sc.events.some((e) => e.kind === "veq"))
+        return "两车速度始终相同：v–t 两线重合、x–t 平行，间距保持不变。";
+      if (Math.abs(vA - vB) < 0.06) return "两车速度相等（v–t 交点）：相对速度为零，此刻两车距离达到极值。";
+      if (vB < vA) return "乙车更慢：差距还在拉大（v–t 上乙在甲下方，两线间面积 = 位移差的累积）。";
+      return "乙车更快：差距缩小，追赶中——x–t 两线正在靠拢。";
+    }
+    let lastInsight = "", lastStatus = "", lastStartLabel = "";
+    function updateTexts() {
+      const o = K.evalAt(state.sc, state.t);
+      const ins = insightFor(o);
+      if (ins !== lastInsight) { els.insight.textContent = ins; lastInsight = ins; }
+      const st = state.finished
+        ? "已到达终点 t = " + state.sc.T.toFixed(0) + " s"
+        : state.running ? "运行中" : (state.t > 1e-9 ? "已暂停" : "待开始");
+      if (st !== lastStatus) {
+        els.status.textContent = st; lastStatus = st;
+        els.status.className = "status-pill" + (state.running ? " running" : state.finished ? " finished" : "");
+      }
+      const lbl = state.running ? "⏸ 暂停" : state.finished ? "▶ 重新开始" : "▶ 开始";
+      if (lbl !== lastStartLabel) { els.startBtn.textContent = lbl; lastStartLabel = lbl; }
+      // readouts
+      const set = (id, v, unit) => { const el = document.getElementById(id); if (el) el.textContent = (Number.isFinite(v) ? v.toFixed(2) : "—") + unit; };
+      set("roT", state.t, " s");
+      if (state.mode === "pursuit") {
+        set("roGap", o.gap, " m");
+        set("roAx", o.cars[0].x, " m"); set("roAv", o.cars[0].v, " m/s");
+        set("roBx", o.cars[1].x, " m"); set("roBv", o.cars[1].v, " m/s");
+      } else {
+        set("roX", o.cars[0].x, " m"); set("roV", o.cars[0].v, " m/s"); set("roA", o.cars[0].a, " m/s²");
+      }
+    }
+
+    /* ── charts ────────────────────────────────────────── */
+    function drawChart(cfg, cv) {
+      const ctx = cv.getContext("2d");
+      const dpr = fitCanvas(cv);
+      const W = cv.clientWidth, H = cv.clientHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      if (W < 40 || H < 40) return;
+      const plot = { l: PAD.left, r: W - PAD.right, t: PAD.top, b: H - PAD.bottom };
+      const T = state.sc.T, yr = state.yRanges[cfg.key];
+      const tx = (t) => plot.l + (t / T) * (plot.r - plot.l);
+      const vy = (v) => plot.t + (1 - (v - yr[0]) / (yr[1] - yr[0])) * (plot.b - plot.t);
+      const pick = cfg.pick;
+
+      // y grid + labels
+      ctx.font = FONT_S; ctx.textBaseline = "middle";
+      const yStep = yr[2];
+      for (let v = yr[0]; v <= yr[1] + yStep * 0.25; v += yStep) {
+        const y = vy(v);
+        ctx.strokeStyle = Math.abs(v) < yStep * 0.01 ? "#c3cede" : C.grid;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(plot.l, y); ctx.lineTo(plot.r, y); ctx.stroke();
+        ctx.fillStyle = C.muted; ctx.textAlign = "right";
+        const absV = Math.abs(v);
+        ctx.fillText(absV >= 10 ? v.toFixed(0) : v.toFixed(1), plot.l - 5, y);
+      }
+      // x (time) grid + labels
+      const tStep = niceStep(T, 8);
+      const pxPerS = (plot.r - plot.l) / T;
+      const labelEvery = pxPerS * tStep < 26 ? 2 : 1;
+      ctx.textAlign = "center";
+      for (let t = 0, i = 0; t <= T + tStep * 0.25; t += tStep, i += 1) {
+        const x = tx(Math.min(t, T));
+        ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, plot.t); ctx.lineTo(x, plot.b); ctx.stroke();
+        if (i % labelEvery === 0) {
+          ctx.fillStyle = C.muted;
+          ctx.fillText(String(Math.round(Math.min(t, T))), x, plot.b + 11);
+        }
+      }
+      ctx.fillStyle = C.muted; ctx.textAlign = "left";
+      ctx.fillText("t/s", plot.r - 20, plot.b + 11);
+      ctx.fillText(cfg.unit, plot.l + 2, plot.t - 8);
+
+      // event markers (only those already reached)
+      state.sc.events.forEach((e) => {
+        if (e.chart !== cfg.key || e.t > state.t + 1e-9) return;
+        const x = tx(e.t), y = vy(e.value);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        ctx.fillStyle = "#fff"; ctx.strokeStyle = C.text; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.font = FONT_S; ctx.textAlign = x > plot.r - 64 ? "right" : "left";
+        ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.92)"; ctx.fillStyle = C.text;
+        const label = e.label + " " + e.t.toFixed(1) + " s";
+        ctx.strokeText(label, x + (x > plot.r - 64 ? -8 : 8), y - 9);
+        ctx.fillText(label, x + (x > plot.r - 64 ? -8 : 8), y - 9);
+      });
+
+      // traces per car + leading dots + direct labels
+      const live = K.evalAt(state.sc, state.t);
+      state.sc.cars.forEach((car, i) => {
+        const color = CAR_COLOR[car.key];
+        ctx.strokeStyle = color; ctx.lineWidth = 2.4;
+        ctx.lineJoin = "round"; ctx.lineCap = "round";
+        ctx.beginPath();
+        state.samples.forEach((s, j) => {
+          const x = tx(s.t), y = vy(pick(s.cars[i]));
+          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        const lx = tx(live.t), ly = vy(pick(live.cars[i]));
+        if (Number.isFinite(lx) && Number.isFinite(ly)) ctx.lineTo(lx, ly);
+        ctx.stroke();
+        // leading dot
+        if (Number.isFinite(lx) && Number.isFinite(ly)) {
+          ctx.fillStyle = color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.arc(lx, ly, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          if (state.sc.cars.length > 1) {
+            ctx.fillStyle = C.text; ctx.font = FONT_S;
+            ctx.textAlign = "left";
+            ctx.fillText(CAR_LABEL[car.key] + " " + cfg.fmt(pick(live.cars[i])), lx + 7, ly + (i === 0 ? -8 : 14));
+          }
+        }
+      });
+
+      // play cursor (solid, with t label)
+      const cx = tx(state.t);
+      ctx.strokeStyle = "rgba(23,32,51,.55)"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(cx, plot.t - 4); ctx.lineTo(cx, plot.b); ctx.stroke();
+      ctx.fillStyle = "rgba(23,32,51,.55)";
+      ctx.beginPath(); ctx.moveTo(cx - 4, plot.t - 6); ctx.lineTo(cx + 4, plot.t - 6); ctx.lineTo(cx, plot.t); ctx.closePath(); ctx.fill();
+      ctx.font = FONT_S; ctx.textAlign = cx > plot.r - 46 ? "right" : "left";
+      ctx.fillText(state.t.toFixed(1) + " s", cx + (cx > plot.r - 46 ? -5 : 5), plot.t - 8);
+
+      // hover review cursor (dashed) + value readout
+      if (state.hoverT !== null && state.hoverT > 0) {
+        const hx = tx(state.hoverT);
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "#8a97ab"; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(hx, plot.t); ctx.lineTo(hx, plot.b); ctx.stroke();
+        ctx.restore();
+        const hv = K.evalAt(state.sc, state.hoverT);
+        // hollow dots at hovered values
+        state.sc.cars.forEach((car, i) => {
+          const y = vy(pick(hv.cars[i]));
+          if (!Number.isFinite(y)) return;
+          ctx.strokeStyle = CAR_COLOR[car.key]; ctx.lineWidth = 2;
+          ctx.fillStyle = "rgba(255,255,255,.85)";
+          ctx.beginPath(); ctx.arc(hx, y, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        });
+        // info box
+        const lines = ["t = " + state.hoverT.toFixed(2) + " s"].concat(
+          state.sc.cars.map((car, i) => CAR_LABEL[car.key] + " " + cfg.fmt(pick(hv.cars[i])))
+        );
+        ctx.font = FONT_S;
+        const bw = 14 + Math.max(...lines.map((s) => ctx.measureText(s).width));
+        const bh = 6 + lines.length * 14;
+        const bx = clamp(hx + 8, plot.l + 2, plot.r - bw - 2);
+        const by = plot.t + 4;
+        ctx.fillStyle = "rgba(255,255,255,.94)"; ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+        rr(ctx, bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
+        ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+        lines.forEach((s, i) => {
+          ctx.fillStyle = i === 0 ? C.muted : C.text;
+          ctx.fillText(s, bx + 7, by + 16 + i * 14);
+        });
+        ctx.textBaseline = "middle";
+      }
+    }
+
+    /* ── scene ─────────────────────────────────────────── */
+    function drawScene() {
+      const cv = els.scene;
+      const ctx = cv.getContext("2d");
+      const dpr = fitCanvas(cv);
+      const W = cv.clientWidth, H = cv.clientHeight;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      if (W < 60 || H < 60) return;
+      ctx.textBaseline = "alphabetic";
+
+      const o = K.evalAt(state.sc, state.t);
+      const mX = 16, roadTop = Math.round(H * 0.58);
+      const roadH = 24;
+      const spanM = state.road.max - state.road.min;
+      const pxPerM = (W - 2 * mX) / spanM;
+      const px = (x) => mX + (x - state.road.min) * pxPerM;
+
+      // direction hint
+      ctx.font = FONT; ctx.fillStyle = C.muted; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+      ctx.fillText("x 正方向 →", W - mX - 2, 16);
+
+      // asphalt band + center dashes
+      ctx.fillStyle = C.road;
+      rr(ctx, mX, roadTop, W - 2 * mX, roadH, 7); ctx.fill();
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,.45)"; ctx.lineWidth = 1.6; ctx.setLineDash([12, 9]);
+      ctx.beginPath(); ctx.moveTo(mX + 6, roadTop + roadH / 2); ctx.lineTo(W - mX - 6, roadTop + roadH / 2); ctx.stroke();
+      ctx.restore();
+
+      // ruler
+      const tickPx = niceStep(spanM, Math.max(4, Math.floor((W - 2 * mX) / 46)));
+      const rulerY = roadTop + roadH + 10;
+      ctx.strokeStyle = "#9aa7ba"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(mX, rulerY); ctx.lineTo(W - mX, rulerY); ctx.stroke();
+      ctx.font = FONT_S; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      for (let m = Math.ceil(state.road.min / tickPx) * tickPx; m <= state.road.max; m += tickPx) {
+        const x = px(m);
+        ctx.strokeStyle = "#9aa7ba";
+        ctx.beginPath(); ctx.moveTo(x, rulerY); ctx.lineTo(x, rulerY + 5); ctx.stroke();
+        ctx.fillStyle = C.muted;
+        ctx.fillText(String(Math.round(m)), x, rulerY + 16);
+      }
+      ctx.fillStyle = C.muted; ctx.textAlign = "right";
+      ctx.fillText("m", W - mX, rulerY + 16);
+
+      // origin marker
+      const ox = px(0);
+      if (ox > mX - 2 && ox < W - mX + 2) {
+        ctx.save();
+        ctx.setLineDash([3, 3]); ctx.strokeStyle = "#8a97ab"; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(ox, roadTop - 26); ctx.lineTo(ox, rulerY); ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = C.muted; ctx.font = FONT_S; ctx.textAlign = "center";
+        ctx.fillText("O 起点", ox, roadTop - 30);
+      }
+
+      // passed-position trail dots (from the same samples the charts use)
+      ctx.save();
+      for (let j = 0; j < state.samples.length; j += 3) {
+        const s = state.samples[j];
+        s.cars.forEach((c, i) => {
+          const car = state.sc.cars[i];
+          ctx.fillStyle = CAR_COLOR[car.key];
+          ctx.globalAlpha = 0.3;
+          ctx.beginPath(); ctx.arc(px(c.x), roadTop + roadH / 2, 1.7, 0, Math.PI * 2); ctx.fill();
+        });
+      }
+      ctx.restore();
+
+      // braking: stop flag once the stop has actually happened
+      if (state.sc.mode === "braking") {
+        const c0 = state.sc.cars[0];
+        if (c0.tStop !== null && state.t >= c0.tStop) {
+          const fx = px(c0.xStop);
+          ctx.strokeStyle = C.carB; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(fx, roadTop - 34); ctx.lineTo(fx, roadTop + roadH); ctx.stroke();
+          ctx.fillStyle = C.carB;
+          ctx.beginPath(); ctx.moveTo(fx, roadTop - 34); ctx.lineTo(fx + 16, roadTop - 28); ctx.lineTo(fx, roadTop - 22); ctx.closePath(); ctx.fill();
+          ctx.font = FONT_S; ctx.textAlign = "center"; ctx.fillStyle = C.insightInk;
+          ctx.fillText("停止点 x停 = " + c0.xStop.toFixed(1) + " m", fx, roadTop - 40);
+        }
+      }
+
+      // cars
+      const drawCar = (carIdx, ghostT) => {
+        const car = state.sc.cars[carIdx];
+        const st = ghostT === null ? o.cars[carIdx] : K.evalAt(state.sc, ghostT).cars[carIdx];
+        const cx = px(st.x);
+        if (!Number.isFinite(cx)) return;
+        const baseY = roadTop + 6; // wheels touch just inside the road
+        if (ghostT !== null) {
+          ctx.save();
+          ctx.setLineDash([4, 3]);
+          ctx.strokeStyle = "rgba(23,32,51,.55)"; ctx.lineWidth = 1.4;
+          rr(ctx, cx - 22, baseY - 24, 44, 15, 5); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx - 13, baseY, 5, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx + 13, baseY, 5, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = "rgba(23,32,51,.6)"; ctx.font = FONT_S; ctx.textAlign = "center";
+          ctx.fillText("t=" + ghostT.toFixed(1) + "s", cx, baseY - 32);
+          ctx.restore();
+          return;
+        }
+        // shadow
+        ctx.fillStyle = "rgba(23,32,51,.14)";
+        rr(ctx, cx - 24, baseY + 3, 48, 5, 3); ctx.fill();
+        // body
+        ctx.fillStyle = CAR_COLOR[car.key];
+        rr(ctx, cx - 23, baseY - 22, 46, 15, 5); ctx.fill();
+        // cabin
+        ctx.fillStyle = "rgba(255,255,255,.88)";
+        rr(ctx, cx - 10, baseY - 30, 21, 10, 3); ctx.fill();
+        // wheels
+        ctx.fillStyle = "#243043";
+        ctx.beginPath(); ctx.arc(cx - 13, baseY, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 13, baseY, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#8d99ab";
+        ctx.beginPath(); ctx.arc(cx - 13, baseY, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 13, baseY, 1.8, 0, Math.PI * 2); ctx.fill();
+        // label chip (two-car modes)
+        if (state.sc.cars.length > 1) {
+          ctx.fillStyle = CAR_COLOR[car.key];
+          rr(ctx, cx - 11, baseY - 48, 22, 15, 7); ctx.fill();
+          ctx.fillStyle = "#fff"; ctx.font = FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(CAR_LABEL[car.key], cx, baseY - 40);
+          ctx.textBaseline = "alphabetic";
+        }
+      };
+      state.sc.cars.forEach((c, i) => drawCar(i, null));
+
+      // ghost cars at hovered time (review)
+      if (state.hoverT !== null && state.hoverT > 0) {
+        state.sc.cars.forEach((c, i) => drawCar(i, state.hoverT));
+      }
+
+      // velocity / acceleration arrows — single-car modes only
+      if (state.sc.cars.length === 1) {
+        const st = o.cars[0];
+        const cx = px(st.x), baseY = roadTop + 6;
+        const vLen = clamp(st.v * 4, -110, 110);
+        if (Math.abs(st.v) > 0.15) {
+          const y1 = baseY - 44;
+          const x2 = clamp(cx + 8 + vLen, mX + 4, W - mX - 4);
+          arrow(ctx, cx + 8, y1, x2, y1, C.accentDeep, 2.6);
+          ctx.fillStyle = C.accentDeep; ctx.font = FONT_S; ctx.textAlign = "left";
+          ctx.fillText("v", cx - 2, y1 - 8);
+        }
+        if (Math.abs(st.a) > 0.02) {
+          const y2 = baseY - 62;
+          const aLen = clamp(st.a * 16, -80, 80);
+          const x2 = clamp(cx + 8 + aLen, mX + 4, W - mX - 4);
+          arrow(ctx, cx + 8, y2, x2, y2, C.carB, 2.6);
+          ctx.fillStyle = C.carB; ctx.font = FONT_S; ctx.textAlign = "left";
+          ctx.fillText("a", cx - 2, y2 - 8);
+        }
+      }
+
+      // pursuit: gap bracket between the two cars
+      if (state.sc.cars.length === 2) {
+        const xa = px(o.cars[0].x), xb = px(o.cars[1].x);
+        const yb = roadTop - 52;
+        const lo = Math.min(xa, xb), hi = Math.max(xa, xb);
+        const gapM = o.gap;
+        if (Math.abs(gapM) <= 0.35) {
+          const mx = (xa + xb) / 2;
+          ctx.fillStyle = C.accentDeep;
+          rr(ctx, mx - 24, yb - 12, 48, 18, 9); ctx.fill();
+          ctx.fillStyle = "#fff"; ctx.font = FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText("相遇!", mx, yb - 3);
+          ctx.textBaseline = "alphabetic";
+        } else if (hi - lo > 26) {
+          ctx.strokeStyle = "#5b6880"; ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(lo, yb); ctx.lineTo(hi, yb); ctx.stroke();
+          arrow(ctx, lo + 14, yb, lo, yb, "#5b6880", 1.4);
+          arrow(ctx, hi - 14, yb, hi, yb, "#5b6880", 1.4);
+          ctx.fillStyle = C.text; ctx.font = FONT; ctx.textAlign = "center";
+          ctx.fillText("Δx = " + gapM.toFixed(1) + " m", (lo + hi) / 2, yb - 8);
+        } else {
+          ctx.fillStyle = C.text; ctx.font = FONT; ctx.textAlign = "center";
+          ctx.fillText("Δx = " + gapM.toFixed(1) + " m", (lo + hi) / 2, yb - 8);
+        }
+      }
+    }
+
+    /* ── render + loop ─────────────────────────────────── */
+    function render() {
+      state.hoverT = state.hoverFrac === null ? null : Math.min(state.hoverFrac * state.sc.T, state.t);
+      updateTexts();
+      drawScene();
+      CHARTS.forEach((cfg, i) => drawChart(cfg, els.chartCanvases[i]));
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: () => globalThis.__simKernel.runModelChecks() };
+    init();
+  })();
+  </script>
+</body>
+</html>

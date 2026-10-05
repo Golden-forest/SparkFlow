@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>系统误差 vs 偶然误差：多测取平均有用吗</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic extensions (base set stays intact) */
+      --sim-sys: #d97706;          /* systematic error / condition A */
+      --sim-sys-deep: #a95c00;
+      --sim-sys-soft: #fdf1de;
+      --sim-rand: #0f9fba;         /* random error / condition B */
+      --sim-rand-deep: #08758a;
+      --sim-rand-soft: #ddf4f8;
+      --sim-true: #475569;         /* true value reference */
+      --sim-est: #dc2626;          /* estimated (uncertain) digit */
+      --sim-ruler: #f8e3b0;        /* wooden ruler body */
+      --sim-ruler-edge: #d9b26a;
+      --sim-pencil: #f6b73c;       /* pencil body */
+      --sim-pencil-edge: #c99a2e;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(217, 119, 6, 0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+
+    .app {
+      width: min(1560px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: var(--sim-space-4) var(--sim-space-5) var(--sim-space-5);
+      display: grid;
+      grid-template-rows: auto minmax(560px, 1fr) auto auto auto;
+      gap: var(--sim-space-3);
+      align-content: start;
+    }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.3vw, 2rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .status.sys { border-color: rgba(217,119,6,.25); background: var(--sim-sys-soft); color: var(--sim-sys-deep); }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: var(--sim-space-3); }
+    .app[data-layout="scene-first"] .main { grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+
+    /* ---------- stage ---------- */
+    .scene-panel { padding: var(--sim-space-3) var(--sim-space-4); display: flex; flex-direction: column; gap: var(--sim-space-2); min-height: 0; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sim-space-3); }
+    .panel-head h2 { margin: 0; font-size: 1.02rem; }
+    .panel-head .hint { color: var(--sim-muted); font-size: 0.75rem; }
+    .apparatus { border: 1px solid rgba(217,178,106,.4); border-radius: var(--sim-radius-md); background: linear-gradient(145deg, #fffdf6, #fbf5e6); padding: var(--sim-space-2) var(--sim-space-3) 0; }
+    .apparatus svg { width: 100%; height: auto; display: block; }
+    .cause-row { display: flex; flex-wrap: wrap; gap: var(--sim-space-2); padding: var(--sim-space-2) 0 var(--sim-space-2); }
+    .chip { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 5px 12px; font-size: 0.8rem; font-weight: 650; border: 1px solid transparent; }
+    .chip .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+    .chip-a { background: var(--sim-sys-soft); color: var(--sim-sys-deep); border-color: rgba(217,119,6,.25); }
+    .chip-a .dot { background: var(--sim-sys); }
+    .chip-b { background: var(--sim-rand-soft); color: var(--sim-rand-deep); border-color: rgba(15,159,186,.25); }
+    .chip-b .dot { background: var(--sim-rand); border-radius: 50%; }
+    .chip-plain { background: var(--sim-surface-soft); color: var(--sim-muted); border-color: var(--sim-border); font-weight: 600; }
+
+    .strip-block { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-md); background: var(--sim-surface); padding: var(--sim-space-2) var(--sim-space-3) var(--sim-space-1); }
+    .strip-block.strip-a { border-color: rgba(217,119,6,.35); background: linear-gradient(150deg, #fffdf9, var(--sim-sys-soft) 140%); }
+    .strip-block.strip-b { border-color: rgba(15,159,186,.35); background: linear-gradient(150deg, #f9fdfd, var(--sim-rand-soft) 140%); }
+    .strip-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sim-space-2); margin-bottom: var(--sim-space-1); }
+    .tag { font-size: 0.82rem; font-weight: 780; padding: 4px 11px; border-radius: 999px; color: #fff; letter-spacing: .02em; }
+    .tag-a { background: var(--sim-sys); }
+    .tag-b { background: var(--sim-rand); }
+    .cause { color: var(--sim-muted); font-size: 0.82rem; flex: 1 1 220px; }
+    .mini-read { font-variant-numeric: tabular-nums; font-weight: 750; font-size: 0.88rem; }
+    .strip-a .mini-read { color: var(--sim-sys-deep); }
+    .strip-b .mini-read { color: var(--sim-rand-deep); }
+    svg.strip { width: 100%; height: auto; display: block; }
+    .dot-a { fill: var(--sim-sys); stroke: #fff; stroke-width: 1.4; }
+    .dot-b { fill: var(--sim-rand); stroke: #fff; stroke-width: 1.4; }
+    .dot-pop { animation: pop .34s cubic-bezier(.2,1.6,.4,1); transform-box: fill-box; transform-origin: center; }
+    @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+    .mean-line-a { stroke: var(--sim-sys-deep); stroke-width: 3; }
+    .mean-line-b { stroke: var(--sim-rand-deep); stroke-width: 3; }
+    .mean-flag-a { fill: var(--sim-sys); }
+    .mean-flag-b { fill: var(--sim-rand); }
+    .mean-label { font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .true-line { stroke: var(--sim-true); stroke-width: 2; stroke-dasharray: 7 6; }
+    .true-label { fill: var(--sim-true); font-size: 11.5px; font-weight: 700; }
+    .bias-line { stroke: var(--sim-sys); stroke-width: 1.6; stroke-dasharray: 2.5 4; opacity: .75; }
+    .bias-label { fill: var(--sim-sys-deep); font-size: 11px; font-weight: 700; }
+    .axis-line { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-tick { stroke: #b6c1d1; stroke-width: 1; }
+    .axis-num { fill: var(--sim-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .strip-gridline { stroke: var(--sim-grid); stroke-width: 1; }
+
+    /* ---------- evidence ---------- */
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: var(--sim-space-3); }
+    .readouts { padding: 15px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 12px 13px; border: 1px solid var(--sim-border); border-radius: 14px; background: linear-gradient(150deg, #fbfcfe, #f5f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 11.5px; }
+    .metric strong { font-size: 1.3rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; font-weight: 760; }
+    .metric.tone-a { border-color: rgba(217,119,6,.3); }
+    .metric.tone-a strong { color: var(--sim-sys-deep); }
+    .metric.tone-b { border-color: rgba(15,159,186,.3); }
+    .metric.tone-b strong { color: var(--sim-rand-deep); }
+    .chart-panel { padding: var(--sim-space-3); display: flex; flex-direction: column; gap: var(--sim-space-2); min-height: 0; }
+    .chart-panel svg { width: 100%; height: auto; display: block; border: 1px solid var(--sim-border); border-radius: 14px; background: linear-gradient(160deg, #fcfdff, #f6f9fc); }
+    .legend { display: flex; flex-wrap: wrap; gap: var(--sim-space-2) var(--sim-space-3); color: var(--sim-muted); font-size: 0.74rem; align-items: center; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+    .legend .sw-a { border-color: var(--sim-sys); }
+    .legend .sw-b { border-color: var(--sim-rand); }
+    .legend .sw-t { border-top-style: dashed; border-color: var(--sim-true); }
+    .legend .sw-band { width: 16px; height: 10px; background: rgba(15,159,186,.14); border: 1px solid rgba(15,159,186,.25); border-radius: 3px; }
+    .model-note { padding: 15px; display: grid; align-content: start; gap: var(--sim-space-3); }
+    .model-note h2 { margin: 0; font-size: 1rem; }
+    .insight { margin: 0; padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #7a4d07; font-weight: 640; font-size: 0.86rem; line-height: 1.55; }
+    .model-note .note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+
+    /* ---------- controls ---------- */
+    .controls { padding: var(--sim-space-3); display: grid; grid-template-columns: auto minmax(190px, 1fr) minmax(190px, 1fr) auto; gap: var(--sim-space-4); align-items: center; border-radius: 18px; }
+    .actions { display: flex; gap: var(--sim-space-2); flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.primary:hover { background: linear-gradient(135deg, #09697c, #11b1ce); }
+    #autoBtn[aria-pressed="true"] { border-color: var(--sim-sys); color: var(--sim-sys-deep); background: var(--sim-sys-soft); box-shadow: inset 0 0 0 2px rgba(217,119,6,.28); }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: var(--sim-space-3); margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .fixed-chip { font-size: 0.8rem; color: var(--sim-muted); border: 1px dashed var(--sim-border); padding: 8px 13px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .fixed-chip b { color: var(--sim-true); }
+
+    /* ---------- extension modules ---------- */
+    .module { padding: var(--sim-space-4); }
+    .module .panel-head { margin-bottom: var(--sim-space-3); }
+    .quad-wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(280px, 0.9fr); gap: var(--sim-space-3); align-items: stretch; }
+    .quad-card { display: flex; flex-direction: column; gap: var(--sim-space-2); align-items: center; padding: var(--sim-space-3); border-radius: var(--sim-radius-md); border: 1.5px solid var(--sim-border); background: var(--sim-surface); cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+    .quad-card:hover { border-color: #c7d2e2; transform: translateY(-2px); }
+    .quad-card svg { width: 100%; max-width: 190px; height: auto; }
+    .quad-cap { font-size: 0.82rem; font-weight: 720; text-align: center; line-height: 1.4; }
+    .quad-cap small { display: block; color: var(--sim-muted); font-weight: 620; font-size: 0.74rem; margin-top: 2px; }
+    .quad-card[aria-pressed="true"] { border-color: var(--sim-accent); box-shadow: 0 0 0 3px rgba(15,159,186,.18), var(--sim-shadow); }
+    .quad-detail { border: 1px solid rgba(15,159,186,.25); background: linear-gradient(155deg, #f7fcfd, var(--sim-accent-soft) 160%); border-radius: var(--sim-radius-md); padding: var(--sim-space-4); display: flex; flex-direction: column; gap: var(--sim-space-2); }
+    .quad-detail h3 { margin: 0; font-size: 1.05rem; }
+    .quad-detail .qtag { align-self: flex-start; font-size: 0.76rem; font-weight: 750; padding: 3px 11px; border-radius: 999px; background: #fff; border: 1px solid rgba(15,159,186,.3); color: var(--sim-accent-deep); }
+    .quad-detail ul { margin: 0; padding-left: 1.2em; display: grid; gap: 7px; color: var(--sim-text); font-size: 0.86rem; line-height: 1.5; }
+
+    .sig-wrap { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.85fr); gap: var(--sim-space-4); align-items: stretch; }
+    .sig-scene-box { border: 1px solid rgba(217,178,106,.4); border-radius: var(--sim-radius-md); background: linear-gradient(150deg, #fffdf6, #faf4e6); padding: var(--sim-space-2); }
+    #sigScene { width: 100%; height: auto; display: block; touch-action: none; cursor: ew-resize; }
+    .sig-side { display: flex; flex-direction: column; gap: var(--sim-space-3); }
+    .sig-read { border: 1.5px solid rgba(220,38,38,.35); border-radius: var(--sim-radius-md); background: #fff7f7; padding: var(--sim-space-3) var(--sim-space-4); text-align: center; }
+    .sig-read .digits { font-size: 2.1rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .04em; color: var(--sim-text); }
+    .sig-read .digits .est { color: var(--sim-est); text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 5px; }
+    .sig-read .digits .unit { font-size: 1.15rem; font-weight: 700; color: var(--sim-muted); letter-spacing: 0; }
+    .sig-read .cm { margin-top: 4px; color: var(--sim-muted); font-size: 0.82rem; }
+    .sig-rule { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-md); background: var(--sim-surface-soft); padding: var(--sim-space-3) var(--sim-space-4); }
+    .sig-rule h3 { margin: 0 0 8px; font-size: 0.92rem; }
+    .sig-rule ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; font-size: 0.84rem; line-height: 1.5; color: var(--sim-text); }
+    .mistakes { display: flex; flex-wrap: wrap; gap: var(--sim-space-2); }
+    .mistake { font-size: 0.8rem; font-weight: 650; color: #991b1b; background: #fef2f2; border: 1px solid rgba(220,38,38,.3); border-radius: 999px; padding: 5px 12px; }
+    .edge-hint { min-height: 1.4em; font-size: 0.8rem; color: var(--sim-sys-deep); font-weight: 650; }
+
+    .footnote { text-align: right; color: #8b96a8; font-size: 0.72rem; padding: 2px 4px 0; }
+
+    @media (max-width: 1060px) {
+      .quad-wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .quad-detail { grid-column: 1 / -1; }
+      .sig-wrap { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .app { grid-template-rows: auto auto auto auto auto; padding: var(--sim-space-3); }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; animation-duration: .001s !important; transition-duration: .001s !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls (+ two declared extension modules). -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>系统误差 vs 偶然误差：多测取平均有用吗？</h1>
+        <p>同一把毫米刻度尺、同一支铅笔：一种情形每次都往一边偏，另一种随机散布 —— 多测几次取平均，效果完全不一样。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪 · N=0</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">测量值分布带</h2>
+          <span class="hint">同一把尺 · 同一支铅笔 · 两条带同一刻度（mm）· ■ 情形A读数 ● 情形B读数</span>
+        </div>
+
+        <div class="apparatus" aria-label="装置示意：毫米刻度尺与被测铅笔">
+          <svg id="apparatus" viewBox="0 0 720 100" role="img" aria-label="刻度尺上放着一支铅笔，尺的零刻度区标有磨损阴影">
+            <g id="appRuler"></g>
+            <g id="appPencil"></g>
+          </svg>
+          <div class="cause-row">
+            <span class="chip chip-a"><span class="dot"></span><span id="causeA">情形A · 系统误差来源：零刻度磨损 —— 每次读数都偏大 +2.0 mm</span></span>
+            <span class="chip chip-b"><span class="dot"></span>情形B · 偶然误差来源：从整刻线起测，误差只剩估读抖动 —— 随机偏大偏小</span>
+            <span class="chip chip-plain">两种情形测的是同一真实长度</span>
+          </div>
+        </div>
+
+        <div class="strip-block strip-a">
+          <div class="strip-head">
+            <span class="tag tag-a">情形 A · 系统误差</span>
+            <span class="cause" id="causeA2">往一边偏（偏移目标 L+b）</span>
+            <span class="mini-read" id="miniA">平均值 x̄ = —</span>
+          </div>
+          <svg class="strip" id="stripA" viewBox="0 0 720 150" role="img" aria-label="情形A读数分布带：读数堆在真实值一侧">
+            <g id="stripA-grid"></g>
+            <g id="stripA-axis"></g>
+            <g id="stripA-static"></g>
+            <g id="stripA-dots"></g>
+            <g id="stripA-mean"></g>
+          </svg>
+        </div>
+
+        <div class="strip-block strip-b">
+          <div class="strip-head">
+            <span class="tag tag-b">情形 B · 偶然误差</span>
+            <span class="cause">随机散布（真实值两侧都有）</span>
+            <span class="mini-read" id="miniB">平均值 x̄ = —</span>
+          </div>
+          <svg class="strip" id="stripB" viewBox="0 0 720 150" role="img" aria-label="情形B读数分布带：读数在真实值两侧散布">
+            <g id="stripB-grid"></g>
+            <g id="stripB-axis"></g>
+            <g id="stripB-static"></g>
+            <g id="stripB-dots"></g>
+            <g id="stripB-mean"></g>
+          </svg>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>测量次数 N</small><strong id="mN">0</strong></div>
+            <div class="metric tone-b"><small>平均值收敛带 ±2s/√N</small><strong id="mBand">—</strong></div>
+            <div class="metric tone-a"><small>x̄ 情形A（系统）</small><strong id="mMA">—</strong></div>
+            <div class="metric tone-b"><small>x̄ 情形B（偶然）</small><strong id="mMB">—</strong></div>
+            <div class="metric tone-a"><small>偏差 |x̄A−L|</small><strong id="mDA">—</strong></div>
+            <div class="metric tone-b"><small>偏差 |x̄B−L|</small><strong id="mDB">—</strong></div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">平均值如何逼近真实值</h2>
+            <span class="hint">横轴：测量次数 N</span>
+          </div>
+          <svg id="chart" viewBox="0 0 340 300" role="img" aria-label="运行平均值随测量次数变化的曲线图">
+            <g id="chart-grid"></g>
+            <polygon id="chartBand" fill="rgba(15,159,186,.13)" points=""></polygon>
+            <line id="chartTrue" class="true-line" x1="46" y1="0" x2="330" y2="0"></line>
+            <text id="chartTrueLabel" class="true-label" x="52" y="0">真实值 120.6</text>
+            <polyline id="chartTraceA" fill="none" stroke="#d97706" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
+            <polyline id="chartTraceB" fill="none" stroke="#0f9fba" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" points=""></polyline>
+            <g id="chartEnds"></g>
+          </svg>
+          <div class="legend">
+            <span><i class="sw-a"></i>情形A 平均</span>
+            <span><i class="sw-b"></i>情形B 平均</span>
+            <span><i class="sw-t"></i>真实值</span>
+            <span><span class="sw-band"></span>±2s/√N 收敛带</span>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-labelledby="insight-title">
+          <h2 id="insight-title">当前解读</h2>
+          <p id="insight" class="insight">按「测一次」：上、下两条带会同时各落一个读数。先看落点——上面总往一边偏，下面两边乱跳。</p>
+          <p class="note">教学视图：真实长度由"自然界"持有（L=120.6 mm）。情形A每次读数 = L + b + 微小抖动（σ=0.2 mm），情形B = L + 随机误差（σ 可调）；所有读数按估读规则记到 0.1 mm。</p>
+          <p class="note">随机数使用固定种子：复位后序列完全重现，课堂上每次演示结论一致。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验控制">
+      <div class="actions">
+        <button id="stepBtn" class="primary" type="button">测一次</button>
+        <button id="autoBtn" type="button" aria-pressed="false">连测</button>
+        <button id="resetBtn" type="button">复位</button>
+      </div>
+      <div class="control">
+        <label for="biasInput">系统偏差 b（情形A·零点磨损）<output id="biasOutput">+2.0 mm</output></label>
+        <input id="biasInput" type="range" min="-4" max="4" step="0.1" value="2">
+      </div>
+      <div class="control">
+        <label for="sigmaInput">偶然散布 σ（情形B·估读抖动）<output id="sigmaOutput">1.2 mm</output></label>
+        <input id="sigmaInput" type="range" min="0.2" max="3" step="0.1" value="1.2">
+      </div>
+      <div class="fixed-chip">真实长度 <b>L = 120.6 mm</b>（固定）</div>
+    </section>
+
+    <section class="panel module" aria-labelledby="quad-title">
+      <div class="panel-head">
+        <h2 id="quad-title">延伸① 打靶四象限：精密度 ≠ 准确度</h2>
+        <span class="hint">点击靶图查看解读 · 精密度看弹孔挤不挤（偶然误差），准确度看中心偏不偏（系统误差）</span>
+      </div>
+      <div class="quad-wrap" id="quadWrap">
+        <button class="quad-card" type="button" id="quadBtn0" aria-pressed="true" aria-label="甲：精密度高，准确度低">
+          <svg viewBox="0 0 200 200" role="img" aria-hidden="true"><g class="quad-target" data-quad="0"></g></svg>
+          <span class="quad-cap">甲<small>精密度高 · 准确度低</small></span>
+        </button>
+        <button class="quad-card" type="button" id="quadBtn1" aria-pressed="false" aria-label="乙：精密度低，准确度高">
+          <svg viewBox="0 0 200 200" role="img" aria-hidden="true"><g class="quad-target" data-quad="1"></g></svg>
+          <span class="quad-cap">乙<small>精密度低 · 准确度高</small></span>
+        </button>
+        <button class="quad-card" type="button" id="quadBtn2" aria-pressed="false" aria-label="丙：精密度高，准确度高">
+          <svg viewBox="0 0 200 200" role="img" aria-hidden="true"><g class="quad-target" data-quad="2"></g></svg>
+          <span class="quad-cap">丙<small>精密度高 · 准确度高</small></span>
+        </button>
+        <button class="quad-card" type="button" id="quadBtn3" aria-pressed="false" aria-label="丁：精密度低，准确度低">
+          <svg viewBox="0 0 200 200" role="img" aria-hidden="true"><g class="quad-target" data-quad="3"></g></svg>
+          <span class="quad-cap">丁<small>精密度低 · 准确度低</small></span>
+        </button>
+        <div class="quad-detail" aria-live="polite">
+          <span class="qtag" id="quadTag">像情形A（系统误差）</span>
+          <h3 id="quadTitle">甲 · 精密度高，准确度低</h3>
+          <ul id="quadLines"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel module" aria-labelledby="sig-title">
+      <div class="panel-head">
+        <h2 id="sig-title">延伸② 有效数字：毫米刻度尺该记到哪一位？</h2>
+        <span class="hint">拖动滑块（或直接在尺上左右拖铅笔末端）观察该记哪一位</span>
+      </div>
+      <div class="sig-wrap">
+        <div class="sig-scene-box">
+          <svg id="sigScene" viewBox="0 0 720 250" role="img" aria-label="放大后的毫米刻度尺与铅笔末端位置示意">
+            <g id="sigStatic"></g>
+            <g id="sigPencil"></g>
+            <g id="sigBracket"></g>
+            <g id="sigEdge"></g>
+          </svg>
+        </div>
+        <div class="sig-side">
+          <div class="sig-read">
+            <div class="digits" id="sigDigits">120.6<span class="unit"> mm</span></div>
+            <div class="cm" id="sigCm">= 12.06 cm（单位换算不改变有效数字位数）</div>
+          </div>
+          <div class="sig-rule">
+            <h3>记录规则</h3>
+            <ul>
+              <li>毫米刻度尺分度值 1 mm：准确读到毫米位，再向下<b>估读一位</b>（0.1 mm 位）。</li>
+              <li>有效数字 = 可靠数字 + 1 位估读数字；本读数共 <b id="sigCount">4</b> 位。</li>
+              <li>正好压线也要补 0：如 121.0，不能只写 121。</li>
+            </ul>
+          </div>
+          <div class="control">
+            <label for="edgeInput">铅笔末端位置<output id="edgeOutput">120.60 mm</output></label>
+            <input id="edgeInput" type="range" min="119" max="122" step="0.05" value="120.6">
+          </div>
+          <p class="edge-hint" id="edgeHint">末端在 120 与 121 两刻线之间：估读 0.6 → 记 120.6 mm</p>
+          <div class="mistakes">
+            <span class="mistake">✗ 记 121 mm：丢掉估读位</span>
+            <span class="mistake">✗ 记 120.58 mm：假装比仪器更准</span>
+          </div>
+        </div>
+      </div>
+      <p class="footnote">AppShell 教学演示 · 种子化随机模型，复位可复现 · 读数均按 0.1 mm 估读规则量化</p>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ============ seeded RNG kernel (deterministic, DOM-free) ============ */
+    const SEED_A = 20260928;
+    const SEED_B = 20261103;
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function makeGauss(rng) {
+      return function () {
+        let u = 0, v = 0;
+        while (u === 0) u = rng();
+        while (v === 0) v = rng();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      };
+    }
+    const round1 = (v) => Math.round(v * 10) / 10;
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const fmt1 = (v) => (Number.isFinite(v) ? v.toFixed(1) : "—");
+    const fmt2 = (v) => (Number.isFinite(v) ? v.toFixed(2) : "—");
+
+    /* ============ authoritative model state (single source of truth) ============ */
+    const L_TRUE = 120.6;
+    const SIGMA_SYS = 0.2;   // fixed jitter of the systematic condition
+    const CAP = 100;         // bounded history
+    const INTERVAL = 0.7;    // seconds between auto readings
+
+    const model = {
+      running: false, t: 0, acc: 0, lastTimestamp: null, dirty: true,
+      b: 2.0, sigma: 1.2,
+      n: 0, samplesA: [], samplesB: [], sumA: 0, sumB: 0,
+      prevNA: 0, prevNB: 0,
+      gaussA: null, gaussB: null
+    };
+    seedRngs(); // model must be usable before init() (headless runModelChecks / update)
+    function seedRngs() {
+      model.gaussA = makeGauss(mulberry32(SEED_A));
+      model.gaussB = makeGauss(mulberry32(SEED_B));
+    }
+    function clearData() {
+      model.n = 0; model.samplesA = []; model.samplesB = [];
+      model.sumA = 0; model.sumB = 0; model.acc = 0; model.t = 0;
+      seedRngs();
+    }
+    function takeReading() {
+      if (model.n >= CAP) return false;
+      const yA = round1(L_TRUE + model.b + model.gaussA() * SIGMA_SYS);
+      const yB = round1(L_TRUE + model.gaussB() * model.sigma);
+      model.samplesA.push(yA); model.samplesB.push(yB);
+      model.sumA += yA; model.sumB += yB;
+      model.n += 1; model.dirty = true;
+      return true;
+    }
+    const meanA = () => (model.n ? model.sumA / model.n : null);
+    const meanB = () => (model.n ? model.sumB / model.n : null);
+    function sampleStd(arr) {
+      if (arr.length < 2) return null;
+      let m = 0; for (const v of arr) m += v; m /= arr.length;
+      let s = 0; for (const v of arr) s += (v - m) * (v - m);
+      return Math.sqrt(s / (arr.length - 1));
+    }
+
+    /* strip geometry (shared fixed scale => honest comparison) */
+    const X_MIN = 112, X_MAX = 130, X0 = 46, X1 = 706;
+    const xOf = (v) => X0 + ((clamp(v, X_MIN, X_MAX) - X_MIN) / (X_MAX - X_MIN)) * (X1 - X0);
+
+    /* ============ sig-fig module state ============ */
+    const sig = { edge: 120.6 };
+    const sigReading = () => round1(sig.edge);
+
+    /* ============ quadrant module data (seeded, static) ============ */
+    const QUADS = [
+      { name: "甲", title: "甲 · 精密度高，准确度低", tag: "像情形A（系统误差）", ox: 24, oy: -14, spread: 7, seed: 9101,
+        lines: ["弹孔彼此很挤 → 偶然误差小 → <b>精密度高</b>。", "弹孔整体偏离靶心 → 系统误差大 → <b>准确度低</b>。", "对应上方<b>情形A</b>：每次都往一边偏——多打几发、取平均，中心仍回不到靶心。"] },
+      { name: "乙", title: "乙 · 精密度低，准确度高", tag: "像情形B（偶然误差）", ox: 0, oy: 0, spread: 22, seed: 9102,
+        lines: ["弹孔散布大 → 偶然误差大 → <b>精密度低</b>。", "散布中心基本在靶心 → 系统误差小 → <b>准确度高</b>。", "对应上方<b>情形B</b>：随机散布——多测几次取平均，平均值会越来越接近真实值。"] },
+      { name: "丙", title: "丙 · 精密度高，准确度高", tag: "理想情形", ox: 3, oy: 2, spread: 7, seed: 9103,
+        lines: ["弹孔又挤又居中：偶然误差、系统误差都小。", "这是好仪器 + 好操作的理想情形。", "想要丙：先校准消除系统误差，再多测几次取平均压小偶然误差。"] },
+      { name: "丁", title: "丁 · 精密度低，准确度低", tag: "两种误差都大", ox: 26, oy: 18, spread: 21, seed: 9104,
+        lines: ["弹孔既散又偏：两种误差都大。", "单次读数不可信，平均值也偏。", "先找系统误差来源（如零点、方法），再增加测量次数压小偶然误差。"] }
+    ];
+    let quadSel = 0;
+
+    /* ============ runModelChecks (pure, deterministic oracles) ============ */
+    function runModelChecks() {
+      const out = [];
+      const push = (name, pass, expected, actual, tolerance) =>
+        out.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      // 1) determinism: same seed -> identical stream
+      const r1 = mulberry32(SEED_A), r2 = mulberry32(SEED_A);
+      let det = true;
+      for (let i = 0; i < 64; i += 1) { if (r1() !== r2()) { det = false; break; } }
+      push("seeded determinism (same seed ⇒ same stream)", det, "identical 64 draws", det ? "identical 64 draws" : "streams diverged", "exact");
+
+      // 2) systematic bias persists under averaging
+      const N = 400, bTest = 2.0;
+      const gA = makeGauss(mulberry32(SEED_A));
+      let sA = 0;
+      for (let i = 0; i < N; i += 1) sA += round1(L_TRUE + bTest + gA() * SIGMA_SYS);
+      const mA = sA / N;
+      const tolA = 4 * SIGMA_SYS / Math.sqrt(N);
+      push("systematic bias persists under averaging (N=400)",
+        Math.abs(mA - (L_TRUE + bTest)) <= tolA && Math.abs(mA - L_TRUE) > 0.95 * bTest,
+        `mean → ${L_TRUE + bTest} mm, |mean−L| > ${0.95 * bTest} mm`,
+        `mean=${mA.toFixed(3)} mm, |mean−L|=${Math.abs(mA - L_TRUE).toFixed(3)} mm`,
+        `±${tolA.toFixed(3)} mm (4σ_sys/√N)`);
+
+      // 3) random error averages out (unbiased)
+      const sTest = 1.2;
+      const gB = makeGauss(mulberry32(SEED_B));
+      let sB = 0;
+      for (let i = 0; i < N; i += 1) sB += round1(L_TRUE + gB() * sTest);
+      const mB = sB / N;
+      const tolB = 4 * sTest / Math.sqrt(N);
+      push("random error averages out (N=400, unbiased mean)",
+        Math.abs(mB - L_TRUE) <= tolB,
+        `|mean−L| ≤ ${tolB.toFixed(2)} mm`,
+        `${Math.abs(mB - L_TRUE).toFixed(3)} mm`,
+        `4σ/√N = ${tolB.toFixed(2)} mm`);
+
+      // 4) mean scatter shrinks as 1/sqrt(N): SD ratio N=16 vs N=64 ≈ 2
+      const runs = 240;
+      const meansAt = (n) => {
+        const arr = [];
+        for (let r = 0; r < runs; r += 1) {
+          const g = makeGauss(mulberry32(SEED_B + r * 7919));
+          let s = 0;
+          for (let i = 0; i < n; i += 1) s += L_TRUE + g() * sTest;
+          arr.push(s / n);
+        }
+        return arr;
+      };
+      const sdOf = (arr) => {
+        let m = 0; for (const v of arr) m += v; m /= arr.length;
+        let s = 0; for (const v of arr) s += (v - m) * (v - m);
+        return Math.sqrt(s / (arr.length - 1));
+      };
+      const ratio = sdOf(meansAt(16)) / sdOf(meansAt(64));
+      push("mean scatter shrinks as 1/√N (SD ratio N=16 vs N=64)",
+        ratio >= 1.55 && ratio <= 2.6, "ratio ≈ 2.00", ratio.toFixed(3), "[1.55, 2.60]");
+
+      // 5) quantization invariant: one estimated decimal exactly
+      const gQ = makeGauss(mulberry32(SEED_B + 5));
+      let quant = true, worst = 0;
+      for (let i = 0; i < 200; i += 1) {
+        const y = round1(L_TRUE + gQ() * sTest);
+        const err = Math.abs(y * 10 - Math.round(y * 10));
+        worst = Math.max(worst, err);
+        if (err > 1e-9) quant = false;
+      }
+      push("recorded readings carry exactly one estimated decimal (0.1 mm)",
+        quant, "y×10 ∈ ℤ", `max |y×10 − round| = ${worst.toExponential(1)}`, "1e-9");
+
+      // 6) sample SD recovers sigma
+      const gS = makeGauss(mulberry32(SEED_B + 11));
+      const arrS = [];
+      for (let i = 0; i < 400; i += 1) arrS.push(gS() * sTest);
+      const sHat = sdOf(arrS);
+      push("sample SD recovers σ (N=400)",
+        Math.abs(sHat - sTest) / sTest <= 0.10, `s ≈ ${sTest} mm (±10%)`, `${sHat.toFixed(3)} mm`, "±10%");
+
+      return out;
+    }
+
+    /* ============ rendering (DOM bound only inside init) ============ */
+    let ui = null;
+
+    function buildStripStatics(gridId, axisId, which) {
+      let grid = "", axis = "";
+      for (let v = X_MIN + 2; v < X_MAX; v += 2) {
+        const x = xOf(v).toFixed(1);
+        grid += `<line class="strip-gridline" x1="${x}" y1="16" x2="${x}" y2="118"></line>`;
+        axis += `<line class="axis-tick" x1="${x}" y1="118" x2="${x}" y2="124"></line>`;
+      }
+      for (let v = X_MIN; v <= X_MAX; v += 4) {
+        axis += `<text class="axis-num" x="${xOf(v).toFixed(1)}" y="138" text-anchor="middle">${v}</text>`;
+      }
+      axis += `<line class="axis-line" x1="${X0}" y1="118" x2="${X1}" y2="118"></line>`;
+      ui[gridId].innerHTML = grid;
+      ui[axisId].innerHTML = axis;
+      renderStripStatic(which);
+    }
+
+    function renderStripStatic(which) {
+      const isA = which === "A";
+      const g = isA ? ui.stripAStatic : ui.stripBStatic;
+      const xT = xOf(L_TRUE).toFixed(1);
+      let s = `<line class="true-line" x1="${xT}" y1="20" x2="${xT}" y2="118"></line>
+        <text class="true-label" x="${xT}" y="14" text-anchor="middle">真实值 ${L_TRUE.toFixed(1)}</text>`;
+      if (isA) {
+        const target = L_TRUE + model.b;
+        if (Math.abs(model.b) >= 0.1) {
+          const xB = xOf(target).toFixed(1);
+          s += `<line class="bias-line" x1="${xB}" y1="30" x2="${xB}" y2="118"></line>
+            <text class="bias-label" x="${xB}" y="26" text-anchor="middle">偏移目标 L+b=${target.toFixed(1)}</text>`;
+        }
+      }
+      g.innerHTML = s;
+    }
+
+    function renderStrip(which) {
+      const isA = which === "A";
+      const samples = isA ? model.samplesA : model.samplesB;
+      const dotsG = isA ? ui.stripADots : ui.stripBDots;
+      const meanG = isA ? ui.stripAMean : ui.stripBMean;
+      const prevN = isA ? model.prevNA : model.prevNB;
+      const cols = new Map();
+      let dots = "";
+      samples.forEach((v, i) => {
+        const key = v.toFixed(1);
+        const row = cols.get(key) || 0;
+        cols.set(key, row + 1);
+        const cy = Math.max(34, 108 - row * 11);
+        const cls = isA ? "dot-a" : "dot-b";
+        const anim = i >= prevN ? " dot-pop" : "";
+        if (isA) {
+          dots += `<rect class="${cls}${anim}" x="${(xOf(v) - 5).toFixed(1)}" y="${(cy - 5).toFixed(1)}" width="10" height="10" rx="2.5"></rect>`;
+        } else {
+          dots += `<circle class="${cls}${anim}" cx="${xOf(v).toFixed(1)}" cy="${cy.toFixed(1)}" r="5.2"></circle>`;
+        }
+      });
+      dotsG.innerHTML = dots;
+      if (isA) model.prevNA = samples.length; else model.prevNB = samples.length;
+      const m = isA ? meanA() : meanB();
+      if (m === null) { meanG.innerHTML = ""; if (isA) ui.miniA.textContent = "平均值 x̄ = —"; else ui.miniB.textContent = "平均值 x̄ = —"; return; }
+      const x = xOf(m);
+      const cls = isA ? "a" : "b";
+      meanG.innerHTML = `
+        <line class="mean-line-${cls}" x1="${x.toFixed(1)}" y1="20" x2="${x.toFixed(1)}" y2="118"></line>
+        <rect class="mean-flag-${cls}" x="${(x - 34).toFixed(1)}" y="2" width="68" height="18" rx="9"></rect>
+        <text x="${x.toFixed(1)}" y="15" text-anchor="middle" fill="#fff" class="mean-label">x̄=${m.toFixed(2)}</text>`;
+      const mini = isA ? ui.miniA : ui.miniB;
+      mini.textContent = `平均值 x̄ = ${m.toFixed(2)} mm`;
+    }
+
+    /* chart geometry */
+    const CY0 = 16, CY1 = 264, CX0 = 46, CX1 = 330;
+    const yOf = (v) => CY0 + ((X_MAX - clamp(v, X_MIN, X_MAX)) / (X_MAX - X_MIN)) * (CY1 - CY0);
+    const cxA = (n) => CX0 + (n / CAP) * (CX1 - CX0);
+
+    function renderChartStatics() {
+      let s = "";
+      for (let v = X_MIN; v <= X_MAX; v += 2) {
+        s += `<line x1="${CX0}" y1="${yOf(v).toFixed(1)}" x2="${CX1}" y2="${yOf(v).toFixed(1)}" stroke="#e8edf4" stroke-width="1"></line>`;
+        if ((v - X_MIN) % 4 === 0) {
+          s += `<text class="axis-num" x="${CX0 - 6}" y="${(yOf(v) + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
+        }
+      }
+      for (let n = 20; n <= CAP; n += 20) {
+        s += `<line x1="${cxA(n).toFixed(1)}" y1="${CY1}" x2="${cxA(n).toFixed(1)}" y2="${CY1 + 5}" stroke="#b6c1d1" stroke-width="1"></line>
+          <text class="axis-num" x="${cxA(n).toFixed(1)}" y="${CY1 + 18}" text-anchor="middle">${n}</text>`;
+      }
+      s += `<line class="axis-line" x1="${CX0}" y1="${CY1}" x2="${CX1}" y2="${CY1}"></line>
+        <line class="axis-line" x1="${CX0}" y1="${CY0}" x2="${CX0}" y2="${CY1}"></line>`;
+      ui.chartGrid.innerHTML = s;
+      const yT = yOf(L_TRUE);
+      ui.chartTrue.setAttribute("y1", yT.toFixed(1));
+      ui.chartTrue.setAttribute("y2", yT.toFixed(1));
+      ui.chartTrueLabel.setAttribute("y", Math.max(12, yT - 6).toFixed(1));
+    }
+
+    function renderChart() {
+      const n = model.n;
+      const runA = [], runB = [];
+      let sa = 0, sb = 0;
+      for (let i = 0; i < n; i += 1) {
+        sa += model.samplesA[i]; sb += model.samplesB[i];
+        runA.push([i + 1, sa / (i + 1)]);
+        runB.push([i + 1, sb / (i + 1)]);
+      }
+      const pts = (run) => run.map(([k, v]) => `${cxA(k).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
+      ui.chartTraceA.setAttribute("points", pts(runA));
+      ui.chartTraceB.setAttribute("points", pts(runB));
+      const sB = sampleStd(model.samplesB);
+      if (n >= 2 && sB !== null) {
+        let up = "", dn = "";
+        for (let k = 1; k <= n; k += 1) {
+          const w = (2 * sB) / Math.sqrt(k);
+          up = `${cxA(k).toFixed(1)},${yOf(L_TRUE + w).toFixed(1)} ` + up;
+          dn += `${cxA(k).toFixed(1)},${yOf(L_TRUE - w).toFixed(1)} `;
+        }
+        ui.chartBand.setAttribute("points", (up + dn).trim());
+      } else {
+        ui.chartBand.setAttribute("points", "");
+      }
+      let ends = "";
+      if (n >= 1) {
+        const [ka, va] = runA[n - 1], [kb, vb] = runB[n - 1];
+        ends += `<circle cx="${cxA(ka).toFixed(1)}" cy="${yOf(va).toFixed(1)}" r="4" fill="#d97706" stroke="#fff" stroke-width="1.6"></circle>`;
+        ends += `<circle cx="${cxA(kb).toFixed(1)}" cy="${yOf(vb).toFixed(1)}" r="4" fill="#0f9fba" stroke="#fff" stroke-width="1.6"></circle>`;
+        ends += `<text x="${(cxA(ka) - 4).toFixed(1)}" y="${(yOf(va) - 8).toFixed(1)}" text-anchor="end" class="mean-label" fill="#a95c00">${va.toFixed(2)}</text>`;
+        ends += `<text x="${(cxA(kb) - 4).toFixed(1)}" y="${(yOf(vb) + 15).toFixed(1)}" text-anchor="end" class="mean-label" fill="#08758a">${vb.toFixed(2)}</text>`;
+      }
+      ui.chartEnds.innerHTML = ends;
+    }
+
+    function renderMetrics() {
+      const n = model.n;
+      const mA = meanA(), mB = meanB();
+      const sB = sampleStd(model.samplesB);
+      ui.mN.textContent = String(n);
+      ui.mMA.textContent = n ? fmt2(mA) : "—";
+      ui.mMB.textContent = n ? fmt2(mB) : "—";
+      ui.mDA.textContent = n ? fmt2(Math.abs(mA - L_TRUE)) : "—";
+      ui.mDB.textContent = n ? fmt2(Math.abs(mB - L_TRUE)) : "—";
+      ui.mBand.textContent = n >= 2 && sB !== null ? `±${(2 * sB / Math.sqrt(n)).toFixed(2)} mm` : "—";
+    }
+
+    function statusText() {
+      if (model.n >= CAP) return `已达上限 N=${CAP} · 复位后可再测`;
+      if (model.running) return `连测中 · N=${model.n}/${CAP}`;
+      if (model.n === 0) return "就绪 · N=0";
+      return `已暂停 · N=${model.n}`;
+    }
+
+    function insightText() {
+      const n = model.n;
+      if (n === 0) return "按「测一次」：上、下两条带同时各落一个读数。先看落点——上面总往一边偏，下面两边乱跳。";
+      if (Math.abs(model.b) < 0.05) return `b≈0：情形A几乎没有系统偏差，两条平均值都向真实值收敛——这就是"丙靶"（又准又密）的情形。N=${n}。`;
+      if (n < 6) {
+        const side = model.b > 0 ? "偏大一侧" : "偏小一侧";
+        return `已测 ${n} 次：情形A的点堆在真实值${side}；情形B的点在真实值两侧散布。继续测，看右侧图表谁往真实值靠。`;
+      }
+      const dA = Math.abs(meanA() - L_TRUE), dB = Math.abs(meanB() - L_TRUE);
+      if (n < 25) return `N=${n}：青色平均值（B）正被越来越多的读数拉向真实值（当前偏差 ${dB.toFixed(2)} mm）；橙色平均值（A）钉在 L+b 附近（偏差 ${dA.toFixed(2)} mm）不回来。`;
+      return `结论：偶然误差有正有负，取平均按 1/√N 缩小（青色收敛带正在变窄）；系统误差方向一致，取平均原样保留（橙色停在 L+b）。消除系统误差要靠校准仪器、改进方法（如避开磨损零点）。`;
+    }
+
+    function renderControlsState() {
+      const cap = model.n >= CAP;
+      ui.stepBtn.disabled = cap;
+      ui.autoBtn.disabled = cap;
+      ui.autoBtn.textContent = model.running ? "暂停连测" : "连测";
+      ui.autoBtn.setAttribute("aria-pressed", model.running ? "true" : "false");
+      ui.status.textContent = statusText();
+      ui.status.classList.toggle("sys", model.running || cap);
+      const sign = model.b >= 0 ? "+" : "-";
+      ui.biasOutput.textContent = `${sign}${Math.abs(model.b).toFixed(1)} mm`;
+      ui.sigmaOutput.textContent = `${model.sigma.toFixed(1)} mm`;
+      const side = model.b >= 0 ? "偏大" : "偏小";
+      const cause = Math.abs(model.b) < 0.05
+        ? "情形A · b≈0：无系统偏差，读数只含微小抖动"
+        : `情形A · 系统误差来源：零刻度磨损 —— 每次读数都${side} ${sign}${Math.abs(model.b).toFixed(1)} mm`;
+      ui.causeA.textContent = cause;
+      ui.causeA2.textContent = Math.abs(model.b) < 0.05 ? "无系统偏差（b≈0）" : `往一边偏（偏移目标 L+b=${(L_TRUE + model.b).toFixed(1)}）`;
+    }
+
+    function render() {
+      if (!ui) return;
+      renderStrip("A"); renderStrip("B");
+      renderChart(); renderMetrics();
+      ui.insight.textContent = insightText();
+      renderControlsState();
+      model.dirty = false;
+    }
+
+    /* ============ apparatus + sig-fig + quadrant drawing ============ */
+    function drawApparatus() {
+      const rx0 = 24, rx1 = 696, mmPx = (rx1 - rx0) / 160, topY = 44, botY = 78;
+      let t = "";
+      for (let m = 0; m <= 160; m += 1) {
+        const x = rx0 + m * mmPx;
+        const h = m % 10 === 0 ? 14 : (m % 5 === 0 ? 9 : 5.5);
+        t += `<line x1="${x.toFixed(1)}" y1="${topY}" x2="${x.toFixed(1)}" y2="${(topY + h).toFixed(1)}" stroke="#8a6b2f" stroke-width="${m % 5 === 0 ? 1.4 : 0.8}"></line>`;
+        if (m % 10 === 0) t += `<text x="${x.toFixed(1)}" y="${(botY - 7)}" text-anchor="middle" font-size="9" fill="#8a6b2f" font-weight="650">${m}</text>`;
+      }
+      let ruler = `<rect x="${rx0}" y="${topY}" width="${rx1 - rx0}" height="${botY - topY}" rx="3" fill="#f8e3b0" stroke="#d9b26a" stroke-width="1.5"></rect>${t}`;
+      // worn zero: 0-2 mm hatched
+      ruler += `<defs><pattern id="wear" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="rgba(217,119,6,.16)"></rect><line x1="0" y1="0" x2="0" y2="5" stroke="rgba(217,119,6,.55)" stroke-width="1.6"></line></pattern></defs>
+        <rect x="${rx0}" y="${topY}" width="${(2 * mmPx).toFixed(1)}" height="${botY - topY}" fill="url(#wear)" stroke="#d97706" stroke-width="1.2"></rect>
+        <line x1="${(rx0 + 2 * mmPx).toFixed(1)}" y1="${topY}" x2="${(rx0 + 2 * mmPx).toFixed(1)}" y2="${botY}" stroke="#d97706" stroke-width="1.4" stroke-dasharray="3 2.5"></line>`;
+      ruler += `<text x="${(rx0 + 16).toFixed(1)}" y="34" font-size="11.5" fill="#a95c00" font-weight="720">零点磨损区（0–2 mm 已磨秃）</text>`;
+      ui.appRuler.innerHTML = ruler;
+
+      const endX = rx0 + L_TRUE * mmPx;
+      const pencil = `
+        <rect x="${rx0}" y="16" width="${(endX - rx0 - 14).toFixed(1)}" height="24" rx="6" fill="#f6b73c" stroke="#c99a2e" stroke-width="1.5"></rect>
+        <polygon points="${(endX - 14)},16 ${(endX - 14)},40 ${endX.toFixed(1)},28" fill="#efd9a7" stroke="#c99a2e" stroke-width="1.3"></polygon>
+        <polygon points="${(endX - 4).toFixed(1)},24.4 ${endX.toFixed(1)},28 ${(endX - 4).toFixed(1)},31.6" fill="#42506b"></polygon>
+        <line x1="${endX.toFixed(1)}" y1="8" x2="${endX.toFixed(1)}" y2="${topY}" stroke="#475569" stroke-width="1.8" stroke-dasharray="5 4"></line>
+        <text x="${(endX + 6).toFixed(1)}" y="14" font-size="11.5" fill="#475569" font-weight="720">铅笔末端 · 真实 ${L_TRUE.toFixed(1)}</text>`;
+      ui.appPencil.innerHTML = pencil;
+    }
+
+    const SIG_X0 = 40, SIG_MM0 = 117, SIG_MMSPAN = 7, SIG_W = 670;
+    const sigX = (v) => SIG_X0 + (v - SIG_MM0) * (SIG_W / SIG_MMSPAN);
+
+    function drawSigStatic() {
+      const topY = 140, botY = 205;
+      let s = `<rect x="${SIG_X0 - 14}" y="${topY}" width="${SIG_W + 24}" height="${botY - topY}" rx="6" fill="#f8e3b0" stroke="#d9b26a" stroke-width="2"></rect>`;
+      for (let m = SIG_MM0; m <= SIG_MM0 + SIG_MMSPAN; m += 1) {
+        const x = sigX(m).toFixed(1);
+        s += `<line x1="${x}" y1="${topY}" x2="${x}" y2="${topY + 30}" stroke="#8a6b2f" stroke-width="2.4"></line>
+          <text x="${x}" y="${botY - 16}" text-anchor="middle" font-size="16" font-weight="750" fill="#8a6b2f">${m}</text>`;
+      }
+      s += `<text x="${SIG_X0 - 4}" y="${botY - 34}" font-size="11.5" fill="#8a6b2f" font-weight="700">毫米刻线（放大 · 分度值 1 mm，无更小刻线）</text>
+        <text x="${SIG_X0 - 4}" y="58" font-size="12" fill="var(--sim-muted)">铅笔从 0 刻线起量（左端在图外）—— 拖动它的末端：</text>`;
+      ui.sigStatic.innerHTML = s;
+    }
+
+    function renderSig() {
+      const r = sigReading();
+      const edgeX = sigX(sig.edge);
+      const onLine = Math.abs(r - Math.round(r)) < 1e-9;
+      const lower = onLine ? Math.round(r) - 1 : Math.floor(r);
+      const frac = onLine ? 0 : r - lower;
+      const yTop = 64, yBot = 134;
+      const pencil = `
+        <rect x="14" y="${yTop}" width="${(edgeX - 14).toFixed(1)}" height="${yBot - yTop}" rx="7" fill="#f6b73c" stroke="#c99a2e" stroke-width="2"></rect>
+        <text x="26" y="${yTop + 40}" font-size="13" fill="#7c5a12" font-weight="720">铅笔（被测物体）</text>`;
+      ui.sigPencil.innerHTML = pencil;
+      const edge = `
+        <line x1="${edgeX.toFixed(1)}" y1="44" x2="${edgeX.toFixed(1)}" y2="210" stroke="#dc2626" stroke-width="2.6"></line>
+        <circle cx="${edgeX.toFixed(1)}" cy="50" r="6.5" fill="#dc2626" stroke="#fff" stroke-width="2"></circle>`;
+      ui.sigEdge.innerHTML = edge;
+      const xa = sigX(lower), xb = sigX(lower + 1);
+      const labelX = clamp((xa + xb) / 2, 90, 630);
+      const bracket = `
+        <line x1="${xa.toFixed(1)}" y1="140" x2="${xa.toFixed(1)}" y2="118" stroke="#dc2626" stroke-width="2"></line>
+        <line x1="${xb.toFixed(1)}" y1="140" x2="${xb.toFixed(1)}" y2="118" stroke="#dc2626" stroke-width="2"></line>
+        <line x1="${xa.toFixed(1)}" y1="124" x2="${xb.toFixed(1)}" y2="124" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="4 3"></line>`;
+      ui.sigBracket.innerHTML = bracket + `
+        <text x="${labelX.toFixed(1)}" y="236" text-anchor="middle" font-size="13" font-weight="720" fill="#dc2626">${
+          onLine ? `正好压在 ${Math.round(r)} 刻线上 → 估读位记 0` : `这一格内估读 ≈ ${frac.toFixed(1)}`
+        }</text>`;
+
+      const str = r.toFixed(1);
+      const head = str.slice(0, -1), est = str.slice(-1);
+      ui.sigDigits.innerHTML = `${head}<span class="est">${est}</span><span class="unit"> mm</span>`;
+      ui.sigCm.textContent = `= ${(r / 10).toFixed(2)} cm（单位换算不改变有效数字位数）`;
+      ui.sigCount.textContent = String(str.replace(".", "").length);
+      ui.edgeOutput.textContent = `${sig.edge.toFixed(2)} mm`;
+      ui.edgeInput.value = String(sig.edge);
+      ui.edgeHint.textContent = onLine
+        ? `末端正好压线：仍要写到 0.1 mm 位 → 记 ${str} mm，不能只写 ${Math.round(r)} mm`
+        : `末端在 ${lower} 与 ${lower + 1} 两刻线之间：估读 ${frac.toFixed(1)} → 记 ${str} mm（红色为估读位）`;
+    }
+
+    function drawQuadTargets() {
+      document.querySelectorAll(".quad-target").forEach((g) => {
+        const q = QUADS[Number(g.dataset.quad)];
+        const gau = makeGauss(mulberry32(q.seed));
+        const cx = 100, cy = 100;
+        let s = "";
+        const rings = [80, 58, 36];
+        rings.forEach((r, i) => {
+          s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${i % 2 === 0 ? "#fdf4e4" : "#f8e9cd"}" stroke="#e3c898" stroke-width="1.5"></circle>`;
+        });
+        s += `<line x1="${cx}" y1="12" x2="${cx}" y2="188" stroke="#e0cba0" stroke-width="1"></line>
+          <line x1="12" y1="${cy}" x2="188" y2="${cy}" stroke="#e0cba0" stroke-width="1"></line>
+          <circle cx="${cx}" cy="${cy}" r="9" fill="#e2604f"></circle><circle cx="${cx}" cy="${cy}" r="2.6" fill="#fff"></circle>`;
+        for (let i = 0; i < 8; i += 1) {
+          let x = cx + q.ox + gau() * q.spread, y = cy + q.oy + gau() * q.spread;
+          const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
+          if (d > 74) { x = cx + (dx / d) * 74; y = cy + (dy / d) * 74; }
+          s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#22304a" stroke="#fff" stroke-width="1.6"></circle>`;
+        }
+        g.innerHTML = s;
+      });
+    }
+
+    function selectQuad(i) {
+      quadSel = i;
+      const q = QUADS[i];
+      for (let k = 0; k < 4; k += 1) {
+        const btn = ui["quadBtn" + k];
+        btn.setAttribute("aria-pressed", k === i ? "true" : "false");
+      }
+      ui.quadTitle.textContent = q.title;
+      ui.quadTag.textContent = q.tag;
+      ui.quadLines.innerHTML = q.lines.map((l) => `<li>${l}</li>`).join("");
+    }
+
+    /* ============ lifecycle ============ */
+    const parameterSchema = [
+      { key: "bias", label: "系统偏差 b", type: "slider", min: -4, max: 4, step: 0.1, default: 2.0, unit: "mm" },
+      { key: "sigma", label: "偶然散布 σ", type: "slider", min: 0.2, max: 3, step: 0.1, default: 1.2, unit: "mm" }
+    ];
+
+    function init() {
+      ui = {
+        status: document.getElementById("status"),
+        stepBtn: document.getElementById("stepBtn"),
+        autoBtn: document.getElementById("autoBtn"),
+        resetBtn: document.getElementById("resetBtn"),
+        biasInput: document.getElementById("biasInput"),
+        biasOutput: document.getElementById("biasOutput"),
+        sigmaInput: document.getElementById("sigmaInput"),
+        sigmaOutput: document.getElementById("sigmaOutput"),
+        stripAGrid: document.getElementById("stripA-grid"),
+        stripAAxis: document.getElementById("stripA-axis"),
+        stripAStatic: document.getElementById("stripA-static"),
+        stripADots: document.getElementById("stripA-dots"),
+        stripAMean: document.getElementById("stripA-mean"),
+        stripBGrid: document.getElementById("stripB-grid"),
+        stripBAxis: document.getElementById("stripB-axis"),
+        stripBStatic: document.getElementById("stripB-static"),
+        stripBDots: document.getElementById("stripB-dots"),
+        stripBMean: document.getElementById("stripB-mean"),
+        miniA: document.getElementById("miniA"),
+        miniB: document.getElementById("miniB"),
+        causeA: document.getElementById("causeA"),
+        causeA2: document.getElementById("causeA2"),
+        chartGrid: document.getElementById("chart-grid"),
+        chartBand: document.getElementById("chartBand"),
+        chartTrue: document.getElementById("chartTrue"),
+        chartTrueLabel: document.getElementById("chartTrueLabel"),
+        chartTraceA: document.getElementById("chartTraceA"),
+        chartTraceB: document.getElementById("chartTraceB"),
+        chartEnds: document.getElementById("chartEnds"),
+        mN: document.getElementById("mN"), mMA: document.getElementById("mMA"), mMB: document.getElementById("mMB"),
+        mDA: document.getElementById("mDA"), mDB: document.getElementById("mDB"), mBand: document.getElementById("mBand"),
+        insight: document.getElementById("insight"),
+        appRuler: document.getElementById("appRuler"),
+        appPencil: document.getElementById("appPencil"),
+        quadBtn0: document.getElementById("quadBtn0"), quadBtn1: document.getElementById("quadBtn1"),
+        quadBtn2: document.getElementById("quadBtn2"), quadBtn3: document.getElementById("quadBtn3"),
+        quadTitle: document.getElementById("quadTitle"),
+        quadTag: document.getElementById("quadTag"),
+        quadLines: document.getElementById("quadLines"),
+        sigStatic: document.getElementById("sigStatic"),
+        sigPencil: document.getElementById("sigPencil"),
+        sigBracket: document.getElementById("sigBracket"),
+        sigEdge: document.getElementById("sigEdge"),
+        sigDigits: document.getElementById("sigDigits"),
+        sigCm: document.getElementById("sigCm"),
+        sigCount: document.getElementById("sigCount"),
+        edgeInput: document.getElementById("edgeInput"),
+        edgeOutput: document.getElementById("edgeOutput"),
+        edgeHint: document.getElementById("edgeHint"),
+        sigScene: document.getElementById("sigScene")
+      };
+      drawApparatus();
+      buildStripStatics("stripAGrid", "stripAAxis", "A");
+      buildStripStatics("stripBGrid", "stripBAxis", "B");
+      renderChartStatics();
+      drawSigStatic();
+      drawQuadTargets();
+      bindControls();
+      clearData();
+      render();
+      renderSig();
+      selectQuad(0);
+      requestAnimationFrame(frame);
+    }
+
+    function bindControls() {
+      ui.stepBtn.addEventListener("click", () => { takeReading(); if (model.n >= CAP) { model.running = false; } render(); });
+      ui.autoBtn.addEventListener("click", () => { if (model.running) { pause(); } else { start(); } render(); });
+      ui.resetBtn.addEventListener("click", reset);
+      ui.biasInput.addEventListener("input", () => setParameters({ bias: ui.biasInput.value, sigma: model.sigma }));
+      ui.sigmaInput.addEventListener("input", () => setParameters({ bias: model.b, sigma: ui.sigmaInput.value }));
+      for (let k = 0; k < 4; k += 1) {
+        ui["quadBtn" + k].addEventListener("click", () => selectQuad(k));
+      }
+      ui.edgeInput.addEventListener("input", () => { sig.edge = clamp(finite(Number(ui.edgeInput.value), sig.edge), 119, 122); renderSig(); });
+      const svg = ui.sigScene;
+      const edgeFromEvent = (ev) => {
+        const rect = svg.getBoundingClientRect();
+        const px = ((ev.clientX - rect.left) / rect.width) * 720;
+        sig.edge = clamp(round1((px - SIG_X0) / (SIG_W / SIG_MMSPAN) + SIG_MM0), 119, 122);
+        renderSig();
+      };
+      let dragging = false;
+      svg.addEventListener("pointerdown", (ev) => { dragging = true; svg.setPointerCapture(ev.pointerId); edgeFromEvent(ev); });
+      svg.addEventListener("pointermove", (ev) => { if (dragging) edgeFromEvent(ev); });
+      svg.addEventListener("pointerup", () => { dragging = false; });
+      svg.addEventListener("pointercancel", () => { dragging = false; });
+    }
+
+    function start() { model.running = true; model.dirty = true; }
+    function pause() { model.running = false; model.dirty = true; }
+    function reset() {
+      pause();
+      model.lastTimestamp = null;
+      clearData();
+      render();
+    }
+    function update(dt) {
+      if (!model.running) return;
+      const d = clamp(finite(dt, 0), 0, 0.05);
+      model.t += d; model.acc += d;
+      while (model.acc >= INTERVAL) {
+        model.acc -= INTERVAL;
+        if (!takeReading()) { model.running = false; break; }
+      }
+    }
+    function setParameters(values) {
+      const defs = parameterSchema;
+      const nb = clamp(finite(Number(values.bias), defs[0].default), defs[0].min, defs[0].max);
+      const ns = clamp(finite(Number(values.sigma), defs[1].default), defs[1].min, defs[1].max);
+      const changed = Math.abs(nb - model.b) > 1e-9 || Math.abs(ns - model.sigma) > 1e-9;
+      model.b = Math.round(nb * 10) / 10;
+      model.sigma = Math.round(ns * 10) / 10;
+      ui.biasInput.value = String(model.b);
+      ui.sigmaInput.value = String(model.sigma);
+      if (changed) {
+        // adopted semantics: parameter change restarts the experiment (avoids mixing error regimes)
+        pause();
+        clearData();
+      }
+      renderStripStatic("A");
+      render();
+    }
+    function getState() {
+      return {
+        running: model.running, t: model.t, n: model.n, b: model.b, sigma: model.sigma,
+        L: L_TRUE, cap: CAP,
+        samplesA: model.samplesA.slice(), samplesB: model.samplesB.slice(),
+        quadSel, sigEdge: sig.edge
+      };
+    }
+    function getReadouts() {
+      const sB = sampleStd(model.samplesB);
+      return {
+        n: model.n, L: L_TRUE, b: model.b, sigma: model.sigma,
+        meanA: meanA(), meanB: meanB(),
+        devA: model.n ? Math.abs(meanA() - L_TRUE) : null,
+        devB: model.n ? Math.abs(meanB() - L_TRUE) : null,
+        sB, band2SE: (model.n >= 2 && sB !== null) ? (2 * sB) / Math.sqrt(model.n) : null,
+        sigReading: sigReading()
+      };
+    }
+    function frame(timestamp) {
+      if (model.lastTimestamp === null) model.lastTimestamp = timestamp;
+      const dt = (timestamp - model.lastTimestamp) / 1000;
+      model.lastTimestamp = timestamp;
+      update(dt);
+      if (model.dirty) render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+
+    // headless guard: model checks runnable without a DOM (Node harness)
+    if (typeof document !== "undefined" && typeof document.getElementById === "function") init();
+  })();
+  </script>
+</body>
+</html>

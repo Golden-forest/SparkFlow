@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水平传送带模型 · 交互仿真</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#1a2233; --panel2:#212c42; --line:#2e3a55;
+    --txt:#e8edf7; --dim:#93a1bd; --acc:#4da3ff; --ok:#3ddc97; --warn:#ffb454; --bad:#ff6b6b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    padding:14px; min-height:100vh;
+  }
+  header{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:10px;}
+  header h1{font-size:20px; letter-spacing:1px;}
+  header span{color:var(--dim); font-size:13px;}
+  .wrap{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;}
+  .left{flex:1 1 640px; min-width:600px;}
+  .right{flex:1 1 330px; min-width:320px; max-width:430px; display:flex; flex-direction:column; gap:12px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px;}
+  canvas{display:block; width:100%; border-radius:8px; background:#0b101b;}
+  .status{
+    margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+  }
+  .tag{
+    padding:5px 12px; border-radius:20px; font-size:14px; font-weight:600;
+    background:var(--panel2); border:1px solid var(--line);
+  }
+  .tag.slide{color:var(--warn); border-color:var(--warn);}
+  .tag.co{color:var(--ok); border-color:var(--ok);}
+  .tag.end{color:var(--bad); border-color:var(--bad);}
+  .slow{color:var(--dim); font-size:13px;}
+  .btns{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  button{
+    background:var(--acc); color:#fff; border:none; border-radius:8px;
+    padding:8px 18px; font-size:14px; cursor:pointer; font-family:inherit;
+  }
+  button:hover{filter:brightness(1.15);}
+  button.ghost{background:var(--panel2); color:var(--txt); border:1px solid var(--line);}
+  .ctrl{margin-bottom:10px;}
+  .ctrl label{display:flex; justify-content:space-between; font-size:13px; color:var(--dim); margin-bottom:4px;}
+  .ctrl label b{color:var(--txt); font-size:14px;}
+  input[type=range]{width:100%; accent-color:var(--acc);}
+  .readout{display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:13px;}
+  .readout .row{background:var(--panel2); border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between;}
+  .readout .row span:last-child{color:var(--acc); font-family:ui-monospace,monospace;}
+  .qpanel{
+    margin-top:8px; background:var(--panel2); border-radius:8px; padding:10px;
+    border-left:3px solid var(--warn); font-size:13px; line-height:1.7;
+  }
+  .qpanel b{color:var(--warn);}
+  .tip{font-size:13px; color:var(--dim); line-height:1.7;}
+  .tip li{margin-left:18px; margin-bottom:4px;}
+  .tip em{color:var(--txt); font-style:normal; font-weight:600;}
+  .tip i{color:var(--acc); font-style:normal;}
+  h3{font-size:14px; margin-bottom:8px; color:var(--acc); letter-spacing:1px;}
+  .legend{display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:6px; flex-wrap:wrap;}
+  .legend s{display:inline-block; width:18px; height:3px; border-radius:2px; text-decoration:none; vertical-align:middle; margin-right:4px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>水平传送带模型仿真</h1>
+  <span>L = 8 m，m = 1 kg，g = 10 m/s²，a = μg（与物块质量无关）</span>
+</header>
+
+<div class="wrap">
+  <div class="left card">
+    <canvas id="scene" width="960" height="330"></canvas>
+    <div class="status">
+      <div id="phaseTag" class="tag">待开始</div>
+      <div id="slowTag" class="slow"></div>
+    </div>
+    <div class="btns">
+      <button id="btnPlay">▶ 播放</button>
+      <button id="btnPause" class="ghost">⏸ 暂停</button>
+      <button id="btnReset" class="ghost">↺ 重置</button>
+    </div>
+    <div class="legend">
+      <span><s style="background:#3ddc97"></s>物块速度 v</span>
+      <span><s style="background:#4da3ff"></s>皮带速度 u</span>
+      <span><s style="background:#ffb454"></s>摩擦力 f</span>
+      <span style="color:#5a6c8f">放上后前 1.5 s（仿真时间）自动 0.25× 慢放</span>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <h3>参数调节（实时生效）</h3>
+      <div class="ctrl">
+        <label>带速 u <b id="uVal">4.0 m/s</b></label>
+        <input type="range" id="uIn" min="1" max="8" step="0.5" value="4">
+      </div>
+      <div class="ctrl">
+        <label>动摩擦因数 μ <b id="muVal">0.40</b></label>
+        <input type="range" id="muIn" min="0.1" max="0.8" step="0.05" value="0.4">
+      </div>
+      <div class="ctrl">
+        <label>物块初速度 v₀ <b id="v0Val">0.0 m/s（重置后生效）</b></label>
+        <input type="range" id="v0In" min="0" max="8" step="0.5" value="0">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>实时数据</h3>
+      <div class="readout">
+        <div class="row"><span>时间 t</span><span id="rT">0.00 s</span></div>
+        <div class="row"><span>位置 x</span><span id="rX">0.00 m</span></div>
+        <div class="row"><span>物块速度 v</span><span id="rV">0.00 m/s</span></div>
+        <div class="row"><span>带速 u</span><span id="rU">4.00 m/s</span></div>
+        <div class="row"><span>相对速度 v−u</span><span id="rDV">−4.00</span></div>
+        <div class="row"><span>加速度 a</span><span id="rA">4.00 m/s²</span></div>
+      </div>
+      <div class="qpanel">
+        相对滑移量 s<sub>rel</sub> = <b id="rSlip">0.00</b> m<br>
+        摩擦生热 Q = μmg·s<sub>rel</sub> = <b id="rQ">0.00</b> J<br>
+        <span style="color:var(--dim)" id="qFormula">Q = 0.4×1×10×0 = 0 J</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>v–t 图（交点即共速时刻）</h3>
+      <canvas id="chart" width="400" height="240"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>教学要点</h3>
+      <ul class="tip">
+        <li>滑动摩擦方向与<em>相对运动方向</em>相反：物块慢于皮带（v&lt;u）时，物块相对皮带向后滑，摩擦力<em>向前</em>（充当动力）。</li>
+        <li>物块快于皮带（v&gt;u）时，相对皮带向前滑，摩擦力<em>向后</em>（充当阻力）。</li>
+        <li>共速（v=u）后无相对滑动、也无相对滑动趋势，<em>摩擦力消失</em>，物块随皮带匀速运动。</li>
+        <li>摩擦生热 <i>Q = μmg × 相对滑移距离</i>（皮带足够长时，Q = ½m|v₀−u|… 即只与初末相对速度有关）。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const G=10, M=1, L=8;
+const scene=document.getElementById('scene'), sx=scene.getContext('2d');
+const chart=document.getElementById('chart'), cx=chart.getContext('2d');
+const $=id=>document.getElementById(id);
+
+const S={
+  running:false, t:0, x:0, v:0, slip:0, Q:0,
+  u:4, mu:0.4, v0:0,
+  beltPos:0, ended:false, coSpeed:false, tCo:null,
+  samples:[], lastSample:-1, flash:0
+};
+const SLOW_T=1.5, SLOW_K=0.25;
+
+/* ---------- 物理 ---------- */
+function friction(){ // 返回当前摩擦加速度（含方向）
+  if(S.coSpeed || Math.abs(S.v-S.u)<1e-9) return 0;
+  return Math.sign(S.u-S.v)*S.mu*G;
+}
+function step(dt){
+  if(S.ended) return;
+  const a=friction();
+  if(a!==0){
+    let vN=S.v+a*dt;
+    if((vN-S.u)*(S.v-S.u)<0) vN=S.u;               // 本步内共速
+    const vA=(S.v+vN)/2;
+    const dSlip=Math.abs(vA-S.u)*dt;               // 相对滑移
+    S.slip+=dSlip; S.Q+=S.mu*M*G*dSlip;
+    S.x+=vA*dt; S.v=vN;
+    if(Math.abs(S.v-S.u)<1e-9){ S.v=S.u; S.coSpeed=true; if(S.tCo===null) S.tCo=S.t; S.flash=1.2; }
+  }else{
+    S.v=S.u; S.coSpeed=true;
+    if(Math.abs(S.v-S.u)<1e-9 && S.t>0 && S.tCo===null && S.v0!==S.u){}
+    S.x+=S.v*dt;
+  }
+  if(S.v0===S.u && S.t===0){}
+  S.beltPos+=S.u*dt;
+  if(S.x>=L){ S.x=L; S.ended=true; }
+  if(S.t-S.lastSample>=0.02){ S.samples.push([S.t,S.v]); S.lastSample=S.t; }
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now(), acc=0;
+const FIX=1/480;
+function loop(now){
+  const real=Math.min(0.05,(now-last)/1000); last=now;
+  if(S.running){
+    const ts = S.t<SLOW_T ? SLOW_K : 1;
+    acc+=real*ts;
+    while(acc>=FIX){ step(FIX); S.t+=FIX; acc-=FIX; if(S.ended)break; }
+    if(S.ended) S.running=false;
+  }
+  if(S.flash>0) S.flash-=real;
+  drawScene(); drawChart(); updateUI();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 绘制：箭头 ---------- */
+function arrow(c,x0,y0,x1,y1,color,w,label){
+  const dx=x1-x0, dy=y1-y0, len=Math.hypot(dx,dy);
+  if(len<2){ if(label){c.fillStyle=color;c.font='bold 12px sans-serif';c.fillText(label,x1+4,y1-4);} return; }
+  const ang=Math.atan2(dy,dx), h=Math.min(10,4+len*0.12);
+  c.strokeStyle=color; c.fillStyle=color; c.lineWidth=w||3; c.lineCap='round';
+  c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1-Math.cos(ang)*h*0.8,y1-Math.sin(ang)*h*0.8); c.stroke();
+  c.beginPath();
+  c.moveTo(x1,y1);
+  c.lineTo(x1-h*Math.cos(ang-0.42), y1-h*Math.sin(ang-0.42));
+  c.lineTo(x1-h*Math.cos(ang+0.42), y1-h*Math.sin(ang+0.42));
+  c.closePath(); c.fill();
+  if(label){ c.font='bold 13px sans-serif'; c.fillText(label,x1+6,y1-6); }
+}
+
+/* ---------- 绘制：主场景 ---------- */
+function drawScene(){
+  const W=scene.width, H=scene.height;
+  sx.clearRect(0,0,W,H);
+  const ppm=(W-140)/L;                 // 像素/米
+  const bx0=70, beltY=210, R=26;       // 皮带左端 x、上表面 y、滚轮半径
+  const bx1=bx0+L*ppm;
+
+  // 地面
+  sx.strokeStyle='#3a4buried'; sx.strokeStyle='#3a4666'; sx.lineWidth=2;
+  sx.beginPath(); sx.moveTo(30,beltY+R+46); sx.lineTo(W-30,beltY+R+46); sx.stroke();
+  sx.strokeStyle='#2c3650'; sx.lineWidth=1;
+  for(let gx=40; gx<W-30; gx+=22){
+    sx.beginPath(); sx.moveTo(gx,beltY+R+46); sx.lineTo(gx-10,beltY+R+58); sx.stroke();
+  }
+
+  // 支架
+  sx.strokeStyle='#4a5878'; sx.lineWidth=5;
+  [[bx0,beltY+R],[bx1,beltY+R]].forEach(([px,py])=>{
+    sx.beginPath(); sx.moveTo(px,py); px===bx0?0:0; sx.lineTo(px,py+46); sx.stroke();
+  });
+
+  // 皮带（上下表面 + 端部圆弧）
+  sx.strokeStyle='#8899bb'; sx.lineWidth=6;
+  sx.beginPath();
+  sx.moveTo(bx0,beltY); sx.lineTo(bx1,beltY);
+  sx.arc(bx1,beltY+R,R,-Math.PI/2,Math.PI/2);
+  sx.lineTo(bx0,beltY+2*R);
+  sx.arc(bx0,beltY+R,R,Math.PI/2,Math.PI*1.5);
+  sx.stroke();
+
+  // 滚轮
+  [[bx0,beltY+R],[bx1,beltY+R]].forEach(([px,py])=>{
+    sx.beginPath(); sx.arc(px,py,R-6,0,Math.PI*2);
+    sx.fillStyle='#2b3documentElement'; sx.fillStyle='#2b3550'; sx.fill();
+    sx.strokeStyle='#5a6c90'; sx.lineWidth=2; sx.stroke();
+    const a=(S.beltPos/ppm)/ (R-6); // 滚轮转角参考
+    sx.beginPath(); sx.moveTo(px,py); sx.lineTo(px+ (R-10)*Math.cos(-S.beltPos/(R-6)), py+(R-10)*Math.sin(-S.beltPos/(R-6)));
+    sx.strokeStyle='#7f92b8'; sx.lineWidth=2; sx.stroke();
+  });
+
+  // 上表面刻度线（随带移动）
+  sx.strokeStyle='#c8d6f0'; sx.lineWidth=2;
+  const sp=0.5*ppm, off=(S.beltPos*ppm)%sp;
+  for(let px=bx0-off; px<bx1; px+=sp){
+    if(px<bx0)continue;
+    sx.beginPath(); sx.moveTo(px,beltY-4); sx.lineTo(px-8,beltY-12); sx.stroke();
+  }
+  // 下表面刻度
+  sx.strokeStyle='#6a7a9c'; sx.lineWidth=2;
+  const off2=(S.beltPos*ppm)%sp;
+  for(let px=bx0-off2; px<bx1; px+=sp){
+    if(px<bx0)continue;
+    sx.beginPath(); sx.moveTo(px,beltY+2*R+3); sx.lineTo(px-8,beltY+2*R+11); sx.stroke();
+  }
+
+  // 皮带速度箭头 u
+  const uArrL = 26 + S.u*7;
+  arrow(sx, bx1-160, beltY-34, bx1-160+uArrL, beltY-34, '#4da3ff', 3, 'u = '+S.u.toFixed(1)+' m/s');
+
+  // 位置标尺
+  sx.fillStyle='#5a6a8a'; sx.font='11px ui-monospace,monospace';
+  for(let d=0; d<=L; d++){
+    const px=bx0+d*ppm;
+    sx.fillRect(px,beltY+2*R+14,1,6);
+    if(d%2===0 || d===L) sx.fillText(d+'m', px-8, beltY+2*R+34);
+  }
+
+  // 物块
+  const bs=36, bxc=bx0+S.x*ppm, byc=beltY-bs/2;
+  sx.fillStyle='#e8b46a'; sx.strokeStyle='#a97a35'; sx.lineWidth=2;
+  sx.beginPath(); sx.roundRect(bxc-bs/2,byc-bs/2,bs,bs,5); sx.fill(); sx.stroke();
+  sx.fillStyle='#3a2c12'; sx.font='bold 11px sans-serif'; sx.textAlign='center';
+  sx.fillText('1kg', bxc, byc+4); sx.textAlign='left';
+
+  // 物块速度箭头（绿）
+  const vArrL=S.v*10;
+  if(S.v>0.05) arrow(sx, bxc, byc-bs/2-10, bxc+vArrL, byc-bs/2-10, '#3ddc97', 3, 'v='+S.v.toFixed(2));
+
+  // 摩擦力箭头（橙），画在物块下沿
+  const f=friction();
+  if(f!==0){
+    const dir=Math.sign(f), fl=38;
+    arrow(sx, bxc-dir*fl/2, beltY-8, bxc+dir*fl/2, beltY-8, '#ffb454', 4,
+          'f=μmg='+(S.mu*M*G).toFixed(1)+'N '+(dir>0?'向前':'向后'));
+  }else if(S.coSpeed && !S.ended && S.t>0){
+    sx.fillStyle='#3ddc97'; sx.font='bold 12px sans-serif';
+    sx.fillText('f = 0（共速，无相对滑动趋势）', bxc+26, beltY-8);
+  }
+
+  // 共速提示
+  if(S.flash>0){
+    sx.fillStyle='rgba(61,220,151,'+Math.min(1,S.flash)+')';
+    sx.font='bold 26px sans-serif'; sx.textAlign='center';
+    sx.fillText('★ 共速！v = u，摩擦消失', W/2, 70);
+    sx.textAlign='left';
+  }
+  if(S.ended){
+    sx.fillStyle='#ff6b6b'; sx.font='bold 20px sans-serif'; sx.textAlign='center';
+    sx.fillText('物块到达右端离开传送带', W/2, 70); sx.textAlign='left';
+  }
+}
+
+/* ---------- 绘制：v-t 图 ---------- */
+function drawChart(){
+  const W=chart.width, H=chart.height;
+  cx.clearRect(0,0,W,H);
+  const mL=38,mR=10,mT=16,mB=28;
+  const pw=W-mL-mR, ph=H-mT-mB;
+  const tMax=Math.max(3, S.t*1.08);
+  const vMax=Math.max(8.5, S.v0, S.u)*1.12;
+  const X=t=>mL+t/tMax*pw, Y=v=>mT+ph-v/vMax*ph;
+
+  cx.strokeStyle='#2e3a55'; cx.fillStyle='#7d8cab'; cx.lineWidth=1; cx.font='10px ui-monospace,monospace';
+  for(let i=0;i<=5;i++){
+    const vv=vMax*i/5, y=Y(vv);
+    cx.beginPath(); cx.moveTo(mL,y); cx.lineTo(W-mR,y); cx.stroke();
+    cx.fillText(vv.toFixed(0), 8, y+3);
+  }
+  for(let i=0;i<=6;i++){
+    const tt=tMax*i/6, x=X(tt);
+    cx.beginPath(); cx.moveTo(x,mT); cx.lineTo(x,mT+ph); cx.stroke();
+    cx.fillText(tt.toFixed(1), x-10, H-10);
+  }
+  cx.fillText('t/s', W-24, H-10); cx.save(); cx.translate(12,mT+30); cx.rotate(-Math.PI/2); cx.fillText('v/(m/s)',-24,0); cx.restore();
+
+  // u 虚线
+  cx.strokeStyle='#4da3ff'; cx.setLineDash([6,4]); cx.lineWidth=1.6;
+  cx.beginPath(); cx.moveTo(mL,Y(S.u)); cx.lineTo(W-mR,Y(S.u)); cx.stroke(); cx.setLineDash([]);
+
+  // v 曲线
+  if(S.samples.length>1){
+    cx.strokeStyle='#3ddc97'; cx.lineWidth=2.2; cx.beginPath();
+    S.samples.forEach(([t,v],i)=>{ const px=X(t),py=Y(v); i?cx.lineTo(px,py):cx.moveTo(px,py); });
+    const lastP=S.samples[S.samples.length-1];
+    cx.lineTo(X(Math.min(S.t,tMax)), Y(S.v));
+    cx.stroke();
+    // 当前点
+    cx.fillStyle='#3ddc97'; cx.beginPath(); cx.arc(X(Math.min(S.t,tMax)),Y(S.v),3.5,0,7); cx.fill();
+  }
+
+  // 共速交点
+  if(S.tCo!==null){
+    const px=X(S.tCo), py=Y(S.u);
+    cx.strokeStyle='#ffb454'; cx.lineWidth=1.5;
+    cx.setLineDash([3,3]); cx.beginPath(); cx.moveTo(px,mT); cx.lineTo(px,py); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle='#ffb454'; cx.beginPath(); cx.arc(px,py,5,0,7); cx.fill();
+    cx.font='bold 11px sans-serif';
+    cx.fillText('共速 t='+S.tCo.toFixed(2)+'s', Math.min(px+8,W-110), py-8);
+  }
+}
+
+/* ---------- UI 更新 ---------- */
+function updateUI(){
+  $('rT').textContent=S.t.toFixed(2)+' s';
+  $('rX').textContent=S.x.toFixed(2)+' m';
+  $('rV').textContent=S.v.toFixed(2)+' m/s';
+  $('rU').textContent=S.u.toFixed(2)+' m/s';
+  const dv=S.v-S.u;
+  $('rDV').textContent=(dv>=0?'+':'')+dv.toFixed(2);
+  $('rA').textContent=friction().toFixed(2)+' m/s²';
+  $('rSlip').textContent=S.slip.toFixed(2);
+  $('rQ').textContent=S.Q.toFixed(2);
+  $('qFormula').textContent='Q = '+S.mu.toFixed(2)+'×1×10×'+S.slip.toFixed(2)+' = '+S.Q.toFixed(2)+' J';
+
+  const tag=$('phaseTag');
+  if(S.ended){ tag.className='tag end'; tag.textContent='已到达右端（x = 8 m）'; }
+  else if(S.coSpeed){ tag.className='tag co'; tag.textContent='✔ 共速匀速：v = u，无摩擦'; }
+  else if(Math.abs(S.v-S.u)<1e-9){ tag.className='tag co'; tag.textContent='✔ 共速匀速：v = u，无摩擦'; }
+  else if(S.v<S.u){ tag.className='tag slide'; tag.textContent='滑动：v < u，相对带向后滑 → 摩擦向前（动力）'; }
+  else{ tag.className='tag slide'; tag.textContent='滑动：v > u，相对带向前滑 → 摩擦向后（阻力）'; }
+
+  $('slowTag').textContent = (S.running && S.t<SLOW_T) ? '🐢 慢放中（0.25×）' : '';
+}
+
+/* ---------- 控件 ---------- */
+function bind(id, valId, fmt, set){
+  const el=$(id);
+  el.addEventListener('input',()=>{
+    const v=parseFloat(el.value); set(v);
+    $(valId).textContent=fmt(v);
+  });
+}
+bind('uIn','uVal',v=>v.toFixed(1)+' m/s',v=>{ S.u=v; if(S.coSpeed&&Math.abs(S.v-S.u)>1e-9){S.coSpeed=false;} });
+bind('muIn','muVal',v=>v.toFixed(2),v=>{ S.mu=v; });
+bind('v0In','v0Val',v=>v.toFixed(1)+' m/s（重置后生效）',v=>{ S.v0=v; });
+
+$('btnPlay').onclick=()=>{ if(!S.ended) S.running=true; };
+$('btnPause').onclick=()=>{ S.running=false; };
+$('btnReset').onclick=()=>{
+  S.running=false; S.t=0; S.x=0; S.v=S.v0; S.slip=0; S.Q=0;
+  S.beltPos=0; S.ended=false; S.tCo=null; S.flash=0;
+  S.coSpeed=(Math.abs(S.v0-S.u)<1e-9);
+  S.samples=[[0,S.v0]]; S.lastSample=0;
+  drawScene(); drawChart(); updateUI();
+};
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); S.running?S.running=false:(!S.ended&&(S.running=true)); }
+  if(e.key==='r'||e.key==='R') $('btnReset').click();
+});
+
+/* ---------- 启动 ---------- */
+S.samples=[[0,0]];
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

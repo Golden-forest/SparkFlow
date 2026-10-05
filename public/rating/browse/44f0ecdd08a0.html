@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>测定金属丝电阻率——虚拟实验</title>
+<style>
+:root{--acc:#2563eb;--ok:#059669;--warn:#dc2626;--bg:#f1f5f9;--card:#fff;--line:#cbd5e1}
+*{box-sizing:border-box}
+body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:#1e293b}
+header{background:linear-gradient(120deg,#1e3a8a,#2563eb);color:#fff;padding:14px 20px}
+header h1{margin:0;font-size:20px}
+header .sub{font-size:13px;opacity:.9;margin-top:4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{background:rgba(255,255,255,.16);border-radius:14px;padding:3px 10px;font-size:12px}
+.wrap{max-width:1100px;margin:0 auto;padding:12px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+nav button{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer}
+nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:15px;color:#0f172a;border-left:4px solid var(--acc);padding-left:8px}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.col{flex:1;min-width:300px}
+button.b{border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;margin:2px}
+button.b.on,button.b:hover{background:var(--acc);color:#fff}
+button.b:disabled{opacity:.4;cursor:not-allowed;background:#fff;color:var(--acc)}
+button.rec{background:var(--ok);border-color:var(--ok);color:#fff}
+button.rec:disabled{background:#94a3b8;border-color:#94a3b8;color:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px}
+th,td{border:1px solid var(--line);padding:4px 7px;text-align:center}
+th{background:#e2e8f0}
+.digits{font-family:ui-monospace,Menlo,monospace;font-size:20px;background:#0f172a;color:#7dd3fc;border-radius:8px;padding:8px 14px;display:inline-block;margin:4px 4px 4px 0}
+.digits b{color:#fde047}
+.readout{font-family:ui-monospace,monospace;font-size:26px;color:var(--acc);font-weight:700}
+.note{font-size:12px;color:#64748b;margin-top:6px}
+.warn{color:var(--warn);font-weight:700}
+.hint{background:#eff6ff;border:1px dashed #93c5fd;border-radius:8px;padding:8px;font-size:13px;margin-bottom:10px}
+canvas{width:100%;height:420px;background:#fff;border:1px solid var(--line);border-radius:8px}
+#cmpCanvas{height:360px}
+label.ctl{display:block;font-size:13px;margin:8px 0 3px}
+input[type=range]{width:100%}
+svg text{font-family:inherit}
+.del{color:var(--warn);cursor:pointer;border:none;background:none;font-weight:700}
+details{font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+<h1>测定金属丝的电阻率（螺旋测微器 · 米尺 · 伏安法 · R–L 图像法）</h1>
+<div class="sub">金属丝材料：镍铬合金（标准值 ρ≈1.10×10⁻⁶ Ω·m）　电压表内阻 R<sub>V</sub>=3 kΩ　电流表内阻 R<sub>A</sub>=0.10 Ω</div>
+<div class="chips"><span class="chip">R = ρL/S</span><span class="chip">S = πd²/4</span><span class="chip">R = kL ⇒ ρ = kS = kπd²/4</span></div>
+</header>
+<div class="wrap">
+<nav>
+<button class="on" data-t="d">① 螺旋测微器测直径</button>
+<button data-t="c">② 选长度 · 伏安法电路</button>
+<button data-t="r">③ 数据记录 · R–L 图像</button>
+<button data-t="e">④ 安培表内接 / 外接比较</button>
+</nav>
+
+<!-- ① 直径 -->
+<section id="tab-d">
+<div class="card"><div class="row">
+<div class="col">
+<h3>螺旋测微器（游标/鼓轮可拖动或滚轮微调）</h3>
+<div id="micWrap" style="touch-action:none;cursor:ew-resize;background:#fff;border:1px solid var(--line);border-radius:8px"></div>
+<div class="note">拖动上图或在其上滚动滚轮旋转微分筒；顺时针旋紧至“咔哒”表示已夹住金属丝。下方两个放大窗口分别读主尺（0.5 mm 格）与微分筒（0.01 mm 格，需估读到 0.001 mm）。</div>
+<div style="margin-top:8px">
+<span class="b" onclick="micNudge(-0.10)">旋入 −0.10</span>
+<span class="b" onclick="micNudge(-0.01)">旋入 −0.01</span>
+<span class="b" onclick="micNudge(0.01)">旋出 +0.01</span>
+<span class="b" onclick="micNudge(0.10)">旋出 +0.10</span>
+</div>
+</div>
+<div class="col">
+<h3>测量与记录</h3>
+<label class="ctl">测量位置（同一根丝的不同位置，各测一次取平均）：</label>
+<div id="posBtns"></div>
+<label class="ctl"><input type="checkbox" id="wireIn" checked onchange="toggleWire(this.checked)"> 金属丝已放入（取消勾选 = 取出丝，可闭合检查零点）</label>
+<p>当前读数：<span class="readout" id="micRead">—</span></p>
+<p id="ratchet" class="note"></p>
+<button class="b rec" id="btnRecD" onclick="recordD()">记录该读数</button>
+<div id="dTable"></div>
+<div class="note" id="dStat"></div>
+</div>
+</div></div>
+</section>
+
+<!-- ② 电路 -->
+<section id="tab-c" hidden>
+<div class="card">
+<div class="hint">步骤：① 用下方米尺选取一段金属丝长度 L；② 选择安培表接法并闭合开关 K；③ 调滑动变阻器使电流表读数合适（不超 0.6 A 量程）；④ 点“记录本组 (U, I)”；⑤ 换 5 段不同长度重复。测完去第 ③ 页处理数据。</div>
+<div class="row">
+<div class="col">
+<h3>米尺测有效长度（两接线柱之间）</h3>
+<div id="rulerWrap"></div>
+<label class="ctl">金属丝长度 L：<b id="lShow"></b>　（滑动取 20~100 cm）</label>
+<input type="range" id="lSlider" min="20" max="100" step="10" value="60" oninput="setL(this.value)">
+</div>
+<div class="col">
+<h3>伏安法电路（分压接法）</h3>
+<div class="ctl" style="font-size:13px">
+安培表接法：
+<button class="b" id="btnOut" onclick="setConn('out')">安培表外接</button>
+<button class="b" id="btnIn" onclick="setConn('in')">安培表内接</button>
+</div>
+<div id="cirWrap"></div>
+<div class="row" style="margin-top:8px">
+<div>
+<label class="ctl">滑动变阻器输出电压 U₀：<b id="uShow"></b></label>
+<input type="range" id="uSlider" min="0" max="3" step="0.05" value="1.5" oninput="setU(this.value)" style="width:220px">
+</div>
+<div>
+<button class="b" id="btnK" onclick="toggleK()">闭合开关 K</button>
+<button class="b rec" id="btnRec" onclick="recordUI()">记录本组 (U, I)</button>
+</div>
+</div>
+<div id="meterDigits"></div>
+<div class="note" id="cirNote"></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- ③ 数据 -->
+<section id="tab-r" hidden>
+<div class="card"><div class="row">
+<div class="col">
+<h3>测量记录表</h3>
+<div id="dataTable"></div>
+<div class="note">R = U / I。请尽量用同一种接法测完所有长度；混用两种接法会使点分层。</div>
+</div>
+<div class="col">
+<h3>R–L 图像与最小二乘拟合</h3>
+<canvas id="graph"></canvas>
+<div id="fitResult"></div>
+</div>
+</div></div>
+</section>
+
+<!-- ④ 比较 -->
+<section id="tab-e" hidden>
+<div class="card">
+<h3>什么时候用安培表内接 / 外接？</h3>
+<div class="row">
+<div class="col">
+<p style="font-size:14px">
+<b>安培表外接</b>（电压表直接并在 R 上）：电流表测的是 I<sub>R</sub>+I<sub>V</sub>，测得 R′ = R·R<sub>V</sub>/(R+R<sub>V</sub>) < R，相对误差 ≈ R/R<sub>V</sub> —— R 越小误差越小。<br>
+<b>安培表内接</b>（电压表并在 A+R 上）：电压表测 U<sub>R</sub>+U<sub>A</sub>，测得 R′ = R+R<sub>A</sub> > R，相对误差 ≈ R<sub>A</sub>/R —— R 越大误差越小。<br>
+<b>判据</b>：R ≷ √(R<sub>A</sub>·R<sub>V</sub>) = √(0.10×3000) ≈ <b>17.3 Ω</b> 时选内接 / 外接。
+</p>
+<canvas id="cmpCanvas"></canvas>
+</div>
+<div class="col">
+<h3>当前金属丝的实时比较</h3>
+<div id="cmpText"></div>
+<details open><summary>看图像验证（本实验现象）</summary>
+<div class="note">若全程用“内接”，R–L 图拟合直线的<b>截距</b>应接近电流表内阻 0.10 Ω；若用“外接”，斜率略偏小（约 −0.3%）。可在第②页切换接法、分别测几组数据到第③页对比。</div></details>
+</div>
+</div>
+</div>
+</section>
+</div>
+
+<script>
+/* ================= 物理常量与状态 ================= */
+const RHO=1.10e-6, D_TRUE=0.400, RV=3000, RA=0.10;
+const AREA=Math.PI*Math.pow(D_TRUE/1000,2)/4;       // 真实横截面积
+const dPos=[0.398,0.401,0.400];                    // 三个测量点的真实直径 mm
+const mic={x:4.0,wire:true,pos:0,clamped:false};
+let dRead={};                                      // 位置->读数mm
+const exp={L:60,conn:'out',u:1.5,on:false};
+let rows=[], lastM={U:0,I:0};
+const wireR=cm=>RHO*(cm/100)/AREA;
+const f2=v=>v.toFixed(2), f3=v=>v.toFixed(3);
+
+/* ================= Tab 切换 ================= */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['d','c','r','e'].forEach(t=>document.getElementById('tab-'+t).hidden=(t!==b.dataset.t));
+  if(b.dataset.t==='r'){drawGraph();fitOut();}
+  if(b.dataset.t==='e'){drawCmp();cmpOut();}
+});
+
+/* ================= ① 螺旋测微器 ================= */
+function micSVG(){
+  const x=mic.x, half=Math.floor(x/0.5+1e-9), tDiv=(x-half*0.5)/0.01;
+  const faceX=146+x*28, s0=Math.max(0,x-1.6), mmPx=110, edge=30+(x-s0)*mmPx;
+  let s=`<svg viewBox="0 0 760 420" style="width:100%;display:block">`;
+  s+=`<rect x="0" y="0" width="760" height="170" fill="#f8fafc"/>`;
+  s+=`<path d="M146,55 L146,112 Q146,162 202,162 L356,162 Q408,162 408,112 L408,98" fill="none" stroke="#5b6770" stroke-width="17" stroke-linecap="round"/>`;
+  s+=`<rect x="118" y="58" width="28" height="46" fill="#8794a1"/>`;                      // 测砧
+  if(mic.wire) s+=`<line x1="92" y1="104" x2="${faceX}" y2="104" stroke="#b45309" stroke-width="4"/>`; // 金属丝
+  s+=`<rect x="340" y="74" width="130" height="40" fill="#d7dee6" stroke="#8895a3"/>`;    // 固定套管
+  s+=`<rect x="${faceX}" y="86" width="${Math.max(2,346-faceX)}" height="16" fill="#a9b4bf"/>`; // 测微螺杆
+  s+=`<rect x="${faceX+4}" y="66" width="182" height="58" rx="8" fill="#4a7fd4" stroke="#2b5cad"/>`; // 微分筒
+  s+=`<rect x="${faceX+188}" y="80" width="16" height="30" rx="4" fill="#334155"/>`;      // 棘轮
+  s+=`<text x="132" y="46" font-size="12" fill="#475569">测砧</text><text x="${faceX+60}" y="140" font-size="12" fill="#eef" text-anchor="middle">微分筒</text><text x="400" y="70" font-size="12" fill="#475569">固定套管</text>`;
+  if(mic.clamped) s+=`<text x="${faceX+95}" y="58" font-size="15" fill="#dc2626" text-anchor="middle">咔哒！已夹紧</text>`;
+  // —— 主尺放大 ——
+  s+=`<text x="30" y="198" font-size="12" fill="#334155">固定套管（主尺）放大：整数 mm 刻度在准线上方、半 mm 在下方</text>`;
+  s+=`<rect x="30" y="205" width="700" height="86" fill="#fff" stroke="#94a3b8"/>`;
+  s+=`<line x1="30" y1="248" x2="730" y2="248" stroke="#0f172a" stroke-width="1.5"/>`;
+  for(let v=Math.ceil(s0*2)/2; v<=s0+6.4; v+=0.5){
+    if(v<0)continue; const px=30+(v-s0)*mmPx;
+    if(Math.abs(v-Math.round(v))<1e-6){
+      s+=`<line x1="${px}" y1="224" x2="${px}" y2="248" stroke="#0f172a" stroke-width="2"/><text x="${px}" y="219" font-size="12" text-anchor="middle" fill="#0f172a">${Math.round(v)}</text>`;
+    }else s+=`<line x1="${px}" y1="248" x2="${px}" y2="274" stroke="#0f172a" stroke-width="1.5"/>`;
+  }
+  s+=`<rect x="${edge}" y="212" width="${Math.max(0,730-edge)}" height="72" fill="rgba(74,127,212,.35)"/>`;
+  s+=`<line x1="${edge}" y1="212" x2="${edge}" y2="284" stroke="#1d4ed8" stroke-width="2.5"/>`;
+  s+=`<text x="${Math.min(700,Math.max(60,edge))}" y="299" font-size="11" fill="#1d4ed8" text-anchor="middle">微分筒左缘</text>`;
+  // —— 微分筒放大 ——
+  s+=`<text x="30" y="322" font-size="12" fill="#334155">微分筒刻度放大（每格 0.01 mm，红基准线处读数、估读一位）</text>`;
+  s+=`<rect x="30" y="328" width="700" height="86" fill="#eef4ff" stroke="#94a3b8"/>`;
+  s+=`<line x1="30" y1="340" x2="730" y2="340" stroke="#0f172a" stroke-width="1.5"/>`;
+  for(let t=Math.ceil(tDiv-25);t<=Math.floor(tDiv+25);t++){
+    const px=380+(t-tDiv)*14, lab=((t%50)+50)%50;
+    if(lab%5===0){ s+=`<line x1="${px}" y1="358" x2="${px}" y2="398" stroke="#0f172a" stroke-width="2"/><text x="${px}" y="412" font-size="11" text-anchor="middle">${lab}</text>`; }
+    else s+=`<line x1="${px}" y1="372" x2="${px}" y2="398" stroke="#64748b" stroke-width="1"/>`;
+  }
+  s+=`<line x1="380" y1="330" x2="380" y2="402" stroke="#dc2626" stroke-width="2.5"/><path d="M374,330 L386,330 L380,340 Z" fill="#dc2626"/>`;
+  s+=`</svg>`; return s;
+}
+function setMic(nx){
+  const min = mic.wire? dPos[mic.pos] : 0;
+  mic.clamped=false;
+  if(nx<min){nx=min; if(mic.wire) mic.clamped=true;}
+  mic.x=Math.max(0,Math.min(5,nx));
+  renderMic();
+}
+function micNudge(d){setMic(mic.x+d)}
+function renderMic(){
+  document.getElementById('micWrap').innerHTML=micSVG();
+  document.getElementById('micRead').textContent=mic.x.toFixed(3)+' mm';
+  document.getElementById('ratchet').textContent = mic.clamped?'棘轮打滑——已夹住金属丝，可以记录读数。':(mic.wire?'继续旋入直至咔哒（夹紧）。':'（无金属丝）完全闭合应读 0.000 mm，可检查零点。');
+  document.getElementById('btnRecD').disabled = !(mic.wire && Math.abs(mic.x-dPos[mic.pos])<1e-9);
+}
+function toggleWire(w){mic.wire=w; if(w && mic.x<dPos[mic.pos]) mic.x=dPos[mic.pos]+0.5; renderMic();}
+function recordD(){
+  if(!(mic.wire&&Math.abs(mic.x-dPos[mic.pos])<1e-9))return;
+  dRead[mic.pos]=+(mic.x.toFixed(3));
+  dOut(); renderMic();
+}
+function dOut(){
+  const vs=Object.values(dRead), posN=['左端','中部','右端'];
+  let h='<table><tr><th>位置</th><th>直径 d /mm</th></tr>';
+  for(let i=0;i<3;i++) h+=`<tr><td>${posN[i]}</td><td>${dRead[i]!==undefined?dRead[i].toFixed(3):'—'}</td></tr>`;
+  h+='</table>';
+  document.getElementById('dTable').innerHTML=h;
+  if(vs.length){
+    const avg=vs.reduce((a,b)=>a+b,0)/vs.length, S=Math.PI*avg*avg/4;
+    document.getElementById('dStat').innerHTML=`平均 d̄ = <b>${avg.toFixed(3)} mm</b>，横截面积 S = πd̄²/4 = <b>${S.toFixed(4)} mm²</b>${vs.length<3?'（建议三个位置都测）':' ✓'}`;
+  }else document.getElementById('dStat').textContent='尚未记录任何读数。';
+}
+(function(){
+  const pb=document.getElementById('posBtns'), posN=['左端','中部','右端'];
+  for(let i=0;i<3;i++){const b=document.createElement('button');b.className='b';b.textContent='位置'+(i+1)+'（'+posN[i]+'）';
+    b.onclick=()=>{mic.pos=i;mic.clamped=false;mic.x=Math.max(mic.x,dPos[i]+0.4);renderMic();
+      [...pb.children].forEach((x,j)=>x.classList.toggle('on',j===i));};
+    pb.appendChild(b);}
+  const w=document.getElementById('micWrap');
+  w.addEventListener('wheel',e=>{e.preventDefault();setMic(mic.x+(e.deltaY>0?0.01:-0.01)*(e.shiftKey?10:1));},{passive:false});
+  let dragging=false,lx=0;
+  w.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;});
+  window.addEventListener('pointermove',e=>{if(dragging){setMic(mic.x+(e.clientX-lx)/110);lx=e.clientX;}});
+  window.addEventListener('pointerup',()=>dragging=false);
+})();
+
+/* ================= ② 米尺 + 电路 ================= */
+function rulerSVG(){
+  const cm=exp.L, x0=70, sc=5.6, xL=x0+cm*sc;
+  let s=`<svg viewBox="0 0 700 130" style="width:100%">`;
+  s+=`<rect x="${x0-15}" y="34" width="590" height="52" fill="#fffbe6" stroke="#b45309"/>`;
+  s+=`<rect x="${x0}" y="34" width="${cm*sc}" height="52" fill="rgba(220,38,38,.10)"/>`;
+  for(let c=0;c<=100;c++){const px=x0+c*sc;
+    if(c%10===0) s+=`<line x1="${px}" y1="34" x2="${px}" y2="56" stroke="#92400e"/><text x="${px}" y="72" font-size="11" text-anchor="middle" fill="#92400e">${c}</text>`;
+    else if(c%5===0) s+=`<line x1="${px}" y1="34" x2="${px}" y2="48" stroke="#92400e"/>`;
+    else s+=`<line x1="${px}" y1="34" x2="${px}" y2="43" stroke="#b45309"/>`;}
+  s+=`<text x="365" y="26" font-size="12" text-anchor="middle" fill="#334155">米尺（cm）—— 金属丝有效长度 L = ${cm}.0 cm</text>`;
+  [[x0],[xL]].forEach(([px])=>{s+=`<rect x="${px-5}" y="14" width="10" height="22" rx="3" fill="#334155"/><circle cx="${px}" cy="20" r="2.5" fill="#94a3b8"/>`;});
+  s+=`<line x1="${x0}" y1="25" x2="${xL}" y2="25" stroke="#dc2626" stroke-width="3"/>`;
+  s+=`<text x="${(x0+xL)/2}" y="102" font-size="12" text-anchor="middle" fill="#dc2626">待测金属丝（两接线柱之间）</text></svg>`;
+  return s;
+}
+function meterSVG(cx,cy,lt,val,range){
+  const fr=Math.max(0,Math.min(1,val/range)), a=(-60+120*fr)*Math.PI/180;
+  const nx=cx+26*Math.sin(a), ny=cy-26*Math.cos(a);
+  return `<g><circle cx="${cx}" cy="${cy}" r="27" fill="#fff" stroke="#0f172a" stroke-width="2"/>
+  <path d="M ${cx-17.3} ${cy+10} A 20 20 0 0 1 ${cx+17.3} ${cy+10}" fill="none" stroke="#94a3b8"/>
+  <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#c0392b" stroke-width="2"/>
+  <circle cx="${cx}" cy="${cy}" r="2.5" fill="#333"/>
+  <text x="${cx}" y="${cy+19}" font-size="13" font-weight="bold" text-anchor="middle">${lt}</text></g>`;
+}
+const wire=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#334155" stroke-width="2"/>`;
+const dot=(x,y)=>`<circle cx="${x}" cy="${y}" r="4" fill="#334155"/>`;
+function circuitSVG(){
+  const u=exp.u, R=wireR(exp.L), on=exp.on, out=exp.conn==='out';
+  let U=0,I=0;
+  if(on){ if(out){U=u; I=u/R+u/RV;} else {U=u; I=u/(R+RA);} }
+  const rU=Math.round(U*100)/100, rI=Math.round(I*1000)/1000;
+  lastM={U:rU,I:rI};
+  const xT=260+(u/3)*200;
+  let s=`<svg viewBox="0 0 700 350" style="width:100%">`;
+  s+=`<defs><marker id="arr" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="0"><path d="M0,8 L4,0 L8,8 Z" fill="#334155"/></marker></defs>`;
+  s+=wire(70,70,150,70)+wire(205,70,260,70)+wire(460,70,460,320)+wire(70,70,70,160)+wire(70,178,70,320)+wire(70,320,620,320);
+  s+=`<line x1="57" y1="160" x2="83" y2="160" stroke="#334155" stroke-width="4"/><line x1="63" y1="178" x2="77" y2="178" stroke="#334155" stroke-width="7"/>`;
+  s+=`<text x="40" y="168" font-size="14">+</text><text x="40" y="186" font-size="14">−</text><text x="20" y="140" font-size="12">E≈3V</text>`;
+  s+=dot(150,70)+dot(205,70);
+  s+= on? `<line x1="150" y1="70" x2="205" y2="70" stroke="#334155" stroke-width="3"/>`
+        : `<line x1="150" y1="70" x2="197" y2="46" stroke="#334155" stroke-width="3"/>`;
+  s+=`<text x="175" y="52" font-size="13">K</text>`;
+  s+=`<rect x="260" y="52" width="200" height="36" fill="#e8eef7" stroke="#334155"/><text x="360" y="46" font-size="12" text-anchor="middle">R₀ 滑动变阻器(分压)</text>`;
+  s+=`<line x1="${xT}" y1="140" x2="${xT}" y2="94" stroke="#334155" stroke-width="2" marker-end="url(#arr)"/>`;
+  s+=wire(xT,140,620,140);
+  if(out){
+    s+=`<rect x="498" y="118" width="44" height="44" fill="#fff"/>`+wire(xT,140,498,140)+wire(542,140,620,140);
+    s+=meterSVG(520,140,'A',rI,0.6);
+    s+=wire(620,140,620,170)+wire(620,230,620,320);
+    s+=`<rect x="607" y="170" width="26" height="60" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>`;
+    s+=`<text x="648" y="196" font-size="12">金属丝</text><text x="648" y="212" font-size="12">R(L)</text>`;
+    s+=dot(620,157)+wire(620,157,560,157)+wire(560,157,560,214)+wire(560,266,560,320)+dot(560,320);
+    s+=meterSVG(560,240,'V',rU,3);
+    s+=`<text x="120" y="300" font-size="13" fill="#2563eb">安培表外接：V 直接测金属丝电压，A = I(R)+I(V)</text>`;
+  }else{
+    s+=wire(620,140,620,320);
+    s+=meterSVG(620,162,'A',rI,0.6);
+    s+=`<rect x="607" y="210" width="26" height="60" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>`;
+    s+=`<text x="648" y="236" font-size="12">金属丝</text><text x="648" y="252" font-size="12">R(L)</text>`;
+    s+=dot(560,140)+wire(560,140,560,214)+wire(560,266,560,320)+dot(560,320);
+    s+=meterSVG(560,240,'V',rU,3);
+    s+=`<text x="120" y="300" font-size="13" fill="#ea580c">安培表内接：V 测 A+金属丝的总电压，A = I(R)</text>`;
+  }
+  if(!on) s+=`<text x="300" y="335" font-size="13" fill="#64748b">开关断开，电表无读数</text>`;
+  s+=`</svg>`; return s;
+}
+function renderCircuit(){
+  document.getElementById('rulerWrap').innerHTML=rulerSVG();
+  document.getElementById('cirWrap').innerHTML=circuitSVG();
+  document.getElementById('lShow').textContent=exp.L+'.0 cm';
+  document.getElementById('uShow').textContent=exp.u.toFixed(2)+' V';
+  document.getElementById('btnOut').classList.toggle('on',exp.conn==='out');
+  document.getElementById('btnIn').classList.toggle('on',exp.conn==='in');
+  document.getElementById('btnK').textContent=exp.on?'断开开关 K':'闭合开关 K';
+  document.getElementById('btnK').classList.toggle('on',exp.on);
+  const {U,I}=lastM, over=I>0.601;
+  const Rm=I>0.001?(U/I):0;
+  document.getElementById('meterDigits').innerHTML=
+    `<span class="digits">U = <b>${U.toFixed(2)}</b> V</span><span class="digits">I = <b>${I.toFixed(3)}</b> A</span>`+
+    (Rm?`<span class="digits">R=U/I = <b>${Rm.toFixed(2)}</b> Ω</span>`:'')+
+    (over?`<div class="warn">电流超量程（0.6 A）！请调小滑动变阻器输出电压。</div>`:'');
+  document.getElementById('btnRec').disabled=!(exp.on&&I>0.001&&!over);
+  document.getElementById('cirNote').textContent = exp.conn==='out'
+    ?'外接：测量值偏小（电压表分流），误差 ≈ R/R_V。'
+    :'内接：测量值偏大（电流表分压），误差 ≈ R_A/R；R–L 图会出现截距 ≈ R_A。';
+}
+function setL(v){exp.L=+v;renderCircuit();}
+function setU(v){exp.u=+v;renderCircuit();}
+function setConn(c){exp.conn=c;renderCircuit();}
+function toggleK(){exp.on=!exp.on;renderCircuit();}
+function recordUI(){
+  const {U,I}=lastM; if(!(exp.on&&I>0.001&&I<=0.601))return;
+  rows.push({L:exp.L/100,U,I,conn:exp.conn,R:+(U/I).toFixed(2)});
+  tableOut();drawGraph();fitOut();
+}
+
+/* ================= ③ 数据与图像 ================= */
+function tableOut(){
+  let h='<table><tr><th>组</th><th>L /m</th><th>U /V</th><th>I /A</th><th>接法</th><th>R=U/I /Ω</th><th></th></tr>';
+  rows.forEach((r,i)=>{h+=`<tr><td>${i+1}</td><td>${r.L.toFixed(2)}</td><td>${r.U.toFixed(2)}</td><td>${r.I.toFixed(3)}</td><td>${r.conn==='out'?'外接':'内接'}</td><td>${r.R.toFixed(2)}</td><td><button class="del" onclick="delRow(${i})">✕</button></td></tr>`;});
+  h+='</table>';
+  if(!rows.length)h+='<div class="note">暂无数据，请到第②页测量并记录。</div>';
+  h+='<button class="b" onclick="rows=[];tableOut();drawGraph();fitOut()">清空全部数据</button>';
+  document.getElementById('dataTable').innerHTML=h;
+}
+function delRow(i){rows.splice(i,1);tableOut();drawGraph();fitOut();}
+function fitLSQ(){
+  const n=rows.length; if(n<2)return null;
+  let sx=0,sy=0,sxx=0,sxy=0;
+  rows.forEach(r=>{sx+=r.L;sy+=r.R;sxx+=r.L*r.L;sxy+=r.L*r.R;});
+  const k=(n*sxy-sx*sy)/(n*sxx-sx*sx), b=(sy-k*sx)/n;
+  return {k,b,n};
+}
+function sizeCanvas(c,hCss){
+  const dpr=window.devicePixelRatio||1, w=c.clientWidth||600, h=hCss;
+  c.width=w*dpr;c.height=h*dpr;c.style.height=h+'px';
+  const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return [ctx,w,h];
+}
+function drawGraph(){
+  const [ctx,W,H]=sizeCanvas(document.getElementById('graph'),420);
+  ctx.clearRect(0,0,W,H);
+  const mL=58,mR=16,mT=18,mB=46, xMax=1.1;
+  const maxR=Math.max(2,...rows.map(r=>r.R));
+  const yMax=Math.max(4,Math.ceil(maxR+0.8));
+  const X=v=>mL+(W-mL-mR)*v/xMax, Y=v=>H-mB-(H-mT-mB)*v/yMax;
+  ctx.strokeStyle="#e2e8f0";ctx.fillStyle="#64748b";ctx.font="11px sans-serif";
+  for(let i=0;i<=xMax*10;i++){const x=X(i/10);ctx.beginPath();ctx.moveTo(x,Y(0));ctx.lineTo(x,mT);ctx.stroke();
+    if(i%2===0)ctx.fillText((i/10).toFixed(1),x-10,H-mB+16);}
+  for(let j=0;j<=yMax;j++){const y=Y(j);ctx.beginPath();ctx.moveTo(mL,y);ctx.lineTo(W-mR,y);ctx.stroke();ctx.fillText(j,mL-24,y+4);}
+  ctx.strokeStyle="#334155";ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(mL,mT);ctx.lineTo(mL,Y(0));ctx.lineTo(W-mR,Y(0));ctx.stroke();
+  ctx.fillText("L /m",W-mR-30,H-mB+32);ctx.save();ctx.translate(16,mT+30);ctx.rotate(-Math.PI/2);ctx.fillText("R /Ω",0,0);ctx.restore();
+  const ft=fitLSQ();
+  if(ft){
+    ctx.strokeStyle="#059669";ctx.setLineDash([6,4]);ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(X(0),Y(ft.b));ctx.lineTo(X(xMax),Y(ft.k*xMax+ft.b));ctx.stroke();ctx.setLineDash([]);
+  }
+  rows.forEach(r=>{ctx.fillStyle=r.conn==='out'?'#2563eb':'#ea580c';
+    ctx.beginPath();ctx.arc(X(r.L),Y(r.R),5,0,7);ctx.fill();ctx.strokeStyle="#fff";ctx.stroke();});
+  ctx.fillStyle='#2563eb';ctx.fillText('● 外接',mL+8,mT+12);ctx.fillStyle='#ea580c';ctx.fillText('● 内接',mL+60,mT+12);
+}
+function fitOut(){
+  const ft=fitLSQ(), vs=Object.values(dRead);
+  let h='';
+  if(!ft){h='<div class="note">至少需要 2 组 (L, R) 数据才能拟合直线。</div>';}
+  else{
+    h=`<p>拟合结果：<b>R = ${ft.k.toFixed(3)}·L ${ft.b>=0?'+':'−'} ${Math.abs(ft.b).toFixed(3)} (Ω, L以m计)</b>　斜率 k = <b>${ft.k.toFixed(3)} Ω/m</b>，截距 b = <b>${ft.b.toFixed(3)} Ω</b></p>`;
+    if(!vs.length) h+='<div class="warn">尚未测直径！请回第①页用螺旋测微器测量并记录。</div>';
+    else{
+      const avg=vs.reduce((a,b)=>a+b,0)/vs.length, S=Math.PI*avg*avg/4;   // mm²
+      const rho=ft.k*S*1e-6, err=(rho-RHO)/RHO*100;
+      h+=`<p>d̄ = ${avg.toFixed(3)} mm，S = ${S.toFixed(4)} mm² ⇒ <b>ρ = kS = ${rho.toExponential(3)} Ω·m = ${(rho*1e6).toFixed(3)}×10⁻⁶ Ω·m</b></p>`;
+      h+=`<p>与标准值 1.10×10⁻⁶ 比较，相对误差 <b class="${Math.abs(err)<3?'':'warn'}">${err.toFixed(2)}%</b>${Math.abs(err)<3?'（不错）':''}</p>`;
+      if(rows.some(r=>r.conn==='in')&&rows.some(r=>r.conn==='out')) h+='<div class="warn">注意：两种接法混用了，数据点会分层，斜率不可靠。</div>';
+      if(ft.b>0.04&&rows.every(r=>r.conn==='in')) h+='<div class="note">截距 b ≈ 电流表内阻 R_A = 0.10 Ω —— 这正是内接的系统误差来源。</div>';
+    }
+  }
+  document.getElementById('fitResult').innerHTML=h;
+}
+
+/* ================= ④ 内外接比较 ================= */
+function drawCmp(){
+  const [ctx,W,H]=sizeCanvas(document.getElementById('cmpCanvas'),360);
+  ctx.clearRect(0,0,W,H);
+  const mL=56,mR=14,mT=14,mB=40,xMax=40,yMax=12;
+  const X=v=>mL+(W-mL-mR)*v/xMax, Y=v=>H-mB-(H-mT-mB)*v/yMax;
+  ctx.strokeStyle="#e2e8f0";ctx.fillStyle="#64748b";ctx.font="11px sans-serif";
+  for(let i=0;i<=40;i+=5){ctx.beginPath();ctx.moveTo(X(i),Y(0));ctx.lineTo(X(i),mT);ctx.stroke();ctx.fillText(i,X(i)-6,H-mB+16);}
+  for(let j=0;j<=12;j+=2){ctx.beginPath();ctx.moveTo(mL,Y(j));ctx.lineTo(W-mR,Y(j));ctx.stroke();ctx.fillText(j+'%',mL-26,Y(j)+4);}
+  ctx.strokeStyle="#334155";ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.moveTo(mL,mT);ctx.lineTo(mL,Y(0));ctx.lineTo(W-mR,Y(0));ctx.stroke();
+  ctx.fillText("待测电阻 R /Ω",W-120,H-mB+32);ctx.save();ctx.translate(14,mT+70);ctx.rotate(-Math.PI/2);ctx.fillText("相对误差 |δ|",0,0);ctx.restore();
+  ctx.strokeStyle="#2563eb";ctx.lineWidth=2;ctx.beginPath();let st=false;
+  for(let R=0.5;R<=40;R+=0.25){const e=R/(R+RV)*100;if(e>yMax){st=false;continue;}
+    st?ctx.lineTo(X(R),Y(e)):(ctx.moveTo(X(R),Y(e)),st=true);}
+  ctx.stroke();
+  ctx.strokeStyle="#ea580c";ctx.beginPath();st=false;
+  for(let R=0.5;R<=40;R+=0.25){const e=RA/R*100;if(e>yMax){if(st)break;}
+    st?ctx.lineTo(X(R),Y(e)):(ctx.moveTo(X(R),Y(e)),st=true);}
+  ctx.stroke();
+  const rc=Math.sqrt(RA*RV);
+  ctx.strokeStyle="#475569";ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(X(rc),mT);ctx.lineTo(X(rc),Y(0));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle="#475569";ctx.fillText(`√(R_A·R_V)≈${rc.toFixed(1)}Ω`,X(rc)-40,mT+10);
+  const R=wireR(exp.L/100);
+  ctx.strokeStyle="#059669";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(X(R),mT);ctx.lineTo(X(R),Y(0));ctx.stroke();
+  ctx.fillStyle='#2563eb';ctx.fillText('外接 δ=R/R_V',X(24),Y(2.6));
+  ctx.fillStyle='#ea580c';ctx.fillText('内接 δ=R_A/R',X(24),Y(5.4));
+  ctx.fillStyle='#059669';ctx.fillText(`当前 R≈${R.toFixed(2)}Ω`,X(R)-34,Y(0)-6);
+}
+function cmpOut(){
+  const R=wireR(exp.L/100), eo=R/(R+RV)*100, ei=RA/R*100;
+  const best=eo<ei?'out':'in';
+  document.getElementById('cmpText').innerHTML=
+   `<table><tr><th></th><th>外接误差</th><th>内接误差</th></tr>
+    <tr><td>当前 L=${exp.L}.0 cm，R≈${R.toFixed(2)} Ω</td><td>−${eo.toFixed(2)}%</td><td>+${ei.toFixed(2)}%</td></tr></table>
+    <p style="font-size:14px">因为 R ${R<Math.sqrt(RA*RV)?'<':'≥'} √(R_A·R_V)≈17.3 Ω，本实验金属丝应选 <b class="${best==='out'?'':'warn'}">${best==='out'?'安培表外接':'安培表内接'}</b>（误差更小）。</p>
+    <div class="note">结论口诀：测小电阻（R ≪ R_V）用外接；测大电阻（R ≫ R_A）用内接。</div>`;
+}
+
+/* ================= 初始化 ================= */
+renderMic();dOut();renderCircuit();tableOut();drawGraph();fitOut();drawCmp();cmpOut();
+window.addEventListener('resize',()=>{drawGraph();drawCmp();});
+</script>
+</body>
+</html>

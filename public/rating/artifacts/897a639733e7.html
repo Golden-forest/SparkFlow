@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>放射性半衰期 · 交互式仿真</title>
+<style>
+:root{
+  --bg:#0b1020;--panel:#131a2e;--panel2:#0e1426;--line:#26324e;--txt:#dbe4f5;
+  --dim:#8fa0c2;--green:#3ddc97;--gray:#59617a;--cyan:#4cc9f0;--amber:#ffb454;--pink:#f472b6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);
+  font:14px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:14px}
+h1{font-size:19px;margin-bottom:4px}
+.sub{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;margin-bottom:12px}
+.ctrl{display:flex;flex-direction:column;gap:4px;min-width:170px;flex:1}
+.ctrl label{font-size:12px;color:var(--dim)}
+.ctrl label b{color:var(--cyan);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--cyan);height:22px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{background:#1b2540;color:var(--txt);border:1px solid var(--line);border-radius:8px;
+  padding:7px 14px;cursor:pointer;font-size:13px;transition:.15s}
+button:hover{background:#243156;border-color:#3a4c78}
+button.primary{background:#17547a;border-color:#1f7fae}
+button.primary:hover{background:#1c6b9e}
+button.warn{background:#5a2b3d;border-color:#7c3b55}
+.mode{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.mode button{border:none;border-radius:0;flex:1;background:#141c33}
+.mode button.on{background:#17547a;color:#fff}
+main{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch}
+.left{flex:1.15;min-width:420px;display:flex;flex-direction:column;gap:10px}
+.right{flex:1;min-width:380px;display:flex;flex-direction:column;gap:10px}
+#gridWrap{position:relative;height:440px;background:var(--panel2);border-radius:8px;overflow:hidden}
+#grid{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.stat .k{font-size:11px;color:var(--dim)}
+.stat .v{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:11px;color:var(--dim);font-weight:400}
+.chartBox{position:relative;height:250px;background:var(--panel2);border-radius:8px;overflow:hidden}
+.chartBox.small{height:185px}
+.chartBox canvas{position:absolute;inset:0;width:100%;height:100%}
+.chartTitle{font-size:12.5px;color:var(--dim);margin-bottom:6px}
+.chartTitle b{color:var(--txt)}
+.runRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.runRow label{display:flex;align-items:center;gap:5px;cursor:pointer}
+#fluct{font-size:12px;color:var(--amber);margin-top:6px;min-height:18px}
+#status{font-size:12px;color:var(--dim);margin-top:6px}
+.teach{margin-top:12px}
+.teach h2{font-size:15px;margin-bottom:8px;color:var(--cyan)}
+.teach ul{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px}
+.teach li{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+  font-size:12.8px;color:#b9c6e2}
+.teach li b{color:var(--txt)}
+.teach .em{color:var(--amber)}
+@media(max-width:900px){.left,.right{min-width:100%}}
+</style>
+</head>
+<body>
+<h1>放射性半衰期 · 交互式仿真</h1>
+<div class="sub">每一个格子是一个原子核：绿色 = 未衰变，灰色 = 已衰变。观察右侧曲线，理解半衰期的统计意义。</div>
+
+<div class="panel controls">
+  <div class="ctrl"><label>初始核数 N₀ <b id="vN0">400</b></label>
+    <input type="range" id="sN0" min="0" max="1000" value="534"></div>
+  <div class="ctrl"><label>半衰期 T½ <b id="vT">5.0 s</b>（2–10 s，模拟时间）</label>
+    <input type="range" id="sT" min="2" max="10" step="0.5" value="5"></div>
+  <div class="ctrl"><label>播放倍速 <b id="vSp">1×</b></label>
+    <input type="range" id="sSp" min="0" max="5" step="1" value="2"></div>
+  <div class="ctrl"><label>衰变模式</label>
+    <div class="mode">
+      <button id="mRand" class="on">随机模式（逐核掷骰）</button>
+      <button id="mSmooth">平滑模式（严格指数）</button>
+    </div></div>
+  <div class="ctrl btnrow" style="min-width:280px">
+    <button class="primary" id="bPlay">▶ 播放</button>
+    <button id="bStep">单步 (0.25s)</button>
+    <button id="bReset">重置</button>
+  </div>
+</div>
+
+<main>
+  <div class="left">
+    <div class="panel" style="display:flex;flex-direction:column;gap:8px;flex:1">
+      <div id="gridWrap"><canvas id="grid"></canvas></div>
+      <div class="legend">
+        <span><i style="background:#3ddc97"></i>未衰变核</span>
+        <span><i style="background:#59617a"></i>已衰变核</span>
+        <span><i style="background:#ffd166"></i>刚刚衰变（闪烁）</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="stats">
+        <div class="stat"><div class="k">模拟时间 t</div><div class="v" id="stT">0.0<small> s</small></div></div>
+        <div class="stat"><div class="k">剩余核数 N</div><div class="v" id="stN">400</div></div>
+        <div class="stat"><div class="k">已衰变数</div><div class="v" id="stD">0</div></div>
+        <div class="stat"><div class="k">剩余比例 N/N₀</div><div class="v" id="stF">100<small> %</small></div></div>
+        <div class="stat"><div class="k">当前活度 A（次/s）</div><div class="v" id="stA">0.0</div></div>
+        <div class="stat"><div class="k">理论活度 λN</div><div class="v" id="stLN">55.5</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel">
+      <div class="chartTitle"><b>N–t 衰变曲线</b>　虚线 = 理论 N₀·e^(−λt)；浅带 = 多次实验的涨落范围</div>
+      <div class="chartBox"><canvas id="nchart"></canvas></div>
+      <div id="fluct"></div>
+    </div>
+    <div class="panel">
+      <div class="chartTitle"><b>单位时间衰变计数</b>　柱 = 每 bin 实际衰变数；折线 = 理论期望</div>
+      <div class="chartBox small"><canvas id="bchart"></canvas></div>
+      <div class="runRow">
+        <button id="bKeep">📋 保存本次并叠加</button>
+        <button class="warn" id="bClear">清除叠加</button>
+        <label><input type="checkbox" id="ckAuto">自动重复实验并叠加（最多 24 次）</label>
+        <span>已叠加 <b id="runCnt" style="color:var(--cyan)">0</b> 次</span>
+      </div>
+      <div id="status">就绪。点击「播放」开始。</div>
+    </div>
+  </div>
+</main>
+
+<div class="panel teach">
+  <h2>教学要点</h2>
+  <ul>
+    <li><b>衰变快慢与现存核数成正比：</b>观察「当前活度 A」始终接近「理论活度 λN」——核越多，每秒衰变越多；A 随 N 减小而减小（dN/dt = −λN）。</li>
+    <li><b>半衰期是统计平均概念：</b>对大量核，每经过一个 T½ 剩余比例都接近 50%；但<span class="em">单次实验</span>在 T½ 时刻未必恰好剩一半，多次叠加才收敛到理论曲线。</li>
+    <li><b>单个核的衰变时刻是随机的：</b>随机模式下每个核每步独立“掷骰子”，谁先衰变完全不可预测；平滑模式则强制按指数规律衰变，用于对照。</li>
+    <li><b>N₀ 越大，相对涨落越小：</b>把 N₀ 从 10 调到 10000 并多次叠加，涨落带（√N/N 效应）明显收窄，曲线越来越贴合理论指数。</li>
+  </ul>
+</div>
+
+<script>
+(()=>{'use strict';
+/* ================= 参数与状态 ================= */
+const DT=0.05, STEP_N=5, MAXRUNS=24, SPD=[0.25,0.5,1,2,4,8];
+const P={N0:400,T:5,speed:1,mode:'random'};
+let tMax,sampleDt,binW,nBins,nSm;
+let t,decayT,alive,decayed,A,samples,bars,finished=false,running=false,lastDecays=0;
+let runs=[];
+
+/* ================= 画布 ================= */
+const $=id=>document.getElementById(id);
+const gc=$('grid'),nc=$('nchart'),bc=$('bchart');
+const gx=gc.getContext('2d'),nx=nc.getContext('2d'),bx=bc.getContext('2d');
+function fit(cv){const d=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  cv.width=Math.max(1,w*d);cv.height=Math.max(1,h*d);
+  cv.getContext('2d').setTransform(d,0,0,d,0,0);return[w,h];}
+new ResizeObserver(()=>{fit(gc);fit(nc);fit(bc);drawAll();}).observe(document.body);
+
+/* ================= 初始化 / 重置 ================= */
+function reset(){
+  tMax=Math.max(4*P.T,20);
+  nSm=160; sampleDt=tMax/nSm; nBins=40; binW=tMax/nBins;
+  t=0; decayT=new Float32Array(P.N0).fill(-1);
+  alive=P.N0; decayed=0; A=null; lastDecays=0; finished=false; acc=0;
+  samples=[P.N0]; bars=new Array(nBins).fill(0);
+  drawAll(); updStats(); setStatus('已重置。点击「播放」开始。');
+}
+function clearRuns(){runs=[];$('runCnt').textContent=0;$('fluct').textContent='';}
+
+/* ================= 物理步进 ================= */
+function step(dt){
+  const lam=Math.LN2/P.T, t0=t;
+  if(P.mode==='random'){
+    const p=1-Math.exp(-lam*dt); let d=0;
+    for(let i=0;i<P.N0;i++) if(decayT[i]<0&&Math.random()<p){decayT[i]=t;d++;}
+    lastDecays=d; decayed+=d; alive-=d;
+  }else{
+    const k=Math.round(P.N0*(1-Math.exp(-lam*(t0+dt))))-decayed;
+    let kk=Math.min(k,alive); lastDecays=kk;
+    if(kk>0){ // 从存活核中随机挑 kk 个标记，但总数严格按指数
+      const idx=[]; for(let i=0;i<P.N0;i++) if(decayT[i]<0) idx.push(i);
+      for(let j=0;j<kk;j++){const r=j+Math.floor(Math.random()*(idx.length-j));
+        const tmp=idx[j];idx[j]=idx[r];idx[r]=tmp; decayT[idx[j]]=t;}
+      decayed+=kk; alive-=kk;
+    }
+  }
+  t=t0+dt;
+  const inst=lastDecays/dt;
+  A=(A==null)?inst:A*0.6+inst*0.4;
+  while(samples.length<=nSm && t>=samples.length*sampleDt-1e-9) samples.push(alive);
+  const bi=Math.min(nBins-1,Math.floor((t-1e-9)/binW));
+  if(bi>=0) bars[bi]+=lastDecays;
+  if(t>=tMax-1e-9) finished=true;
+}
+
+/* ================= 叠加实验 ================= */
+function recordRun(){
+  runs.push({data:samples.slice(),N0:P.N0,T:P.T,mode:P.mode});
+  if(runs.length>MAXRUNS) runs.shift();
+  $('runCnt').textContent=runs.filter(r=>r.mode===P.mode).length;
+}
+function matchingRuns(){return runs.filter(r=>r.mode===P.mode&&r.N0===P.N0&&r.T===P.T);}
+
+/* ================= 主循环 ================= */
+let acc=0,lastF=performance.now();
+function frame(now){
+  const rdt=Math.min(0.05,(now-lastF)/1000); lastF=now;
+  if(running&&!finished){
+    acc+=rdt*P.speed;
+    while(acc>=DT&&!finished){step(DT);acc-=DT;}
+    if(finished){
+      setStatus('本次实验结束（t = '+tMax.toFixed(0)+' s，共 '+nSm*sampleDt.toFixed(1)+' s）。');
+      if($('ckAuto').checked&&matchingRuns().length<MAXRUNS){
+        recordRun(); reset(); running=true; $('bPlay').textContent='⏸ 暂停';
+      }else{running=false;$('bPlay').textContent='▶ 播放';}
+    }
+  }
+  drawGrid(); drawNChart(); drawBarChart(); updStats();
+  requestAnimationFrame(frame);
+}
+
+/* ================= 原子核网格绘制 ================= */
+let cols,cell,ox,oy;
+function layoutGrid(){
+  const W=gc.clientWidth,H=gc.clientHeight;
+  cell=Math.min(28,Math.max(3,Math.floor(Math.sqrt(W*H/P.N0))));
+  cols=Math.max(1,Math.floor(W/cell));
+  const rows=Math.ceil(P.N0/cols);
+  ox=(W-cols*cell)/2; oy=(H-rows*cell)/2;
+}
+function drawGrid(){
+  layoutGrid();
+  const W=gc.clientWidth,H=gc.clientHeight;
+  gx.clearRect(0,0,W,H);
+  const gap=cell>8?2:1, s=cell-gap, r=cell>=9?Math.min(3,s*0.25):0;
+  // 未衰变
+  gx.fillStyle='#3ddc97'; gx.beginPath();
+  for(let i=0;i<P.N0;i++){ if(decayT[i]>=0) continue;
+    const x=ox+(i%cols)*cell, y=oy+Math.floor(i/cols)*cell;
+    if(r){gx.roundRect(x,y,s,s,r);}else gx.rect(x,y,s,s);}
+  gx.fill();
+  // 已衰变：按衰变年龄分桶上色（新衰变闪烁橙色→灰）
+  const NB=6, buckets=Array.from({length:NB},()=>[]);
+  for(let i=0;i<P.N0;i++){ const d=decayT[i]; if(d<0) continue;
+    const age=t-d; let b=age<0.45?Math.floor(age/0.45*NB):NB-1;
+    buckets[Math.min(NB-1,b)].push(i);}
+  const cols6=['#ffd166','#f7b955','#e8a94f','#c98f4c','#9a7a5c','#59617a'];
+  for(let b=0;b<NB;b++){ if(!buckets[b].length) continue;
+    gx.fillStyle=cols6[b]; gx.beginPath();
+    for(const i of buckets[b]){
+      const x=ox+(i%cols)*cell, y=oy+Math.floor(i/cols)*cell;
+      if(r){gx.roundRect(x,y,s,s,r);}else gx.rect(x,y,s,s);}
+    gx.fill();}
+}
+
+/* ================= N–t 曲线 ================= */
+function drawNChart(){
+  const W=nc.clientWidth,H=nc.clientHeight;
+  nx.clearRect(0,0,W,H);
+  const pl=48,pr=12,pt=14,pb=26,pw=W-pl-pr,ph=H-pt-pb;
+  const lam=Math.LN2/P.T;
+  const X=tt=>pl+tt/tMax*pw, Y=N=>pt+(1-N/P.N0)*ph;
+  // 网格与坐标
+  nx.strokeStyle='#1d2740'; nx.fillStyle='#8fa0c2'; nx.font='10px system-ui';
+  nx.textAlign='right'; nx.textBaseline='middle';
+  for(let i=0;i<=5;i++){const N=P.N0*i/5,y=Y(N);
+    nx.beginPath();nx.moveTo(pl,y);nx.lineTo(W-pr,y);nx.stroke();
+    nx.fillText(Math.round(N),pl-5,y);}
+  nx.textAlign='center'; nx.textBaseline='top';
+  for(let i=0;i<=8;i++){const tt=tMax*i/8,x=X(tt);
+    nx.fillText(tt.toFixed(0)+'s',x,H-pb+5);}
+  // 半衰期标记（竖线 + ½、¼、⅛ 水平参考）
+  nx.setLineDash([3,4]); nx.strokeStyle='#3a4c78'; nx.fillStyle='#6d81ab'; nx.font='10px system-ui';
+  for(let k=1;k*Math.max(P.T,0.01)<=tMax;k++){const tk=k*P.T;
+    nx.beginPath();nx.moveTo(X(tk),pt);nx.lineTo(X(tk),pt+ph);nx.stroke();
+    const Nk=P.N0/Math.pow(2,k);
+    nx.beginPath();nx.moveTo(pl,Y(Nk));nx.lineTo(W-pr,Y(Nk));nx.stroke();
+    nx.fillText('½'.repeat(1)+'/'.repeat(k-1)+(k>1?['','½','¼','⅛','1/16','1/32','1/64','1/128'][k]:''),X(tk)+3,Y(Nk)-11);
+  }
+  // 涨落带（同参数、同模式的历史实验）
+  const mr=matchingRuns();
+  if(mr.length>0){
+    let maxLen=0; for(const r of mr) maxLen=Math.max(maxLen,r.data.length);
+    nx.beginPath();
+    let started=false;
+    for(let i=0;i<maxLen;i++){let mn=Infinity; for(const r of mr) if(r.data.length>i) mn=Math.min(mn,r.data[i]);
+      if(mn===Infinity) continue; const x=X(i*sampleDt),y=Y(mn);
+      started?nx.lineTo(x,y):(nx.moveTo(x,y),started=true);}
+    for(let i=maxLen-1;i>=0;i--){let mx=-1; for(const r of mr) if(r.data.length>i) mx=Math.max(mx,r.data[i]);
+      if(mx<0) continue; nx.lineTo(X(i*sampleDt),Y(mx));}
+    nx.closePath(); nx.fillStyle='rgba(76,201,240,0.14)'; nx.fill();
+    // 均值线
+    nx.strokeStyle='rgba(76,201,240,0.85)'; nx.lineWidth=1.5; nx.beginPath(); started=false;
+    for(let i=0;i<maxLen;i++){let s=0,c=0; for(const r of mr) if(r.data.length>i){s+=r.data[i];c++;}
+      if(!c) continue; const x=X(i*sampleDt),y=Y(s/c);
+      started?nx.lineTo(x,y):(nx.moveTo(x,y),started=true);}
+    nx.stroke(); nx.lineWidth=1;
+  }
+  // 历史曲线（细线：随机=蓝，平滑=橙）
+  for(const r of runs){
+    nx.strokeStyle=r.mode==='random'?'rgba(110,160,255,0.22)':'rgba(255,170,80,0.25)';
+    nx.beginPath();
+    for(let i=0;i<r.data.length;i++){const x=X(i*sampleDt),y=Y(r.data[i]);
+      i?nx.lineTo(x,y):nx.moveTo(x,y);}
+    nx.stroke();
+  }
+  // 理论曲线
+  nx.setLineDash([5,4]); nx.strokeStyle='rgba(255,255,255,0.75)'; nx.beginPath();
+  for(let i=0;i<=160;i++){const tt=tMax*i/160,y=Y(P.N0*Math.exp(-lam*tt));
+    i?nx.lineTo(X(tt),y):nx.moveTo(X(tt),y);}
+  nx.stroke(); nx.setLineDash([]);
+  // 当前实验
+  nx.strokeStyle='#4cc9f0'; nx.lineWidth=2; nx.beginPath();
+  for(let i=0;i<samples.length;i++){const x=X(i*sampleDt),y=Y(samples[i]);
+    i?nx.lineTo(x,y):nx.moveTo(x,y);}
+  nx.stroke();
+  nx.fillStyle='#4cc9f0'; nx.beginPath();
+  nx.arc(X(t),Y(alive),3.5,0,7); nx.fill(); nx.lineWidth=1;
+  // 涨落提示
+  if(mr.length>0){
+    const idx=Math.round(P.T/sampleDt), vals=mr.filter(r=>r.data.length>idx).map(r=>r.data[idx]);
+    if(vals.length){
+      const mn=Math.min(...vals)/P.N0*100, mx=Math.max(...vals)/P.N0*100;
+      $('fluct').textContent=`叠加 ${vals.length} 次实验：t = T½ 时剩余比例 ${mn.toFixed(1)}% ~ ${mx.toFixed(1)}%（理论 50%）—— 单次会偏离，多次平均趋于理论值。`;
+    }
+  }
+}
+
+/* ================= 衰变计数柱图 ================= */
+function drawBarChart(){
+  const W=bc.clientWidth,H=bc.clientHeight;
+  bx.clearRect(0,0,W,H);
+  const pl=40,pr=12,pt=12,pb=22,pw=W-pl-pr,ph=H-pt-pb;
+  const lam=Math.LN2/P.T;
+  let mx=5; for(const b of bars) mx=Math.max(mx,b);
+  const X=i=>pl+(i+0.5)*binW/tMax*pw, Yv=v=>pt+(1-v/mx)*ph;
+  // 轴
+  bx.strokeStyle='#1d2740'; bx.fillStyle='#8fa0c2'; bx.font='10px system-ui';
+  bx.textAlign='right'; bx.textBaseline='middle';
+  for(let i=0;i<=3;i++){const v=mx*i/3,y=Yv(v);
+    bx.beginPath();bx.moveTo(pl,y);bx.lineTo(W-pr,y);bx.stroke();
+    bx.fillText(v.toFixed(0),pl-4,y);}
+  bx.textAlign='center'; bx.textBaseline='top';
+  for(let i=0;i<=4;i++) bx.fillText((tMax*i/4).toFixed(0)+'s',pl+pw*i/4,H-pb+4);
+  // 柱
+  const bw=pw/nBins-1.5;
+  bx.fillStyle='#ff9f43';
+  for(let i=0;i<nBins;i++){ if(!bars[i]) continue;
+    const v=bars[i],y=Yv(v); bx.fillRect(pl+i*pw/nBins+0.75,y,bw,pt+ph-y);}
+  // 理论期望折线
+  bx.strokeStyle='rgba(255,255,255,0.8)'; bx.setLineDash([4,4]); bx.beginPath();
+  for(let i=0;i<nBins;i++){const tm=(i+0.5)*binW,
+    E=P.N0*Math.exp(-lam*tm)*(1-Math.exp(-lam*binW));
+    i?bx.lineTo(X(i),Yv(E)):bx.moveTo(X(i),Yv(E));}
+  bx.stroke(); bx.setLineDash([]);
+}
+
+/* ================= 数据面板 ================= */
+function updStats(){
+  const lam=Math.LN2/P.T;
+  $('stT').innerHTML=t.toFixed(1)+'<small> s</small>';
+  $('stN').textContent=alive;
+  $('stD').textContent=decayed;
+  $('stF').innerHTML=(alive/P.N0*100).toFixed(1)+'<small> %</small>';
+  $('stA').textContent=(A==null?0:A).toFixed(1);
+  $('stLN').textContent=(lam*alive).toFixed(1);
+}
+function setStatus(s){$('status').textContent=s;}
+
+/* ================= 控件 ================= */
+const sN0=$('sN0');
+function n0FromSlider(s){return Math.round(Math.exp(Math.log(10)+s/1000*Math.log(1000)));}
+sN0.addEventListener('input',()=>{P.N0=n0FromSlider(+sN0.value);
+  $('vN0').textContent=P.N0; clearRuns(); reset();});
+$('sT').addEventListener('input',()=>{P.T=+ $('sT').value;
+  $('vT').textContent=P.T.toFixed(1)+' s'; clearRuns(); reset();});
+$('sSp').addEventListener('input',()=>{P.speed=SPD[+$('sSp').value];
+  $('vSp').textContent=P.speed+'×';});
+$('mRand').onclick=()=>{P.mode='random';$('mRand').classList.add('on');$('mSmooth').classList.remove('on');reset();};
+$('mSmooth').onclick=()=>{P.mode='smooth';$('mSmooth').classList.add('on');$('mRand').classList.remove('on');reset();};
+$('bPlay').onclick=()=>{ if(finished) reset();
+  running=!running; $('bPlay').textContent=running?'⏸ 暂停':'▶ 播放';
+  if(running) setStatus(P.mode==='random'?'随机模式：每个未衰变核每步独立以概率 1−e^(−λΔt) 衰变…'
+    :'平滑模式：衰变总数严格按 N₀·e^(−λt) 确定（对照用）。');};
+$('bStep').onclick=()=>{ if(finished) reset(); running=false; $('bPlay').textContent='▶ 播放';
+  for(let i=0;i<STEP_N&&!finished;i++) step(DT);};
+$('bReset').onclick=()=>{running=false;$('bPlay').textContent='▶ 播放';reset();};
+$('bKeep').onclick=()=>{ recordRun(); const was=running; reset(); running=was;
+  $('bPlay').textContent=running?'⏸ 暂停':'▶ 播放';
+  setStatus('已保存第 '+matchingRuns().length+' 条曲线并重置。');};
+$('bClear').onclick=clearRuns;
+$('ckAuto').onchange=e=>{ if(e.target.checked&&finished&&!running) $('bPlay').click(); };
+
+function drawAll(){drawGrid();drawNChart();drawBarChart();}
+fit(gc);fit(nc);fit(bc);
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

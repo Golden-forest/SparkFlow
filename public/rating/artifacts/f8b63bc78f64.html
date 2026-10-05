@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>半衰期 · 数着看 — 原子核随机衰变演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-chamber-bg: #0d1728;
+      --sim-chamber-deep: #070d18;
+      --sim-alive: #2fd0e6;
+      --sim-alive-glow: rgba(47, 208, 230, 0.55);
+      --sim-decayed: #56677f;
+      --sim-ghost: #a9b8cc;
+      --sim-ruler: #93a8c4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(217, 119, 6, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.45rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; font-size: 0.92rem; }
+    .status.idle { background: #eef2f7; color: #536071; border-color: var(--sim-border); }
+    .status.running { background: var(--sim-accent-soft); color: var(--sim-accent-deep); border-color: rgba(15,159,186,.24); }
+    .status.paused { background: #fdeedd; color: #9a5b06; border-color: rgba(217,119,6,.24); }
+    .status.done { background: #e2f5ee; color: #0b6b52; border-color: rgba(16,138,106,.26); }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(300px, 0.62fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .stage-col { min-height: 0; display: grid; grid-template-rows: minmax(0, 1.12fr) minmax(0, 1fr); gap: 12px; }
+    .chamber-panel, .chart-panel { min-height: 0; padding: 12px 14px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 9px; min-width: 0; }
+    .panel-head h2 { margin: 0; font-size: 1rem; letter-spacing: -0.01em; }
+    .panel-head .meta { color: var(--sim-muted); font-size: 0.76rem; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+    #chamber { width: 100%; height: 100%; min-height: 0; display: block; border-radius: 16px; border: 1px solid rgba(10, 22, 40, 0.9);
+      background: radial-gradient(ellipse at 50% 38%, #16263f 0%, var(--sim-chamber-bg) 52%, var(--sim-chamber-deep) 100%);
+      box-shadow: inset 0 2px 18px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(120, 160, 200, 0.08); }
+    #chamber .dot { fill: var(--sim-alive); filter: drop-shadow(0 0 4px var(--sim-alive-glow)); transition: opacity .35s ease; }
+    #chamber .dot.dead { fill: none; stroke: var(--sim-decayed); stroke-width: 1.6; filter: none; opacity: 0.72; }
+    #chamber .pop { fill: none; stroke: var(--sim-alive); stroke-width: 2.4; opacity: 0.9; transform-box: fill-box; transform-origin: center; animation: simpop 0.6s ease-out forwards; pointer-events: none; }
+    @keyframes simpop { from { transform: scale(0.7); opacity: 0.95; } to { transform: scale(3.1); opacity: 0; } }
+    .legend { display: inline-flex; align-items: center; gap: 6px; color: var(--sim-muted); font-size: 0.76rem; white-space: nowrap; }
+    .sw { display: inline-block; width: 11px; height: 11px; border-radius: 50%; }
+    .sw.alive { background: var(--sim-alive); box-shadow: 0 0 6px var(--sim-alive-glow); }
+    .sw.dead { background: transparent; border: 2px solid var(--sim-decayed); }
+    .swline { display: inline-block; width: 20px; height: 0; border-top: 3px solid var(--sim-accent); border-radius: 2px; }
+    .swline.theory { border-top-style: dashed; border-top-width: 2.5px; border-top-color: var(--sim-warning); }
+    .swline.ghost { border-top-color: var(--sim-ghost); border-top-width: 2px; }
+
+    #chart { width: 100%; height: 100%; min-height: 0; display: block; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .ruler-line { stroke: var(--sim-ruler); stroke-width: 1.3; stroke-dasharray: 5 6; opacity: 0.75; }
+    .ruler-label { fill: #7d92b3; font-size: 11.5px; font-weight: 700; }
+    .tick-label { fill: var(--sim-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    .axis-caption { fill: var(--sim-muted); font-size: 12px; font-weight: 650; }
+    #halfLine { stroke: var(--sim-warning); stroke-width: 1.6; stroke-dasharray: 3 6; opacity: 0.65; }
+    #halfTag { fill: #a35d00; font-size: 11.5px; font-weight: 750; }
+    .ghost-path { fill: none; stroke: var(--sim-ghost); stroke-width: 1.6; opacity: 0.8; stroke-linejoin: round; }
+    #theoryPath { fill: none; stroke: var(--sim-warning); stroke-width: 2.4; stroke-dasharray: 8 6; stroke-linecap: round; stroke-linejoin: round; }
+    #livePath { fill: none; stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgba(15,159,186,.22)); }
+    #liveHalo { fill: rgba(15,159,186,.16); }
+    #liveDot { fill: var(--sim-accent); stroke: #fff; stroke-width: 2.5; }
+
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+    .metric-main { padding: 13px 15px 11px; border: 1px solid rgba(15,159,186,.14); border-radius: 15px; background: linear-gradient(150deg, #f4fbfd, #f0f6fa); }
+    .metric-main small { display: block; color: var(--sim-muted); font-size: 0.76rem; margin-bottom: 3px; }
+    .metric-main .big { font-size: 2.15rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .metric-main .big em { font-style: normal; font-size: 1rem; font-weight: 650; color: var(--sim-muted); }
+    .metric-main .sub { margin-top: 6px; color: var(--sim-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    .metric-main .sub b { color: var(--sim-warning); font-weight: 750; }
+    .readout-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 11px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 14px; background: linear-gradient(150deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric .unit { font-size: 0.72rem; color: var(--sim-muted); font-weight: 600; margin-left: 2px; }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 11px; overflow: auto; }
+    .model-note h2 { margin: 0; font-size: 1rem; }
+    .insight { padding: 12px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #7a4e08; font-weight: 650; line-height: 1.55; font-size: 0.88rem; margin: 0; }
+    .model-note .note { margin: 0; color: var(--sim-muted); line-height: 1.6; font-size: 0.8rem; }
+    .model-note .note b { color: var(--sim-text); }
+
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto minmax(190px, 1fr) minmax(190px, 1fr) auto; gap: 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; font-size: 0.9rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover:not(:disabled) { border-color: #c7d2e2; background: #eef3f9; }
+    button:active:not(:disabled) { transform: scale(.97); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.primary:hover:not(:disabled) { background: linear-gradient(135deg, #0a869e, var(--sim-accent)); }
+    button.mini { padding: 5px 10px; font-size: 0.74rem; border-radius: 8px; font-weight: 700; color: var(--sim-muted); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; font-weight: 650; }
+    .control .hint { margin: 4px 0 0; color: #8d99ad; font-size: 0.7rem; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .toggle { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--sim-border); }
+    .toggle input { accent-color: var(--sim-warning); width: 15px; height: 15px; }
+
+    @media (max-width: 960px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .stage-col { grid-template-rows: auto auto; }
+      .chamber-panel { grid-template-rows: auto auto; }
+      #chamber { height: auto; aspect-ratio: 16 / 9.5; }
+      .chart-panel { grid-template-rows: auto auto; }
+      #chart { height: auto; aspect-ratio: 900 / 340; }
+      .side { grid-template-rows: auto auto; }
+      .controls { grid-template-columns: 1fr; gap: 12px; }
+      .actions { flex-wrap: wrap; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+      #chamber .pop { animation: none; opacity: 0; }
+      #chamber .dot { transition: none; }
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>半衰期 · 数着看</h1>
+        <p>原子核一颗一颗随机衰变——单个什么时候变说不准，剩余数却会走出规律。</p>
+      </div>
+      <div id="status" class="status idle" role="status" aria-live="polite">未开始</div>
+    </header>
+
+    <main class="main">
+      <section class="stage-col" data-zone="stage" aria-label="衰变演示主舞台">
+        <section class="panel chamber-panel" aria-labelledby="chamber-title">
+          <div class="panel-head">
+            <h2 id="chamber-title">原子核样本 <span class="meta" id="sampleLabel">N₀ = 100 颗</span></h2>
+            <span class="legend"><i class="sw alive"></i>未衰变<i class="sw dead" style="margin-left:8px;"></i>已衰变</span>
+          </div>
+          <svg id="chamber" viewBox="0 0 600 320" preserveAspectRatio="xMidYMid meet" role="img" aria-label="原子核样本">
+            <g id="dotsG"></g>
+            <g id="popsG"></g>
+          </svg>
+        </section>
+
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">剩余数曲线 N(t)</h2>
+            <span class="legend">
+              <span class="swline"></span>本次
+              <span class="swline theory" style="margin-left:8px;"></span>理论期望
+              <span class="swline ghost" style="margin-left:8px;"></span>以往实验
+              <button id="clearGhostsBtn" class="mini" type="button">清除以往</button>
+            </span>
+          </div>
+          <svg id="chart" viewBox="0 0 900 340" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="chart-title chart-desc">
+            <desc id="chart-desc">剩余原子核数随时间变化的阶梯曲线，与理论期望虚线及半衰期刻度线对比。</desc>
+            <g id="gridG"></g>
+            <g id="rulerG"></g>
+            <line id="halfLine" x1="60" y1="100" x2="884" y2="100"></line>
+            <text id="halfTag" x="880" y="92" text-anchor="end">½N₀</text>
+            <g id="ghostG"></g>
+            <path id="theoryPath" d=""></path>
+            <path id="livePath" d=""></path>
+            <line class="axis" x1="60" y1="300" x2="884" y2="300"></line>
+            <line class="axis" x1="60" y1="24" x2="60" y2="300"></line>
+            <circle id="liveHalo" cx="60" cy="100" r="11"></circle>
+            <circle id="liveDot" cx="60" cy="100" r="5"></circle>
+          </svg>
+        </section>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时计数">
+          <div class="metric-main">
+            <small>剩余核数 N</small>
+            <div class="big"><span id="nBig">100</span><em> / 100 颗</em></div>
+            <div class="sub">理论期望 ≈ <b id="nTheory">100.0</b> 颗（N₀·2<sup>−t/T½</sup>）</div>
+          </div>
+          <div class="readout-grid">
+            <div class="metric"><small>已衰变</small><strong id="dReadout">0</strong><span class="unit">颗</span></div>
+            <div class="metric"><small>时间 t</small><strong id="tReadout">0.0</strong><span class="unit">s</span></div>
+            <div class="metric"><small>已过半衰期</small><strong id="kReadout">0.00</strong><span class="unit">个</span></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-zone="insight" aria-label="观察提示与模型说明">
+          <h2>现在看什么</h2>
+          <p id="insight" class="insight" aria-live="polite">按「开始」后，每颗核随时可能衰变、互不影响——谁先变、什么时候变，事先说不准。</p>
+          <p class="note">教学模型：每颗核单位时间的衰变概率恒定，λ = ln2/T½ = <b id="lambdaNote">0.069</b> s⁻¹，与「年龄」无关（无记忆性）。剩余数的理论期望 N(t) = N₀·2<sup>−t/T½</sup>。</p>
+          <p class="note">半衰期是<b>大量原子核的统计规律</b>，不是每颗核的「定时器」：曲线在小样本时上下抖动属正常，重复实验每次形状都不同。灰色细线即以往几次实验的轨迹。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="tHalfInput">半衰期 T½ <output id="tHalfOutput">10.0 s</output></label>
+        <input id="tHalfInput" type="range" min="2" max="30" step="0.5" value="10">
+        <p class="hint">运行中也可实时调整，衰变快慢立刻改变</p>
+      </div>
+      <div class="control">
+        <label for="n0Input">初始核数 N₀ <output id="n0Output">100 颗</output></label>
+        <input id="n0Input" type="range" min="6" max="400" step="1" value="100">
+        <p class="hint">调少（如 12 颗）能看清曲线「抖」；改动即重新随机取样</p>
+      </div>
+      <label class="toggle" for="theoryToggle"><input id="theoryToggle" type="checkbox" checked>显示理论期望曲线</label>
+    </section>
+  </div>
+
+  <script>
+  /* HalfLifeKernel — DOM-free physics kernel (pure JS; runs in browser and Node). */
+  globalThis.HalfLifeKernel = (() => {
+    "use strict";
+    const LN2 = Math.log(2);
+    const SUBSTEP = 1 / 120;   // fixed physical step (s)
+    const MAX_FRAME_DT = 0.1;  // clamp for real frame gaps (s), handles tab suspension
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    /* Pure-death process: each surviving nucleus decays per substep with the
+       exact memoryless hazard p = 1 - e^(-lambda*h); ensemble mean is
+       N0*exp(-integral(lambda dt)) for any lambda(t) history. */
+    class DecayRun {
+      constructor(opts) {
+        const n0 = Math.max(1, Math.round(opts.n0));
+        this.n0 = n0;
+        this.tHalf = opts.tHalf;
+        this.rng = mulberry32(opts.seed);
+        this.t = 0;
+        this.clock = 0;       // accumulated wall (simulated-real) seconds
+        this.stepsDone = 0;
+        this.alive = new Array(n0).fill(true);
+        this.n = n0;
+        this.decayed = 0;
+        this.exposure = 0;    // dimensionless integral of lambda dt
+        this.history = [{ t: 0, n: n0 }];      // staircase breakpoints
+        this.refSamples = [{ t: 0, n: n0 }];   // ensemble-mean samples
+        this.lastRefSampleT = 0;
+        this.pendingFlash = [];                // [{i, t}] decayed since last drain
+        this.done = false;
+      }
+      /* One fixed substep. Returns number of decays in this substep. */
+      step(h) {
+        if (this.done || this.n === 0) { this.done = true; return 0; }
+        const lambda = LN2 / this.tHalf;
+        const p = 1 - Math.exp(-lambda * h);   // exact for any h (no Euler bias)
+        this.exposure += lambda * h;
+        this.t += h;
+        let d = 0;
+        for (let i = 0; i < this.alive.length; i += 1) {
+          if (this.alive[i] && this.rng() < p) {
+            this.alive[i] = false;
+            d += 1;
+            this.pendingFlash.push({ i, t: this.t });
+          }
+        }
+        if (d > 0) {
+          this.n -= d;
+          this.decayed += d;
+          this.history.push({ t: this.t, n: this.n });
+          if (this.n === 0) this.done = true;
+        }
+        if (this.t - this.lastRefSampleT >= 0.1) {
+          this.refSamples.push({ t: this.t, n: this.n0 * Math.exp(-this.exposure) });
+          this.lastRefSampleT = this.t;
+        }
+        return d;
+      }
+      theoryRemaining() { return this.n0 * Math.exp(-this.exposure); }
+      /* Exact continuation of the ensemble mean beyond t with current lambda. */
+      theoryAhead(tau) {
+        const lambda = LN2 / this.tHalf;
+        return this.n0 * Math.exp(-(this.exposure + lambda * Math.max(0, tau - this.t)));
+      }
+      drainFlash() { const a = this.pendingFlash; this.pendingFlash = []; return a; }
+    }
+
+    /* Accumulator: fixed substeps from clamped real time; identical total
+       simulated time => identical draw sequence regardless of frame gaps. */
+    function advance(run, realDt, speed) {
+      if (run.done) return 0;
+      run.clock += Math.min(Math.max(realDt || 0, 0), MAX_FRAME_DT) * (speed || 1);
+      let decays = 0;
+      while ((run.stepsDone + 1) * SUBSTEP <= run.clock + 1e-9) {
+        run.stepsDone += 1;
+        decays += run.step(SUBSTEP);
+        if (run.done) break;
+      }
+      return decays;
+    }
+
+    function runModelChecks() {
+      const results = [];
+      const check = (name, pass, expected, actual, tolerance) =>
+        results.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      // 1. Exact per-step compounding: prod(1-p) over one half-life == 0.5.
+      {
+        const lambda = LN2 / 10, h = SUBSTEP, k = Math.round(10 / h);
+        const survival = Math.pow(Math.exp(-lambda * h), k);
+        check("步进复合存活率 = e^(−λT½)", Math.abs(survival - 0.5) < 1e-12, "0.5", survival, "|Δ| < 1e-12");
+      }
+      // 2. Seeded population at 1 half-life: N ~ Binomial(N0, 1/2), tol 4σ.
+      {
+        const run = new DecayRun({ n0: 4000, tHalf: 10, seed: 12345 });
+        while (run.t < 10 - 1e-9) run.step(SUBSTEP);
+        const frac = run.n / 4000;
+        check("1 个半衰期：N ≈ N₀/2", Math.abs(frac - 0.5) <= 0.032, "0.5 ± 0.032", frac.toFixed(4), "±0.032（≈4σ 二项分布）");
+      }
+      // 3. Two half-lives: quarter remains.
+      {
+        const run = new DecayRun({ n0: 4000, tHalf: 10, seed: 23456 });
+        while (run.t < 20 - 1e-9) run.step(SUBSTEP);
+        const frac = run.n / 4000;
+        check("2 个半衰期：N ≈ N₀/4", Math.abs(frac - 0.25) <= 0.028, "0.25 ± 0.028", frac.toFixed(4), "±0.028（≈4σ）");
+      }
+      // 4. Mean recursion vs closed form (deterministic identity, no RNG).
+      {
+        const lambda = LN2 / 10, T = 37;
+        let m = 4000;
+        const steps = Math.round(T / SUBSTEP);
+        for (let i = 0; i < steps; i += 1) m *= Math.exp(-lambda * SUBSTEP);
+        const exact = 4000 * Math.exp(-lambda * T);
+        const rel = Math.abs(m - exact) / exact;
+        check("期望递推 = N₀·e^(−λt)", rel < 1e-9, exact.toFixed(6), m.toFixed(6), "相对 < 1e-9");
+      }
+      // 5. Memorylessness: survivors' hazard unchanged after one half-life.
+      {
+        const run = new DecayRun({ n0: 4000, tHalf: 10, seed: 34567 });
+        while (run.t < 10 - 1e-9) run.step(SUBSTEP);
+        const n1 = run.n;
+        while (run.t < 20 - 1e-9) run.step(SUBSTEP);
+        const fracDecayed = (n1 - run.n) / n1;
+        check("无记忆性：幸存核再过 1 个半衰期仍约衰变一半", Math.abs(fracDecayed - 0.5) <= 0.045, "0.5 ± 0.045", fracDecayed.toFixed(4), "±0.045（≈4σ）");
+      }
+      // 6. Small-sample extinction + invariants.
+      {
+        const run = new DecayRun({ n0: 20, tHalf: 2, seed: 777 });
+        const limit = 40 * 2;
+        while (!run.done && run.t < limit) run.step(SUBSTEP);
+        let ok = true, prevN = 20, prevT = 0;
+        for (let i = 0; i < run.history.length; i += 1) {
+          const s = run.history[i];
+          if (!(s.n >= 0 && s.n <= 20 && Number.isFinite(s.t))) ok = false;
+          if (s.n > prevN) ok = false;
+          if (s.t < prevT - 1e-12) ok = false;
+          prevN = s.n; prevT = s.t;
+        }
+        ok = ok && run.n === 0 && run.decayed === 20 && run.decayed + run.n === 20 && Number.isFinite(run.exposure);
+        check("小样本终将衰变完毕 + 全程不变量", ok, "N=0，D=20，N 单调不增", `N=${run.n}，D=${run.decayed}，不变量=${ok ? "成立" : "被破坏"}`, "精确");
+      }
+      // 7. Frame-gap invariance: irregular vs uniform gaps, same total time/seed.
+      {
+        const runA = new DecayRun({ n0: 500, tHalf: 5, seed: 999 });
+        // irregular gaps summing to exactly 0.2 s of simulated time
+        const gaps = [0.037, 0.005, 0.021, 0.033, 0.002, 0.041, 0.019, 0.042];
+        for (const g of gaps) advance(runA, g, 1);
+        const runB = new DecayRun({ n0: 500, tHalf: 5, seed: 999 });
+        for (let i = 0; i < 12; i += 1) advance(runB, 1 / 60, 1);
+        const same = runA.n === runB.n && runA.stepsDone === runB.stepsDone &&
+          runA.alive.every((v, i) => v === runB.alive[i]);
+        check("帧间隔无关性：总模拟时间相同 ⇒ 状态相同", same,
+          `steps=${runB.stepsDone}, N=${runB.n}`, `steps=${runA.stepsDone}, N=${runA.n}`, "精确");
+      }
+      // 8. Mid-run half-life change: exact piecewise exposure, halving with new λ.
+      {
+        const run = new DecayRun({ n0: 4000, tHalf: 10, seed: 45678 });
+        while (run.t < 10 - 1e-9) run.step(SUBSTEP);
+        run.tHalf = 5;
+        while (run.t < 15 - 1e-9) run.step(SUBSTEP);
+        const frac = run.n / 4000;
+        const expErr = Math.abs(run.exposure - (LN2 / 10 * 10 + LN2 / 5 * 5));
+        check("中途改半衰期：按新 λ 继续减半", Math.abs(frac - 0.25) <= 0.028, "0.25 ± 0.028", frac.toFixed(4), "±0.028（≈4σ）");
+        check("累积照射量 ∫λdt 精确（分段）", expErr < 1e-9, "ln4 ≈ 1.386294361", run.exposure.toFixed(9), "|Δ| < 1e-9");
+      }
+      return results;
+    }
+
+    return { DecayRun, advance, mulberry32, runModelChecks, SUBSTEP, LN2 };
+  })();
+  </script>
+
+  <script>
+  (() => {
+    "use strict";
+    const K = globalThis.HalfLifeKernel;
+    const parameterSchema = [
+      { key: "tHalf", label: "半衰期 T½", type: "slider", min: 2, max: 30, step: 0.5, default: 10, unit: "s" },
+      { key: "n0", label: "初始核数 N₀", type: "slider", min: 6, max: 400, step: 1, default: 100, unit: "颗" },
+      { key: "showTheory", label: "显示理论期望曲线", type: "checkbox", default: true }
+    ];
+    const params = { tHalf: 10, n0: 100, showTheory: true };
+    const ui = {
+      status: document.querySelector("#status"),
+      chamber: document.querySelector("#chamber"), dotsG: document.querySelector("#dotsG"), popsG: document.querySelector("#popsG"),
+      sampleLabel: document.querySelector("#sampleLabel"),
+      chart: document.querySelector("#chart"), gridG: document.querySelector("#gridG"), rulerG: document.querySelector("#rulerG"),
+      ghostG: document.querySelector("#ghostG"), theoryPath: document.querySelector("#theoryPath"), livePath: document.querySelector("#livePath"),
+      liveDot: document.querySelector("#liveDot"), liveHalo: document.querySelector("#liveHalo"),
+      halfLine: document.querySelector("#halfLine"), halfTag: document.querySelector("#halfTag"),
+      nBig: document.querySelector("#nBig"), nTheory: document.querySelector("#nTheory"), nTotal: document.querySelector("#nBig").parentElement.querySelector("em"),
+      dReadout: document.querySelector("#dReadout"), tReadout: document.querySelector("#tReadout"), kReadout: document.querySelector("#kReadout"),
+      insight: document.querySelector("#insight"), lambdaNote: document.querySelector("#lambdaNote"),
+      tHalfInput: document.querySelector("#tHalfInput"), tHalfOutput: document.querySelector("#tHalfOutput"),
+      n0Input: document.querySelector("#n0Input"), n0Output: document.querySelector("#n0Output"),
+      theoryToggle: document.querySelector("#theoryToggle"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      clearGhostsBtn: document.querySelector("#clearGhostsBtn")
+    };
+
+    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const CHART_W = 900, CHART_H = 340, PL = 60, PR = 16, PT = 24, PB = 36;
+    const PW = CHART_W - PL - PR, PH = CHART_H - PT - PB;
+
+    let run = null;
+    let status = "idle";            // idle | running | paused | done
+    let ghosts = [];                // [{n0, pts:[{t,n}]}]
+    let runIndex = 0;
+    let lastTs = null;
+    let dotEls = [], dotTitles = [], decayTimes = [];
+    let chamberGeom = { cols: 1, rows: 1, r: 5, pos: [] };
+    let activePops = 0;
+    let lastInsight = "";
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finiteOr(v, f) { return Number.isFinite(v) ? v : f; }
+
+    /* ---------------- chamber (nuclei field) ---------------- */
+    function layoutChamber() {
+      const rect = ui.chamber.getBoundingClientRect();
+      const w = Math.max(160, Math.round(rect.width));
+      const h = Math.max(120, Math.round(rect.height));
+      ui.chamber.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      const pad = 14;
+      const aw = Math.max(10, w - pad * 2), ah = Math.max(10, h - pad * 2);
+      const aspect = aw / ah;
+      const count = params.n0;
+      let cols = Math.max(1, Math.ceil(Math.sqrt(count * aspect)));
+      let rows = Math.ceil(count / cols);
+      while (rows > 1 && (rows - 1) * cols >= count) rows -= 1;   // tighten empty last row
+      const cell = Math.min(aw / cols, ah / rows);
+      const r = clamp(cell * 0.36, 3, 15);
+      const gw = cell * cols, gh = cell * rows;
+      const ox = pad + (aw - gw) / 2 + cell / 2;
+      const oy = pad + (ah - gh) / 2 + cell / 2;
+      const pos = [];
+      for (let i = 0; i < count; i += 1) {
+        pos.push({ x: ox + (i % cols) * cell, y: oy + Math.floor(i / cols) * cell });
+      }
+      chamberGeom = { cols, rows, r, pos };
+    }
+
+    function buildDots() {
+      layoutChamber();
+      decayTimes = new Array(params.n0).fill(null);
+      const parts = [];
+      for (let i = 0; i < params.n0; i += 1) {
+        const p = chamberGeom.pos[i];
+        parts.push(`<circle class="dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${chamberGeom.r.toFixed(1)}"><title>第 ${i + 1} 颗 · 未衰变</title></circle>`);
+      }
+      ui.dotsG.innerHTML = parts.join("");
+      ui.popsG.innerHTML = "";
+      activePops = 0;
+      dotEls = Array.prototype.slice.call(ui.dotsG.children);
+      dotTitles = dotEls.map((c) => c.firstElementChild);
+      ui.sampleLabel.textContent = `N₀ = ${params.n0} 颗`;
+      ui.chamber.setAttribute("aria-label", `原子核样本：${params.n0} 颗，全部未衰变`);
+    }
+
+    function spawnPop(i) {
+      if (reducedMotion || activePops > 48 || !chamberGeom.pos[i]) return;
+      const p = chamberGeom.pos[i];
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("class", "pop");
+      c.setAttribute("cx", p.x.toFixed(1)); c.setAttribute("cy", p.y.toFixed(1));
+      c.setAttribute("r", chamberGeom.r.toFixed(1));
+      activePops += 1;
+      let dropped = false;
+      const drop = () => { if (dropped) return; dropped = true; if (c.parentNode) c.parentNode.removeChild(c); activePops -= 1; };
+      c.addEventListener("animationend", drop, { once: true });
+      setTimeout(drop, 900);
+      ui.popsG.appendChild(c);
+    }
+
+    /* ---------------- chart ---------------- */
+    function chartScales() {
+      const xMax = Math.max(4 * params.tHalf, run.t * 1.02, 4);
+      const x = (t) => PL + (t / xMax) * PW;
+      const y = (n) => PT + (1 - n / Math.max(1, params.n0)) * PH;
+      return { xMax, x, y };
+    }
+
+    function staircasePoints(hist, endT, x, y) {
+      const pts = [];
+      for (let i = 0; i < hist.length; i += 1) {
+        pts.push(x(hist[i].t).toFixed(1) + "," + y(hist[i].n).toFixed(1));
+        if (i < hist.length - 1) pts.push(x(hist[i + 1].t).toFixed(1) + "," + y(hist[i].n).toFixed(1));
+      }
+      pts.push(x(endT).toFixed(1) + "," + y(hist[hist.length - 1].n).toFixed(1));
+      return pts;
+    }
+
+    function renderChart() {
+      const { xMax, x, y } = chartScales();
+      const n0 = params.n0;
+      // horizontal gridlines + y labels
+      const g = [];
+      const fr = [1, 0.75, 0.5, 0.25, 0];
+      const labeled = { 1: `N₀=${n0}`, 0.5: String(Math.round(n0 / 2)), 0.25: String(Math.round(n0 / 4)), 0: "0" };
+      for (const f of fr) {
+        const yy = y(n0 * f);
+        g.push(`<line class="grid-line" x1="${PL}" y1="${yy.toFixed(1)}" x2="${CHART_W - PR}" y2="${yy.toFixed(1)}"></line>`);
+        if (labeled[f] !== undefined) {
+          g.push(`<text class="tick-label" x="${PL - 8}" y="${(yy + 4).toFixed(1)}" text-anchor="end">${labeled[f]}</text>`);
+        }
+      }
+      ui.gridG.innerHTML = g.join("");
+      // half-life rulers
+      const th = params.tHalf;
+      const K9 = Math.floor(xMax / th + 1e-9);
+      const labelEvery = K9 > 6 ? 2 : 1;
+      const rr = [];
+      for (let k = 1; k <= K9; k += 1) {
+        const xx = x(k * th);
+        rr.push(`<line class="ruler-line" x1="${xx.toFixed(1)}" y1="${PT}" x2="${xx.toFixed(1)}" y2="${PT + PH}"></line>`);
+        if (k % labelEvery === 0 || k === K9) {
+          rr.push(`<text class="ruler-label" x="${xx.toFixed(1)}" y="${PT - 8}" text-anchor="middle">${k === 1 ? "T½" : k + "T½"}</text>`);
+          rr.push(`<text class="tick-label" x="${xx.toFixed(1)}" y="${(PT + PH + 16).toFixed(1)}" text-anchor="middle">${+(k * th).toFixed(1)}</text>`);
+        }
+      }
+      ui.rulerG.innerHTML = rr.join("") + `<text class="axis-caption" x="${CHART_W - PR}" y="${CHART_H - 6}" text-anchor="end">时间 t（s）</text>`;
+      // half-population guide
+      const hy = y(n0 / 2);
+      ui.halfLine.setAttribute("y1", hy.toFixed(1)); ui.halfLine.setAttribute("y2", hy.toFixed(1));
+      ui.halfTag.setAttribute("y", Math.max(PT + 9, hy - 7).toFixed(1));
+      ui.halfTag.textContent = `½N₀ = ${Math.round(n0 / 2)}`;
+      // ghost runs (same n0 only)
+      const ghostParts = [];
+      for (const gh of ghosts) {
+        if (gh.n0 !== n0 || gh.pts.length === 0) continue;
+        const pts = staircasePoints(gh.pts, gh.pts[gh.pts.length - 1].t, x, y);
+        ghostParts.push(`<path class="ghost-path" d="M${pts.join(" L")}"></path>`);
+      }
+      ui.ghostG.innerHTML = ghostParts.join("");
+      // theory expectation (samples so far + exact continuation ahead)
+      if (params.showTheory) {
+        const ahead = [];
+        const step = Math.max(0.1, xMax / 300);
+        for (let tau = run.t + step; tau < xMax; tau += step) ahead.push({ t: tau, n: run.theoryAhead(tau) });
+        ahead.push({ t: xMax, n: run.theoryAhead(xMax) });
+        const all = run.refSamples.concat(ahead);
+        const pts = all.map((s) => x(s.t).toFixed(1) + "," + y(s.n).toFixed(1));
+        ui.theoryPath.setAttribute("d", "M" + pts.join(" L"));
+        ui.theoryPath.style.display = "";
+      } else {
+        ui.theoryPath.style.display = "none";
+      }
+      // live staircase
+      const pts = staircasePoints(run.history, run.t, x, y);
+      ui.livePath.setAttribute("d", "M" + pts.join(" L"));
+      const cx = x(run.t), cy = y(run.n);
+      ui.liveDot.setAttribute("cx", cx.toFixed(1)); ui.liveDot.setAttribute("cy", cy.toFixed(1));
+      ui.liveHalo.setAttribute("cx", cx.toFixed(1)); ui.liveHalo.setAttribute("cy", cy.toFixed(1));
+    }
+
+    /* ---------------- readouts / insight / status ---------------- */
+    function insightText() {
+      const th = params.tHalf, n0 = params.n0, N = run.n, t = run.t;
+      if (status === "done") {
+        return `全部衰变完毕：用时 ${t.toFixed(1)} s ≈ ${(t / th).toFixed(1)} 个半衰期。按「再跑一批」换一批新核——曲线形状会和上次不同，但同样在 1 个半衰期附近剩一半。`;
+      }
+      if (status === "idle") {
+        return `每颗核随时可能衰变、互不影响——谁先变、什么时候变，事先说不准。按「开始」，一颗一颗数着看。`;
+      }
+      if (status === "paused") {
+        return `已暂停：剩 ${N} 颗。注意：核不会「变老」，此刻每颗衰变的可能性都和开头一样大（无记忆性）。`;
+      }
+      const k = Math.floor(t / th + 1e-9);
+      if (N <= Math.max(6, Math.round(n0 * 0.12))) {
+        return `只剩 ${N} 颗了：曲线明显偏离虚线、开始「抖」——单颗何时衰变说不准，只有大量核才显出平滑的统计规律。`;
+      }
+      if (k >= 1) {
+        const expect = n0 / Math.pow(2, k);
+        return `已过 ${k} 个半衰期：剩 ${N} 颗，理论 ${expect.toFixed(1)} 颗（N₀/2^${k}）——不是分毫不差，而是统计平均值。`;
+      }
+      return `核正一颗颗随机变掉，剩余数沿虚线（理论期望）往下走；每过 1 个 T½，大约剩一半。`;
+    }
+
+    function renderReadouts() {
+      ui.nBig.textContent = String(run.n);
+      ui.nTotal.textContent = ` / ${params.n0} 颗`;
+      ui.nTheory.textContent = run.theoryRemaining().toFixed(1);
+      ui.dReadout.textContent = String(run.decayed);
+      ui.tReadout.textContent = run.t.toFixed(1);
+      ui.kReadout.textContent = (run.t / params.tHalf).toFixed(2);
+      const text = insightText();
+      if (text !== lastInsight) { ui.insight.textContent = text; lastInsight = text; }
+      ui.lambdaNote.textContent = (Math.LN2 / params.tHalf).toFixed(3);
+      ui.chamber.setAttribute("aria-label", `原子核样本：${params.n0} 颗，剩余 ${run.n} 颗`);
+    }
+
+    function renderStatus() {
+      const map = { idle: ["未开始", "idle"], running: ["运行中", "running"], paused: ["已暂停", "paused"], done: ["已衰变完", "done"] };
+      const [label, cls] = map[status];
+      if (ui.status.textContent !== label) ui.status.textContent = label;
+      ui.status.className = "status " + cls;
+      ui.startBtn.textContent = status === "done" ? "再跑一批" : (status === "paused" ? "继续" : "开始");
+      ui.startBtn.disabled = status === "running";
+      ui.pauseBtn.disabled = status !== "running";
+      const gc = ghosts.filter((g2) => g2.n0 === params.n0).length;
+      ui.clearGhostsBtn.textContent = gc > 0 ? `清除以往(${gc})` : "清除以往";
+      ui.clearGhostsBtn.disabled = ghosts.length === 0;
+    }
+
+    function render() {
+      renderStatus();
+      renderReadouts();
+      renderChart();
+    }
+
+    /* ---------------- lifecycle ---------------- */
+    function newSeed() {
+      runIndex += 1;
+      return ((Date.now() & 0xffff) ^ Math.imul(runIndex, 0x9E3779B1)) >>> 0;
+    }
+
+    function reset(recordGhost) {
+      if (recordGhost && run && !run.recorded && run.t > 0) {
+        run.recorded = true;
+        ghosts.push({ n0: run.n0, pts: run.history.slice() });
+        if (ghosts.length > 4) ghosts.shift();
+      }
+      run = new K.DecayRun({ n0: params.n0, tHalf: params.tHalf, seed: newSeed() });
+      status = "idle";
+      lastTs = null;
+      lastInsight = "";
+      buildDots();
+      render();
+    }
+
+    function start() {
+      if (status === "done") reset(true);
+      if (status === "idle" || status === "paused") { status = "running"; render(); }
+    }
+    function pause() {
+      if (status === "running") { status = "paused"; render(); }
+    }
+    function update(dt) {
+      if (status !== "running" || !run) return;
+      K.advance(run, dt, 1);
+      const flashes = run.drainFlash();
+      for (const f of flashes) {
+        if (dotEls[f.i]) {
+          dotEls[f.i].setAttribute("class", "dot dead");
+          decayTimes[f.i] = f.t;
+          if (dotTitles[f.i]) dotTitles[f.i].textContent = `第 ${f.i + 1} 颗 · 第 ${f.t.toFixed(2)} s 衰变`;
+          spawnPop(f.i);
+        }
+      }
+      if (run.done) {
+        if (!run.recorded) {
+          run.recorded = true;
+          ghosts.push({ n0: run.n0, pts: run.history.slice() });
+          if (ghosts.length > 4) ghosts.shift();
+        }
+        status = "done";
+      }
+    }
+
+    function setParameters(values) {
+      const dTH = parameterSchema[0], dN0 = parameterSchema[1];
+      if (values && values.tHalf !== undefined) {
+        params.tHalf = clamp(finiteOr(Number(values.tHalf), dTH.default), dTH.min, dTH.max);
+        if (run) run.tHalf = params.tHalf;      // live: memoryless hazard, exact
+      }
+      if (values && values.n0 !== undefined) {
+        const n0 = Math.round(clamp(finiteOr(Number(values.n0), dN0.default), dN0.min, dN0.max));
+        const changed = n0 !== params.n0;
+        params.n0 = n0;
+        if (changed && run) { reset(true); syncInputs(); return; }
+      }
+      if (values && values.showTheory !== undefined) params.showTheory = !!values.showTheory;
+      syncInputs();
+      render();
+    }
+
+    function syncInputs() {
+      ui.tHalfInput.value = String(params.tHalf);
+      ui.tHalfOutput.textContent = params.tHalf.toFixed(1) + " s";
+      ui.n0Input.value = String(params.n0);
+      ui.n0Output.textContent = params.n0 + " 颗";
+      ui.theoryToggle.checked = !!params.showTheory;
+    }
+
+    function getState() {
+      return {
+        status, t: run.t, n: run.n, decayed: run.decayed, n0: params.n0, tHalf: params.tHalf,
+        theoryN: run.theoryRemaining(), historyLen: run.history.length, stepsDone: run.stepsDone,
+        ghostCount: ghosts.length, running: status === "running"
+      };
+    }
+    function getReadouts() {
+      return {
+        remaining: run.n, decayed: run.decayed, time: run.t,
+        halfLives: run.t / params.tHalf, theory: run.theoryRemaining()
+      };
+    }
+
+    /* ---------------- wiring ---------------- */
+    function bindControls() {
+      ui.startBtn.addEventListener("click", start);
+      ui.pauseBtn.addEventListener("click", pause);
+      ui.resetBtn.addEventListener("click", () => reset(true));
+      ui.clearGhostsBtn.addEventListener("click", () => { ghosts = []; render(); });
+      ui.tHalfInput.addEventListener("input", () => setParameters({ tHalf: Number(ui.tHalfInput.value) }));
+      ui.n0Input.addEventListener("input", () => setParameters({ n0: Number(ui.n0Input.value) }));
+      ui.theoryToggle.addEventListener("change", () => setParameters({ showTheory: ui.theoryToggle.checked }));
+    }
+
+    let resizeQueued = false;
+    function queueResize() {
+      if (resizeQueued) return;
+      resizeQueued = true;
+      requestAnimationFrame(() => {
+        resizeQueued = false;
+        if (!run) return;
+        buildDots();
+        // re-apply decayed state after rebuild
+        for (let i = 0; i < run.alive.length; i += 1) {
+          if (!run.alive[i]) {
+            if (dotEls[i]) dotEls[i].setAttribute("class", "dot dead");
+            const dt2 = decayTimes[i];
+            if (dotTitles[i]) dotTitles[i].textContent = dt2 != null ? `第 ${i + 1} 颗 · 第 ${dt2.toFixed(2)} s 衰变` : `第 ${i + 1} 颗 · 已衰变`;
+          }
+        }
+        render();
+      });
+    }
+
+    function init() {
+      bindControls();
+      syncInputs();
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(queueResize).observe(ui.chamber);
+      }
+      window.addEventListener("resize", queueResize);
+      reset(false);
+      requestAnimationFrame(frame);
+    }
+
+    function frame(timestamp) {
+      if (lastTs === null) lastTs = timestamp;
+      const dt = (timestamp - lastTs) / 1000;
+      lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: K.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

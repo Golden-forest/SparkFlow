@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楞次定律 · 交互式电磁感应仿真</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#11161d; --panel2:#151b24; --line:#242e3b; --line2:#2e3948;
+    --ink:#e9eef5; --ink-dim:#94a2b5; --ink-faint:#5d6b7e;
+    --amber:#e8a04c; --amber-hi:#ffbe6e; --cyan:#56c8f2; --red:#e05656; --blue:#5a8ce8;
+    --mono:'JetBrains Mono',ui-monospace,'SF Mono',Consolas,monospace;
+    --serif:'Noto Serif SC','Songti SC','SimSun',serif;
+    --sans:-apple-system,'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;
+    background-image:radial-gradient(1100px 480px at 28% -12%, rgba(232,160,76,.055), transparent 65%);
+    min-height:100vh;
+  }
+  .wrap{max-width:1420px;margin:0 auto;padding:26px 26px 44px}
+
+  /* ── 页眉 ── */
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
+    padding:6px 4px 20px;border-bottom:1px solid var(--line);margin-bottom:20px}
+  .brand .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.32em;color:var(--amber)}
+  .brand h1{font-family:var(--serif);font-weight:900;font-size:clamp(28px,3.6vw,42px);letter-spacing:.08em;line-height:1.15;margin:6px 0 4px}
+  .brand p{color:var(--ink-dim);font-size:13.5px;max-width:60ch}
+  .brand p b{color:var(--amber-hi);font-weight:600}
+  .keys{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);text-align:right;line-height:2.1;white-space:nowrap}
+  .keys kbd{border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 7px;color:var(--ink-dim);background:var(--panel2);font-size:10.5px}
+
+  /* ── 主栅格 ── */
+  main.grid{display:grid;grid-template-columns:minmax(0,1.58fr) minmax(340px,1fr);gap:18px;align-items:start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+    padding:13px 16px 11px;border-bottom:1px solid var(--line)}
+  .card-head h2{font-family:var(--serif);font-size:15.5px;font-weight:600;letter-spacing:.12em}
+  .card-head .note{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+  .side{display:flex;flex-direction:column;gap:18px}
+
+  .stage-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .stage-head h2{font-family:var(--serif);font-size:15.5px;font-weight:600;letter-spacing:.12em}
+  .stage-tools{display:flex;gap:8px}
+  button{font-family:var(--sans);cursor:pointer}
+  .ghost{background:var(--panel2);border:1px solid var(--line2);color:var(--ink-dim);border-radius:8px;
+    padding:5px 14px;font-size:12.5px;transition:.18s}
+  .ghost:hover{color:var(--ink);border-color:#46566b;background:#1a222d}
+
+  .canvas-box{position:relative;background:#0b0f14}
+  #hint{position:absolute;left:17%;top:23%;transform:translateX(-50%);pointer-events:none;
+    background:rgba(232,160,76,.13);border:1px solid rgba(232,160,76,.5);color:var(--amber-hi);
+    font-size:12.5px;padding:5px 13px;border-radius:20px;white-space:nowrap;
+    animation:float 1.6s ease-in-out infinite;transition:opacity .6s}
+  #hint::after{content:'';position:absolute;left:50%;bottom:-11px;margin-left:-6px;
+    border:6px solid transparent;border-top-color:rgba(232,160,76,.5)}
+  #hint.off{opacity:0}
+  @keyframes float{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,7px)}}
+
+  /* ── 状态条 ── */
+  .status{display:flex;gap:10px;padding:11px 14px;border-top:1px solid var(--line);background:#0e131a}
+  .chip{flex:1;display:flex;align-items:center;gap:9px;min-width:0;
+    border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 12px}
+  .chip .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .chip .k{font-size:11px;color:var(--ink-faint);flex:none;letter-spacing:.05em}
+  .chip .v{font-size:12.5px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #chipMove .dot{background:#9fb0c8}
+  #chipFlux .dot{background:var(--cyan)} #chipFlux .v{color:var(--cyan)}
+  #chipLenz .dot{background:var(--amber)} #chipLenz .v{color:var(--amber-hi)}
+
+  /* ── 示波器 ── */
+  .scope-box{padding:8px 8px 4px}
+
+  /* ── 控制 ── */
+  .ctl{padding:14px 16px 16px;display:flex;flex-direction:column;gap:13px}
+  .ctl-row{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center}
+  .ctl-row>label{font-size:12.5px;color:var(--ink-dim)}
+  .ctl-row>label b{color:var(--amber-hi);font-family:var(--mono);font-weight:700;font-size:12px}
+  .seg{display:flex;background:#0d1218;border:1px solid var(--line2);border-radius:9px;padding:3px;gap:3px}
+  .seg button{flex:1;background:transparent;border:0;color:var(--ink-faint);font-size:12.5px;
+    padding:5px 4px;border-radius:6px;transition:.16s;white-space:nowrap}
+  .seg button.on{background:#2a3242;color:var(--amber-hi);box-shadow:inset 0 0 0 1px #3d4a5f}
+  .seg button:not(.on):hover{color:var(--ink)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+    background:linear-gradient(90deg,var(--amber) var(--fill,44%),#2a3340 var(--fill,44%))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--amber-hi);border:2px solid #0a0e13;margin-top:-5.5px;box-shadow:0 0 0 1px #5c4a2a}
+  input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:#2a3340}
+  input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--amber)}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--amber-hi);border:2px solid #0a0e13}
+  .ctl.disabled{opacity:.4;pointer-events:none}
+  .ctl .sub{font-size:11px;color:var(--ink-faint);margin:-6px 0 0 108px}
+  .btnrow{display:flex;gap:9px;margin-top:2px}
+  .btnrow .ghost{flex:1;padding:8px 0;font-size:13px}
+
+  /* ── 读数 ── */
+  .readout{display:flex}
+  .ro{flex:1;padding:13px 8px 12px;text-align:center;border-right:1px solid var(--line)}
+  .ro:last-child{border-right:0}
+  .ro span{display:block;font-size:11px;color:var(--ink-faint);letter-spacing:.04em}
+  .ro b{display:block;font-family:var(--mono);font-weight:700;font-size:21px;margin:3px 0 1px;font-variant-numeric:tabular-nums}
+  .ro i{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+  .c-cyan{color:var(--cyan)} .c-amber{color:var(--amber-hi)}
+
+  /* ── 要点 ── */
+  footer.points{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}
+  .pc{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px;position:relative;overflow:hidden}
+  .pc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac,#e8a04c)}
+  .pc h3{font-family:var(--serif);font-size:15px;font-weight:600;letter-spacing:.06em;margin-bottom:7px;
+    display:flex;align-items:center;gap:9px;color:var(--ink)}
+  .pc h3 svg{flex:none}
+  .pc p{font-size:12.8px;color:var(--ink-dim);line-height:1.75}
+  .pc p b{color:var(--ink);font-weight:600}
+  .fineprint{margin-top:16px;font-size:11.5px;color:var(--ink-faint);text-align:center;line-height:1.8}
+
+  /* ── toast ── */
+  #toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,16px);opacity:0;pointer-events:none;
+    background:#1c2530;border:1px solid #3a4a5f;color:var(--ink);font-size:13px;
+    padding:9px 20px;border-radius:24px;transition:.3s;box-shadow:0 8px 28px rgba(0,0,0,.5);z-index:50}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media(max-width:1040px){
+    main.grid{grid-template-columns:1fr}
+    footer.points{grid-template-columns:1fr}
+    .keys{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="kicker">Electromagnetism · Lenz's Law</div>
+      <h1>楞次定律</h1>
+      <p>条形磁铁 × 螺线管 × 灵敏电流计 —— 感应电流的磁场总是<b>阻碍</b>引起它的磁通变化。拖动磁铁，亲眼验证。</p>
+    </div>
+    <div class="keys">
+      <kbd>←</kbd> <kbd>→</kbd> 缓慢移动磁铁<br>
+      <kbd>空格</kbd> 暂停 / 继续 &nbsp; <kbd>R</kbd> 重置
+    </div>
+  </header>
+
+  <main class="grid">
+
+    <!-- ══ 演示台 ══ -->
+    <section class="card">
+      <div class="stage-head">
+        <h2>演 示 台</h2>
+        <div class="stage-tools">
+          <button class="ghost" id="btnPause">暂停</button>
+          <button class="ghost" id="btnReset">重置演示</button>
+        </div>
+      </div>
+      <div class="canvas-box">
+        <canvas id="sim"></canvas>
+        <div id="hint">按住磁铁，左右拖动</div>
+      </div>
+      <div class="status">
+        <div class="chip" id="chipMove"><span class="dot"></span><span class="k">运动</span><span class="v">—</span></div>
+        <div class="chip" id="chipFlux"><span class="dot"></span><span class="k">磁通</span><span class="v">—</span></div>
+        <div class="chip" id="chipLenz"><span class="dot"></span><span class="k">楞次响应</span><span class="v">—</span></div>
+      </div>
+    </section>
+
+    <!-- ══ 侧栏 ══ -->
+    <aside class="side">
+
+      <div class="card">
+        <div class="card-head"><h2>Φ–t 与 i–t 对照</h2><span class="note">窗口 12 s · 示值标定</span></div>
+        <div class="canvas-box scope-box"><canvas id="scope"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>控制</h2></div>
+        <div class="ctl">
+          <div class="ctl-row">
+            <label>运动模式</label>
+            <div class="seg" id="segMode">
+              <button data-m="manual" class="on">手动拖动</button>
+              <button data-m="auto">自动插拔</button>
+            </div>
+          </div>
+          <div class="ctl-row">
+            <label>磁铁极性</label>
+            <div class="seg" id="segPol">
+              <button data-p="1" class="on">N 极朝右</button>
+              <button data-p="-1">S 极朝右</button>
+            </div>
+          </div>
+          <div class="ctl-row">
+            <label>运动速度 <b id="vVal">200</b></label>
+            <input type="range" id="speed" min="40" max="400" step="5" value="200">
+          </div>
+          <div class="sub" id="vSub">手动模式下，磁铁速度由拖动快慢决定</div>
+        </div>
+      </div>
+
+      <div class="card readout">
+        <div class="ro"><span>磁通 Φ</span><b class="c-cyan" id="roPhi">+0.00</b><i>mWb</i></div>
+        <div class="ro"><span>dΦ/dt</span><b id="roDphi">+0.0</b><i>mWb/s</i></div>
+        <div class="ro"><span>感应电流 i</span><b class="c-amber" id="roI">+0.0</b><i>µA</i></div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- ══ 教学要点 ══ -->
+  <footer class="points">
+    <div class="pc" style="--ac:#e8a04c">
+      <h3><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#e8a04c" stroke-width="1.6" stroke-linecap="round"><path d="M3 8V5.5A1.5 1.5 0 0 1 4.5 4H7M3 12v2.5A1.5 1.5 0 0 0 4.5 16H7M13 4h2.5A1.5 1.5 0 0 1 17 5.5V8M13 16h2.5a1.5 1.5 0 0 0 1.5-1.5V12"/><path d="M1 10h4M15 10h4" stroke="#ffbe6e"/><path d="M4.2 8.2 2 10l2.2 1.8M15.8 8.2 18 10l-2.2 1.8" stroke="#ffbe6e"/></svg>阻碍，是关键词</h3>
+      <p>感应电流的磁场总要<b>阻碍引起它的磁通变化</b>。插入时，线圈迎面一端出现<b>同名磁极</b>（相斥）；拔出时出现<b>异名磁极</b>（相吸）——所谓"来拒去留"。</p>
+    </div>
+    <div class="pc" style="--ac:#56c8f2">
+      <h3><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#56c8f2" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 15c3 0 3-10 6-10s3 10 6 10" /><path d="M14 15h4" opacity=".4"/><path d="M2 17.5h16" opacity=".3"/></svg>变化率决定强弱</h3>
+      <p>感应电动势 ε = −dΦ/dt。磁铁运动越快、Φ 曲线越陡，电流越大：<b>速度加倍，指针偏转加倍</b>。对照右侧曲线——i 的每一个峰，都对应 Φ 的一段陡坡。</p>
+    </div>
+    <div class="pc" style="--ac:#8b98ab">
+      <h3><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#8b98ab" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 10h15"/><circle cx="10" cy="10" r="3.4" fill="#151b24"/><path d="M10 6.6v-2M10 15.4v-2" opacity=".6"/></svg>不变，则无电流</h3>
+      <p>只有磁通<b>变化</b>才有感应。把磁铁停在线圈正中——即使此刻磁通最大——指针也立刻归零。静止的磁通不是"电源"。</p>
+    </div>
+  </footer>
+
+  <p class="fineprint">
+    Φ 与 i 的数值为示意标定（与真实量成正比），重在方向与相对大小关系 · 磁通按有限长螺线管（等效条形磁铁）轴向场模型计算，i = −(dΦ/dt)/R<br>
+    视觉语言：青色 = 磁通 Φ（原因）&nbsp;·&nbsp; 琥珀色 = 感应电流 i 与感应磁场 B<sub>感</sub>（结果）
+  </p>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ════════════════════ 常量 ════════════════════ */
+const SIM_W=1000, SIM_H=470;
+const COIL_CX=560, COIL_CY=196;              // 线圈中心（屏幕）
+const TURNS=9, PITCH=26, COIL_LEN=(TURNS-1)*PITCH;
+const COIL_L=COIL_CX-COIL_LEN/2, COIL_R=COIL_CX+COIL_LEN/2;
+const COIL_RY=64, A0=-0.85;                   // 螺旋起始角（两端点落在前下方）
+const MAG_LEN=176, MAG_H=44, MAG_R=40;        // 磁铁长/高/等效半径
+const X_MIN=-470, X_MAX=300;                  // 磁铁中心活动范围（世界坐标，线圈中心为 0）
+const G_CX=862, G_CY=316, G_R=82;             // 电流表
+const GAIN=12;                                // dΦ/dt → µA 的标定
+const X_MID=(X_MIN+X_MAX)/2;
+
+/* 电流表接线柱 */
+const POST_R={x:G_CX-100,y:G_CY}, POST_B={x:G_CX+100,y:G_CY};
+/* 导线回路（折线）：A 端(线圈右) → 红柱 ；黑柱 → B 端(线圈左) */
+const WIRE_A=[[COIL_R,COIL_CY+48],[704,COIL_CY+48],[704,G_CY],[POST_R.x,G_CY]];
+const WIRE_B=[[POST_B.x,G_CY],[988,G_CY],[988,446],[430,446],[430,COIL_CY+48],[COIL_L,COIL_CY+48]];
+
+/* ════════════════════ 状态 ════════════════════ */
+const S={
+  xm:-380, p:1, mode:'manual', autoV:200, paused:false,
+  v:0, vSm:0, phi:0, phiPrev:0, dPhi:0, dPhiSm:0, i:0, iSm:0,
+  flow:0, dashT:0, tSim:0, dragTarget:null,
+  autoState:'move', autoDir:1, autoTimer:0.9,
+  needle:{a:0,w:0}, flipFlash:0, dragging:false
+};
+
+/* ════════════════════ 磁通模型 ════════════════════
+   条形磁铁 ≈ 有限长螺线管（右端 N 当 p=+1），
+   轴向场 B(x)=½[(x−x₁)/√((x−x₁)²+R²) − (x−x₂)/√((x−x₂)²+R²)]，光滑且内外区域方向皆正确 */
+function fluxCore(xm){
+  const x1=xm-MAG_LEN/2, x2=xm+MAG_LEN/2; let s=0;
+  for(let k=0;k<TURNS;k++){
+    const xc=-COIL_LEN/2+k*PITCH;
+    s+=0.5*((xc-x1)/Math.hypot(xc-x1,MAG_R)-(xc-x2)/Math.hypot(xc-x2,MAG_R));
+  }
+  return s;
+}
+const PHI_SCALE=fluxCore(0);                  // 磁铁居中时的磁通（定标）
+const fluxAt=xm=>fluxCore(xm)*S.p;
+
+/* ════════════════════ 画布初始化 ════════════════════ */
+function setup(cv,w,h){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=w*dpr; cv.height=h*dpr;
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); return c;
+}
+const simCv=document.getElementById('sim'), scopeCv=document.getElementById('scope');
+const sc=setup(simCv,SIM_W,SIM_H), kc=setup(scopeCv,660,436);
+
+/* ════════════════════ 工具 ════════════════════ */
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const TAU=Math.PI*2;
+function rr(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);
+  c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function arrow(c,x,y,ang,size){
+  c.beginPath();c.moveTo(x+Math.cos(ang)*size,y+Math.sin(ang)*size);
+  c.lineTo(x+Math.cos(ang+2.6)*size*0.7,y+Math.sin(ang+2.6)*size*0.7);
+  c.lineTo(x+Math.cos(ang-2.6)*size*0.7,y+Math.sin(ang-2.6)*size*0.7);
+  c.closePath();c.fill();}
+/* 折线累计长度（用于粒子沿导线流动） */
+function pathLen(pts){const cum=[0];let t=0;
+  for(let k=1;k<pts.length;k++){t+=Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]);cum.push(t);}
+  return{pts,cum,total:t};}
+function pathAt(p,s){s=((s%p.total)+p.total)%p.total;
+  let k=1;while(k<p.cum.length-1&&p.cum[k]<s)k++;
+  const a=p.pts[k-1],b=p.pts[k],f=(s-p.cum[k-1])/(p.cum[k]-p.cum[k-1]||1);
+  return{x:a[0]+(b[0]-a[0])*f,y:a[1]+(b[1]-a[1])*f,
+    ang:Math.atan2(b[1]-a[1],b[0]-a[0])};}
+const wireA=pathLen(WIRE_A), wireB=pathLen(WIRE_B);
+
+/* 螺旋参数点 */
+function coilPt(u){const a=A0+u*TURNS*TAU;
+  return{x:COIL_L+u*COIL_LEN,y:COIL_CY-COIL_RY*Math.sin(a),front:Math.cos(a)>0,a};}
+
+/* ════════════════════ 物理步进 ════════════════════ */
+function step(dt){
+  /* 位置更新 */
+  if(S.dragTarget!==null){                               // 手动拖动（限速追赶，保证数值稳定）
+    const d=clamp(S.dragTarget,X_MIN,X_MAX)-S.xm, m=1100*dt;
+    S.xm+=clamp(d,-m,m);
+  }
+  if(S.mode==='auto'&&!S.paused){
+    if(S.autoState==='move'){
+      const tgt=S.autoDir>0?X_MAX:X_MIN, d=tgt-S.xm, mv=S.autoV*dt;
+      if(Math.abs(d)<=mv){S.xm=tgt;S.autoState='hold';S.autoTimer=0.95;S.autoDir*=-1;}
+      else S.xm+=Math.sign(d)*mv;
+    }else{S.autoTimer-=dt;if(S.autoTimer<=0)S.autoState='move';}
+  }
+  /* 速度与磁通（解析计算，无积分误差） */
+  S.v=(S.xm-S.xmPrev)/dt;
+  S.phi=fluxAt(S.xm);
+  const dRaw=(S.phi-S.phiPrev)/dt;
+  const k1=1-Math.exp(-dt/0.045), k2=1-Math.exp(-dt/0.06);
+  S.vSm+=(S.v-S.vSm)*k1;
+  S.dPhiSm+=(dRaw-S.dPhiSm)*k1;
+  S.i=-S.dPhiSm*GAIN;
+  S.iSm+=(S.i-S.iSm)*k2;
+  S.xmPrev=S.xm; S.phiPrev=S.phi;
+  /* 粒子相位与虚线流动 */
+  S.flow+=(clamp(S.i,-100,100)/100)*0.42*dt;
+  S.dashT+=dt;
+  /* 指针二阶动力学（灵敏电流计的灵动摆动） */
+  const W0=24,Z=0.8,tgt=clamp(S.i,-105,105)/105*1.0123;
+  S.needle.w+=(W0*W0*(tgt-S.needle.a)-2*Z*W0*S.needle.w)*dt;
+  S.needle.a+=S.needle.w*dt;
+  S.flipFlash*=Math.exp(-dt*4);
+  S.tSim+=dt;
+}
+
+/* ════════════════════ 主视图绘制 ════════════════════ */
+const CN='"PingFang SC","Microsoft YaHei",sans-serif', MN='"JetBrains Mono",monospace';
+
+function drawGrid(){
+  sc.fillStyle='#0b0f14';sc.fillRect(0,0,SIM_W,SIM_H);
+  sc.lineWidth=1;
+  for(let x=0;x<=SIM_W;x+=24){sc.strokeStyle=x%120?'rgba(255,255,255,.026)':'rgba(255,255,255,.05)';
+    sc.beginPath();sc.moveTo(x+.5,0);sc.lineTo(x+.5,SIM_H);sc.stroke();}
+  for(let y=0;y<=SIM_H;y+=24){sc.strokeStyle=y%120?'rgba(255,255,255,.026)':'rgba(255,255,255,.05)';
+    sc.beginPath();sc.moveTo(0,y+.5);sc.lineTo(SIM_W,y+.5);sc.stroke();}
+  /* 轴线（点划） */
+  sc.strokeStyle='rgba(160,180,205,.22)';sc.setLineDash([10,6,2,6]);sc.lineWidth=1;
+  sc.beginPath();sc.moveTo(60,COIL_CY);sc.lineTo(SIM_W-20,COIL_CY);sc.stroke();sc.setLineDash([]);
+}
+
+function drawLegend(){
+  sc.save();sc.globalAlpha=.9;
+  rr(sc,16,14,206,84,9);sc.fillStyle='rgba(13,17,23,.62)';sc.fill();
+  sc.strokeStyle='rgba(255,255,255,.08)';sc.lineWidth=1;sc.stroke();
+  sc.font='11px '+CN;sc.textAlign='left';sc.textBaseline='middle';
+  let y=32;
+  sc.strokeStyle='#56c8f2';sc.lineWidth=2.5;sc.beginPath();sc.moveTo(28,y);sc.lineTo(44,y);sc.stroke();
+  arrow(sc,44,y,0,4);sc.fillStyle='#8b98ab';sc.fillText('线圈内磁通 Φ（青色箭头方向）',52,y);
+  y+=26;sc.strokeStyle='#ffb35c';
+  sc.beginPath();sc.moveTo(28,y);sc.lineTo(44,y);sc.stroke();arrow(sc,44,y,0,4);
+  sc.fillText('感应电流 i / 感应磁场 B感',52,y);
+  y+=26;sc.strokeStyle='rgba(143,163,200,.6)';sc.lineWidth=1.5;
+  sc.beginPath();sc.moveTo(28,y);sc.quadraticCurveTo(36,y-7,44,y);sc.stroke();
+  sc.fillText('磁铁磁场（原磁场）',52,y);
+  sc.restore();
+}
+
+/* 线圈内磁通色块 + 青色磁通方向箭头 */
+function drawFlux(){
+  const rel=S.phi/PHI_SCALE, a=0.10+0.24*Math.min(1,Math.abs(rel));
+  sc.fillStyle=rel>=0?`rgba(255,150,60,${a})`:`rgba(90,160,255,${a})`;
+  rr(sc,COIL_L+5,COIL_CY-44,COIL_LEN-10,88,10);sc.fill();
+  if(Math.abs(rel)<0.04)return;
+  const dir=Math.sign(rel)||1, al=0.3+0.6*Math.min(1,Math.abs(rel));
+  sc.strokeStyle=`rgba(86,200,242,${al})`;sc.fillStyle=sc.strokeStyle;sc.lineWidth=3;
+  for(const dx of[-52,52]){
+    const x=COIL_CX+dx;
+    sc.beginPath();sc.moveTo(x-13*dir,COIL_CY);sc.lineTo(x+13*dir,COIL_CY);sc.stroke();
+    arrow(sc,x+13*dir,COIL_CY,dir>0?0:Math.PI,6);
+  }
+}
+
+/* 磁铁的磁感线（跟随磁铁平移，从 N 绕向外回到 S） */
+function drawMagField(cxm){
+  const arcs=[[88,-12,146,84],[88,-12,182,132],[88,12,146,84],[88,12,182,132]];
+  sc.strokeStyle='rgba(143,163,200,.3)';sc.fillStyle='rgba(143,163,200,.55)';sc.lineWidth=1.4;
+  for(const[x0,y0,ext,h]of arcs){
+    const sy=Math.sign(y0);
+    sc.beginPath();sc.moveTo(cxm+x0,COIL_CY+y0);
+    sc.bezierCurveTo(cxm+ext,COIL_CY+y0-h*sy,cxm-ext,COIL_CY+y0-h*sy,cxm-x0,COIL_CY+y0);
+    sc.stroke();
+    const dir=S.p>0?-1:1;                          // 外部路径 N→S
+    arrow(sc,cxm,COIL_CY+(y0-h/2)*sy,dir<0?Math.PI:0,4.5);
+  }
+}
+
+/* 螺旋线圈（连续参数曲线，分前后两遍描边） */
+function coilPath(front){
+  sc.beginPath();let on=false;const N=TURNS*26;
+  for(let s=0;s<=N;s++){const q=coilPt(s/N);
+    if(q.front===front){on?sc.lineTo(q.x,q.y):(sc.moveTo(q.x,q.y),on=true);}
+    else on=false;}
+}
+function drawCoilBack(){coilPath(false);sc.strokeStyle='#6e4420';sc.lineWidth=6;sc.lineCap='round';sc.stroke();}
+function drawCoilFront(){
+  coilPath(true);
+  sc.lineCap='round';
+  sc.strokeStyle='#b96f33';sc.lineWidth=7;sc.stroke();
+  sc.strokeStyle='#f2a655';sc.lineWidth=2.8;sc.stroke();
+}
+
+/* 底座支架 */
+function drawStand(){
+  sc.fillStyle='#1a222d';sc.strokeStyle='#2b3646';sc.lineWidth=1;
+  for(const dx of[-70,70]){
+    sc.beginPath();sc.moveTo(COIL_CX+dx-9,COIL_CY+56);sc.lineTo(COIL_CX+dx+9,COIL_CY+56);
+    sc.lineTo(COIL_CX+dx+14,352);sc.lineTo(COIL_CX+dx-14,352);sc.closePath();sc.fill();sc.stroke();}
+  rr(sc,462,350,196,13,4);sc.fillStyle='#1e2733';sc.fill();sc.stroke();
+  sc.strokeStyle='rgba(255,255,255,.07)';sc.beginPath();sc.moveTo(468,352.5);sc.lineTo(652,352.5);sc.stroke();
+  sc.fillStyle='#e8a04c';sc.font='700 10px '+MN;sc.textAlign='center';sc.textBaseline='top';
+  sc.fillText('SOLENOID · 9 T',COIL_CX,326);
+}
+
+/* 磁铁本体 */
+function drawMagnet(){
+  const cxm=COIL_CX+S.xm, x=cxm-MAG_LEN/2, y=COIL_CY-MAG_H/2;
+  sc.save();
+  sc.shadowColor='rgba(0,0,0,.55)';sc.shadowBlur=S.dragging?20:9;sc.shadowOffsetY=S.dragging?7:3;
+  rr(sc,x,y,MAG_LEN,MAG_H,7);
+  sc.fillStyle=S.p>0?'#375fb8':'#c74848';sc.fill();          // 远端半
+  sc.save();rr(sc,x,y,MAG_LEN,MAG_H,7);sc.clip();
+  let g=sc.createLinearGradient(0,y,0,y+MAG_H);
+  if(S.p>0){g.addColorStop(0,'#4a7ad9');g.addColorStop(1,'#2f55a7');sc.fillStyle=g;sc.fillRect(x,y,MAG_LEN/2,MAG_H);}
+  else{g.addColorStop(0,'#de5252');g.addColorStop(1,'#a93636');sc.fillStyle=g;sc.fillRect(x+MAG_LEN/2,y,MAG_LEN/2,MAG_H);}
+  /* 另一半重新画（覆盖阴影底色，保证两半都干净） */
+  rr(sc,x,y,MAG_LEN,MAG_H,7);sc.clip();
+  g=sc.createLinearGradient(0,y,0,y+MAG_H);
+  if(S.p>0){g.addColorStop(0,'#de5252');g.addColorStop(1,'#a93636');sc.fillStyle=g;sc.fillRect(x+MAG_LEN/2,y,MAG_LEN/2,MAG_H);}
+  else{g.addColorStop(0,'#4a7ad9');g.addColorStop(1,'#2f55a7');sc.fillStyle=g;sc.fillRect(x,y,MAG_LEN/2,MAG_H);}
+  sc.restore();
+  sc.shadowColor='transparent';
+  /* 分界与高光 */
+  sc.strokeStyle='rgba(255,255,255,.28)';sc.lineWidth=1;
+  sc.beginPath();sc.moveTo(cxm,y+3);sc.lineTo(cxm,y+MAG_H-3);sc.stroke();
+  rr(sc,x+7,y+5,MAG_LEN-14,6,3);sc.fillStyle='rgba(255,255,255,.2)';sc.fill();
+  rr(sc,x,y,MAG_LEN,MAG_H,7);sc.strokeStyle='#0e1319';sc.lineWidth=1.8;sc.stroke();
+  /* N / S 标注 */
+  sc.font='900 21px '+CN;sc.textAlign='center';sc.textBaseline='middle';
+  sc.fillStyle='rgba(0,0,0,.3)';
+  const nX=S.p>0?cxm+MAG_LEN/4:cxm-MAG_LEN/4, sX=2*cxm-nX;
+  sc.fillText('N',nX+1,COIL_CY+1.5);sc.fillText('S',sX+1,COIL_CY+1.5);
+  sc.fillStyle='#fff';sc.fillText('N',nX,COIL_CY+1);sc.fillText('S',sX,COIL_CY+1);
+  if(S.flipFlash>0.02){rr(sc,x,y,MAG_LEN,MAG_H,7);sc.fillStyle=`rgba(255,255,255,${S.flipFlash*.5})`;sc.fill();}
+  sc.restore();
+}
+
+/* 磁铁命中测试 */
+function hitMagnet(px,py){
+  const cxm=COIL_CX+S.xm;
+  return px>cxm-MAG_LEN/2-16&&px<cxm+MAG_LEN/2+16&&py>COIL_CY-MAG_H/2-18&&py<COIL_CY+MAG_H/2+18;
+}
+
+/* 感应磁场：外弧线（N→S 流动虚线）+ 线圈内 B感 箭头 + 两端 N/S 标签 */
+function drawInduction(){
+  const i=S.iSm, mag=Math.abs(i);
+  const indA=Math.min(1,mag/15); if(indA<0.03)return;
+  const n=i>0?1:-1;                                          // N 端在右(+1)/左(−1)
+  const xs=COIL_CX+n*(COIL_LEN/2+14), xe=COIL_CX-n*(COIL_LEN/2+14);
+  const col=`rgba(255,179,92,${(0.28+0.55*indA).toFixed(3)})`;
+  sc.strokeStyle=col;sc.fillStyle=col;sc.lineWidth=1.6;
+  sc.setLineDash([7,7]);sc.lineDashOffset=-S.dashT*36;
+  for(const h of[80,116])for(const s of[1,-1]){
+    sc.beginPath();sc.moveTo(xs,COIL_CY);
+    sc.bezierCurveTo(xs+n*66,COIL_CY-h*s*0.95, xe-n*66,COIL_CY-h*s*0.95, xe,COIL_CY);
+    sc.stroke();
+    arrow(sc,COIL_CX,COIL_CY-h*s, n>0?Math.PI:0,5);          // 弧顶/弧底箭头：N→S
+  }
+  sc.setLineDash([]);
+  /* 线圈内 B感 箭头 */
+  const bCol=`rgba(255,179,92,${0.35+0.6*indA})`;
+  sc.strokeStyle=bCol;sc.fillStyle=bCol;sc.lineWidth=3;
+  for(const dx of[-58,0,58]){
+    const x=COIL_CX+dx,d=n;
+    sc.beginPath();sc.moveTo(x-12*d,COIL_CY);sc.lineTo(x+12*d,COIL_CY);sc.stroke();
+    arrow(sc,x+12*d,COIL_CY,d>0?0:Math.PI,6);
+  }
+  sc.font='11px '+CN;sc.textAlign='center';sc.textBaseline='bottom';
+  sc.fillText('B感',COIL_CX,COIL_CY-14);
+  /* 两端 N/S 标签（带出现动画） */
+  const sc2=0.7+0.3*Math.min(1,mag/60);
+  const draw=(x,ch,red)=>{
+    sc.save();sc.translate(x,COIL_CY);sc.scale(sc2,sc2);
+    sc.globalAlpha=indA;sc.shadowColor=red?'rgba(224,86,86,.7)':'rgba(90,140,232,.7)';sc.shadowBlur=10*indA;
+    sc.beginPath();sc.arc(0,0,13,0,TAU);
+    sc.fillStyle=red?'#b03636':'#31569e';sc.fill();sc.shadowColor='transparent';
+    sc.lineWidth=1.5;sc.strokeStyle=red?'#e88':'#8af';sc.stroke();
+    sc.fillStyle='#fff';sc.font='700 13px '+CN;sc.textAlign='center';sc.textBaseline='middle';
+    sc.fillText(ch,0,1);sc.restore();};
+  draw(COIL_R+38,n>0?'N':'S',n>0);
+  draw(COIL_L-38,n>0?'S':'N',n<=0);
+}
+
+/* 电流粒子：螺旋 + 外电路 */
+function drawFlow(){
+  const i=S.iSm, mag=Math.abs(i); if(mag<1.2)return;
+  const d=Math.sign(i), al=0.35+0.65*Math.min(1,mag/45);
+  const fr=((S.flow%1)+1)%1;
+  /* 螺旋上的粒子 */
+  const NP=16;
+  for(let k=0;k<NP;k++){
+    const u=(((k/NP+fr)%1)+1)%1, q=coilPt(u);
+    const a=`rgba(255,196,110,${q.front?al:al*0.4})`;
+    sc.fillStyle=a;sc.beginPath();
+    sc.arc(q.x,q.y,q.front?3.2:2.2,0,TAU);sc.fill();
+  }
+  /* 外电路粒子（小箭头指向电流方向） */
+  sc.fillStyle=`rgba(255,196,110,${al})`;
+  for(const p of[wireA,wireB]){
+    const n=Math.max(3,Math.round(p.total/46));
+    for(let k=0;k<n;k++){
+      const s=(((k/n+fr)%1)+1)%1*p.total, q=pathAt(p,s);
+      sc.save();sc.translate(q.x,q.y);sc.rotate(q.ang+(d>0?0:Math.PI));
+      sc.beginPath();sc.moveTo(4,0);sc.lineTo(-3,2.6);sc.lineTo(-3,-2.6);sc.closePath();sc.fill();
+      sc.restore();
+    }
+  }
+}
+
+/* 导线与接线柱 */
+function drawWires(){
+  sc.strokeStyle='#66717f';sc.lineWidth=3.2;sc.lineJoin='round';sc.lineCap='round';
+  for(const pts of[WIRE_A,WIRE_B]){
+    sc.beginPath();sc.moveTo(pts[0][0],pts[0][1]);
+    for(let k=1;k<pts.length;k++)sc.lineTo(pts[k][0],pts[k][1]);
+    sc.stroke();
+  }
+  /* 电流方向参考标注（沿上支路） */
+  sc.fillStyle='rgba(255,196,110,.5)';
+  const q=pathAt(wireA,wireA.total*0.62);
+  sc.save();sc.translate(q.x,q.y);sc.rotate(q.ang);
+  sc.beginPath();sc.moveTo(5,0);sc.lineTo(-4,3.4);sc.lineTo(-4,-3.4);sc.closePath();sc.fill();sc.restore();
+  /* 接线柱 */
+  for(const[pst,ch,col]of[[POST_R,'+','#b23b3b'],[POST_B,'−','#303743']]){
+    sc.fillStyle=col;rr(sc,pst.x-8,pst.y-7,16,14,3);sc.fill();
+    sc.strokeStyle='rgba(255,255,255,.25)';sc.lineWidth=1;sc.stroke();
+    sc.beginPath();sc.arc(pst.x,pst.y,3,0,TAU);sc.fillStyle='#c9d2dd';sc.fill();
+    sc.fillStyle='#aab6c4';sc.font='700 10px '+MN;sc.textAlign='center';sc.textBaseline='top';
+    sc.fillText(ch,pst.x,pst.y+9);
+  }
+}
+
+/* 灵敏电流计 */
+function drawGauge(){
+  const ov=Math.max(0,(Math.abs(S.i)-95)/35);
+  /* 底垫 */
+  sc.fillStyle='rgba(0,0,0,.35)';sc.beginPath();sc.ellipse(G_CX,404,50,9,0,0,TAU);sc.fill();
+  /* 外壳 */
+  sc.beginPath();sc.arc(G_CX,G_CY,G_R,0,TAU);
+  let g=sc.createRadialGradient(G_CX,G_CY-30,G_R*0.3,G_CX,G_CY,G_R);
+  g.addColorStop(0,'#333e4e');g.addColorStop(1,'#1d242f');sc.fillStyle=g;sc.fill();
+  sc.lineWidth=3;sc.strokeStyle=ov>0?`rgba(224,86,86,${0.3+0.6*ov})`:'#3c4a5d';sc.stroke();
+  /* 表盘 */
+  sc.beginPath();sc.arc(G_CX,G_CY,70,0,TAU);
+  g=sc.createRadialGradient(G_CX,G_CY-24,10,G_CX,G_CY,70);
+  g.addColorStop(0,'#f7f0de');g.addColorStop(1,'#e6dcc2');sc.fillStyle=g;sc.fill();
+  sc.lineWidth=1.5;sc.strokeStyle='#b3a888';sc.stroke();
+  /* 刻度（枢轴在表盘下部） */
+  const px=G_CX,py=G_CY+36,MAXA=1.0123;
+  sc.textAlign='center';sc.textBaseline='middle';
+  for(let v=-100;v<=100;v+=10){
+    const a=v/100*MAXA,sn=Math.sin(a),cs=Math.cos(a),main=v%50===0;
+    sc.strokeStyle='#4a3f30';sc.lineWidth=main?1.8:1;
+    sc.beginPath();sc.moveTo(px+sn*(main?54:58),py-cs*(main?54:58));
+    sc.lineTo(px+sn*64,py-cs*64);sc.stroke();
+    if(main){sc.fillStyle='#4a3f30';sc.font='700 9.5px '+MN;
+      sc.fillText(Math.abs(v)+(v<0?'−':v>0?'+':''),px+sn*43,py-cs*43);}
+  }
+  sc.fillStyle='#6b5c44';sc.font='600 10.5px '+CN;
+  sc.fillText('灵敏电流计',G_CX,G_CY-38);
+  sc.font='700 15px '+CN;sc.fillStyle='#4a3f30';sc.fillText('G',G_CX,G_CY-20);
+  sc.font='600 9px '+MN;sc.fillText('µA',G_CX,py-6);
+  /* 玻璃高光 */
+  sc.beginPath();sc.arc(G_CX,G_CY,66,-2.4,-1.5);
+  sc.strokeStyle='rgba(255,255,255,.35)';sc.lineWidth=5;sc.lineCap='round';sc.stroke();
+  /* 指针 */
+  const a=S.needle.a,sn=Math.sin(a),cs=Math.cos(a);
+  sc.beginPath();sc.moveTo(px-sn*13,py+cs*13);sc.lineTo(px+sn*61,py-cs*61);
+  sc.strokeStyle='#cf4040';sc.lineWidth=2.6;sc.lineCap='round';sc.stroke();
+  sc.beginPath();sc.arc(px,py,4.5,0,TAU);sc.fillStyle='#2a2f38';sc.fill();
+  sc.strokeStyle='#556';sc.lineWidth=1;sc.stroke();
+  /* 端子标识 */
+  sc.fillStyle='#c7a48a';sc.font='600 9px '+CN;
+  sc.textAlign='center';sc.fillText('接线圈 A',POST_R.x+1,G_CY-30);
+  sc.fillText('接线圈 B',POST_B.x+1,G_CY-30);
+}
+
+function renderSim(){
+  drawGrid();
+  drawLegend();
+  drawFlux();
+  drawMagField(COIL_CX+S.xm);
+  drawCoilBack();
+  drawFlowBack();          // 后侧粒子（被磁铁遮挡层之下）
+  drawMagnet();
+  drawStand();
+  drawCoilFront();
+  drawInduction();
+  drawWires();
+  drawGauge();
+  drawFlow();              // 前侧粒子最上层
+}
+/* 螺旋后侧粒子 */
+function drawFlowBack(){
+  const mag=Math.abs(S.iSm); if(mag<1.2)return;
+  const fr=((S.flow%1)+1)%1;
+  sc.fillStyle=`rgba(255,196,110,${(0.35+0.65*Math.min(1,mag/45))*0.45})`;
+  for(let k=0;k<16;k++){const u=(((k/16+fr)%1)+1)%1,q=coilPt(u);
+    if(!q.front){sc.beginPath();sc.arc(q.x,q.y,2.2,0,TAU);sc.fill();}}
+}
+
+/* ════════════════════ 示波器绘制 ════════════════════ */
+const SC_W=660,SC_H=436,PL=52,PR=66,PT=16,GAP=30;
+const PH=(SC_H-PT*2-GAP)/2;
+const buf=[]; const T_WIN=12;
+function paneRect(i){return{x:PL,y:PT+i*(PH+GAP),w:SC_W-PL-PR,h:PH};}
+function renderScope(){
+  kc.clearRect(0,0,SC_W,SC_H);
+  const tN=S.tSim;
+  const xOf=t=>SC_W-PR-(1-(tN-t)/T_WIN)*(SC_W-PL-PR);
+  for(let i=0;i<2;i++){
+    const p=paneRect(i),mid=p.y+p.h/2;
+    /* 边框与网格 */
+    kc.strokeStyle='rgba(255,255,255,.09)';kc.lineWidth=1;kc.strokeRect(p.x+.5,p.y+.5,p.w-1,p.h-1);
+    kc.beginPath();kc.moveTo(p.x+1,mid+.5);kc.lineTo(p.x+p.w-1,mid+.5);
+    kc.strokeStyle='rgba(255,255,255,.16)';kc.stroke();
+    kc.setLineDash([3,5]);kc.strokeStyle='rgba(255,255,255,.07)';
+    for(const f of[-0.92,0.92]){kc.beginPath();kc.moveTo(p.x+1,p.y+p.h*(0.5-f*0.5)+.5);
+      kc.lineTo(p.x+p.w-1,p.y+p.h*(0.5-f*0.5)+.5);kc.stroke();}
+    for(let s=2;s<T_WIN;s+=2){const x=xOf(tN-s);
+      kc.beginPath();kc.moveTo(x+.5,p.y+1);kc.lineTo(x+.5,p.y+p.h-1);kc.stroke();}
+    kc.setLineDash([]);
+    /* 标题 */
+    const isPhi=i===0;
+    kc.font='700 11px '+CN;kc.textAlign='left';kc.textBaseline='top';
+    kc.fillStyle=isPhi?'#56c8f2':'#ffb35c';
+    kc.fillText(isPhi?'Φ 磁通 (mWb)':'i 感应电流 (µA)',p.x+8,p.y+7);
+    kc.fillStyle='#5d6b7e';kc.font='10px '+MN;
+    kc.fillText(isPhi?'±'+(5).toFixed(1):'±130',p.x+8,p.y+23);
+  }
+  if(buf.length>1){
+    /* 曲线 */
+    const draw=(key,color,fill,yMap)=>{
+      const p=paneRect(key==='phi'?0:1);
+      kc.beginPath();let started=false;
+      for(const b of buf){const x=xOf(b.t);if(x<p.x-2)continue;
+        const y=yMap(b[key]);started?kc.lineTo(x,y):(kc.moveTo(x,y),started=true);}
+      kc.strokeStyle=color;kc.lineWidth=1.8;kc.lineJoin='round';kc.stroke();
+      kc.lineTo(xOf(buf[buf.length-1].t),paneRect(key==='phi'?0:1).y+PH/2);
+      const firstX=Math.max(p.x,xOf(buf[0].t));
+      kc.lineTo(firstX,paneRect(key==='phi'?0:1).y+PH/2);kc.closePath();
+      kc.fillStyle=fill;kc.fill();
+    };
+    const pPhi=paneRect(0),pI=paneRect(1);
+    draw('phi','#56c8f2','rgba(86,200,242,.07)',v=>pPhi.y+PH/2-clamp(v/PHI_SCALE,-1.05,1.05)*PH*0.46);
+    draw('i','#ffb35c','rgba(255,179,92,.07)',v=>pI.y+PH/2-clamp(v,-130,130)/130*PH*0.46);
+    /* 当前点 + 切线（Φ 斜率 ↔ −i） */
+    const last=buf[buf.length-1];
+    const lx=xOf(last.t), ly=pPhi.y+PH/2-clamp(last.phi/PHI_SCALE,-1.05,1.05)*PH*0.46;
+    let sl=-(S.dPhiSm/PHI_SCALE)*PH*0.46/((pPhi.w)/T_WIN);
+    sl=clamp(sl,-2.2,2.2);
+    kc.strokeStyle='rgba(255,255,255,.55)';kc.setLineDash([5,4]);kc.lineWidth=1.2;
+    kc.beginPath();kc.moveTo(lx-34,ly+34*sl);kc.lineTo(lx+34,ly-34*sl);kc.stroke();kc.setLineDash([]);
+    kc.fillStyle='rgba(255,255,255,.55)';kc.font='10px '+CN;kc.textAlign='right';kc.textBaseline='bottom';
+    kc.fillText('切线斜率 ∝ −i',pPhi.x+pPhi.w-6,pPhi.y+8);
+    /* 端点与实时数值 */
+    const iy=pI.y+PH/2-clamp(last.i,-130,130)/130*PH*0.46;
+    for(const[x,y,col,txt]of[[lx,ly,'#56c8f2',(last.phi/PHI_SCALE*5).toFixed(2)],
+        [xOf(last.t),iy,'#ffb35c',last.i.toFixed(1)]]){
+      kc.beginPath();kc.arc(x,y,3,0,TAU);kc.fillStyle=col;kc.fill();
+      kc.font='700 12px '+MN;kc.textAlign='left';kc.textBaseline='middle';
+      kc.fillStyle=col;kc.fillText(txt,SC_W-PR+8,y);
+    }
+  }
+  /* 时间轴 */
+  kc.fillStyle='#5d6b7e';kc.font='10px '+MN;kc.textAlign='center';kc.textBaseline='bottom';
+  for(let s=0;s<=T_WIN;s+=2){const x=SC_W-PR-s/T_WIN*(SC_W-PL-PR);
+    kc.fillText(s===0?'now':'−'+s+'s',x,SC_H-4);}
+  kc.textAlign='left';kc.fillText('',0,0);
+}
+
+/* ════════════════════ 状态条 / 读数 ════════════════════ */
+const $=id=>document.getElementById(id);
+const chips={m:$('chipMove').querySelector('.v'),f:$('chipFlux').querySelector('.v'),l:$('chipLenz').querySelector('.v')};
+let domAcc=0;
+function updateDom(dt){
+  domAcc+=dt; if(domAcc<0.1)return; domAcc=0;
+  const v=S.vSm, x=S.xm, into=Math.abs(v)>=6&&((x<=0)===(v>0));
+  chips.m.textContent=Math.abs(v)<6
+    ?(Math.abs(x)<70?'磁铁停在线圈中 · 静止':'磁铁静止')
+    :`${Math.abs(v)>300?'快速':Math.abs(v)>140?'中速':'缓慢'}${into?'插入':'拔出'} · v=${Math.abs(v)|0}`;
+  chips.f.textContent=Math.abs(S.dPhiSm)<0.06
+    ?'Φ 恒定 —— 无变化（≠Φ 为零）'
+    :(S.dPhiSm>0?'Φ 增大 ↑　dΦ/dt = +':'Φ 减小 ↓　dΦ/dt = ')+S.dPhiSm.toFixed(1)+'/s';
+  if(Math.abs(S.iSm)<1.5) chips.l.textContent='i = 0 —— 磁通不变则无感应电流';
+  else{
+    const rep=into?'同名磁极相斥 · 阻碍插入':'异名磁极相吸 · 阻碍拔出';
+    chips.l.textContent=`i ${S.iSm>0?'> 0':'< 0'} · 指针${S.iSm>0?'右':'左'}偏 · 线圈${S.iSm>0?'右':'左'}端 N，${rep}`;
+  }
+  $('roPhi').textContent=(S.phi/PHI_SCALE*5>=0?'+':'')+(S.phi/PHI_SCALE*5).toFixed(2);
+  $('roDphi').textContent=(S.dPhiSm>=0?'+':'')+S.dPhiSm.toFixed(1);
+  $('roI').textContent=(S.iSm>=0?'+':'')+S.iSm.toFixed(1);
+}
+
+/* ════════════════════ 交互 ════════════════════ */
+let toastT=null;
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
+
+function evtPos(e){const r=simCv.getBoundingClientRect();
+  return{x:(e.clientX-r.left)/r.width*SIM_W,y:(e.clientY-r.top)/r.height*SIM_H};}
+
+simCv.addEventListener('pointerdown',e=>{
+  const q=evtPos(e);
+  if(hitMagnet(q.x,q.y)){
+    if(S.mode!=='manual')setMode('manual',true);
+    S.dragging=true;S.dragTarget=q.x-COIL_CX;
+    simCv.setPointerCapture(e.pointerId);
+    simCv.style.cursor='grabbing';
+    $('hint').classList.add('off');
+    e.preventDefault();
+  }
+});
+simCv.addEventListener('pointermove',e=>{
+  const q=evtPos(e);
+  if(S.dragging)S.dragTarget=q.x-COIL_CX;
+  else simCv.style.cursor=hitMagnet(q.x,q.y)?'grab':'default';
+});
+const endDrag=()=>{S.dragging=false;S.dragTarget=null;simCv.style.cursor='default';};
+simCv.addEventListener('pointerup',endDrag);
+simCv.addEventListener('pointercancel',endDrag);
+
+/* 控件 */
+function setMode(m,quiet){
+  S.mode=m;
+  document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  document.querySelector('.ctl').classList.toggle('disabled',m==='manual');
+  $('vSub').textContent=m==='manual'?'手动模式下，磁铁速度由拖动快慢决定':'自动：插入 → 停顿（i 归零）→ 拔出 → 停顿';
+  if(m==='auto'){S.dragging=false;S.dragTarget=null;
+    S.autoDir=S.xm<X_MID?1:-1;S.autoState='move';
+    if(!quiet)toast('自动演示：插入 → 停顿 → 拔出 → 停顿，循环往复');}
+}
+document.querySelectorAll('#segMode button').forEach(b=>
+  b.addEventListener('click',()=>{setMode(b.dataset.m);b.blur();}));
+document.querySelectorAll('#segPol button').forEach(b=>
+  b.addEventListener('click',()=>{
+    const p=+b.dataset.p; if(p===S.p)return;
+    S.p=p;S.flipFlash=1;
+    document.querySelectorAll('#segPol button').forEach(x=>x.classList.toggle('on',x===b));
+    toast(p>0?'已翻转：N 极朝右（朝线圈）':'已翻转：S 极朝右（朝线圈）');
+    b.blur();
+  }));
+const sp=$('speed');
+function syncSpeed(){S.autoV=+sp.value;$('vVal').textContent=sp.value;
+  sp.style.setProperty('--fill',((sp.value-40)/360*100)+'%');}
+sp.addEventListener('input',syncSpeed);syncSpeed();
+
+$('btnPause').addEventListener('click',e=>{
+  S.paused=!S.paused;e.target.textContent=S.paused?'继续':'暂停';e.target.blur();});
+$('btnReset').addEventListener('click',e=>{
+  S.xm=S.xmPrev=-380;S.phi=S.phiPrev=fluxAt(-380);
+  S.dPhiSm=0;S.i=0;S.iSm=0;S.vSm=0;S.tSim=0;S.needle.a=0;S.needle.w=0;
+  buf.length=0;$('hint').classList.remove('off');
+  toast('已重置');e.target.blur();});
+
+/* 键盘 */
+const keys=new Set();
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+    keys.add(e.key);
+    if(S.mode!=='manual')setMode('manual',true);
+    $('hint').classList.add('off');e.preventDefault();
+  }else if(e.code==='Space'){S.paused=!S.paused;
+    $('btnPause').textContent=S.paused?'继续':'暂停';e.preventDefault();}
+  else if(e.key==='r'||e.key==='R'){$('btnReset').click();}
+});
+addEventListener('keyup',e=>keys.delete(e.key));
+
+/* ════════════════════ 主循环 ════════════════════ */
+S.phi=S.phiPrev=fluxAt(S.xm);
+let last=performance.now(), sampAcc=0;
+function loop(now){
+  let dt=Math.min((now-last)/1000,0.05);last=now;
+  if(!S.paused){
+    if(S.mode==='manual'&&(keys.has('ArrowLeft')||keys.has('ArrowRight'))){
+      S.xm=clamp(S.xm+(keys.has('ArrowRight')?1:-1)*140*dt,X_MIN,X_MAX);
+    }
+    step(dt);
+    sampAcc+=dt;
+    while(sampAcc>=1/50){
+      buf.push({t:S.tSim,phi:S.phi,i:S.iSm});
+      sampAcc-=1/50;
+    }
+    while(buf.length&&buf[0].t<S.tSim-T_WIN-0.6)buf.shift();
+    updateDom(dt);
+  }
+  renderSim();
+  renderScope();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

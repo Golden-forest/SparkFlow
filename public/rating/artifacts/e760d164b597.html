@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>碳-14 测年原理 · 交互演示</title>
+<style>
+  :root{
+    --bg:#0d1420; --panel:#141e2e; --panel2:#0f1725; --line:#26364f;
+    --txt:#dbe7f5; --dim:#8aa2c0; --cyan:#4cc9f0; --amber:#ffd166;
+    --red:#ff6b6b; --green:#2f9e44;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:14px;min-width:860px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+  h1{font-size:20px}
+  header .sub{color:var(--dim);font-size:13px}
+  .badge{font-size:12.5px;background:#1b2a40;border:1px solid var(--cyan);color:var(--cyan);
+    padding:4px 10px;border-radius:20px;white-space:nowrap}
+  .layout{display:grid;grid-template-columns:800px 340px;gap:12px;justify-content:center}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+  canvas{width:100%;display:block;border-radius:8px;background:#0a1018}
+  /* 控制条 */
+  .controls{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  button{background:#1d2c44;color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:6px 14px;font-size:14px;cursor:pointer}
+  button:hover{background:#27395a}
+  button.primary{background:#0e4d6b;border-color:var(--cyan);color:var(--cyan);font-weight:bold}
+  button.on{background:var(--cyan);color:#04222f;border-color:var(--cyan);font-weight:bold}
+  select{background:#1d2c44;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:5px 6px}
+  #phaseLabel{margin-left:auto;color:var(--amber);font-size:14px;font-weight:bold}
+  /* 右栏 */
+  .side{display:flex;flex-direction:column;gap:10px}
+  .side h2{font-size:14px;color:var(--cyan);margin-bottom:8px}
+  .samples{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .samples button{font-size:13px;padding:8px 4px;text-align:left;line-height:1.35}
+  .samples button small{display:block;color:var(--dim);font-size:11px}
+  .samples button.sel{border-color:var(--amber);color:var(--amber)}
+  #sampleDesc{font-size:12.5px;color:var(--dim);margin-top:8px;min-height:34px;line-height:1.5}
+  .sliderRow{display:flex;align-items:center;gap:8px;font-size:13px}
+  input[type=range]{flex:1;accent-color:var(--cyan)}
+  #ratioSliderVal{font-family:ui-monospace,monospace;color:var(--amber);width:52px;text-align:right}
+  .toggle{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--dim)}
+  .result .row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+  .result .row b{font-family:ui-monospace,monospace;color:var(--cyan);font-size:15px}
+  .bar{height:12px;background:#0a1018;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:10px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#1d6fb8,var(--cyan));width:50%;transition:width .1s linear}
+  .ageBox{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center;margin-bottom:8px}
+  .ageBox span{display:block;font-size:12px;color:var(--dim)}
+  .ageBox b{font-size:30px;color:var(--amber);font-family:ui-monospace,monospace}
+  .formula{font-size:12.5px;color:var(--dim);text-align:center;background:var(--panel2);
+    border-radius:6px;padding:6px;font-family:ui-monospace,monospace}
+  .guessRow{display:flex;gap:6px;margin:6px 0}
+  .guessRow input{flex:1;background:#0a1018;border:1px solid var(--line);border-radius:6px;
+    color:var(--txt);padding:6px 8px;font-size:13px}
+  #guessFeedback{font-size:12.5px;line-height:1.6;min-height:0;color:var(--amber)}
+  /* 教学要点 */
+  .points{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:1160px;margin:12px auto 0}
+  .points .card h3{font-size:14px;color:var(--amber);margin-bottom:6px}
+  .points .card p{font-size:12.5px;color:var(--dim);line-height:1.7}
+  .points .card p b{color:var(--txt)}
+  .note{max-width:1160px;margin:10px auto 0;font-size:12px;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚛️ 碳-14 测年原理演示</h1>
+  <span class="sub">大气碳库 ⇄ 生物 ⇄ 探测器</span>
+  <span class="badge">半衰期 T½ = 5730 年（固定常数 · 不可调）</span>
+</header>
+
+<div class="layout">
+  <!-- 左：场景动画 -->
+  <div class="card">
+    <canvas id="scene" width="800" height="420"></canvas>
+    <div class="controls">
+      <button id="btnPlay" class="primary">▶ 播放</button>
+      <button id="btnReset">⟲ 重置</button>
+      <select id="speed">
+        <option value="0.5">0.5× 速度</option>
+        <option value="1" selected>1× 速度</option>
+        <option value="2">2× 速度</option>
+      </select>
+      <span id="phaseLabel">待机：生物存活，与大气交换中</span>
+    </div>
+    <div class="card" style="margin-top:10px;padding:8px">
+      <canvas id="chart" width="800" height="340"></canvas>
+    </div>
+  </div>
+
+  <!-- 右：控制与读数 -->
+  <div class="side">
+    <div class="card">
+      <h2>🧪 样品库（先估后测）</h2>
+      <div class="samples" id="sampleBank"></div>
+      <div id="sampleDesc">点击样品查看背景 → 先凭直觉估计年代 → 播放动画实测验证。</div>
+      <div class="guessRow" id="guessRow" style="display:none">
+        <input id="guessInput" type="number" placeholder="我的估计：距今？年">
+        <button id="btnGuess">记下估计</button>
+      </div>
+      <div id="guessFeedback"></div>
+    </div>
+
+    <div class="card">
+      <h2>🎚️ 自由探索</h2>
+      <div class="sliderRow">
+        <span>残存活度比 A/A₀</span>
+        <input type="range" id="ratioSlider" min="0.02" max="1.00" step="0.001" value="0.500">
+        <span id="ratioSliderVal">0.500</span>
+      </div>
+      <div class="toggle" style="margin-top:8px">
+        时间轴刻度：
+        <button id="btnLin" class="on">线性</button>
+        <button id="btnLog">对数</button>
+      </div>
+    </div>
+
+    <div class="card result">
+      <h2>📡 探测器</h2>
+      <div class="row"><span>当前读数 A/A₀</span><b id="ratioVal">1.000</b></div>
+      <div class="bar"><i id="detectorBar"></i></div>
+      <div class="ageBox"><span>测年结果 · 距今年数</span><b id="ageOut">—</b></div>
+      <div class="formula">t = T½·log₂(A₀/A) = 5730 × log₂(1/<span id="fRatio">0.500</span>)</div>
+    </div>
+  </div>
+</div>
+
+<div class="points">
+  <div class="card"><h3>① 测的是「残存活度比」</h3>
+    <p>探测器并不直接读出年代，它统计的是样品中 <b>C-14 的 β⁻ 衰变计数率</b>，
+    换算成相对活度 <b>A/A₀</b>。年代是代入公式算出来的结果。</p></div>
+  <div class="card"><h3>② 存活期活度被大气锁定</h3>
+    <p>看动画：生物活着时不断<b>进食 / 光合 / 呼吸</b>，体内的 C-14 与大气碳库双向交换，
+    活度恒等于当时大气的 <b>A₀</b>——一边衰变一边补充，不随时间减小。
+    <b>死亡那一刻</b>交换停止，C-14 只减不增，计时从此开始（t=0）。</p></div>
+  <div class="card"><h3>③ 年代只由比值和半衰期决定</h3>
+    <p>t = 5730·log₂(A₀/A)。只要测得 A/A₀，年代就被<b>唯一确定</b>，
+    与温度、湿度、埋藏深度等环境条件无关——这是放射性测年可靠性的根源。</p></div>
+</div>
+<p class="note">⚠️ C-14 测年有效范围约 5 万年（A/A₀ ≈ 0.003）；更老的样品（如深层化石）残存活度过低，需改用铀系、K-Ar 等方法。</p>
+
+<script>
+(function(){
+'use strict';
+/* ============ 常量与物理 ============ */
+const HL = 5730, LN2 = Math.LN2;          // 半衰期固定 5730 年
+const ageOf  = r => HL*Math.log(1/r)/LN2; // t = T½·log₂(A₀/A)
+const ratioOf= t => Math.pow(2,-t/HL);    // A/A₀ = 2^(−t/T½)
+const clamp  = (v,a,b)=>Math.min(b,Math.max(a,v));
+const fmtInt = n => Math.round(n).toLocaleString('zh-CN');
+
+const SAMPLES=[
+ {name:'🪵 古木炭',  ratio:0.235, desc:'遗址火堆中的木炭，出自一截烧焦的房梁。树木当年刚被砍伐、燃烧，死亡时间≈埋藏时间。'},
+ {name:'🎶 骨笛',    ratio:0.337, desc:'史前遗址出土的鹤骨笛，钻孔精美，可吹奏音阶。骨胶原中保存着当年的 C-14。'},
+ {name:'🧵 亚麻织物', ratio:0.908, desc:'古墓中包裹遗骸的亚麻布，质地尚好——看起来“很新”，到底多少年？'},
+ {name:'🦴 深层化石', ratio:0.02,  desc:'5 万年前地层中的骨化石，C-14 已衰变到仪器探测极限附近（滑块已到下限 0.02）。'},
+];
+
+/* ============ 状态 ============ */
+const S={ratio:0.5,mode:'free',sample:null,guess:null,
+         p:0,playing:false,done:false,scale:'linear',speed:1};
+const DUR=12, P_ALIVE=0.10, P_MEAS=0.90;   // 动画总时长与阶段分界（进度比例）
+
+const phaseOf=()=> S.p<P_ALIVE?'alive' : S.p<0.17?'dead' :
+                   S.p<0.75?'buried' : S.p<P_MEAS?'excavate' : 'measure';
+function times(){
+  const tTotal=ageOf(S.ratio);
+  const tNow = tTotal*clamp((S.p-P_ALIVE)/(P_MEAS-P_ALIVE),0,1);
+  return {tTotal,tNow};
+}
+
+/* ============ DOM ============ */
+const $=id=>document.getElementById(id);
+const sc=$('scene'),  ctx=sc.getContext('2d');
+const cc=$('chart'),  cg=cc.getContext('2d');
+
+/* 样品库按钮 */
+SAMPLES.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.innerHTML=s.name+'<small>A/A₀ = '+s.ratio.toFixed(3)+'</small>';
+  b.onclick=()=>selectSample(i,b);
+  $('sampleBank').appendChild(b);
+});
+function selectSample(i,btn){
+  [...$('sampleBank').children].forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  const s=SAMPLES[i];
+  S.sample=s; S.ratio=s.ratio; S.mode='sample'; S.guess=null;
+  $('ratioSlider').value=s.ratio; $('ratioSliderVal').textContent=s.ratio.toFixed(3);
+  $('sampleDesc').innerHTML='<b style="color:var(--txt)">'+s.name+'</b>：'+s.desc;
+  $('guessRow').style.display='flex';
+  $('guessInput').value=''; $('guessFeedback').textContent='';
+  resetAnim();
+}
+$('btnGuess').onclick=()=>{
+  const v=parseFloat($('guessInput').value);
+  if(isNaN(v)||v<=0){$('guessFeedback').textContent='请先输入一个正数估计值（年）';return;}
+  S.guess=v;
+  $('guessFeedback').innerHTML='✅ 已记录估计：<b>'+fmtInt(v)+' 年</b><br>现在点左下「▶ 播放」测量验证 →';
+};
+$('ratioSlider').oninput=e=>{
+  S.ratio=parseFloat(e.target.value); S.mode='free'; S.sample=null; S.guess=null;
+  [...$('sampleBank').children].forEach(b=>b.classList.remove('sel'));
+  $('ratioSliderVal').textContent=S.ratio.toFixed(3);
+  $('sampleDesc').textContent='自由探索模式：拖动滑块设定残存活度比，观察年代如何变化。';
+  $('guessRow').style.display='none'; $('guessFeedback').textContent='';
+  resetAnim();
+};
+$('btnLin').onclick=()=>{S.scale='linear';$('btnLin').classList.add('on');$('btnLog').classList.remove('on');};
+$('btnLog').onclick=()=>{S.scale='log';$('btnLog').classList.add('on');$('btnLin').classList.remove('on');};
+$('btnPlay').onclick=()=>{
+  if(S.done) resetAnim();
+  S.playing=!S.playing;
+  $('btnPlay').textContent=S.playing?'⏸ 暂停':'▶ 播放';
+};
+$('btnReset').onclick=resetAnim;
+$('speed').onchange=e=>S.speed=parseFloat(e.target.value);
+function resetAnim(){S.p=0;S.playing=false;S.done=false;$('btnPlay').textContent='▶ 播放';}
+
+/* ============ 大气 ¹⁴C 粒子 ============ */
+const parts=[];
+for(let i=0;i<26;i++)parts.push({x:Math.random()*800,y:20+Math.random()*120,
+  vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.25,r:1.6+Math.random()*1.8});
+function stepParts(){for(const q of parts){q.x+=q.vx;q.y+=q.vy;
+  if(q.x<0)q.x=800; if(q.x>800)q.x=0; q.y=clamp(q.y,16,145);}}
+
+/* ============ 绘图工具 ============ */
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function head(c,x1,y1,x2,y2,s){const a=Math.atan2(y2-y1,x2-x1);s=s||8;
+  c.beginPath();c.moveTo(x2,y2);
+  c.lineTo(x2-s*Math.cos(a-.42),y2-s*Math.sin(a-.42));
+  c.lineTo(x2-s*Math.cos(a+.42),y2-s*Math.sin(a+.42));c.closePath();c.fill();}
+function labelBox(c,x,y,txt,col){c.font='12px system-ui';const w=c.measureText(txt).width+14;
+  c.fillStyle='rgba(8,14,24,.82)';rr(c,x,y-9,w,20,5);c.fill();
+  c.strokeStyle=col;c.lineWidth=1;c.stroke();
+  c.fillStyle=col;c.fillText(txt,x+7,y+5);}
+
+/* ============ 场景 ============ */
+function drawScene(tNow,tTotal){
+  const ph=phaseOf(), now=performance.now();
+  ctx.clearRect(0,0,800,420);
+  /* 天空 / 大气碳库 */
+  const g=ctx.createLinearGradient(0,0,0,330);
+  g.addColorStop(0,'#0a1a33');g.addColorStop(1,'#16405f');
+  ctx.fillStyle=g;ctx.fillRect(0,0,800,330);
+  ctx.strokeStyle='rgba(76,201,240,.25)';ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.moveTo(0,150);ctx.lineTo(800,150);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#7fd8ff';ctx.font='bold 13px system-ui';
+  ctx.fillText('☁ 大气碳库：¹⁴C 活度恒定 = A₀（宇宙射线持续生成，浓度稳定）',16,24);
+  /* ¹⁴C 粒子 */
+  for(let i=0;i<parts.length;i++){const q=parts[i];
+    ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,7);
+    ctx.fillStyle='rgba(127,216,255,.85)';ctx.fill();
+    if(i%7===0){ctx.fillStyle='rgba(127,216,255,.6)';ctx.font='10px system-ui';
+      ctx.fillText('¹⁴C',q.x+5,q.y-4);}}
+  /* 地面 */
+  ctx.fillStyle='#2c5d2e';ctx.fillRect(0,300,800,26);
+  ctx.fillStyle='#3d3020';ctx.fillRect(0,326,800,94);
+  ctx.fillStyle='rgba(0,0,0,.25)';
+  for(let i=0;i<40;i++)ctx.fillRect((i*97)%800,340+(i*53)%70,4,3);
+
+  const alive=ph==='alive';
+  /* ---- 生物 / 样品 ---- */
+  if(ph==='alive'||ph==='dead'){
+    const x=250,by=300;
+    ctx.fillStyle=alive?'#7a4a21':'#7d7d7d';
+    ctx.fillRect(x-9,by-88,18,88);
+    if(alive){
+      ctx.fillStyle='rgba(47,158,68,.92)';
+      [[0,-118,40],[-30,-92,27],[30,-92,27]].forEach(c=>{
+        ctx.beginPath();ctx.arc(x+c[0],by+c[1],c[2],0,7);ctx.fill();});
+      ctx.fillStyle='#aef29a';ctx.font='bold 13px system-ui';
+      ctx.fillText('生物（存活）',x-40,by-150);
+      /* 双向交换箭头（动画） */
+      ctx.strokeStyle='#ffd166';ctx.fillStyle='#ffd166';ctx.lineWidth=2;
+      ctx.setLineDash([7,5]);ctx.lineDashOffset=-now/40;
+      ctx.beginPath();ctx.moveTo(150,95);ctx.quadraticCurveTo(150,220,x-46,by-95);ctx.stroke();
+      head(ctx,150,95+18,150,95+2);ctx.setLineDash([]);
+      head(ctx,x-30,by-115,x-46,by-95);
+      labelBox(ctx,60,110,'进食 / 光合：摄入 ¹⁴C','#ffd166');
+      ctx.strokeStyle='#7fd8ff';ctx.fillStyle='#7fd8ff';
+      ctx.setLineDash([7,5]);ctx.lineDashOffset=now/40;
+      ctx.beginPath();ctx.moveTo(x+46,by-95);ctx.quadraticCurveTo(370,200,410,110);ctx.stroke();
+      ctx.setLineDash([]);head(ctx,380,120,410,110);
+      labelBox(ctx,400,96,'呼吸：排出 ¹⁴C','#7fd8ff');
+      labelBox(ctx,x-64,by-60,'体内活度锁定 = A₀','#aef29a');
+    }else{
+      ctx.strokeStyle='#999';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(x,by-70);ctx.lineTo(x-26,by-96);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x,by-52);ctx.lineTo(x+26,by-80);ctx.stroke();
+      ctx.fillStyle='#ddd';ctx.font='bold 13px system-ui';
+      ctx.fillText('💀 死亡：与大气交换停止！',x-60,by-118);
+      labelBox(ctx,x-64,by-60,'从此只衰变，不补充','#ff9f6b');
+    }
+  }
+  if(ph==='buried'||ph==='excavate'){
+    const sy=ph==='buried'?368:308, sx=190;
+    ctx.strokeStyle='#c9a26a';ctx.lineWidth=2;ctx.fillStyle='#6b4a2a';
+    rr(ctx,sx,sy,150,28,8);ctx.fill();ctx.stroke();
+    for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(sx+28*i,sy+3);
+      ctx.lineTo(sx+28*i,sy+25);ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=1;ctx.stroke();}
+    drawDots(sx+14,sy+8,ratioOf(tNow),Math.min(tNow,tTotal));
+    if(ph==='buried'){
+      ctx.fillStyle='rgba(50,38,24,.55)';ctx.fillRect(sx-20,sy-18,190,64);
+      ctx.fillStyle='#cdbb8f';ctx.font='bold 13px system-ui';
+      ctx.fillText('⏳ 埋藏：C-14 只减不增',sx+2,sy-26);
+    }else{
+      ctx.fillStyle='#e8d9a0';ctx.font='bold 14px system-ui';
+      ctx.fillText('⛏️ 出土！准备送测',sx+8,sy-16);
+      ctx.strokeStyle='rgba(255,209,102,.5)';
+      for(let i=0;i<5;i++){ctx.beginPath();
+        ctx.arc(sx+30+i*26,sy-8,4+(now/300+i*9)%10,0,7);ctx.stroke();}
+    }
+  }
+  if(ph==='measure'){
+    /* 载台与样品 */
+    ctx.fillStyle='#556';ctx.fillRect(540,332,230,12);
+    ctx.strokeStyle='#c9a26a';ctx.lineWidth=2;ctx.fillStyle='#6b4a2a';
+    rr(ctx,590,300,100,28,6);ctx.fill();ctx.stroke();
+    drawDots(604,308,S.ratio,tTotal);
+    /* 探测器 */
+    ctx.strokeStyle='#7fd8ff';ctx.lineWidth=2;ctx.fillStyle='#1c2c47';
+    rr(ctx,560,210,190,64,8);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#7fd8ff';ctx.font='bold 13px system-ui';
+    ctx.fillText('β⁻ 粒子探测器',578,232);
+    const cnt=Math.floor(S.ratio*1000*(0.9+0.2*Math.random()));
+    ctx.fillStyle='#ffd166';ctx.font='15px ui-monospace,monospace';
+    ctx.fillText('计数 '+cnt+' /min',578,256);
+    /* 射线 */
+    ctx.strokeStyle='rgba(255,209,102,.8)';ctx.setLineDash([5,7]);
+    ctx.lineDashOffset=-now/30;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(640,298);ctx.lineTo(640,276);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#aef29a';ctx.font='bold 13px system-ui';
+    ctx.fillText('🔬 测量中：统计衰变 → 残活比',16,290);
+  }
+  /* ---- 状态条 ---- */
+  const cap={alive:'① 存活：与大气交换平衡，活度 = A₀',
+             dead:'② 死亡（t=0）：交换停止',
+             buried:'③ 埋藏：仅衰变  A/A₀ = 2^(−t/5730)',
+             excavate:'④ 出土：送往实验室',
+             measure:'⑤ 测量：A/A₀ → 距今年数'}[ph];
+  ctx.fillStyle='rgba(8,14,24,.8)';rr(ctx,14,362,330,44,8);ctx.fill();
+  ctx.strokeStyle='#ffd166';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle='#ffd166';ctx.font='bold 14px system-ui';ctx.fillText(cap,26,381);
+  ctx.fillStyle='#8aa2c0';ctx.font='11.5px system-ui';
+  ctx.fillText('对照动画：活着 ⇄ 大气（锁定 A₀）｜死后 → 单向衰变',26,398);
+  /* ---- 时间显示 ---- */
+  ctx.fillStyle='rgba(8,14,24,.8)';rr(ctx,560,36,224,56,8);ctx.fill();
+  ctx.strokeStyle='#4cc9f0';ctx.stroke();
+  ctx.fillStyle='#8aa2c0';ctx.font='11.5px system-ui';ctx.fillText('时间（自死亡起算）',576,54);
+  ctx.fillStyle='#4cc9f0';ctx.font='bold 20px ui-monospace,monospace';
+  ctx.fillText(alive?'t = 0（生前）':'距今 '+fmtInt(tNow)+' 年',576,80);
+}
+/* 样品内 ¹⁴C 剩余原子可视化：12 格，亮格数 ∝ A/A₀ */
+function drawDots(x0,y0,r,t){
+  const lit=Math.ceil(r*12);
+  ctx.font='10px system-ui';
+  for(let i=0;i<12;i++){
+    const x=x0+(i%6)*16, y=y0+Math.floor(i/6)*13;
+    ctx.beginPath();ctx.arc(x,y,3.4,0,7);
+    if(i<lit){ctx.fillStyle='#ffd166';ctx.fill();}
+    else{ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1;ctx.stroke();}
+  }
+  ctx.fillStyle='#ffd166';
+  ctx.fillText('¹⁴C 剩 '+lit+'/12',x0+100,y0+8);
+}
+
+/* ============ 曲线图 ============ */
+function drawChart(tNow,tTotal){
+  const W=800,H=340,mL=66,mR=16,mT=22,mB=44,pw=W-mL-mR,ph=H-mT-mB;
+  const log=S.scale==='log';
+  const tMin=log?100:0, tMax=log?100000:40000;
+  const xOf=t=>mL+(log?(Math.log10(Math.max(t,tMin))-2)/3:clamp(t/tMax,0,1))*pw;
+  const yOf=r=>mT+(1-clamp(r,0,1))*ph;
+  cg.clearRect(0,0,W,H);
+  cg.fillStyle='#0a1018';cg.fillRect(0,0,W,H);
+  /* 网格 */
+  cg.font='11px system-ui';cg.textAlign='center';
+  for(let i=0;i<=4;i++){const r=i/4,y=yOf(r);
+    cg.strokeStyle='rgba(60,80,110,.35)';cg.beginPath();cg.moveTo(mL,y);cg.lineTo(W-mR,y);cg.stroke();
+    cg.fillStyle='#8aa2c0';cg.textAlign='right';cg.fillText(r.toFixed(2),mL-8,y+4);}
+  const ticks=log?[[100,'100'],[1000,'1千'],[10000,'1万'],[100000,'10万']]
+                 :[[0,'0'],[10000,'1万'],[20000,'2万'],[30000,'3万'],[40000,'4万']];
+  cg.textAlign='center';
+  ticks.forEach(tk=>{const x=xOf(tk[0]);
+    cg.strokeStyle='rgba(60,80,110,.35)';cg.beginPath();cg.moveTo(x,mT);cg.lineTo(x,mT+ph);cg.stroke();
+    cg.fillStyle='#8aa2c0';cg.fillText(tk[1],x,H-mB+18);});
+  /* 半衰期参考点：t=5730k，A/A₀=(1/2)^k */
+  for(let k=1;k<=6;k++){const t=HL*k,r=Math.pow(.5,k);
+    if(t>tMax)break; const x=xOf(t),y=yOf(r);
+    cg.strokeStyle='rgba(255,209,102,.18)';cg.setLineDash([3,5]);
+    cg.beginPath();cg.moveTo(x,y);cg.lineTo(x,mT+ph);cg.stroke();cg.setLineDash([]);
+    cg.beginPath();cg.arc(x,y,4,0,7);cg.strokeStyle='#ffd166';cg.lineWidth=1.4;cg.stroke();
+    cg.fillStyle='rgba(255,209,102,.8)';
+    cg.fillText(k===1?'½':(k===2?'¼':k===3?'⅛':''),x,y-8);}
+  /* 衰变曲线 */
+  cg.strokeStyle='#4cc9f0';cg.lineWidth=2.5;
+  cg.shadowColor='rgba(76,201,240,.6)';cg.shadowBlur=6;
+  cg.beginPath();
+  for(let px=0;px<=pw;px+=2){
+    const t=log?Math.pow(10,2+3*px/pw):tMax*px/pw;
+    const r=ratioOf(t); if(r<0.004)break;
+    const x=mL+px,y=yOf(r); px===0?cg.moveTo(x,y):cg.lineTo(x,y);}
+  cg.stroke();cg.shadowBlur=0;
+  /* 播放游标 */
+  if(S.p>0&&!S.done&&!log||S.p>0&&!S.done){
+    const x=xOf(Math.max(tNow,tMin)),y=yOf(ratioOf(tNow));
+    cg.fillStyle='#aef29a';cg.beginPath();cg.arc(x,y,5,0,7);cg.fill();
+    cg.strokeStyle='rgba(174,242,154,.5)';cg.lineWidth=2;
+    cg.beginPath();cg.arc(x,y,9+3*Math.sin(performance.now()/200),0,7);cg.stroke();
+    labelBox(cg,Math.min(x+10,W-190),Math.max(y-24,mT+4),'现在 t='+fmtInt(tNow)+' 年','#aef29a');}
+  /* 测点（样品模式测完才显示；自由模式直接显示） */
+  if(S.mode==='free'||S.done){
+    const x=xOf(Math.max(tTotal,tMin)),y=yOf(S.ratio);
+    cg.strokeStyle='rgba(255,107,107,.7)';cg.setLineDash([5,4]);cg.lineWidth=1.4;
+    cg.beginPath();cg.moveTo(x,y);cg.lineTo(x,mT+ph);cg.moveTo(mL,y);cg.lineTo(x,y);cg.stroke();
+    cg.setLineDash([]);
+    cg.fillStyle='#ff6b6b';cg.beginPath();cg.arc(x,y,6,0,7);cg.fill();
+    cg.strokeStyle='#fff';cg.lineWidth=1.5;cg.stroke();
+    labelBox(cg,Math.min(x-150,W-260),Math.max(y-46,mT+4),
+      '📍 测点 A/A₀='+S.ratio.toFixed(3)+' → '+fmtInt(tTotal)+' 年','#ff9f9f');}
+  /* 轴标题 */
+  cg.fillStyle='#dbe7f5';cg.font='bold 12.5px system-ui';
+  cg.fillText('死亡后经过的时间 t（年）'+(log?' · 对数刻度':' · 线性刻度'),mL+pw/2,H-8);
+  cg.save();cg.translate(14,mT+ph/2);cg.rotate(-Math.PI/2);
+  cg.fillText('残存活度比 A/A₀',0,0);cg.restore();
+  cg.textAlign='left';
+}
+
+/* ============ 读数 ============ */
+const PH_TXT={alive:'① 存活：交换平衡，活度锁定 A₀',dead:'② 死亡（t=0）：交换停止',
+  buried:'③ 埋藏衰变中…',excavate:'④ 出土',measure:'⑤ 测量完成'};
+function updateUI(tNow,tTotal){
+  const ph=phaseOf(), alive=ph==='alive';
+  const rNow=alive?1:ratioOf(Math.min(tNow,tTotal));
+  $('phaseLabel').textContent=S.done?'✅ 完成：可换样品再测':PH_TXT[ph];
+  $('ratioVal').textContent=alive?'1.000 (锁定)':rNow.toFixed(3);
+  $('detectorBar').style.width=(rNow*100)+'%';
+  $('fRatio').textContent=S.ratio.toFixed(3);
+  if(S.mode==='free')      $('ageOut').textContent=fmtInt(tTotal)+' 年';
+  else if(S.done)          $('ageOut').textContent=fmtInt(tTotal)+' 年';
+  else if(S.p>0)           $('ageOut').textContent='测量中…';
+  else                     $('ageOut').textContent='？ 先估后测';
+  if(S.done&&S.mode==='sample'&&S.guess!=null&&!$('guessFeedback').dataset.shown){
+    $('guessFeedback').dataset.shown='1';
+    const err=Math.abs(S.guess-tTotal)/tTotal*100;
+    $('guessFeedback').innerHTML=
+      '你的估计：<b>'+fmtInt(S.guess)+' 年</b> ｜ 实测：<b>'+fmtInt(tTotal)+' 年</b><br>偏差 '+
+      err.toFixed(1)+'%'+(err<25?' 👍 直觉不错！':' 💡 指数衰变常常比直觉更快/更慢——这正是公式的作用。');
+  }
+  if(!S.done) delete $('guessFeedback').dataset.shown;
+}
+
+/* ============ 主循环 ============ */
+let last=performance.now();
+function frame(now){
+  const dt=(now-last)/1000; last=now;
+  if(S.playing){S.p+=dt*S.speed/DUR;
+    if(S.p>=1){S.p=1;S.playing=false;S.done=true;$('btnPlay').textContent='▶ 播放';}}
+  stepParts();
+  const {tNow,tTotal}=times();
+  drawScene(tNow,tTotal);
+  drawChart(tNow,tTotal);
+  updateUI(tNow,tTotal);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

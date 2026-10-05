@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LC 电磁振荡动画</title>
+<style>
+:root{--bg:#0d1117;--panel:#161d27;--line:#232d3b;--txt:#dce6f2;--sub:#8aa0b8;--qc:#ffd166;--ic:#4dd0e1}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;padding:16px}
+h1{font-size:19px;margin:0 auto 12px;max-width:1180px}
+h1 small{color:var(--sub);font-weight:400;font-size:13px;margin-left:10px}
+.grid{display:grid;grid-template-columns:minmax(320px,44%) 1fr;gap:14px;max-width:1180px;margin:0 auto}
+@media(max-width:920px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.panel h2{font-size:14px;margin:0 0 8px;color:var(--sub);font-weight:600}
+canvas{width:100%;height:auto;display:block;border-radius:8px;background:#0b0f14}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:4px 10px;min-width:88px}
+.chip b{display:block;font-size:15px;font-variant-numeric:tabular-nums}
+.chip span{color:var(--sub);font-size:11px}
+.bars{margin-top:10px;display:grid;grid-template-columns:82px 1fr 78px;gap:8px;align-items:center;font-size:13px}
+.track{height:14px;background:#0b0f14;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.fill{height:100%;width:0%}
+.fUE{background:linear-gradient(90deg,#ff9f43,#ffd166)}
+.fUB{background:linear-gradient(90deg,#2196f3,#4dd0e1)}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--sub);font-size:12px}
+.controls{max-width:1180px;margin:14px auto 0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+button{border:0;border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;color:#fff}
+button:hover{filter:brightness(1.15)}
+#btnCharge{background:#b8860b}
+#btnSwitch{background:#238636}
+#btnSwitch.open{background:#da3633}
+.sld{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub)}
+.sld b{color:var(--txt);font-variant-numeric:tabular-nums;min-width:78px}
+input[type=range]{width:150px;accent-color:#4dd0e1}
+.note{max-width:1180px;margin:10px auto 0;color:var(--sub);font-size:12.5px}
+#hint{color:#ffd166;font-size:13px;min-height:18px}
+.cap{margin-top:8px;color:var(--sub);font-size:12.5px}
+.cap i{font-style:normal;color:var(--qc)} .cap em{font-style:normal;color:var(--ic)}
+</style>
+</head>
+<body>
+<h1>LC 电磁振荡 <small>电场能 ⇄ 磁场能 · q-t / i-t 相位关系</small></h1>
+
+<div class="grid">
+  <div class="panel">
+    <h2>电路演示</h2>
+    <canvas id="cv1"></canvas>
+    <div class="bars">
+      <div>电场能 U<sub>E</sub></div><div class="track"><div class="fill fUE" id="bUE"></div></div><div class="val" id="tUE">0</div>
+      <div>磁场能 U<sub>B</sub></div><div class="track"><div class="fill fUB" id="bUB"></div></div><div class="val" id="tUB">0</div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>q–t 与 i–t 曲线（同一时间轴）</h2>
+    <canvas id="cv2"></canvas>
+    <div class="stats">
+      <div class="chip"><span>电荷 q</span><b id="vQ" style="color:var(--qc)">0 µC</b></div>
+      <div class="chip"><span>电流 i</span><b id="vI" style="color:var(--ic)">0 mA</b></div>
+      <div class="chip"><span>电场能</span><b id="vUE">0</b></div>
+      <div class="chip"><span>磁场能</span><b id="vUB">0</b></div>
+      <div class="chip"><span>总能量</span><b id="vE">0</b></div>
+      <div class="chip"><span>周期 T</span><b id="vT">—</b></div>
+      <div class="chip"><span>频率 f</span><b id="vF">—</b></div>
+    </div>
+    <div class="cap">相位差 Δφ = π/2：<i>q 最大时 i = 0</i>，<em>i 最大（过零充电/放电最快）时 q = 0</em>；U<sub>E</sub>=q²/2C 与 U<sub>B</sub>=½Li² 互补转换，总能量守恒。</div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="row">
+    <button id="btnCharge">🔌 重置并给电容充电</button>
+    <button id="btnSwitch" class="open">🔓 闭合开关，开始振荡</button>
+    <div class="sld">L <input type="range" id="sL" min="0" max="1000" value="500"><b id="tL">10.0 mH</b></div>
+    <div class="sld">C <input type="range" id="sC" min="0" max="1000" value="500"><b id="tC">100 µF</b></div>
+    <div class="sld">速度 <input type="range" id="sV" min="5" max="120" value="35"><b id="tV">0.35 周期/秒</b></div>
+  </div>
+  <div style="margin-top:8px"><span id="hint"></span></div>
+</div>
+<div class="note">操作：先「充电」→「闭合开关」即可看到电荷、电流往返振荡（亮点为电流方向，橙色箭头为电场 E，蓝色箭头为线圈内磁场 B）。断开开关即暂停。L、C 任意时刻可调，周期 T = 2π√(LC) 实时更新。</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const cv1=$('cv1'),cv2=$('cv2');
+const V0=10;
+let L=10e-3,C=100e-6,speed=0.35;
+let q=0,cur=0,t=0,switchOn=false;
+let charging=false,chargeT0=0;
+let history=[];
+let dotOff=0;
+
+const period=()=>2*Math.PI*Math.sqrt(L*C);
+const Q0=()=>C*V0, imaxRef=()=>V0*Math.sqrt(C/L);
+
+/* ---------- 画布适配 ---------- */
+let x1,x2;
+function fit(cv,lw,lh){
+  const w=cv.clientWidth||lw,dpr=window.devicePixelRatio||1;
+  cv.width=Math.round(w*dpr);cv.height=Math.round(w*lh/lw*dpr);
+  const c=cv.getContext('2d');c.setTransform(cv.width/lw,0,0,cv.width/lw,0,0);
+  return c;
+}
+function fitAll(){x1=fit(cv1,640,440);x2=fit(cv2,640,400);}
+window.addEventListener('resize',fitAll);
+
+/* ---------- 工具 ---------- */
+function arrow(c,x1,y1,x2,y2,s){
+  s=s||6;
+  c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+  const a=Math.atan2(y2-y1,x2-x1);
+  c.beginPath();c.moveTo(x2,y2);
+  c.lineTo(x2-s*Math.cos(a-0.42),y2-s*Math.sin(a-0.42));
+  c.lineTo(x2-s*Math.cos(a+0.42),y2-s*Math.sin(a+0.42));
+  c.closePath();c.fill();
+}
+function fmtE(E){if(E>=1e-3)return(E*1e3).toFixed(2)+' mJ';if(E>=1e-6)return(E*1e6).toFixed(1)+' µJ';return(E*1e9).toFixed(1)+' nJ'}
+function fmtI(i){const a=Math.abs(i);if(a>=0.1)return i.toFixed(3)+' A';return(i*1e3).toFixed(1)+' mA'}
+function fmtQ(q){return(q*1e6).toFixed(2)+' µC'}
+
+/* ---------- 电流路径（沿导线运动的电荷点） ---------- */
+const PATH=[[150,195],[150,110],[490,110],[490,176],[490,272],[490,330],[360,330],[280,330],[150,330],[150,245]];
+const CUM=[0];
+for(let k=1;k<PATH.length;k++)CUM.push(CUM[k-1]+Math.hypot(PATH[k][0]-PATH[k-1][0],PATH[k][1]-PATH[k-1][1]));
+const PLEN=CUM[CUM.length-1];
+function pointAt(s){
+  s=Math.max(0,Math.min(PLEN,s));let k=1;
+  while(k<CUM.length-1&&CUM[k]<s)k++;
+  const a=PATH[k-1],b=PATH[k],f=(s-CUM[k-1])/((CUM[k]-CUM[k-1])||1);
+  return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f];
+}
+
+/* ---------- 物理：RK4 ---------- */
+function push(){
+  history.push({t:t,q:q,i:cur});
+  const win=period()*3.4;let a=0;
+  while(a<history.length&&history[a].t<t-win)a++;
+  if(a)history.splice(0,a);
+  if(history.length>8000)history.splice(0,history.length-8000);
+}
+function step(dt){
+  const T=period(),n=Math.max(1,Math.ceil(dt/(T/600))),h=dt/n,skip=Math.max(1,Math.floor(n/200));
+  for(let k=0;k<n;k++){
+    const k1q=cur,k1i=-q/(L*C);
+    const q2=q+k1q*h/2,i2=cur+k1i*h/2,k2q=i2,k2i=-q2/(L*C);
+    const q3=q+k2q*h/2,i3=cur+k2i*h/2,k3q=i3,k3i=-q3/(L*C);
+    const q4=q+k3q*h,i4=cur+k3i*h,k4q=i4,k4i=-q4/(L*C);
+    q+=h/6*(k1q+2*k2q+2*k3q+k4q);
+    cur+=h/6*(k1i+2*k2i+2*k3i+k4i);
+    t+=h;
+    if(k%skip===0)push();
+  }
+  push();
+}
+
+/* ---------- 状态/控制 ---------- */
+function hint(m){$('hint').textContent=m||''}
+function recharge(){
+  switchOn=false;charging=true;chargeT0=performance.now();
+  q=0;cur=0;t=0;dotOff=0;history=[];
+  updateBtn();hint('正在给电容充电…');
+}
+function toggleSwitch(){
+  if(charging){hint('请等充电完成再闭合开关');return}
+  if(Math.abs(q)<1e-12&&Math.abs(cur)<1e-12){hint('电容还没充电，请先点「重置并给电容充电」');return}
+  switchOn=!switchOn;
+  updateBtn();
+  hint(switchOn?'振荡中：电荷与电流来回振荡，电场能⇄磁场能':'开关断开，已暂停');
+}
+function updateBtn(){
+  const b=$('btnSwitch');
+  b.textContent=switchOn?'🔒 断开开关（暂停）':'🔓 闭合开关，开始振荡';
+  b.classList.toggle('open',switchOn);
+}
+$('btnCharge').onclick=recharge;
+$('btnSwitch').onclick=toggleSwitch;
+
+/* ---------- 滑块 ---------- */
+const lg=(a,b,v)=>Math.pow(10,Math.log10(a)+(Math.log10(b)-Math.log10(a))*v);
+$('sL').oninput=e=>{L=lg(1,100,e.target.value/1000)*1e-3;$('tL').textContent=(L*1e3).toFixed(1)+' mH'};
+$('sC').oninput=e=>{C=lg(1,1000,e.target.value/1000)*1e-6;$('tC').textContent=(C*1e6)>=100?(C*1e6).toFixed(0)+' µF':(C*1e6).toFixed(1)+' µF'};
+$('sV').oninput=e=>{speed=e.target.value/100;$('tV').textContent=speed.toFixed(2)+' 周期/秒'};
+
+/* ---------- 读数与能量条 ---------- */
+function updateReadout(){
+  const UE=q*q/(2*C),UB=0.5*L*cur*cur,E=UE+UB;
+  $('vQ').textContent=(q>=0?'+':'')+fmtQ(q);
+  $('vI').textContent=(cur>=0?'+':'')+fmtI(cur);
+  $('vUE').textContent=fmtE(UE);$('vUB').textContent=fmtE(UB);$('vE').textContent=fmtE(E);
+  const T=period();$('vT').textContent=(T*1e3).toFixed(2)+' ms';$('vF').textContent=(1/T).toFixed(1)+' Hz';
+  const full=Math.max(0.5*C*V0*V0,E)*1.001;
+  $('bUE').style.width=(UE/full*100)+'%';$('bUB').style.width=(UB/full*100)+'%';
+  $('tUE').textContent=fmtE(UE);$('tUB').textContent=fmtE(UB);
+}
+
+/* ---------- 电路绘制 ---------- */
+function drawCircuit(dtR){
+  const c=x1;c.clearRect(0,0,640,440);
+  const UE=q*q/(2*C),UB=0.5*L*cur*cur,E=UE+UB||1;
+  const qf=Math.min(1,Math.abs(q)/Q0()),if_=Math.min(1,Math.abs(cur)/imaxRef());
+
+  /* 能量光晕 */
+  if(UE/E>0.02){
+    let g=c.createRadialGradient(150,220,5,150,220,72);
+    g.addColorStop(0,'rgba(255,159,67,'+(0.30*UE/E)+')');g.addColorStop(1,'rgba(255,159,67,0)');
+    c.fillStyle=g;c.beginPath();c.arc(150,220,72,0,7);c.fill();
+  }
+  if(UB/E>0.02){
+    let g=c.createRadialGradient(490,224,5,490,224,66);
+    g.addColorStop(0,'rgba(77,208,225,'+(0.32*UB/E)+')');g.addColorStop(1,'rgba(77,208,225,0)');
+    c.fillStyle=g;c.beginPath();c.arc(490,224,66,0,7);c.fill();
+  }
+
+  /* E 场箭头（方向随 q 符号翻转） */
+  if(qf>0.03){
+    c.strokeStyle=c.fillStyle='rgba(255,180,84,'+Math.min(1,qf*1.15)+')';
+    c.lineWidth=2;
+    const dn=q>=0;
+    for(const dx of[-12,0,12])
+      dn?arrow(c,150+dx,201,150+dx,239,5):arrow(c,150+dx,239,150+dx,201,5);
+    c.font='bold 13px system-ui';c.textAlign='left';
+    c.fillText('E',176,224);
+  }
+  /* B 场箭头（线圈轴向，方向随电流） */
+  if(if_>0.03){
+    c.strokeStyle=c.fillStyle='rgba(99,211,245,'+Math.min(1,if_*1.15)+')';
+    c.lineWidth=2;
+    for(const y of[200,224,248])
+      cur>0?arrow(c,464,y,516,y,5):arrow(c,516,y,464,y,5);
+    c.font='bold 13px system-ui';c.textAlign='right';
+    c.fillText('B',456,206);
+  }
+
+  /* 导线 */
+  c.strokeStyle='#9fb4c8';c.lineWidth=3;c.lineCap='round';
+  const seg=(a,b)=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(b[0],b[1]);c.stroke()};
+  seg([150,110],[150,195]);seg([150,245],[150,330]);
+  seg([150,110],[490,110]);seg([490,110],[490,176]);seg([490,272],[490,330]);
+  seg([150,330],[280,330]);seg([360,330],[490,330]);
+  /* 线圈 */
+  c.lineWidth=3;
+  for(let k=0;k<4;k++){c.beginPath();c.arc(490,188+24*k,12,-Math.PI/2,Math.PI/2);c.stroke()}
+  /* 电容极板 */
+  c.lineWidth=4;
+  seg([128,195],[172,195]);seg([128,245],[172,245]);
+
+  /* 极板电荷符号 */
+  const n=Math.min(6,Math.round(qf*6));
+  c.font='bold 12px system-ui';c.textAlign='center';
+  for(let k=0;k<n;k++){
+    const x=134+k*6.4;
+    c.fillStyle=q>=0?'#ff7b72':'#79c0ff';
+    c.fillText(q>=0?'+':'−',x,190);
+    c.fillStyle=q>=0?'#79c0ff':'#ff7b72';
+    c.fillText(q>=0?'−':'+',x,262);
+  }
+  c.font='bold 12px system-ui';
+  c.fillStyle=q>=0?'#ff7b72':'#79c0ff';c.textAlign='right';c.fillText(q>=0?'+q':'−q',122,199);
+  c.fillStyle=q>=0?'#79c0ff':'#ff7b72';c.fillText(q>=0?'−q':'+q',122,252);
+
+  /* 开关 */
+  c.fillStyle='#9fb4c8';
+  c.beginPath();c.arc(280,330,4,0,7);c.fill();
+  c.beginPath();c.arc(360,330,switchOn?3:4.5,0,7);c.fill();
+  c.strokeStyle=switchOn?'#3fb950':'#da3633';c.lineWidth=3.5;
+  if(switchOn){c.beginPath();c.moveTo(280,330);c.lineTo(360,330);c.stroke()}
+  else{c.beginPath();c.moveTo(280,330);c.lineTo(280+80*Math.cos(-0.7),330+80*Math.sin(-0.7));c.stroke()}
+  c.fillStyle='#8aa0b8';c.font='12px system-ui';c.textAlign='center';
+  c.fillText('开关 S（'+(switchOn?'闭合':'断开')+'）',320,356);
+
+  /* 元件标注 */
+  c.fillStyle='#dce6f2';c.font='bold 14px system-ui';
+  c.textAlign='center';c.fillText('C',150,285);
+  c.fillText('L',560,224);
+  c.fillStyle='#8aa0b8';c.font='11px system-ui';
+  c.fillText((C*1e6).toFixed(0)+' µF',150,300);
+  c.textAlign='left';c.fillText((L*1e3).toFixed(1)+' mH',548,240);
+
+  /* 电流方向箭头（顶导线） */
+  if(if_>0.05){
+    const a=Math.min(1,if_*1.3);
+    c.strokeStyle=c.fillStyle='rgba(126,231,255,'+a+')';c.lineWidth=2.5;
+    cur>0?arrow(c,306,110,334,110,7):arrow(c,334,110,306,110,7);
+    c.font='bold italic 14px system-ui';c.textAlign='center';
+    c.fillText('i',320,96);
+  }
+  /* 运动电荷点 */
+  if(if_>0.02){
+    const pxPerA=140/imaxRef();
+    dotOff=((dotOff+cur*pxPerA*dtR)%30+30)%30;
+    c.fillStyle='#7ee7ff';
+    c.shadowColor='#4dd0e1';c.shadowBlur=6;
+    for(let s=dotOff;s<PLEN;s+=30){
+      const p=pointAt(s);
+      if(!switchOn&&p[1]===330&&p[0]>282&&p[0]<358)continue;
+      c.beginPath();c.arc(p[0],p[1],3.2,0,7);c.fill();
+    }
+    c.shadowBlur=0;
+  }
+
+  /* 状态栏 */
+  let st;
+  if(charging)st='状态：正在给电容充电…（U = '+V0+' V）';
+  else if(!switchOn)st=Math.abs(q)>1e-12?'状态：充电完成，开关断开 → 点「闭合开关」开始振荡':'状态：待机';
+  else st='状态：LC 振荡中 —— 电场能 ⇄ 磁场能';
+  c.fillStyle='#8aa0b8';c.font='13px system-ui';c.textAlign='left';
+  c.fillText(st,14,24);
+}
+
+/* ---------- 曲线绘制 ---------- */
+function drawGraph(){
+  const c=x2;c.clearRect(0,0,640,400);
+  const W=640,H=400,ml=54,mr=58,mt=28,mb=36;
+  const pw=W-ml-mr,ph=H-mt-mb,cy=mt+ph/2;
+  const T=period(),win=3*T,t1=Math.max(win,t),t0=t1-win;
+
+  /* 网格与坐标 */
+  c.font='11px system-ui';
+  for(let k=0;k<=6;k++){
+    const x=ml+pw*k/6;
+    c.strokeStyle='#1c2530';c.lineWidth=1;
+    c.beginPath();c.moveTo(x,mt);c.lineTo(x,mt+ph);c.stroke();
+    c.fillStyle='#8aa0b8';c.textAlign='center';
+    c.fillText(((t0+win*k/6)*1e3).toFixed(1),x,H-mb+16);
+  }
+  for(const f of[-1,0,1]){
+    const y=cy+f*ph/2;
+    c.strokeStyle='#2a3648';c.beginPath();c.moveTo(ml,y);c.lineTo(ml+pw,y);c.stroke();
+  }
+  let mQ=Q0(),mI=imaxRef();
+  for(const p of history){const a=Math.abs(p.q)/1e-6,b=Math.abs(p.i);if(a>mQ)mQ=a;if(b>mI)mI=b}
+  mQ=(mQ/1e6)*1.15;mI*=1.15;
+  c.textAlign='right';
+  c.fillStyle='#ffd166';
+  c.fillText((mQ*1e6).toFixed(0)+'µC',ml-6,mt+4);c.fillText('0',ml-6,cy+4);c.fillText('−'+(mQ*1e6).toFixed(0),ml-6,mt+ph);
+  c.fillStyle='#4dd0e1';c.textAlign='left';
+  c.fillText(fmtI(mI),ml+pw+6,mt+4);c.fillText('0',ml+pw+6,cy+4);c.fillText(fmtI(-mI),ml+pw+6,mt+ph);
+  c.fillStyle='#8aa0b8';c.textAlign='center';
+  c.fillText('t / ms',ml+pw/2,H-6);
+
+  if(history.length<2){
+    c.fillStyle='#8aa0b8';c.font='13px system-ui';c.textAlign='center';
+    c.fillText(charging?'充电中，闭合开关后开始记录 q–t 与 i–t':'闭合开关后开始记录 q–t 与 i–t',ml+pw/2,cy-10);
+    return;
+  }
+  const X=tt=>ml+pw*(tt-t0)/win;
+  /* q 曲线 */
+  c.strokeStyle='#ffd166';c.lineWidth=2;c.beginPath();
+  let started=false;
+  for(const p of history){if(p.t<t0)continue;const x=X(p.t),y=cy-ph/2*(p.q/1e6)/mQ;started?c.lineTo(x,y):(c.moveTo(x,y),started=true)}
+  c.stroke();
+  /* i 曲线 */
+  c.strokeStyle='#4dd0e1';c.lineWidth=2;c.beginPath();started=false;
+  for(const p of history){if(p.t<t0)continue;const x=X(p.t),y=cy-ph/2*(p.i/mI);started?c.lineTo(x,y):(c.moveTo(x,y),started=true)}
+  c.stroke();
+  /* 当前点 */
+  c.fillStyle='#ffd166';c.beginPath();c.arc(X(t),cy-ph/2*(q/1e6)/mQ,3.5,0,7);c.fill();
+  c.fillStyle='#4dd0e1';c.beginPath();c.arc(X(t),cy-ph/2*(cur/mI),3.5,0,7);c.fill();
+
+  /* 图例 */
+  c.lineWidth=3;
+  c.strokeStyle='#ffd166';c.beginPath();c.moveTo(ml+14,14);c.lineTo(ml+34,14);c.stroke();
+  c.strokeStyle='#4dd0e1';c.beginPath();c.moveTo(ml+118,14);c.lineTo(ml+138,14);c.stroke();
+  c.font='12px system-ui';c.textAlign='left';
+  c.fillStyle='#ffd166';c.fillText('q 电荷',ml+40,18);
+  c.fillStyle='#4dd0e1';c.fillText('i 电流',ml+144,18);
+  c.fillStyle='#8aa0b8';c.fillText('Δφ = π/2',ml+230,18);
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function frame(now){
+  const dtR=Math.min(0.05,(now-last)/1000);last=now;
+  if(charging){
+    const p=Math.min(1,(now-chargeT0)/900);
+    q=Q0()*(1-Math.exp(-3*p))/(1-Math.exp(-3));
+    if(p>=1){q=Q0();charging=false;hint('充电完成：q₀ = '+fmtQ(q)+'，点「闭合开关」开始振荡')}
+  }else if(switchOn&&!charging){
+    step(dtR*speed*period());
+  }
+  drawCircuit(dtR);drawGraph();updateReadout();
+  requestAnimationFrame(frame);
+}
+fitAll();recharge();updateBtn();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

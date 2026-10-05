@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>回旋加速器交互仿真</title>
+<style>
+:root{--bg:#0a1018;--panel:#111a26;--line:#233246;--tx:#dbe7f3;--dim:#8ba3bd;--acc:#38bdf8;--good:#34d399;--bad:#f87171;--gold:#fbbf24}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:14px/1.5 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{padding:9px 18px;background:linear-gradient(90deg,#0e1725,#122033);border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:18px;letter-spacing:1px}
+header .sub{color:var(--dim);font-size:12px}
+.main{flex:1;display:flex;min-height:0}
+#stage{flex:1;position:relative;min-width:0}
+canvas{display:block;width:100%;height:100%}
+#exitOverlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:radial-gradient(circle,rgba(2,6,12,.2),rgba(2,6,12,.72));pointer-events:none}
+#exitOverlay.show{display:flex;animation:pop .5s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+.exitCard{text-align:center;background:rgba(10,16,26,.92);border:1px solid var(--gold);border-radius:14px;padding:24px 46px;box-shadow:0 0 42px rgba(251,191,36,.35)}
+.exitCard .tag{color:var(--gold);letter-spacing:5px;font-size:13px}
+.exitCard .big{font-size:52px;font-weight:800;color:var(--gold);text-shadow:0 0 24px rgba(251,191,36,.5)}
+.exitCard .unit{font-size:22px;color:var(--gold);font-weight:700}
+.exitCard .info{color:var(--dim);font-size:12px;margin-top:8px}
+#warnBadge{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(248,113,113,.14);border:1px solid var(--bad);color:var(--bad);padding:3px 12px;border-radius:20px;font-size:12px;display:none}
+#warnBadge.show{display:block}
+aside{width:356px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:12px 16px 30px}
+aside::-webkit-scrollbar{width:6px}aside::-webkit-scrollbar-thumb{background:#2a3a50;border-radius:3px}
+h2{font-size:13px;color:var(--acc);margin:13px 0 8px;letter-spacing:1px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.ctl{margin-bottom:9px}
+.ctl label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--dim);margin-bottom:3px}
+.ctl label b{color:var(--tx);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
+input[type=range]:disabled{opacity:.45;cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:3px 10px;border:1px solid var(--line);border-radius:14px;background:#0d1622;color:var(--dim);cursor:pointer;font-size:12px;user-select:none}
+.chip.on{background:var(--acc);color:#04202e;border-color:var(--acc);font-weight:700}
+.btns{display:flex;gap:8px;margin:2px 0 4px}
+button.ctlBtn{flex:1;padding:8px 0;border-radius:8px;border:1px solid var(--acc);background:#0d2a3d;color:var(--acc);font-size:14px;cursor:pointer;font-weight:600}
+button.ctlBtn:hover{background:var(--acc);color:#04202e}
+button.reset{border-color:#64748b;color:#94a3b8;background:#131c28}
+button.reset:hover{background:#334155;color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.kv{background:#0d1622;border:1px solid var(--line);border-radius:8px;padding:5px 9px}
+.kv .k{font-size:11px;color:var(--dim)}
+.kv .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.kv .v em{font-style:normal;font-size:11px;color:var(--dim);font-weight:400}
+.kv.hl .v{color:var(--gold)}
+.sync{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);margin:2px 0 8px}
+.sync input{accent-color:var(--acc)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);margin-left:auto}
+.dot.off{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+ol.teach{padding-left:18px;color:var(--dim);font-size:12.5px}
+ol.teach li{margin-bottom:7px}
+ol.teach b{color:var(--tx)}
+.formula{font-family:Georgia,serif;color:var(--gold)}
+.note{font-size:11px;color:#5b7290;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>回旋加速器 · 交互仿真</h1>
+  <span class="sub">T = 2πm/(qB) 与 v 无关 → 恒定频率即可同步 ｜ 加速只发生在缝隙 ｜ 出射动能 K = q²B²R²/(2m)</span>
+</header>
+<div class="main">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="warnBadge">⚠ 相位失配：粒子正被缝隙电场减速</div>
+    <div id="exitOverlay"><div class="exitCard">
+      <div class="tag">粒 子 引 出 · 出 射 动 能</div>
+      <div><span class="big" id="exitBig">0.00</span> <span class="unit">MeV</span></div>
+      <div class="info" id="exitInfo"></div>
+    </div></div>
+  </div>
+  <aside>
+    <h2>播放控制</h2>
+    <div class="btns">
+      <button class="ctlBtn" id="btnPlay">⏸ 暂停</button>
+      <button class="ctlBtn reset" id="btnReset">⟲ 重置</button>
+    </div>
+    <div class="ctl"><label>慢放 / 倍速 <b id="spdVal">1×</b></label>
+      <div class="chips" id="spdChips"></div>
+    </div>
+
+    <h2>粒子种类</h2>
+    <div class="chips" id="partChips">
+      <span class="chip on" data-t="p">质子 ₁H⁺</span>
+      <span class="chip" data-t="a">α 粒子 ₄He²⁺</span>
+    </div>
+
+    <h2>可调参数</h2>
+    <div class="ctl"><label>磁感应强度 B <b><span id="Bv">1.20</span> T</b></label>
+      <input type="range" id="Bs" min="0.5" max="2" step="0.01" value="1.2"></div>
+    <div class="ctl"><label>缝隙电压幅值 U <b><span id="Uv">5.0</span> kV</b></label>
+      <input type="range" id="Us" min="0.5" max="10" step="0.1" value="5"></div>
+    <div class="ctl"><label>D 盒半径 R <b><span id="Rv">0.60</span> m</b></label>
+      <input type="range" id="Rs" min="0.2" max="0.8" step="0.01" value="0.6"></div>
+    <div class="ctl"><label>交变频率 f <b><span id="fv">0.00</span> MHz</b></label>
+      <input type="range" id="fs" min="1" max="40" step="0.01" value="15"></div>
+    <div class="sync"><input type="checkbox" id="autoSync" checked><label for="autoSync" style="display:inline">自动同步（f = f<sub>c</sub> = qB/2πm）</label><span class="dot" id="syncDot"></span></div>
+
+    <h2>实时数据</h2>
+    <div class="grid">
+      <div class="kv"><div class="k">速度 v</div><div class="v" id="rv">0<em> ×10⁷ m/s</em></div></div>
+      <div class="kv"><div class="k">动能 K</div><div class="v" id="rK">0<em> MeV</em></div></div>
+      <div class="kv"><div class="k">轨道半径 r</div><div class="v" id="rr">0<em> m</em></div></div>
+      <div class="kv"><div class="k">回旋圈数 N</div><div class="v" id="rN">0</div></div>
+      <div class="kv"><div class="k">回旋频率 f<sub>c</sub></div><div class="v" id="rf">0<em> MHz</em></div></div>
+      <div class="kv"><div class="k">回旋周期 T<sub>c</sub></div><div class="v" id="rT">0<em> ns</em></div></div>
+      <div class="kv"><div class="k">已历时（真实）</div><div class="v" id="rt">0<em> ns</em></div></div>
+      <div class="kv hl"><div class="k">理论出射动能</div><div class="v" id="rKh">0<em> MeV</em></div></div>
+    </div>
+
+    <h2>教学要点</h2>
+    <ol class="teach">
+      <li><b>同步原理</b>：D 盒内仅有磁场，洛伦兹力不做功、只改方向；<span class="formula">T = 2πm/(qB)</span> 与速度 v <b>无关</b>——半径增大但周期不变，故恒定频率的交变电压总能同步加速。</li>
+      <li><b>加速位置</b>：D 盒金属壳静电屏蔽，内部无电场；<b>只在缝隙</b>被电场加速，每次穿越获得能量 qU。</li>
+      <li><b>出射动能</b>：r = R 时引出，<span class="formula">K = q²B²R²/(2m)</span>，只由 B、R（和粒子）决定；U 与 f 仅影响加速圈数（N ≈ K/2qU）。</li>
+      <li><b>失步演示</b>：关闭"自动同步"，把 f 拖离 f<sub>c</sub>，观察示波器上相位滑动 → 粒子被减速。</li>
+    </ol>
+    <div class="note">注：经典（非相对论）模型，适用于 K ≪ mc²。r = mv/(qB)，出射速度 v = qBR/m。</div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ---------- 物理常数与参数 ---------- */
+const PART={
+  p:{name:"质子",   m:1.6726219e-27, q:1.6021766e-19},
+  a:{name:"α 粒子", m:6.6446467e-27, q:3.2043532e-19}
+};
+const EV=1.6021766e-19, PI=Math.PI;
+const SPEEDS=[0.1,0.25,0.5,1,2,4,8,16];
+const TSCALE=1e-7;              // 1 显示秒 = 1e-7 真实秒（1× 时）
+const pr={B:1.2,U:5,R:0.6,f:15e6,auto:true,type:"p",speed:1};
+let playing=true, st;
+
+const fCycl=()=>{const p=PART[pr.type];return p.q*pr.B/(2*PI*p.m);};
+const Kth =()=>{const p=PART[pr.type];return Math.pow(p.q*pr.B*pr.R,2)/(2*p.m);};
+
+/* ---------- 状态 ---------- */
+function initState(){
+  const p=PART[pr.type];
+  st={t:0,th:PI/2,K:1000*EV,v:0,r:0,cross:0,trail:[],sampleStep:0.09,lastPushTh:PI/2,
+      extracted:false,exitK:0,exitDir:1,exitPos:null,exitT:0,events:[]};
+  st.v=Math.sqrt(2*st.K/p.m); st.r=p.m*st.v/(p.q*pr.B);
+  pushTrail();
+}
+function updDerived(){
+  const p=PART[pr.type];
+  st.v=Math.sqrt(2*st.K/p.m); st.r=p.m*st.v/(p.q*pr.B);
+}
+function pushTrail(){
+  st.trail.push({x:st.r*Math.cos(st.th),y:st.r*Math.sin(st.th)});
+  st.lastPushTh=st.th;
+  if(st.trail.length>3600){st.trail=st.trail.filter((_,i)=>i%2===0);st.sampleStep*=2;}
+}
+
+/* ---------- 物理推进（解析处理每次缝隙穿越的精确时刻） ---------- */
+function step(dtDisp){
+  const p=PART[pr.type], om=p.q*pr.B/p.m;
+  if(st.extracted){const dt=dtDisp*pr.speed*TSCALE;st.exitPos.x+=st.exitDir*st.v*dt;st.t+=dt;return;}
+  let remain=dtDisp*pr.speed*TSCALE;
+  while(remain>1e-18){
+    const k=st.cross+1, bound=PI/2-k*PI, dth=st.th-bound, tToB=dth/om;
+    if(tToB>remain){                       // 本子步内不穿缝
+      st.th-=om*remain; st.t+=remain; remain=0;
+    }else{                                 // 恰好到达缝隙（时刻精确）
+      st.th=bound; st.t+=tToB; remain-=tToB;
+      const kk=st.cross+1, s=(kk%2===1)?1:-1;          // 奇数次向左穿，偶数次向右穿
+      const Vg=-pr.U*1000*Math.cos(2*PI*pr.f*st.t);    // 缝隙电压 V(t) = -U·cos(2πft)
+      let dK=s*p.q*Vg;
+      if(pr.auto) dK=p.q*pr.U*1000;                    // 自动同步：每次都满加速 qU
+      st.K=Math.max(st.K+dK,p.q*50);
+      st.events.push({t:st.t,ok:dK>0});
+      updDerived(); st.cross=kk; pushTrail();
+      if(st.r>=pr.R){doExtract(kk);return;}
+    }
+    if(st.lastPushTh-st.th>=st.sampleStep)pushTrail();
+  }
+  st.events=st.events.filter(e=>e.t>st.t-6/pr.f);
+}
+
+function doExtract(k){
+  st.extracted=true; st.exitK=st.K; st.exitT=st.t;
+  st.r=Math.min(st.r,pr.R);
+  const ySign=(k%2===0)?1:-1;
+  st.exitDir=ySign; st.exitPos={x:0,y:st.r*ySign};
+  pushTrail();
+  document.getElementById("exitBig").textContent=(st.exitK/EV/1e6).toFixed(2);
+  document.getElementById("exitInfo").innerHTML=
+    `${PART[pr.type].name} · 共 <b>${Math.floor(st.cross/2)}</b> 圈（缝隙加速 ${st.cross} 次）· 历时 ${(st.exitT*1e9).toFixed(1)} ns<br>`+
+    `K = q²B²R²/(2m) = ${(Kth()/EV/1e6).toFixed(2)} MeV —— 只由 B、R 决定，与 U、f 无关`;
+  document.getElementById("exitOverlay").classList.add("show");
+}
+
+/* ---------- 画布与绘制 ---------- */
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+let W=0,H=0,DPR=1;
+function fit(){
+  DPR=window.devicePixelRatio||1;
+  const r=cv.parentElement.getBoundingClientRect();
+  W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize",fit);fit();
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const scopeH=88, cx=W/2, cy=(H-scopeH)/2;
+  const Rs=Math.min(W*0.46,(H-scopeH)*0.46);
+  const sc=Rs/pr.R, X=x=>cx+x*sc, Y=y=>cy-y*sc;
+
+  /* D 盒 */
+  const gapW=Math.max(6,Rs*0.02);
+  ctx.fillStyle="#16222f";ctx.strokeStyle="#5b7d9c";ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,Rs,PI/2,PI*1.5);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,Rs,-PI/2,PI/2);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle="#0a1018";ctx.fillRect(cx-gapW/2,cy-Rs,gapW,Rs*2);          // 缝隙
+  ctx.strokeStyle="#26425c";ctx.setLineDash([4,6]);
+  ctx.beginPath();ctx.arc(cx,cy,Rs,0,2*PI);ctx.stroke();ctx.setLineDash([]); // 外沿
+  ctx.fillStyle="#7d97b0";ctx.font="600 13px system-ui";
+  ctx.textAlign="center";
+  ctx.fillText("D₁",cx-Rs*0.55,cy+4);ctx.fillText("D₂",cx+Rs*0.55,cy+4);
+  ctx.font="11px system-ui";ctx.fillStyle="#fbbf24";
+  ctx.fillText("⚡ 加速缝隙",cx,cy-Rs-10);
+  ctx.fillStyle="#60a5fa";ctx.textAlign="left";
+  ctx.fillText("B ⊙（匀强磁场，垂直纸面向外）",14,20);
+
+  /* 磁场符号 ⊙ */
+  ctx.strokeStyle="rgba(96,165,250,.30)";ctx.fillStyle="rgba(96,165,250,.30)";ctx.lineWidth=1;
+  const n=5,stepD=Rs*2/(n*2+1);
+  for(let i=1;i<=n*2;i++)for(let j=1;j<=n*2;j++){
+    const px=stepD*i,py=stepD*j;
+    if(Math.hypot(px-Rs,py-Rs)>Rs-14)continue;
+    if(Math.abs(px-Rs)<gapW/2+6)continue;
+    ctx.beginPath();ctx.arc(px,py,4.5,0,2*PI);ctx.stroke();
+    ctx.beginPath();ctx.arc(px,py,1,0,2*PI);ctx.fill();
+  }
+
+  /* 螺旋轨迹 */
+  if(st.trail.length>1){
+    ctx.beginPath();ctx.moveTo(X(st.trail[0].x),Y(st.trail[0].y));
+    for(let i=1;i<st.trail.length;i++)ctx.lineTo(X(st.trail[i].x),Y(st.trail[i].y));
+    ctx.strokeStyle="rgba(56,189,248,.22)";ctx.lineWidth=4;ctx.stroke();
+    ctx.strokeStyle="rgba(125,229,255,.9)";ctx.lineWidth=1.4;ctx.stroke();
+  }
+
+  /* 当前轨道（虚线圆，展示 r=mv/qB） */
+  if(!st.extracted&&st.r*sc>4){
+    ctx.setLineDash([3,5]);ctx.strokeStyle="rgba(255,255,255,.16)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(cx,cy,st.r*sc,0,2*PI);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  /* 粒子 */
+  if(!st.extracted){
+    const px=X(st.r*Math.cos(st.th)),py=Y(st.r*Math.sin(st.th));
+    const g=ctx.createRadialGradient(px,py,0,px,py,14);
+    g.addColorStop(0,"rgba(251,191,36,.9)");g.addColorStop(1,"rgba(251,191,36,0)");
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,14,0,2*PI);ctx.fill();
+    ctx.fillStyle="#ffd166";ctx.beginPath();ctx.arc(px,py,4.5,0,2*PI);ctx.fill();
+    const vx=Math.sin(st.th),vy=-Math.cos(st.th);          // 速度方向（顺时针）
+    ctx.strokeStyle="rgba(255,209,102,.8)";ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+vx*24,py-vy*24);ctx.stroke();
+    ctx.fillStyle="rgba(223,236,248,.85)";ctx.font="11px system-ui";ctx.textAlign="left";
+    ctx.fillText((st.K/EV/1e6).toFixed(2)+" MeV",px+10,py-10);
+  }else{
+    ctx.strokeStyle="#fbbf24";ctx.lineWidth=2;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(X(0),Y(st.exitPos.y*1));ctx.lineTo(X(st.exitPos.x),Y(st.exitPos.y));ctx.stroke();ctx.setLineDash([]);
+    const px=X(st.exitPos.x),py=Y(st.exitPos.y);
+    ctx.fillStyle="#ffd166";ctx.beginPath();ctx.arc(px,py,5,0,2*PI);ctx.fill();
+    ctx.fillStyle="#fbbf24";ctx.font="12px system-ui";ctx.textAlign="center";
+    ctx.fillText("引出 →",px,py-12);
+  }
+
+  /* 示波器：缝隙电压与穿越事件 */
+  const sx=12,sw=W-24,sy=H-scopeH+8,sh=scopeH-16,win=6/pr.f;
+  ctx.fillStyle="rgba(13,22,34,.9)";ctx.strokeStyle="#233246";
+  ctx.beginPath();ctx.roundRect(sx,sy,sw,sh,8);ctx.fill();ctx.stroke();
+  const mid=sy+sh/2,amp=sh/2-8;
+  ctx.strokeStyle="rgba(139,163,189,.35)";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(sx+4,mid);ctx.lineTo(sx+sw-4,mid);ctx.stroke();
+  ctx.strokeStyle="rgba(56,189,248,.9)";ctx.lineWidth=1.6;ctx.beginPath();
+  for(let i=0;i<=sw;i++){
+    const t0=st.t-win+win*i/sw, V=-Math.cos(2*PI*pr.f*t0);
+    const yy=mid-V*amp, xx=sx+i;
+    i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);
+  }
+  ctx.stroke();
+  ctx.strokeStyle="rgba(139,163,189,.18)";                 // 半周期参考刻度
+  for(let m=Math.ceil((st.t-win)*2*pr.f);m<=st.t*2*pr.f;m++){
+    const xx=sx+((m/(2*pr.f))-(st.t-win))/win*sw;
+    ctx.beginPath();ctx.moveTo(xx,sy+4);ctx.lineTo(xx,sy+sh-4);ctx.stroke();
+  }
+  for(const e of st.events){                               // 穿越 marker：绿=加速 红=减速
+    const xx=sx+(e.t-(st.t-win))/win*sw, V=-Math.cos(2*PI*pr.f*e.t);
+    ctx.fillStyle=e.ok?"#34d399":"#f87171";
+    ctx.beginPath();ctx.arc(xx,mid-V*amp,3.5,0,2*PI);ctx.fill();
+  }
+  ctx.fillStyle="#8ba3bd";ctx.font="11px system-ui";ctx.textAlign="left";
+  ctx.fillText("缝隙电压 V(t) = −U·cos(2πft)，绿点=同步加速，红点=失步减速",sx+10,sy+14);
+  ctx.textAlign="right";
+  ctx.fillText(`f = ${(pr.f/1e6).toFixed(2)} MHz ／ f_c = ${(fCycl()/1e6).toFixed(2)} MHz`,sx+sw-10,sy+14);
+}
+
+/* ---------- 读数刷新 ---------- */
+const $=id=>document.getElementById(id);
+function readouts(){
+  $("rv").innerHTML=(st.v/1e7).toFixed(2)+"<em> ×10⁷ m/s</em>";
+  $("rK").innerHTML=(st.K/EV/1e6).toFixed(3)+"<em> MeV</em>";
+  $("rr").innerHTML=st.r.toFixed(3)+"<em> m</em>";
+  $("rN").textContent=Math.floor(st.cross/2);
+  $("rf").innerHTML=(fCycl()/1e6).toFixed(2)+"<em> MHz</em>";
+  $("rT").innerHTML=(1/fCycl()*1e9).toFixed(1)+"<em> ns</em>";
+  $("rt").innerHTML=(st.t*1e9).toFixed(1)+"<em> ns</em>";
+  $("rKh").innerHTML=(Kth()/EV/1e6).toFixed(2)+"<em> MeV</em>";
+  const df=(pr.f-fCycl())/fCycl()*100, sync=pr.auto||Math.abs(df)<0.5;
+  $("syncDot").classList.toggle("off",!sync);
+  $("fv").textContent=(pr.f/1e6).toFixed(2);
+  const recent=st.events.slice(-3);
+  $("warnBadge").classList.toggle("show",!st.extracted&&recent.length>=3&&recent.every(e=>!e.ok));
+}
+
+/* ---------- UI 绑定 ---------- */
+function bindRange(id,vid,fmt,set){
+  $(id).addEventListener("input",e=>{
+    const v=parseFloat(e.target.value);$(vid).textContent=fmt(v);set(v);
+  });
+}
+bindRange("Bs","Bv",v=>v.toFixed(2),v=>{pr.B=v;updDerived();});
+bindRange("Us","Uv",v=>v.toFixed(1),v=>pr.U=v);
+bindRange("Rs","Rv",v=>v.toFixed(2),v=>{pr.R=v;if(!st.extracted&&st.r>=pr.R)doExtract(st.cross+1);});
+$("fs").addEventListener("input",e=>{pr.auto=false;$("autoSync").checked=false;pr.f=parseFloat(e.target.value)*1e6;});
+$("autoSync").addEventListener("change",e=>{
+  pr.auto=e.target.checked;$("fs").disabled=pr.auto;
+  if(pr.auto)pr.f=fCycl();
+});
+$("fs").disabled=true;
+
+$("btnPlay").addEventListener("click",()=>{
+  playing=!playing;
+  $("btnPlay").textContent=playing?"⏸ 暂停":"▶ 播放";
+});
+$("btnReset").addEventListener("click",()=>{
+  $("exitOverlay").classList.remove("show");$("warnBadge").classList.remove("show");
+  initState();
+});
+document.querySelectorAll("#partChips .chip").forEach(c=>c.addEventListener("click",()=>{
+  document.querySelectorAll("#partChips .chip").forEach(x=>x.classList.remove("on"));
+  c.classList.add("on");pr.type=c.dataset.t;
+  $("exitOverlay").classList.remove("show");$("warnBadge").classList.remove("show");
+  initState();$("fs").value=(fCycl()/1e6).toFixed(2);
+}));
+SPEEDS.forEach((s,i)=>{
+  const c=document.createElement("span");c.className="chip"+(s===1?" on":"");c.textContent=s+"×";
+  c.addEventListener("click",()=>{
+    document.querySelectorAll("#spdChips .chip").forEach(x=>x.classList.remove("on"));
+    c.classList.add("on");pr.speed=s;$("spdVal").textContent=s+"×";
+  });
+  $("spdChips").appendChild(c);
+});
+
+/* ---------- 主循环 ---------- */
+initState();pr.f=fCycl();$("fs").value=(pr.f/1e6).toFixed(2);
+let last=performance.now();
+function loop(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;
+  if(playing)step(dt);
+  if(pr.auto)pr.f=fCycl();
+  draw();readouts();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

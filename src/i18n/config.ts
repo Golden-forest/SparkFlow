@@ -6,6 +6,7 @@ import { initReactI18next } from 'react-i18next';
 // zh-CN
 import zhCommon from './locales/zh-CN/common.json';
 import zhHome from './locales/zh-CN/home.json';
+import zhRating from './locales/zh-CN/rating.json';
 import zhHydrogen from './locales/zh-CN/experiments/hydrogen-transitions.json';
 import zhRutherford from './locales/zh-CN/experiments/rutherford-scattering.json';
 import zhCapacitor from './locales/zh-CN/experiments/capacitor-charge-discharge.json';
@@ -26,6 +27,7 @@ import zhGalvanic from './locales/zh-CN/experiments/galvanic-cell.json';
 // en-US
 import enCommon from './locales/en-US/common.json';
 import enHome from './locales/en-US/home.json';
+import enRating from './locales/en-US/rating.json';
 import enHydrogen from './locales/en-US/experiments/hydrogen-transitions.json';
 import enRutherford from './locales/en-US/experiments/rutherford-scattering.json';
 import enCapacitor from './locales/en-US/experiments/capacitor-charge-discharge.json';
@@ -50,6 +52,7 @@ void i18n.use(initReactI18next).init({
         'zh-CN': {
             common: zhCommon,
             home: zhHome,
+            rating: zhRating,
             'experiments.hydrogen-transitions': zhHydrogen,
             'experiments.rutherford-scattering': zhRutherford,
             'experiments.capacitor-charge-discharge': zhCapacitor,
@@ -70,6 +73,7 @@ void i18n.use(initReactI18next).init({
         'en-US': {
             common: enCommon,
             home: enHome,
+            rating: enRating,
             'experiments.hydrogen-transitions': enHydrogen,
             'experiments.rutherford-scattering': enRutherford,
             'experiments.capacitor-charge-discharge': enCapacitor,

@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>滑块—木板模型 · 从相对滑动到共速</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* Subject-specific semantic colors (extend the base set) */
+      --sim-block: #2f6fed;
+      --sim-block-deep: #1e4fc2;
+      --sim-plank: #c07a14;
+      --sim-friction: #dc2626;
+      --sim-together: #0c8a52;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2.0rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .status[data-state="run1"] { border-color: rgba(220,38,38,.22); background: #fdeaea; color: #b91c1c; }
+    .status[data-state="meet"] { border-color: rgba(245,158,11,.35); background: #fff3d6; color: #92400e; }
+    .status[data-state="run2"] { border-color: rgba(12,138,82,.25); background: #e2f5ec; color: #0c6b44; }
+    .status[data-state="done"] { border-color: rgba(101,113,136,.25); background: #eef1f5; color: #4b5566; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f7fa 55%, #fdf8ee 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; align-content: start; overflow: auto; padding-right: 2px; }
+    .chart-panel { padding: 14px 14px 10px; }
+    #vtChart { width: 100%; height: auto; display: block; }
+    .readouts { padding: 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 11px 13px; border: 1px solid rgba(15,159,186,.12); border-radius: 14px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.74rem; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric strong.c-block { color: var(--sim-block-deep); }
+    .metric strong.c-plank { color: var(--sim-plank); }
+    .metric strong.c-friction { color: var(--sim-friction); }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+    .model-note h2 { margin: 0; font-size: 0.95rem; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.84rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; line-height: 1.55; font-size: 0.9rem; }
+    .controls { padding: 12px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(150px, 0.34fr); gap: 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .param-group { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .group-title { grid-column: 1 / -1; color: var(--sim-muted); font-size: 0.7rem; font-weight: 750; letter-spacing: .08em; margin-bottom: -4px; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    /* Scene SVG */
+    .scene-label { font-size: 13px; font-weight: 700; paint-order: stroke; stroke: rgba(255,255,255,.92); stroke-width: 4px; stroke-linejoin: round; }
+    .arrow-casing { stroke: rgba(255,255,255,.9); stroke-width: 9; stroke-linecap: round; }
+    .ruler-tick { stroke: #9aa7ba; stroke-width: 1.4; }
+    .ruler-text { fill: #7c8aa0; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    .legend-text { fill: var(--sim-muted); font-size: 12.5px; font-weight: 650; }
+    .ground-note { fill: #94a3b3; font-size: 12.5px; font-style: italic; }
+    .region-label { font-size: 11.5px; font-weight: 750; letter-spacing: .04em; }
+    #sparks { display: none; }
+    #scene[data-sliding="1"] #sparks { display: block; }
+    #sparks line { animation: sparkSlide 0.55s linear infinite; }
+    #sparks line:nth-child(2) { animation-delay: 0.18s; }
+    #sparks line:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes sparkSlide { from { transform: translateX(0); opacity: .95; } to { transform: translateX(-26px); opacity: .15; } }
+    /* v-t chart */
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 11.5px; }
+    .tick-label { fill: #7c8aa0; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .ghost { fill: none; stroke-width: 2.4; stroke-dasharray: 7 6; opacity: .48; }
+    #ghostBlock { stroke: var(--sim-block); }
+    #ghostPlank { stroke: var(--sim-plank); }
+    #traceBlock { fill: none; stroke: var(--sim-block); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+    #tracePlank { fill: none; stroke: var(--sim-plank); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+    #dotBlock { fill: var(--sim-block); stroke: #fff; stroke-width: 2.4; }
+    #dotPlank { fill: var(--sim-plank); stroke: #fff; stroke-width: 2.4; }
+    #tStarLine { stroke: #b45309; stroke-width: 1.6; stroke-dasharray: 5 5; }
+    .chart-anno { font-size: 11.5px; font-weight: 750; }
+    #nowCursor { stroke: #94a3b3; stroke-width: 1.2; stroke-dasharray: 2 4; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .param-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 980 / 396; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+      #sparks line { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>滑块—木板模型（板块模型）</h1>
+        <p>光滑水平地面 · 滑块以初速度冲上静止木板 · 相对滑动 → 共速 → 一起匀速</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite" data-state="idle">未开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">场景：滑块与木板</h2>
+          <span>地面参考系 · 直尺每格 1 m · 速度箭头长度与速度成正比</span>
+        </div>
+        <svg id="scene" viewBox="0 0 980 396" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">滑块在木板上相对滑动，摩擦力箭头等大反向；达到共速后两者一起匀速运动，摩擦力变为零。</desc>
+          <defs>
+            <linearGradient id="woodGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#eab671"></stop>
+              <stop offset="0.5" stop-color="#dda45a"></stop>
+              <stop offset="1" stop-color="#c9883c"></stop>
+            </linearGradient>
+            <linearGradient id="blockGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#4d84f4"></stop>
+              <stop offset="1" stop-color="#2860d8"></stop>
+            </linearGradient>
+            <pattern id="hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="14" stroke="#c9d3df" stroke-width="2"></line>
+            </pattern>
+          </defs>
+          <rect x="0" y="348" width="980" height="18" fill="url(#hatch)" opacity="0.7"></rect>
+          <line x1="0" y1="348" x2="980" y2="348" stroke="#8fa0b5" stroke-width="2.5"></line>
+          <g id="ruler"></g>
+          <text class="ground-note" x="16" y="62">光滑水平地面（无摩擦）</text>
+          <!-- plank -->
+          <rect id="plank" x="240" y="312" width="520" height="36" rx="4" fill="url(#woodGrad)" stroke="#a8712f" stroke-width="1.6"></rect>
+          <g id="plankDetail" stroke="#b98a45" stroke-width="1.4" opacity="0.8">
+            <line id="seam1" x1="380" y1="316" x2="380" y2="344"></line>
+            <line id="seam2" x1="520" y1="316" x2="520" y2="344"></line>
+          </g>
+          <rect id="scratch" x="240" y="312" width="0" height="7" fill="rgba(220,38,38,.4)"></rect>
+          <text id="plankLabel" class="scene-label" x="700" y="338" fill="#7a4a10">木板 m₂</text>
+          <!-- block -->
+          <rect id="block" x="300" y="254" width="90" height="58" rx="6" fill="url(#blockGrad)" stroke="#1c4db8" stroke-width="1.8"></rect>
+          <text id="blockLabel" class="scene-label" x="345" y="288" fill="#ffffff" text-anchor="middle">滑块 m₁</text>
+          <!-- arrows: line casing + colored line + head + symbol -->
+          <g id="v1Arrow">
+            <line class="arrow-casing" x1="0" y1="232" x2="0" y2="232"></line>
+            <line id="v1Line" stroke="#2f6fed" stroke-width="5" stroke-linecap="round" x1="0" y1="232" x2="0" y2="232"></line>
+            <polygon id="v1Head" fill="#2f6fed" points=""></polygon>
+            <text id="v1Text" class="scene-label" fill="#1e4fc2" font-size="14" x="0" y="228"></text>
+          </g>
+          <g id="v2Arrow">
+            <line class="arrow-casing" x1="0" y1="286" x2="0" y2="286"></line>
+            <line id="v2Line" stroke="#c07a14" stroke-width="5" stroke-linecap="round" x1="0" y1="286" x2="0" y2="286"></line>
+            <polygon id="v2Head" fill="#c07a14" points=""></polygon>
+            <text id="v2Text" class="scene-label" fill="#9a5f08" font-size="14" x="0" y="282"></text>
+          </g>
+          <g id="f1Arrow">
+            <line class="arrow-casing" x1="0" y1="302" x2="0" y2="302"></line>
+            <line id="f1Line" stroke="#dc2626" stroke-width="5" stroke-linecap="round" x1="0" y1="302" x2="0" y2="302"></line>
+            <polygon id="f1Head" fill="#dc2626" points=""></polygon>
+            <text id="f1Text" class="scene-label" fill="#b91c1c" font-size="14" x="0" y="298"></text>
+          </g>
+          <g id="f2Arrow">
+            <line class="arrow-casing" x1="0" y1="324" x2="0" y2="324"></line>
+            <line id="f2Line" stroke="#dc2626" stroke-width="5" stroke-linecap="round" x1="0" y1="324" x2="0" y2="324"></line>
+            <polygon id="f2Head" fill="#dc2626" points=""></polygon>
+            <text id="f2Text" class="scene-label" fill="#b91c1c" font-size="14" x="0" y="320"></text>
+          </g>
+          <text id="fZeroText" class="scene-label" fill="#0c8a52" font-size="13.5" x="0" y="318" text-anchor="middle" visibility="hidden">f = 0（无相对滑动）</text>
+          <g id="sparks" stroke="#e04444" stroke-width="3" stroke-linecap="round">
+            <line x1="0" y1="309" x2="14" y2="309"></line>
+            <line x1="0" y1="315" x2="14" y2="315"></line>
+            <line x1="0" y1="321" x2="14" y2="321"></line>
+          </g>
+          <!-- phase chip -->
+          <rect id="phaseChipBg" x="16" y="14" width="150" height="30" rx="15" fill="#eef4f8" stroke="#c9d8e4" stroke-width="1.4"></rect>
+          <text id="phaseChip" x="91" y="34" text-anchor="middle" font-size="14.5" font-weight="780" fill="#334560">未开始</text>
+          <!-- legend -->
+          <g id="sceneLegend">
+            <line x1="838" y1="22" x2="864" y2="22" stroke="#2f6fed" stroke-width="4.5" stroke-linecap="round"></line>
+            <text class="legend-text" x="872" y="26">滑块 v₁（蓝）</text>
+            <line x1="838" y1="44" x2="864" y2="44" stroke="#c07a14" stroke-width="4.5" stroke-linecap="round"></line>
+            <text class="legend-text" x="872" y="48">木板 v₂（琥珀）</text>
+            <line x1="838" y1="66" x2="864" y2="66" stroke="#dc2626" stroke-width="4.5" stroke-linecap="round"></line>
+            <text class="legend-text" x="872" y="70">摩擦力 f（等大反向）</text>
+            <rect x="838" y="83" width="26" height="7" fill="rgba(220,38,38,.4)"></rect>
+            <text class="legend-text" x="872" y="92">相对滑移 d（红色划痕）</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">v–t 图像</h2>
+            <span>实线 = 已发生 · 虚线 = 预测全程</span>
+          </div>
+          <svg id="vtChart" viewBox="0 0 440 300" role="img" aria-labelledby="chart-title chart-desc">
+            <desc id="chart-desc">滑块速度与木板速度随时间变化：两条折线在共速时刻相交，此后重合为同一条水平线。</desc>
+            <rect id="phase1Shade" x="48" y="16" width="0" height="240" fill="rgba(220,38,38,0.055)"></rect>
+            <g id="chartGrid"></g>
+            <line class="axis" x1="48" y1="256" x2="430" y2="256"></line>
+            <line class="axis" x1="48" y1="16" x2="48" y2="256"></line>
+            <text class="axis-label" x="430" y="272" text-anchor="end">t / s</text>
+            <text class="axis-label" x="48" y="11">v / (m·s⁻¹)</text>
+            <line id="vStarLine" x1="48" y1="200" x2="430" y2="200" stroke="#94a3b3" stroke-width="1.2" stroke-dasharray="2 6"></line>
+            <path id="ghostBlock" class="ghost" d=""></path>
+            <path id="ghostPlank" class="ghost" d=""></path>
+            <line id="tStarLine" x1="200" y1="16" x2="200" y2="256"></line>
+            <text id="tStarLabel" class="chart-anno" fill="#b45309" x="200" y="30" text-anchor="middle"></text>
+            <text id="vStarLabel" class="chart-anno" fill="#5b6b82" x="54" y="196"></text>
+            <text id="regionLabel1" class="region-label" fill="#b0555a" x="120" y="250" text-anchor="middle">Ⅰ 相对滑动</text>
+            <text id="regionLabel2" class="region-label" fill="#0c7a52" x="330" y="250" text-anchor="middle">Ⅱ 一起匀速</text>
+            <line id="nowCursor" x1="48" y1="16" x2="48" y2="256"></line>
+            <polyline id="traceBlock" points=""></polyline>
+            <polyline id="tracePlank" points=""></polyline>
+            <circle id="dotBlock" cx="48" cy="256" r="4.6"></circle>
+            <circle id="dotPlank" cx="48" cy="256" r="4.6"></circle>
+            <g id="chartLegend">
+              <line x1="56" y1="286" x2="78" y2="286" stroke="#2f6fed" stroke-width="3.4"></line>
+              <text class="legend-text" x="84" y="290" font-size="11.5">滑块 v₁</text>
+              <line x1="168" y1="286" x2="190" y2="286" stroke="#c07a14" stroke-width="3.4"></line>
+              <text class="legend-text" x="196" y="290" font-size="11.5">木板 v₂</text>
+              <line x1="280" y1="286" x2="302" y2="286" stroke="#657188" stroke-width="2.2" stroke-dasharray="5 4"></line>
+              <text class="legend-text" x="308" y="290" font-size="11.5">预测全程（虚线）</text>
+            </g>
+          </svg>
+        </section>
+
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>滑块速度 v₁</small><strong class="c-block" id="v1Read">6.00 m/s</strong></div>
+            <div class="metric"><small>木板速度 v₂</small><strong class="c-plank" id="v2Read">0.00 m/s</strong></div>
+            <div class="metric"><small>摩擦力大小 f = μm₁g</small><strong class="c-friction" id="fRead">3.92 N</strong></div>
+            <div class="metric"><small>相对滑移 d（滑块比木板多走）</small><strong id="dRelRead">0.00 m</strong></div>
+            <div class="metric"><small>摩擦生热 Q = f·d</small><strong id="qRead">0.0 J</strong></div>
+            <div class="metric"><small id="timeLabel">时间 t · t* = 1.84 s</small><strong id="tRead">0.00 s</strong></div>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-labelledby="insight-title">
+          <h2 id="insight-title">观察与模型</h2>
+          <p id="insight" class="insight" aria-live="polite">点击「开始」：滑块冲上静止木板，两者速度不同，发生相对滑动。</p>
+          <p>模型假设：地面光滑（无摩擦）；木板足够长（滑块不会滑离）；g = 9.8 m/s²；滑动摩擦力 f = μm₁g 恒定；共速后无相对滑动趋势，f = 0。</p>
+          <p>常见误区：共速后摩擦力并不会继续"阻碍"运动——地面光滑，系统不受水平外力，靠惯性一起匀速，无需摩擦力维持。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button" aria-pressed="false">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="param-group">
+        <span class="group-title">物理参数（改动后自动重新开始演示）</span>
+        <div class="control">
+          <label for="v0Input">初速度 v₀ <output id="v0Output">6.0 m/s</output></label>
+          <input id="v0Input" type="range" min="2" max="8" step="0.1" value="6">
+        </div>
+        <div class="control">
+          <label for="muInput">动摩擦因数 μ <output id="muOutput">0.20</output></label>
+          <input id="muInput" type="range" min="0.1" max="0.5" step="0.01" value="0.2">
+        </div>
+        <div class="control">
+          <label for="m1Input">滑块质量 m₁ <output id="m1Output">2.0 kg</output></label>
+          <input id="m1Input" type="range" min="1" max="4" step="0.1" value="2">
+        </div>
+        <div class="control">
+          <label for="m2Input">木板质量 m₂ <output id="m2Output">3.0 kg</output></label>
+          <input id="m2Input" type="range" min="1" max="6" step="0.1" value="3">
+        </div>
+      </div>
+      <div class="control">
+        <label for="speedInput">播放倍率 <output id="speedOutput">0.35×</output></label>
+        <input id="speedInput" type="range" min="0.1" max="1" step="0.05" value="0.35">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // ===== Physics constants and parameter schema =====
+    const G = 9.8;                 // gravitational acceleration, m/s^2
+    const BLOCK_LEN = 1.2;         // block drawing length, m
+    const LEAD_PAD = 0.6;          // block start offset from plank left end, m
+    const TAIL_MARGIN = 1.0;       // guaranteed gap between block and plank right end at t*, m
+    const SAMPLE_DT = 1 / 60;      // v-t history sampling interval in simulated time, s
+    const PARAMETER_SCHEMA = [
+      { key: "v0", label: "初速度 v₀", type: "slider", min: 2, max: 8, step: 0.1, default: 6, unit: "m/s" },
+      { key: "mu", label: "动摩擦因数 μ", type: "slider", min: 0.1, max: 0.5, step: 0.01, default: 0.2, unit: "" },
+      { key: "m1", label: "滑块质量 m₁", type: "slider", min: 1, max: 4, step: 0.1, default: 2, unit: "kg" },
+      { key: "m2", label: "木板质量 m₂", type: "slider", min: 1, max: 6, step: 0.1, default: 3, unit: "kg" },
+      { key: "speed", label: "播放倍率", type: "slider", min: 0.1, max: 1, step: 0.05, default: 0.35, unit: "×" }
+    ];
+    const DEFAULT_PARAMS = { v0: 6, mu: 0.2, m1: 2, m2: 3, speed: 0.35 };
+
+    // ===== Authoritative model state (single source of truth) =====
+    const state = {
+      running: false, finished: false,
+      tSim: 0, lastTimestamp: null, nextSampleT: 0,
+      params: { ...DEFAULT_PARAMS },
+      derived: null,
+      history: [],
+      camX: 0, camInit: false
+    };
+
+    function clampValue(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finiteOr(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // Closed-form piecewise dynamics (exact; no numerical integration at runtime).
+    // Phase 1 (0 <= t <= t*): kinetic friction, block decelerates, plank accelerates.
+    // Phase 2 (t > t*): common velocity v*, no horizontal force, friction = 0.
+    function computeDerived(p) {
+      const s = p.v0 >= 0 ? 1 : -1;                       // sign of initial relative velocity
+      const fMag = p.mu * p.m1 * G;                       // kinetic friction magnitude, N
+      const a1 = -s * p.mu * G;                           // block acceleration (phase 1)
+      const a2 = s * fMag / p.m2;                         // plank acceleration (phase 1)
+      const total = p.m1 + p.m2;
+      const tStar = Math.abs(p.v0) * p.m2 / (total * p.mu * G);
+      const vStar = p.m1 * p.v0 / total;                  // momentum conservation
+      const dRel = p.v0 * p.v0 * p.m2 / (2 * p.mu * G * total);
+      const plankLen = Math.max(4, LEAD_PAD + dRel + BLOCK_LEN + TAIL_MARGIN);
+      const x2c0 = plankLen / 2;
+      const x1c0 = LEAD_PAD + BLOCK_LEN / 2;
+      const x1cT = x1c0 + p.v0 * tStar + 0.5 * a1 * tStar * tStar;
+      const x2cT = x2c0 + 0.5 * a2 * tStar * tStar;
+      return {
+        s, fMag, a1, a2, tStar, vStar, dRel, plankLen,
+        x2c0, x1c0, x1cT, x2cT,
+        heat: fMag * dRel,
+        tEnd: tStar + Math.max(1.2, 0.6 * tStar)
+      };
+    }
+
+    // Evaluate the authoritative model at simulated time t (seconds).
+    function evaluate(t, params, derived) {
+      const p = params || state.params, d = derived || state.derived;
+      const tc = clampValue(finiteOr(t, 0), 0, d.tEnd);
+      let phase, v1, v2, x1c, x2c, fOnBlock, fOnPlank;
+      if (tc <= d.tStar) {
+        phase = 1;
+        v1 = p.v0 + d.a1 * tc;
+        v2 = d.a2 * tc;
+        x1c = d.x1c0 + p.v0 * tc + 0.5 * d.a1 * tc * tc;
+        x2c = d.x2c0 + 0.5 * d.a2 * tc * tc;
+        fOnBlock = -d.s * d.fMag;
+        fOnPlank = d.s * d.fMag;
+      } else {
+        phase = 2;
+        v1 = d.vStar; v2 = d.vStar;
+        x1c = d.x1cT + d.vStar * (tc - d.tStar);
+        x2c = d.x2cT + d.vStar * (tc - d.tStar);
+        fOnBlock = 0; fOnPlank = 0;
+      }
+      const plankLeft = x2c - d.plankLen / 2;
+      const relDisp = (x1c - x2c) - (d.x1c0 - d.x2c0);
+      return {
+        t: tc, phase, v1, v2, x1c, x2c, fOnBlock, fOnPlank,
+        frictionN: Math.abs(fOnBlock),
+        relDisp, relDispAbs: Math.abs(relDisp),
+        heat: d.fMag * Math.abs(relDisp),
+        blockLeft: x1c - BLOCK_LEN / 2, blockRight: x1c + BLOCK_LEN / 2,
+        plankLeft, plankRight: plankLeft + d.plankLen
+      };
+    }
+    function snap(t) { const s = evaluate(t); return { t: s.t, v1: s.v1, v2: s.v2 }; }
+
+    // ===== Independent numerical oracle for model checks (explicit Euler + exact event lerp) =====
+    function integrateCase(p, dt) {
+      const s = p.v0 >= 0 ? 1 : -1;
+      const a1 = -s * p.mu * G, a2 = s * p.mu * p.m1 * G / p.m2;
+      let t = 0, v1 = p.v0, v2 = 0, x1 = 0, x2 = 0;
+      while (t < 60) {
+        const n1 = v1 + a1 * dt, n2 = v2 + a2 * dt;
+        const crossed = s > 0 ? n1 <= n2 : n1 >= n2;
+        if (crossed) {
+          const dv = v1 - v2, dn = n1 - n2;
+          const r = dv / (dv - dn);
+          const h = r * dt;
+          x1 += v1 * h; x2 += v2 * h;
+          const v1c = v1 + a1 * h, v2c = v2 + a2 * h;
+          return { tStarNum: t + h, vStarNum: (p.m1 * v1c + p.m2 * v2c) / (p.m1 + p.m2), dRelNum: Math.abs(x1 - x2) };
+        }
+        x1 += v1 * dt; x2 += v2 * dt;
+        v1 = n1; v2 = n2; t += dt;
+      }
+      return { tStarNum: NaN, vStarNum: NaN, dRelNum: NaN };
+    }
+
+    // ===== DOM layer (guarded so the physics kernel runs headless) =====
+    const elements = {};
+    let domReady = false;
+    function cacheElements() {
+      if (domReady || typeof document === "undefined" || !document.querySelector) return;
+      const ids = ["status", "scene", "ruler", "plank", "plankDetail", "seam1", "seam2", "scratch", "plankLabel",
+        "block", "blockLabel", "v1Arrow", "v1Line", "v1Head", "v1Text", "v2Arrow", "v2Line", "v2Head", "v2Text",
+        "f1Arrow", "f1Line", "f1Head", "f1Text", "f2Arrow", "f2Line", "f2Head", "f2Text", "fZeroText", "sparks",
+        "phaseChipBg", "phaseChip", "vtChart", "chartGrid", "phase1Shade", "ghostBlock", "ghostPlank", "tStarLine",
+        "tStarLabel", "vStarLine", "vStarLabel", "regionLabel1", "regionLabel2", "nowCursor", "traceBlock",
+        "tracePlank", "dotBlock", "dotPlank", "v1Read", "v2Read", "fRead", "dRelRead", "qRead", "tRead", "timeLabel",
+        "insight", "v0Input", "v0Output", "muInput", "muOutput", "m1Input", "m1Output", "m2Input", "m2Output",
+        "speedInput", "speedOutput", "startBtn", "pauseBtn", "resetBtn"];
+      for (const id of ids) elements[id] = document.getElementById(id);
+      domReady = true;
+    }
+
+    // ===== Scene geometry =====
+    const SCENE_W = 980, GROUND_Y = 348, PLANK_H = 36, BLOCK_H = 58;
+    const VEL_SCALE = 34;      // px per (m/s) for velocity arrows, shared linear scale
+    let scenePxPerM = 64, rulerKey = "";
+    const reduceMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)").matches : false;
+
+    function sxOf(wx) { return (wx - state.camX) * scenePxPerM + SCENE_W / 2; }
+    function setArrow(group, line, head, textEl, x1, y, length, symbol) {
+      // length sign gives direction; arrow head is an isoceles triangle
+      const x2 = x1 + length;
+      line.setAttribute("x1", x1); line.setAttribute("x2", x2);
+      const casing = group.querySelector(".arrow-casing");
+      casing.setAttribute("x1", x1); casing.setAttribute("x2", x2);
+      const dir = length >= 0 ? 1 : -1;
+      const tip = x2, base = x2 - dir * 12, spread = 6.5;
+      head.setAttribute("points", `${tip},${y} ${base},${y - spread} ${base},${y + spread}`);
+      textEl.setAttribute("x", tip + dir * 8);
+      textEl.setAttribute("y", y + 4.5);
+      textEl.textContent = symbol;
+      group.setAttribute("visibility", Math.abs(length) < 2 ? "hidden" : "visible");
+    }
+
+    function updateRuler(view) {
+      const pxPerMKey = Math.round(scenePxPerM * 10);
+      const camKey = Math.round(state.camX);
+      const key = pxPerMKey + "|" + camKey;
+      if (key === rulerKey) return;
+      rulerKey = key;
+      const viewHalf = SCENE_W / 2 / scenePxPerM;
+      const left = state.camX - viewHalf - 1, right = state.camX + viewHalf + 1;
+      const labelEvery = scenePxPerM >= 34 ? 1 : scenePxPerM >= 17 ? 2 : 5;
+      const parts = [];
+      for (let m = Math.ceil(left); m <= Math.floor(right); m += 1) {
+        const x = sxOf(m);
+        parts.push(`<line class="ruler-tick" x1="${x.toFixed(1)}" y1="348" x2="${x.toFixed(1)}" y2="357"></line>`);
+        if (m % labelEvery === 0) {
+          parts.push(`<text class="ruler-text" x="${x.toFixed(1)}" y="372" text-anchor="middle">${m}</text>`);
+        }
+      }
+      elements.ruler.innerHTML = parts.join("");
+    }
+
+    // ===== v-t chart =====
+    const CHART = { x0: 48, x1: 430, y0: 16, y1: 256 };
+    let chartTMax = 1, chartVMax = 1;
+    function chartX(t) { return CHART.x0 + (t / chartTMax) * (CHART.x1 - CHART.x0); }
+    function chartY(v) { return CHART.y1 - (v / chartVMax) * (CHART.y1 - CHART.y0); }
+    function niceStep(raw) {
+      const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+      const r = raw / pow;
+      return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * pow;
+    }
+    function stepDecimals(step) { return Math.min(2, Math.max(0, -Math.round(Math.log10(step)))); }
+
+    function rebuildStatics() {
+      if (!domReady) return;
+      const d = state.derived, p = state.params;
+      // chart scales
+      chartTMax = d.tEnd;
+      chartVMax = Math.max(Math.abs(p.v0), Math.abs(d.vStar)) * 1.08;
+      const tStep = niceStep(chartTMax / 5), vStep = niceStep(chartVMax / 5);
+      const grid = [];
+      for (let t = 0; t <= chartTMax * (1 + 1e-9); t += tStep) {
+        const x = chartX(t);
+        grid.push(`<line class="grid-line" x1="${x.toFixed(1)}" y1="${CHART.y0}" x2="${x.toFixed(1)}" y2="${CHART.y1}"></line>`);
+        grid.push(`<text class="tick-label" x="${x.toFixed(1)}" y="268" text-anchor="middle">${t.toFixed(stepDecimals(tStep))}</text>`);
+      }
+      for (let v = 0; v <= chartVMax * (1 + 1e-9); v += vStep) {
+        const y = chartY(v);
+        grid.push(`<line class="grid-line" x1="${CHART.x0}" y1="${y.toFixed(1)}" x2="${CHART.x1}" y2="${y.toFixed(1)}"></line>`);
+        grid.push(`<text class="tick-label" x="${CHART.x0 - 5}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v.toFixed(stepDecimals(vStep))}</text>`);
+      }
+      elements.chartGrid.innerHTML = grid.join("");
+      // phase-1 shading, ghosts, markers
+      const xs = chartX(d.tStar);
+      elements.phase1Shade.setAttribute("x", CHART.x0);
+      elements.phase1Shade.setAttribute("width", Math.max(0, xs - CHART.x0));
+      elements.ghostBlock.setAttribute("d",
+        `M${chartX(0).toFixed(1)},${chartY(p.v0).toFixed(1)} L${xs.toFixed(1)},${chartY(d.vStar).toFixed(1)} L${chartX(d.tEnd).toFixed(1)},${chartY(d.vStar).toFixed(1)}`);
+      elements.ghostPlank.setAttribute("d",
+        `M${chartX(0).toFixed(1)},${chartY(0).toFixed(1)} L${xs.toFixed(1)},${chartY(d.vStar).toFixed(1)} L${chartX(d.tEnd).toFixed(1)},${chartY(d.vStar).toFixed(1)}`);
+      elements.tStarLine.setAttribute("x1", xs); elements.tStarLine.setAttribute("x2", xs);
+      elements.tStarLabel.setAttribute("x", clampValue(xs, 118, 342));
+      elements.tStarLabel.textContent = `共速 t* = ${d.tStar.toFixed(2)} s`;
+      const yv = chartY(d.vStar);
+      elements.vStarLine.setAttribute("y1", yv); elements.vStarLine.setAttribute("y2", yv);
+      elements.vStarLabel.setAttribute("y", Math.max(24, yv - 6));
+      elements.vStarLabel.textContent = `v* = ${d.vStar.toFixed(2)}`;
+      elements.regionLabel1.setAttribute("x", clampValue(chartX(d.tStar / 2), CHART.x0 + 44, CHART.x1));
+      elements.regionLabel2.setAttribute("x", clampValue(chartX((d.tStar + d.tEnd) / 2), CHART.x0 + 44, CHART.x1 - 10));
+      // scene scale + labels
+      scenePxPerM = clampValue((0.55 * SCENE_W) / d.plankLen, 16, 80);
+      rulerKey = "";
+      elements.timeLabel.textContent = `时间 t · t* = ${d.tStar.toFixed(2)} s`;
+      // slider outputs reflect authoritative params
+      elements.v0Output.textContent = `${p.v0.toFixed(1)} m/s`;
+      elements.muOutput.textContent = p.mu.toFixed(2);
+      elements.m1Output.textContent = `${p.m1.toFixed(1)} kg`;
+      elements.m2Output.textContent = `${p.m2.toFixed(1)} kg`;
+      elements.speedOutput.textContent = `${p.speed.toFixed(2)}×`;
+    }
+
+    function renderScene(view, dtReal) {
+      const d = state.derived;
+      // camera follows the block (view-only smoothing)
+      const target = view.x1c;
+      if (!state.camInit || reduceMotion) { state.camX = target; state.camInit = true; }
+      else state.camX += (target - state.camX) * clampValue(dtReal * 11, 0, 1);
+      const viewHalfM = SCENE_W / 2 / scenePxPerM;
+      const worldLeft = Math.min(-1.5, view.plankLeft) - 1;
+      const worldRight = view.plankRight + 1.5;
+      if (worldRight - worldLeft > viewHalfM * 2) {
+        state.camX = clampValue(state.camX, worldLeft + viewHalfM, worldRight - viewHalfM);
+      } else {
+        state.camX = (worldLeft + worldRight) / 2;
+      }
+      updateRuler(view);
+      const px = scenePxPerM;
+      // plank + block
+      const plankX = sxOf(view.plankLeft), plankW = d.plankLen * px;
+      elements.plank.setAttribute("x", plankX); elements.plank.setAttribute("width", plankW);
+      elements.seam1.setAttribute("x1", sxOf(view.plankLeft + d.plankLen / 3));
+      elements.seam1.setAttribute("x2", sxOf(view.plankLeft + d.plankLen / 3));
+      elements.seam2.setAttribute("x1", sxOf(view.plankLeft + 2 * d.plankLen / 3));
+      elements.seam2.setAttribute("x2", sxOf(view.plankLeft + 2 * d.plankLen / 3));
+      elements.plankLabel.setAttribute("x", clampValue(sxOf(view.plankRight) - 58, 12, SCENE_W - 84));
+      const blockX = sxOf(view.blockLeft), blockW = BLOCK_LEN * px;
+      elements.block.setAttribute("x", blockX); elements.block.setAttribute("width", blockW);
+      elements.blockLabel.setAttribute("x", blockX + blockW / 2);
+      // scratch band marks where the plank has been rubbed (length = relative displacement)
+      const scratchX = sxOf(view.plankLeft + (d.s > 0 ? LEAD_PAD : LEAD_PAD + view.relDispAbs));
+      elements.scratch.setAttribute("x", scratchX);
+      elements.scratch.setAttribute("width", Math.max(0, view.relDispAbs * px));
+      // sparks + interface state
+      const sliding = view.phase === 1 && state.running;
+      elements.scene.setAttribute("data-sliding", sliding ? "1" : "0");
+      const bxc = sxOf(view.x1c);
+      elements.sparks.setAttribute("transform", `translate(${(bxc - blockW / 2 + 6).toFixed(1)},0)`);
+      // velocity arrows (shared linear scale, solver values)
+      const v1Len = view.v1 * VEL_SCALE, v2Len = view.v2 * VEL_SCALE;
+      setArrow(elements.v1Arrow, elements.v1Line, elements.v1Head, elements.v1Text,
+        bxc + 10, 232, v1Len, "v₁");
+      const v2Anchor = clampValue(blockX - 30 - v2Len, 12, SCENE_W - 60);
+      setArrow(elements.v2Arrow, elements.v2Line, elements.v2Head, elements.v2Text,
+        v2Anchor, 286, v2Len, "v₂");
+      // friction arrows: equal length on both bodies, opposite directions (Newton's third law)
+      const fLen = view.frictionN > 1e-9 ? clampValue(40 + view.frictionN * 2.2, 40, 96) * -d.s : 0;
+      setArrow(elements.f1Arrow, elements.f1Line, elements.f1Head, elements.f1Text,
+        bxc - 8, 302, fLen, "f₁");
+      setArrow(elements.f2Arrow, elements.f2Line, elements.f2Head, elements.f2Text,
+        bxc + 8, 324, -fLen, "f₂");
+      const showFZero = view.phase === 2;
+      elements.fZeroText.setAttribute("x", bxc);
+      elements.fZeroText.setAttribute("visibility", showFZero ? "visible" : "hidden");
+      // phase chip
+      let chip = "未开始", chipFill = "#eef4f8", chipStroke = "#c9d8e4", chipText = "#334560";
+      const nearMeet = Math.abs(state.tSim - d.tStar) <= 0.14;
+      if (state.finished) { chip = "演示完成 · 一起匀速"; chipFill = "#e2f5ec"; chipStroke = "#bfe3d0"; chipText = "#0c6b44"; }
+      else if (nearMeet) { chip = "共速时刻 v₁ = v₂"; chipFill = "#fff3d6"; chipStroke = "#f0d9a8"; chipText = "#92400e"; }
+      else if (view.phase === 1 && state.tSim > 0) { chip = "阶段Ⅰ · 相对滑动（v₁ > v₂）"; chipFill = "#fdeaea"; chipStroke = "#f2c6c6"; chipText = "#b91c1c"; }
+      else if (view.phase === 2) { chip = "阶段Ⅱ · 一起匀速（f = 0）"; chipFill = "#e2f5ec"; chipStroke = "#bfe3d0"; chipText = "#0c6b44"; }
+      const cjkCount = [...chip].reduce((n, c) => n + (c.charCodeAt(0) > 127 ? 1 : 0), 0);
+      const chipW = 34 + cjkCount * 15 + (chip.length - cjkCount) * 8;
+      elements.phaseChipBg.setAttribute("width", chipW);
+      elements.phaseChipBg.setAttribute("fill", chipFill);
+      elements.phaseChipBg.setAttribute("stroke", chipStroke);
+      elements.phaseChip.setAttribute("x", 16 + chipW / 2);
+      elements.phaseChip.setAttribute("fill", chipText);
+      elements.phaseChip.textContent = chip;
+    }
+
+    function renderChart(view) {
+      const d = state.derived;
+      const step = Math.max(1, Math.ceil(state.history.length / 300));
+      const pb = [], pp = [];
+      for (let i = 0; i < state.history.length; i += step) {
+        const s = state.history[i];
+        pb.push(`${chartX(s.t).toFixed(1)},${chartY(s.v1).toFixed(1)}`);
+        pp.push(`${chartX(s.t).toFixed(1)},${chartY(s.v2).toFixed(1)}`);
+      }
+      elements.traceBlock.setAttribute("points", pb.join(" "));
+      elements.tracePlank.setAttribute("points", pp.join(" "));
+      const cx = chartX(view.t);
+      elements.nowCursor.setAttribute("x1", cx); elements.nowCursor.setAttribute("x2", cx);
+      elements.dotBlock.setAttribute("cx", cx); elements.dotBlock.setAttribute("cy", chartY(view.v1));
+      elements.dotPlank.setAttribute("cx", cx); elements.dotPlank.setAttribute("cy", chartY(view.v2));
+    }
+
+    function render(dtReal) {
+      if (!domReady) return;
+      const view = evaluate(state.tSim);
+      const d = state.derived;
+      renderScene(view, finiteOr(dtReal, 0.016));
+      renderChart(view);
+      elements.v1Read.textContent = `${view.v1.toFixed(2)} m/s`;
+      elements.v2Read.textContent = `${view.v2.toFixed(2)} m/s`;
+      elements.fRead.textContent = view.phase === 1 ? `${view.frictionN.toFixed(2)} N` : "0（已共速）";
+      elements.dRelRead.textContent = `${view.relDispAbs.toFixed(2)} m`;
+      elements.qRead.textContent = `${view.heat.toFixed(1)} J`;
+      elements.tRead.textContent = `${view.t.toFixed(2)} s`;
+      // status + insight text (state-aware)
+      let statusText = "未开始", statusState = "idle";
+      let insight = "点击「开始」：滑块冲上静止木板，两者速度不同，发生相对滑动。";
+      const nearMeet = Math.abs(state.tSim - d.tStar) <= 0.14 && state.tSim > 0;
+      if (state.finished) {
+        statusText = "演示完成 · 一起匀速"; statusState = "done";
+        insight = `演示完成：系统动量守恒 m₁v₀ = (m₁+m₂)v* = ${(state.params.m1 * state.params.v0).toFixed(1)} kg·m/s；全程摩擦生热 Q = μm₁g·d = ${d.heat.toFixed(1)} J。可拖动参数再试。`;
+      } else if (nearMeet) {
+        statusText = "共速！"; statusState = "meet";
+        insight = `共速时刻：v₁ = v₂ = v* = ${d.vStar.toFixed(2)} m/s，相对滑动结束，摩擦力立即变为 0。`;
+      } else if (view.phase === 1 && state.tSim > 0) {
+        statusText = "阶段Ⅰ 相对滑动"; statusState = "run1";
+        insight = `阶段Ⅰ 相对滑动：摩擦力使滑块减速（a₁ = μg = ${(state.params.mu * G).toFixed(2)} m/s²，与质量无关）、使木板加速（a₂ = μm₁g/m₂ = ${(d.fMag / state.params.m2).toFixed(2)} m/s²）；两力等大反向 f = ${d.fMag.toFixed(2)} N。`;
+      } else if (view.phase === 2) {
+        statusText = "阶段Ⅱ 一起匀速"; statusState = "run2";
+        insight = `阶段Ⅱ 一起匀速：地面光滑，系统不受水平外力，无相对滑动趋势，f = 0，两者以 v* = ${d.vStar.toFixed(2)} m/s 共同匀速。`;
+      }
+      elements.status.textContent = statusText;
+      elements.status.setAttribute("data-state", statusState);
+      elements.insight.textContent = insight;
+      elements.startBtn.setAttribute("aria-pressed", state.running ? "true" : "false");
+    }
+
+    // ===== Lifecycle =====
+    function init() {
+      cacheElements();
+      if (domReady) {
+        bindControls();
+        setParameters({ ...DEFAULT_PARAMS });
+        if (typeof requestAnimationFrame === "function") requestAnimationFrame(frame);
+      } else {
+        state.derived = computeDerived(state.params);
+        state.history = [snap(0)];
+      }
+    }
+    function start() {
+      if (state.finished) reset();
+      state.running = true; state.finished = false;
+      render();
+    }
+    function pause() {
+      state.running = false; state.lastTimestamp = null;
+      render();
+    }
+    function reset() {
+      state.running = false; state.finished = false;
+      state.tSim = 0; state.lastTimestamp = null; state.nextSampleT = SAMPLE_DT;
+      state.history = [snap(0)]; state.camInit = false;
+      render();
+    }
+    function update(dt) {
+      if (!state.running || !state.derived) return;
+      const bounded = clampValue(finiteOr(dt, 0), 0, 0.05);
+      state.tSim = finiteOr(state.tSim + bounded * state.params.speed, 0);
+      if (!Number.isFinite(state.tSim) || state.tSim < 0) state.tSim = 0;
+      if (state.tSim >= state.derived.tEnd) {
+        state.tSim = state.derived.tEnd;
+        state.running = false; state.finished = true; state.lastTimestamp = null;
+      }
+      while (state.nextSampleT <= state.tSim + 1e-12) {
+        const s = evaluate(state.nextSampleT);
+        if (!Number.isFinite(s.v1) || !Number.isFinite(s.v2)) { reset(); return; }
+        state.history.push({ t: s.t, v1: s.v1, v2: s.v2 });
+        if (state.history.length > 2400) state.history.shift();
+        state.nextSampleT += SAMPLE_DT;
+      }
+    }
+    function setParameters(values) {
+      const next = { ...state.params };
+      const source = values || {};
+      for (const def of PARAMETER_SCHEMA) {
+        if (source[def.key] !== undefined) next[def.key] = finiteOr(Number(source[def.key]), def.default);
+      }
+      for (const def of PARAMETER_SCHEMA) next[def.key] = clampValue(next[def.key], def.min, def.max);
+      const wasRunning = state.running;
+      state.params = next;
+      state.derived = computeDerived(next);
+      state.finished = false;
+      state.tSim = 0; state.nextSampleT = SAMPLE_DT;
+      state.history = [snap(0)];
+      state.camInit = false;
+      if (domReady) {
+        elements.v0Input.value = String(next.v0); elements.muInput.value = String(next.mu);
+        elements.m1Input.value = String(next.m1); elements.m2Input.value = String(next.m2);
+        elements.speedInput.value = String(next.speed);
+      }
+      rebuildStatics();
+      state.running = wasRunning;
+      render();
+    }
+    function getState() {
+      return {
+        running: state.running, finished: state.finished, tSim: state.tSim,
+        params: { ...state.params }, derived: { ...state.derived },
+        history: state.history.map((s) => ({ ...s }))
+      };
+    }
+    function getReadouts() {
+      const view = evaluate(state.tSim);
+      return {
+        t: view.t, phase: view.phase, v1: view.v1, v2: view.v2, vStar: state.derived.vStar,
+        frictionN: view.frictionN, relDisp: view.relDispAbs, heat: view.heat,
+        tStar: state.derived.tStar, tEnd: state.derived.tEnd
+      };
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      const bind = (input, key) => input.addEventListener("input", () => setParameters({ [key]: Number(input.value) }));
+      bind(elements.v0Input, "v0"); bind(elements.muInput, "mu");
+      bind(elements.m1Input, "m1"); bind(elements.m2Input, "m2");
+      bind(elements.speedInput, "speed");
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render(dt);
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(frame);
+    }
+
+    // ===== Model checks (quantitative physics evidence; pure, no DOM) =====
+    function runModelChecks() {
+      const checks = [];
+      const add = (name, pass, expected, actual, tolerance) => checks.push({ name, pass: !!pass, expected, actual, tolerance });
+      const p = { ...DEFAULT_PARAMS }; delete p.speed;
+      const d = computeDerived(p);
+      const F = (x) => Number.isFinite(x);
+
+      // 1-3. closed-form identities against independently written textbook formulas
+      add("v* equals m1*v0/(m1+m2) (momentum)", Math.abs(d.vStar - p.m1 * p.v0 / (p.m1 + p.m2)) <= 1e-12,
+        "2.4", d.vStar, "1e-12");
+      add("t* equals |v0|*m2/((m1+m2)*mu*g)", Math.abs(d.tStar - Math.abs(p.v0) * p.m2 / ((p.m1 + p.m2) * p.mu * G)) <= 1e-12,
+        "1.836734...", d.tStar, "1e-12");
+      add("dRel equals v0^2*m2/(2*mu*g*(m1+m2))", Math.abs(d.dRel - p.v0 * p.v0 * p.m2 / (2 * p.mu * G * (p.m1 + p.m2))) <= 1e-12,
+        "5.5102...", d.dRel, "1e-12");
+
+      // 4-5. independent explicit-Euler oracle with exact event interpolation
+      const num120 = integrateCase(p, 1 / 120), num240 = integrateCase(p, 1 / 240);
+      add("Euler oracle reproduces v* (default case)", Math.abs(num240.vStarNum - d.vStar) <= 1e-9,
+        d.vStar, num240.vStarNum, "1e-9");
+      const err120 = Math.abs(num120.dRelNum - d.dRel), err240 = Math.abs(num240.dRelNum - d.dRel);
+      add("Euler dRel error halves when step halves", err240 < err120 && err120 / err240 > 1.5 && err120 / err240 < 3 && err240 < 0.05,
+        `err(1/240) < err(1/120), ratio≈2, err<0.05 m`, `${err240.toFixed(4)} vs ${err120.toFixed(4)}, ratio ${(err120 / err240).toFixed(2)}`, "0.05 m");
+
+      // 6. momentum conserved along the whole analytic trajectory
+      let maxP = 0;
+      for (let i = 0; i <= 200; i += 1) {
+        const s = evaluate(d.tEnd * i / 200, p, d);
+        maxP = Math.max(maxP, Math.abs(p.m1 * s.v1 + p.m2 * s.v2 - p.m1 * p.v0));
+      }
+      add("momentum m1*v1+m2*v2 constant for all t", maxP <= 1e-9, "0", maxP, "1e-9 kg·m/s");
+
+      // 7. energy: kinetic energy loss equals friction heat
+      const keLoss = 0.5 * p.m1 * p.v0 * p.v0 - 0.5 * (p.m1 + p.m2) * d.vStar * d.vStar;
+      add("KE loss equals mu*m1*g*dRel", Math.abs(keLoss - d.heat) <= 1e-9, d.heat, keLoss, "1e-9 J");
+
+      // 8. friction pair: equal magnitude, opposite direction; zero after common velocity
+      const s1 = evaluate(d.tStar * 0.5, p, d), s2 = evaluate(d.tStar + 0.3, p, d);
+      add("friction pair equal & opposite while sliding",
+        s1.fOnBlock === -d.fMag && s1.fOnPlank === d.fMag && Math.abs(s1.fOnBlock) === Math.abs(s1.fOnPlank),
+        "f_on_block = -f, f_on_plank = +f", `${s1.fOnBlock}, ${s1.fOnPlank}`, "exact");
+      add("friction zero after common velocity", s2.fOnBlock === 0 && s2.fOnPlank === 0,
+        "0, 0", `${s2.fOnBlock}, ${s2.fOnPlank}`, "exact");
+
+      // 9. sign/direction in every mode (v0 > 0)
+      let mono = true;
+      for (let i = 0; i < 40; i += 1) {
+        const a = evaluate(d.tStar * i / 40, p, d), b = evaluate(d.tStar * (i + 1) / 40, p, d);
+        if (!(b.v1 < a.v1 && b.v2 > a.v2 && a.v1 > a.v2)) mono = false;
+      }
+      add("phase 1: block decelerates, plank accelerates", mono && d.a1 < 0 && d.a2 > 0 && d.vStar < p.v0,
+        "v1 strictly down, v2 strictly up, v* < v0", `a1=${d.a1.toFixed(3)}, a2=${d.a2.toFixed(3)}`, "strict");
+
+      // 10. symmetry: reversed initial velocity mirrors the scenario
+      const pn = { ...p, v0: -p.v0 }, dn = computeDerived(pn);
+      const sn = evaluate(dn.tStar, pn, dn);
+      add("symmetry: v0 = -6 mirrors v0 = +6",
+        Math.abs(dn.tStar - d.tStar) <= 1e-12 && Math.abs(sn.v1 - dn.vStar) <= 1e-12 &&
+        Math.abs(dn.vStar + d.vStar) <= 1e-12 && Math.abs(dn.dRel - d.dRel) <= 1e-12 && sn.fOnBlock === dn.fMag,
+        "t* same, v* negated, dRel same, friction flips", `v*=${dn.vStar}, f_on_block=${sn.fOnBlock}`, "1e-12");
+
+      // 11-12. parameter corners: plank guarantee and finiteness
+      const corners = [];
+      for (const v0 of [2, 8]) for (const mu of [0.1, 0.5]) for (const m1 of [1, 4]) for (const m2 of [1, 6]) corners.push({ v0, mu, m1, m2 });
+      let boundsOk = true, finiteOk = true;
+      for (const c of corners) {
+        const dc = computeDerived(c);
+        const blockRight = LEAD_PAD + dc.dRel + BLOCK_LEN;
+        if (!(blockRight <= dc.plankLen - TAIL_MARGIN + 1e-9) || !(dc.plankLen >= 4)) boundsOk = false;
+        for (const t of [0, dc.tStar * 0.5, dc.tStar, dc.tEnd]) {
+          const s = evaluate(t, c, dc);
+          if (![s.v1, s.v2, s.x1c, s.x2c, s.heat, s.relDisp].every(F)) finiteOk = false;
+        }
+      }
+      add("plank-length guarantee at all 16 parameter corners", boundsOk,
+        "block stays on plank with >= 1.0 m margin", boundsOk ? "all corners ok" : "corner violated", "exact");
+      add("all state outputs finite at corners", finiteOk,
+        "finite v, x, Q, d for every corner", finiteOk ? "all finite" : "non-finite found", "finite");
+
+      // 13. runtime accumulator invariance: chunked playback equals direct evaluation
+      const savedParams = { ...state.params };
+      setParameters({ ...DEFAULT_PARAMS });
+      const speed = state.params.speed, frames = 300, dtReal = 1 / 60;
+      for (let i = 0; i < frames; i += 1) { state.running = true; update(dtReal); }
+      const direct = evaluate(frames * dtReal * speed, state.params, state.derived);
+      const viaLoop = evaluate(state.tSim, state.params, state.derived);
+      const loopOk = Math.abs(state.tSim - frames * dtReal * speed) <= 1e-12 &&
+        Math.abs(viaLoop.v1 - direct.v1) <= 1e-12 && Math.abs(viaLoop.v2 - direct.v2) <= 1e-12;
+      add("chunked update loop equals direct evaluation", loopOk,
+        "identical state at equal simulated time", `dv1=${Math.abs(viaLoop.v1 - direct.v1)}`, "1e-12");
+      setParameters(savedParams);
+      return checks;
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

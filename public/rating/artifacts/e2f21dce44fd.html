@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>折射与全反射 · 交互式仿真</title>
+<style>
+  :root{--bg:#0b1020;--panel:#121a30;--line:#26304d;--txt:#e8edf7;--dim:#9fb0cf;--acc:#ff5a5a;--good:#57d98a;--warn:#ffd166;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:18px}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:14px}
+  .wrap{display:flex;gap:16px;width:100%;max-width:1200px;flex-wrap:wrap;align-items:flex-start}
+  .stage{flex:1 1 560px;min-width:320px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#060a16}
+  canvas{display:block;width:100%;height:clamp(430px,78vh,660px)}
+  .panel{flex:1 1 320px;min-width:300px;max-width:380px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h3{font-size:12px;color:var(--dim);letter-spacing:.08em;margin-bottom:10px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:6px;gap:8px}
+  input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
+  .big{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  .mono{font-variant-numeric:tabular-nums}
+  button{width:100%;margin-top:8px;padding:10px;border:none;border-radius:9px;background:#1f2b4d;color:var(--txt);font-size:14px;cursor:pointer;transition:.15s}
+  button:hover{background:#2a3a68}
+  .formula{font-family:"Cambria Math",Georgia,serif;font-size:17px;text-align:center;margin:8px 0 2px}
+  .formula.small{font-size:13.5px;color:var(--dim)}
+  .bar{height:13px;border-radius:7px;background:#0a1122;overflow:hidden;margin:4px 0 10px}
+  .fill{height:100%;transition:width .12s linear}
+  .tags{font-size:12.5px;color:var(--dim);line-height:1.7;margin-top:8px}
+  .warn{color:var(--warn);font-weight:700}
+  .green{color:var(--good)}
+  ul.pts{padding-left:18px;font-size:13.5px;color:#c6d2ea;line-height:1.75}
+  ul.pts b{color:#fff}
+  .pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;border:1px solid var(--line);background:#0e1526}
+</style>
+</head>
+<body>
+<h1>🔬 折射与全反射 · 交互式仿真</h1>
+<div class="sub">Snell 定律 n₁·sinθ₁ = n₂·sinθ₂ ｜ 光线亮度 ≈ Fresnel 能量分配（非偏振光）</div>
+
+<div class="wrap">
+  <div class="stage"><canvas id="cv"></canvas></div>
+
+  <aside class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="row"><span>入射角 θ₁</span><span class="big mono" id="t1v">35.0°</span></div>
+      <input id="t1" type="range" min="0" max="90" step="0.5" value="35">
+      <div class="row" style="margin-top:12px"><span>下介质折射率 n<sub>下</sub></span><span class="big mono" id="n2v">1.45</span></div>
+      <input id="n2s" type="range" min="1.3" max="1.9" step="0.01" value="1.45">
+      <div class="row" style="margin-top:12px"><span>光传播方向</span><span class="pill" id="dirPill">上方 → 下方</span></div>
+      <button id="flip">⇅ 翻转光方向</button>
+      <div class="tags" id="density">—</div>
+    </div>
+
+    <div class="card">
+      <h3>实时读数</h3>
+      <div class="row"><span>n₁（入射侧）</span><span class="mono" id="rn1">—</span></div>
+      <div class="row"><span>n₂（折射侧）</span><span class="mono" id="rn2">—</span></div>
+      <div class="row"><span>入射角 θ₁</span><span class="mono" id="r1">—</span></div>
+      <div class="row"><span>折射角 θ₂</span><span class="mono" id="r2">—</span></div>
+      <div class="row"><span>临界角 θ<sub>C</sub></span><span class="mono" id="rc">—</span></div>
+      <div class="formula">n₁ · sin θ₁ = n₂ · sin θ₂</div>
+      <div class="formula small" id="snellNum">—</div>
+    </div>
+
+    <div class="card">
+      <h3>能量分配（Fresnel）</h3>
+      <div class="row"><span>反射率 R</span><span class="mono" id="rv">—</span></div>
+      <div class="bar"><div class="fill" id="rb" style="background:linear-gradient(90deg,#ff8a8a,#ff4d4d)"></div></div>
+      <div class="row"><span>透射率 T = 1 − R</span><span class="mono" id="tv">—</span></div>
+      <div class="bar"><div class="fill" id="tb" style="background:linear-gradient(90deg,#8affc0,#2fb968)"></div></div>
+      <div class="tags">光线亮度按 R / T 实时变化；全反射时 R = 100%，折射光消失。</div>
+    </div>
+
+    <div class="card">
+      <h3>教学要点</h3>
+      <ul class="pts">
+        <li><b>折射定律</b>：n₁sinθ₁ = n₂sinθ₂。光进入光密介质（n 大）时<b>折向</b>法线，进入光疏介质时<b>偏离</b>法线。</li>
+        <li><b>全反射条件</b>：光从<b>光密 → 光疏</b>（n₁ &gt; n₂），且 θ₁ &gt; θ<sub>C</sub>，此时无折射光，能量全部反射。</li>
+        <li><b>临界角</b>：sin θ<sub>C</sub> = n₂ / n₁（仅当 n₁ &gt; n₂ 时存在）。例如 n₁=1.50、n₂=1.30 时 θ<sub>C</sub> ≈ 60.1°。</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0);}
+addEventListener('resize',resize);resize();
+
+const NF=1.50; // 上方固定介质（玻璃）
+const S={t1T:35,t1:35,nT:1.45,n:1.45,fromTop:true};
+const $=id=>document.getElementById(id);
+$('t1').addEventListener('input',e=>{S.t1T=+e.target.value});
+$('n2s').addEventListener('input',e=>{S.nT=+e.target.value});
+$('flip').addEventListener('click',()=>{S.fromTop=!S.fromTop});
+
+function compute(t1d,n1,n2){
+  const th1=t1d*Math.PI/180,s1=Math.sin(th1),s2=n1*s1/n2;
+  const tir=s2>1+1e-12;
+  const th2=tir?null:Math.asin(Math.min(1,s2));
+  let R;
+  if(tir)R=1;
+  else{
+    const c1=Math.cos(th1),c2=Math.cos(th2);
+    const rs=((n1*c1-n2*c2)/(n1*c1+n2*c2))**2;
+    const rp=((n1*c2-n2*c1)/(n1*c2+n2*c1))**2;
+    R=Math.min(1,Math.max(0,(rs+rp)/2));
+  }
+  const crit=n1>n2+1e-12?Math.asin(n2/n1)*180/Math.PI:null;
+  return{th1,s1,s2,th2,tir,R,T:1-R,crit};
+}
+function edgeT(px,py,dx,dy){const m=20;let t=1e9;
+  if(dx>1e-9)t=Math.min(t,(W-m-px)/dx); if(dx<-1e-9)t=Math.min(t,(m-px)/dx);
+  if(dy>1e-9)t=Math.min(t,(H-m-py)/dy); if(dy<-1e-9)t=Math.min(t,(m-py)/dy);
+  return t;}
+function drawRay(x0,y0,x1,y1,a,w){
+  if(a<=0.02)return;
+  ctx.save();ctx.lineCap='round';
+  ctx.shadowColor='rgba(255,70,60,0.9)';ctx.shadowBlur=13;
+  ctx.strokeStyle='rgba(255,80,70,'+(a*0.22).toFixed(3)+')';ctx.lineWidth=w*4;
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(255,'+Math.round(110+90*a)+',105,'+a.toFixed(3)+')';ctx.lineWidth=w;
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+  ctx.restore();
+}
+function angBet(a0,a1){let d=a1-a0;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+function arc(px,py,r,a0,a1,color,label){
+  const d=angBet(a0,a1);
+  ctx.strokeStyle=color;ctx.lineWidth=1.6;
+  ctx.beginPath();ctx.arc(px,py,r,a0,a0+d,d<0);ctx.stroke();
+  const m=a0+d/2;
+  ctx.fillStyle=color;ctx.font='bold 13px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label,px+Math.cos(m)*(r+17),py+Math.sin(m)*(r+17));
+}
+function dot(x,y,a){
+  ctx.save();ctx.shadowColor='rgba(255,90,80,1)';ctx.shadowBlur=12;
+  ctx.fillStyle='rgba(255,240,225,'+(0.3+0.7*a).toFixed(3)+')';
+  ctx.beginPath();ctx.arc(x,y,3.6,0,7);ctx.fill();ctx.restore();
+}
+
+function draw(now){
+  S.t1+=(S.t1T-S.t1)*0.14; S.n+=(S.nT-S.n)*0.18;
+  if(Math.abs(S.t1T-S.t1)<0.01)S.t1=S.t1T;
+  if(Math.abs(S.nT-S.n)<0.0005)S.n=S.nT;
+
+  const nLow=S.n, n1=S.fromTop?NF:nLow, n2=S.fromTop?nLow:NF;
+  const R=compute(S.t1,n1,n2);
+  const iy=H*0.5, Px=W*0.44, Py=iy, s=S.fromTop?1:-1;
+  const th1=R.th1, th2=R.th2;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='rgba(140,190,255,0.10)';ctx.fillRect(0,0,W,iy);
+  ctx.fillStyle='rgba(255,180,105,'+(0.05+0.16*(nLow-1.3)/0.6).toFixed(3)+')';ctx.fillRect(0,iy,W,H-iy);
+  ctx.strokeStyle='rgba(200,215,240,0.55)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,iy);ctx.lineTo(W,iy);ctx.stroke();
+
+  ctx.setLineDash([7,7]);ctx.strokeStyle='rgba(180,195,230,0.5)';ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(Px,16);ctx.lineTo(Px,H-16);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='rgba(180,195,230,0.8)';ctx.font='12px system-ui';ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillText('法线',Px+7,26);
+  ctx.font='13px system-ui';
+  ctx.fillStyle='rgba(190,215,255,0.9)';ctx.fillText('上介质 · 玻璃  n = '+NF.toFixed(2),14,26);
+  ctx.fillStyle='rgba(255,215,170,0.95)';ctx.fillText('下介质 · 可调  n = '+nLow.toFixed(2),14,H-14);
+
+  // 光线方向
+  const dIn={x:Math.sin(th1),y:s*Math.cos(th1)};
+  const dRe={x:Math.sin(th1),y:-s*Math.cos(th1)};
+  const dTr=th2!=null?{x:Math.sin(th2),y:-s*Math.cos(th2)}:null;
+  const Lin=Math.min(edgeT(Px,Py,-dIn.x,-dIn.y),520);
+  const sx=Px-dIn.x*Lin, sy=Py-dIn.y*Lin;
+  const Lre=edgeT(Px,Py,dRe.x,dRe.y), Ltr=dTr?edgeT(Px,Py,dTr.x,dTr.y):0;
+
+  // 临界角标记线
+  if(R.crit!=null){
+    const c=R.crit*Math.PI/180, dc={x:-Math.sin(c),y:-s*Math.cos(c)}, Lc=Math.min(edgeT(Px,Py,dc.x,dc.y),300);
+    ctx.setLineDash([4,6]);ctx.strokeStyle='rgba(255,209,102,0.55)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(Px,Py);ctx.lineTo(Px+dc.x*Lc,Py+dc.y*Lc);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,209,102,0.95)';ctx.font='12.5px system-ui';ctx.textAlign='center';
+    ctx.fillText('θC = '+R.crit.toFixed(1)+'°',Px+dc.x*Lc*0.62,Py+dc.y*Lc*0.62+14);
+  }
+
+  // 光线（折射在最下，入射在最上）
+  if(dTr)drawRay(Px,Py,Px+dTr.x*Ltr,Py+dTr.y*Ltr,Math.max(0.06,R.T),3);
+  drawRay(Px,Py,Px+dRe.x*Lre,Py+dRe.y*Lre,Math.max(0.06,R.R),3);
+  drawRay(sx,sy,Px,Py,1,3);
+
+  // 激光器
+  ctx.fillStyle='#7a1f1f';ctx.strokeStyle='#ff9a8a';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(sx,sy,7,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='rgba(255,180,170,0.9)';ctx.font='12px system-ui';ctx.textAlign='center';
+  ctx.fillText('激光',sx,sy+(s>0?24:-16));
+
+  // 角度弧
+  const aN=Math.atan2(-s,0), aN2=-aN;
+  arc(Px,Py,48,aN,Math.atan2(-s*Math.cos(th1),-Math.sin(th1)),'rgba(255,120,120,0.95)','θ₁');
+  arc(Px,Py,38,aN2,Math.atan2(-s*Math.cos(th1),Math.sin(th1)),'rgba(255,170,170,0.85)','θ₁′');
+  if(th2!=null)arc(Px,Py,44,aN2,Math.atan2(-s*Math.cos(th2),Math.sin(th2)),'rgba(120,255,170,0.95)','θ₂');
+
+  // 光子脉冲动画
+  const period=3000, tt=(now%period)/period, hitT=0.42;
+  if(tt<hitT){const u=tt/hitT;dot(sx+dIn.x*Lin*u,sy+dIn.y*Lin*u,1);}
+  else{const u=(tt-hitT)/(1-hitT);
+    dot(Px+dRe.x*Lre*u,Py+dRe.y*Lre*u,Math.max(0.3,R.R));
+    if(dTr)dot(Px+dTr.x*Ltr*u,Py+dTr.y*Ltr*u,Math.max(0.25,R.T));}
+
+  if(R.tir){
+    ctx.fillStyle='#ffd166';ctx.font='bold 21px system-ui';ctx.textAlign='center';
+    ctx.shadowColor='rgba(255,209,102,0.6)';ctx.shadowBlur=14;
+    ctx.fillText('⚠ 全反射：θ₁ = '+S.t1.toFixed(1)+'° > θC = '+R.crit.toFixed(1)+'°',W/2,58);
+    ctx.shadowBlur=0;
+  }
+
+  // ---- 面板更新 ----
+  $('t1v').textContent=S.t1.toFixed(1)+'°';
+  $('n2v').textContent=nLow.toFixed(2);
+  $('dirPill').textContent=S.fromTop?'上方 → 下方':'下方 → 上方';
+  $('density').innerHTML=(n1>n2)?'<span class="warn">光密 → 光疏</span>：θ₁ 超过临界角 θC 即发生全反射'
+    :(n1<n2)?'<span class="green">光疏 → 光密</span>：折射角 θ₂ &lt; θ₁，不会发生全反射'
+    :'n₁ = n₂：光不发生偏折';
+  $('rn1').textContent=n1.toFixed(2)+(S.fromTop?'（上·玻璃）':'（下·可调）');
+  $('rn2').textContent=n2.toFixed(2)+(S.fromTop?'（下·可调）':'（上·玻璃）');
+  $('r1').textContent=S.t1.toFixed(1)+'°';
+  $('r2').innerHTML=R.tir?'<span class="warn">全反射（无折射光）</span>'
+    :'<span class="green">'+(th2*180/Math.PI).toFixed(1)+'°</span>';
+  $('rc').innerHTML=R.crit!=null?'<span class="warn">'+R.crit.toFixed(1)+'°</span>（sinθC = '+(n2/n1).toFixed(3)+'）'
+    :'—（n₁ ≤ n₂，不存在）';
+  $('snellNum').innerHTML=R.tir
+    ? n1.toFixed(2)+' × '+R.s1.toFixed(3)+' = '+(n1*R.s1).toFixed(3)+' ⇒ 需 sinθ₂ = '+R.s2.toFixed(3)+' &gt; 1 ⇒ <span class="warn">无解 → 全反射</span>'
+    : n1.toFixed(2)+' × '+R.s1.toFixed(3)+' = '+(n1*R.s1).toFixed(3)+' &nbsp;|&nbsp; '+n2.toFixed(2)+' × '+R.s2.toFixed(3)+' = '+(n2*R.s2).toFixed(3)+' ✓';
+  $('rv').textContent=(R.R*100).toFixed(1)+'%'; $('rb').style.width=(R.R*100)+'%';
+  $('tv').textContent=(R.T*100).toFixed(1)+'%'; $('tb').style.width=(R.T*100)+'%';
+}
+(function frame(now){draw(now||0);requestAnimationFrame(frame);})(0);
+</script>
+</body>
+</html>

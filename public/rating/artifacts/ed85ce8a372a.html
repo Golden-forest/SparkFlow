@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>理想气体实验 · 玻意耳定律 · p-V 图</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--txt:#e6edf3;--dim:#8b949e;--acc:#4cc2ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;padding:16px}
+header{max-width:1300px;margin:0 auto 12px}
+h1{font-size:21px;font-weight:600}h1 span{color:var(--acc);font-size:15px;font-weight:400}
+.sub{color:var(--dim);font-size:13px;margin-top:4px}
+.wrap{max-width:1300px;margin:0 auto;display:grid;grid-template-columns:350px 1fr;gap:14px;align-items:start}
+.col{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.card h2{font-size:13px;color:var(--dim);font-weight:600;margin-bottom:8px;letter-spacing:1px}
+canvas{display:block;width:100%;height:auto;border-radius:8px;background:#0b0f14;touch-action:none}
+.ctl{margin-top:10px}
+.ctl label{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-bottom:4px}
+.ctl b{color:var(--txt);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acc);cursor:pointer}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+button{background:#21262d;border:1px solid var(--line);color:var(--txt);padding:6px 11px;border-radius:8px;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--acc);color:var(--acc)}
+button.hot:hover{border-color:#ff7b54;color:#ff7b54}
+.read{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.read div{background:#0b0f14;border:1px solid var(--line);border-radius:8px;padding:5px 4px;text-align:center}
+.read .k{font-size:10px;color:var(--dim)}
+.read .v{font-size:14px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7}
+@media(max-width:920px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>理想气体实验 <span>注射器 × p–V 等温线族 × 玻意耳定律验证</span></h1>
+  <div class="sub">pV = nRT（n 一定）。拖动活塞改变体积 V，用酒精灯加热改变温度 T，活塞左侧实时显示压强 p。</div>
+</header>
+<div class="wrap">
+  <!-- 左：注射器 -->
+  <div class="card">
+    <h2>注射器（内封一定量气体）</h2>
+    <canvas id="syr"></canvas>
+    <div class="ctl">
+      <label>体积 V <b id="vVal">5.00</b></label>
+      <input type="range" id="vSlider" min="1" max="10" step="0.02" value="5">
+    </div>
+    <div class="ctl">
+      <label>温度 T <b id="tVal">300 K</b></label>
+      <input type="range" id="tSlider" min="100" max="600" step="5" value="300">
+    </div>
+    <div class="btns">
+      <button id="heat" class="hot">🔥 加热 +25K</button>
+      <button id="cool">❄ 降温 −25K</button>
+      <button id="pause">⏸ 暂停</button>
+      <button id="reset">↺ 清除轨迹</button>
+    </div>
+    <div class="read">
+      <div><div class="k">理论 p (kPa)</div><div class="v" id="rP">60.0</div></div>
+      <div><div class="k">分子撞击 p̂</div><div class="v" id="rM">60.0</div></div>
+      <div><div class="k">p·V</div><div class="v" id="rPV">300</div></div>
+      <div><div class="k">pV / T</div><div class="v" id="rC">1.00</div></div>
+    </div>
+    <p class="hint">💡 直接用鼠标上下拖动活塞手柄；温度不变时 p·V 为常数（玻意耳定律），升温则跳到更远离原点的等温线。</p>
+  </div>
+  <!-- 右：两幅图 -->
+  <div class="col">
+    <div class="card"><h2>p – V 图：等温线族（温度越高离原点越远）+ 状态轨迹</h2><canvas id="pv"></canvas></div>
+    <div class="card"><h2>玻意耳定律验证：p – 1/V（定温时为过原点直线）</h2><canvas id="p1v"></canvas></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+// 颜色：温度 100K(蓝) → 600K(红)
+function tcol(T,a=1){const h=Math.round(205-(T-100)/500*196);return `hsla(${h},85%,62%,${a})`;}
+
+/* ================= 状态 ================= */
+let V=5, T=300, paused=false, dragging=false;
+const N=140, PXV=38;                     // 每单位体积对应像素高
+let trail=[], lastTV=0,lastVV=-1;
+
+/* ================= 画布 ================= */
+function ctx2d(c,w,h){const d=Math.min(2,window.devicePixelRatio||1);c.width=w*d;c.height=h*d;const x=c.getContext('2d');x.scale(d,d);return x;}
+const SW=320,SH=540, BL=70,BR=250,BT=46,BB=470,WALL=8;
+const innerL=BL+WALL, innerR=BR-WALL, innerW=innerR-innerL, CX=(BL+BR)/2;
+const sctx=ctx2d($('syr'),SW,SH);
+const pvctx=ctx2d($('pv'),640,430);
+const p1ctx=ctx2d($('p1v'),640,240);
+
+/* ================= 分子 ================= */
+const S=5;                               // 速率标度 px/s
+const pts=[];
+for(let i=0;i<N;i++){
+  const f=.75+Math.random()*.5, a=Math.random()*Math.PI*2;
+  pts.push({x:innerL+6+Math.random()*(innerW-12), y:BB-40-Math.random()*300,
+            vx:Math.cos(a)*f*Math.sqrt(T)*S, vy:Math.sin(a)*f*Math.sqrt(T)*S, f:f});
+}
+let Kcal=1, meas=T/V;
+(function(){ const A=innerW*(BB-(BB-V*PXV+16)-4);
+  let s2=0; for(const m of pts) s2+=m.vx*m.vx+m.vy*m.vy;
+  Kcal=(T/V)/(s2/(2*A)); })();          // 标定：分子撞击压强 → kPa
+
+/* ================= 物理步进 ================= */
+function step(dt){
+  const py=BB-V*PXV, top=py+16, bot=BB-4, r=2.6;
+  const tgt=T, imp={v:0};
+  for(const m of pts){
+    const cur=Math.hypot(m.vx,m.vy)||.001, tg=m.f*Math.sqrt(tgt)*S;
+    const k=1+(tg/cur-1)*Math.min(1,4*dt); m.vx*=k; m.vy*=k;
+    m.x+=m.vx*dt; m.y+=m.vy*dt;
+    if(m.x<innerL+r){m.x=innerL+r; m.vx=Math.abs(m.vx); imp.v+=2*m.vx;}
+    if(m.x>innerR-r){m.x=innerR-r; m.vx=-Math.abs(m.vx); imp.v+=2*m.vx;}
+    if(m.y<top+r){m.y=top+r; m.vy=Math.abs(m.vy); imp.v+=2*m.vy;}
+    if(m.y>bot-r){m.y=bot-r; m.vy=-Math.abs(m.vy); imp.v+=2*m.vy;}
+  }
+  const perim=2*(innerW+(bot-top));
+  meas+=(Kcal*imp.v/(perim*dt)-meas)*Math.min(1,dt*6);
+  if(Math.abs(V-lastVV)>.02||Math.abs(T-lastTV)>.5){
+    trail.push({V:V,p:T/V,T:T}); lastVV=V; lastTV=T;
+    if(trail.length>1200) trail.shift();
+  }
+}
+
+/* ================= 注射器绘制 ================= */
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function mix(c1,c2,t){return `rgb(${c1.map((v,i)=>Math.round(v+(c2[i]-v)*t)).join(',')})`;}
+function spdCol(sp){const t=clamp(sp/(S*Math.sqrt(600)),0,1);return `hsl(${Math.round(205-195*t)},90%,65%)`;}
+
+function drawBurner(c,y,now){
+  const hT=(T-100)/500;
+  c.fillStyle='#2c3646'; rr(c,CX-30,y+26,60,10,3); c.fill();
+  c.fillStyle='#39424f'; c.fillRect(CX-7,y+6,14,22);
+  const s=8+hT*30, fl=Math.sin(now*9)*2+Math.sin(now*13.7)*1.4;
+  const o=mix([76,194,255],[255,80,40],hT), i2=mix([160,225,255],[255,205,120],hT);
+  c.globalAlpha=.9;
+  c.fillStyle=o; c.beginPath(); c.moveTo(CX-9,y+8);
+  c.bezierCurveTo(CX-11-fl*.4,y+8-s*.7, CX-4,y+8-s*.9, CX+fl*.35,y+8-s*1.7);
+  c.bezierCurveTo(CX+4,y+8-s*.9, CX+11+fl*.4,y+8-s*.7, CX+9,y+8); c.closePath(); c.fill();
+  c.fillStyle=i2; c.beginPath(); c.moveTo(CX-4.5,y+8);
+  c.bezierCurveTo(CX-5,y+8-s*.35, CX-2,y+8-s*.45, CX+fl*.2,y+8-s*.85);
+  c.bezierCurveTo(CX+2,y+8-s*.45, CX+5,y+8-s*.35, CX+4.5,y+8); c.closePath(); c.fill();
+  c.globalAlpha=1;
+}
+function drawSyringe(now){
+  const c=sctx; c.clearRect(0,0,SW,SH);
+  const py=BB-V*PXV, gasTop=py+16;
+  drawBurner(c,BB-2,now);
+  if(T>320){ const a=Math.min(.5,(T-320)/560);
+    const g=c.createRadialGradient(CX,BB,5,CX,BB,150);
+    g.addColorStop(0,`rgba(255,120,60,${a})`); g.addColorStop(1,'rgba(255,120,60,0)');
+    c.fillStyle=g; c.fillRect(0,BB-150,SW,190); }
+  // 气室底色
+  c.fillStyle=tcol(T,.10+(T-100)/500*.13); c.fillRect(BL,BT,BR-BL,BB-BT);
+  // 分子（裁剪）
+  c.save(); c.beginPath(); c.rect(innerL,gasTop,innerW,BB-4-gasTop); c.clip();
+  for(const m of pts){ c.fillStyle=spdCol(Math.hypot(m.vx,m.vy));
+    c.beginPath(); c.arc(m.x,m.y,2.4,0,7); c.fill(); }
+  c.restore();
+  // 管壁
+  c.fillStyle='#2c3646';
+  c.fillRect(BL-WALL,BT,WALL,BB-BT+8); c.fillRect(BR,BT,WALL,BB-BT+8);
+  c.fillRect(BL-WALL,BB,BR-BL+2*WALL,8);
+  c.strokeStyle='rgba(120,150,190,.3)'; c.lineWidth=1; c.strokeRect(innerL-.5,BT-.5,innerW+1,BB-BT+1);
+  // 刻度
+  c.font='10px system-ui'; c.textAlign='left'; c.textBaseline='middle';
+  for(let v=1;v<=10;v++){ const y=BB-v*PXV;
+    c.strokeStyle='#55637a'; c.beginPath(); c.moveTo(BR+WALL,y); c.lineTo(BR+WALL+(v%5===0?13:7),y); c.stroke();
+    if(v%2===0){ c.fillStyle='#8b949e'; c.fillText(v,BR+WALL+16,y); } }
+  c.fillStyle='#8b949e'; c.fillText('V',BR+WALL+14,BT-14);
+  // 密封针嘴
+  c.fillStyle='#39424f'; c.fillRect(CX-7,BB+8,14,12); rr(c,CX-10,BB+20,20,8,3); c.fill();
+  // 活塞杆 + 手柄
+  const hy=Math.max(24,py-62);
+  c.fillStyle='#2c3646'; c.fillRect(CX-6,hy+12,12,py-hy-12);
+  c.fillStyle='#39424f'; rr(c,CX-52,hy,104,14,7); c.fill();
+  c.strokeStyle='#4a5568'; c.lineWidth=1; rr(c,CX-52,hy,104,14,7); c.stroke();
+  // 活塞胶塞
+  c.fillStyle='#39424f'; rr(c,BL-6,py,BR-BL+12,16,4); c.fill();
+  c.fillStyle='#20262f'; c.fillRect(BL-6,py+3,BR-BL+12,2); c.fillRect(BL-6,py+11,BR-BL+12,2);
+  // 活塞上的压强读数（左挂数字表）
+  const p=T/V, bx=2,by=py-11;
+  c.strokeStyle=tcol(T,.8); c.setLineDash([3,3]); c.beginPath(); c.moveTo(bx+62,by+17); c.lineTo(BL-8,py+8); c.stroke(); c.setLineDash([]);
+  c.fillStyle='#0b0f14'; rr(c,bx,by,62,34,6); c.fill();
+  c.strokeStyle=tcol(T,.9); c.lineWidth=1.2; rr(c,bx,by,62,34,6); c.stroke();
+  c.fillStyle='#8b949e'; c.font='9px system-ui'; c.textAlign='center'; c.fillText('压强 p',bx+31,by+9);
+  c.fillStyle='#3fd68c'; c.font='bold 14px ui-monospace,monospace'; c.fillText(p.toFixed(1),bx+22,by+24);
+  c.fillStyle='#8b949e'; c.font='9px system-ui'; c.textAlign='left'; c.fillText('kPa',bx+42,by+25);
+  c.fillStyle='#20262f'; rr(c,bx+5,by+38,52,5,2); c.fill();
+  c.fillStyle=tcol(T,.9); rr(c,bx+5,by+38,52*clamp(p/650,0,1),5,2); c.fill();
+  // 气体区标注
+  c.fillStyle=tcol(T,.95); c.font='11px system-ui'; c.textAlign='center';
+  c.fillText(`封闭气体  T = ${T} K`,CX,(gasTop+BB)/2-((BB-gasTop)>90?0:14));
+}
+
+/* ================= p–V 图 ================= */
+const PVW=640,PVH=430,PL=54,PRr=14,PT=14,PB=40,VXM=10.5,PYM=700;
+function drawPV(){
+  const c=pvctx; c.clearRect(0,0,PVW,PVH);
+  const X=v=>PL+v/VXM*(PVW-PL-PRr), Y=p=>PVH-PB-p/PYM*(PVH-PT-PB);
+  c.font='11px system-ui'; c.textBaseline='middle';
+  for(let v=0;v<=10;v++){ c.strokeStyle=v%2?'#161d29':'#1e2735';
+    c.beginPath(); c.moveTo(X(v),Y(0)); c.lineTo(X(v),Y(PYM)); c.stroke();
+    if(v%2===0){ c.fillStyle='#8b949e'; c.textAlign='center'; c.fillText(v,X(v),PVH-PB+14); } }
+  for(let p=0;p<=700;p+=100){ c.strokeStyle=p%200?'#161d29':'#1e2735';
+    c.beginPath(); c.moveTo(X(0),Y(p)); c.lineTo(X(VXM),Y(p)); c.stroke();
+    if(p%100===0&&p<=600){ c.fillStyle='#8b949e'; c.textAlign='right'; c.fillText(p,PL-8,Y(p)); } }
+  c.strokeStyle='#3d4756'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(VXM),Y(0)); c.moveTo(X(0),Y(0)); c.lineTo(X(0),Y(PYM)); c.stroke();
+  // 等温线族
+  for(let Ti=100;Ti<=600;Ti+=100){
+    c.strokeStyle=tcol(Ti,.55); c.lineWidth=1.6; c.beginPath();
+    const v0=Math.max(.6,Ti/690);
+    for(let v=v0;v<=10.35;v+=.06){ const y=Y(Ti/v); v===v0?c.moveTo(X(v),y):c.lineTo(X(v),y); }
+    c.stroke();
+    const vl=Math.max(.7,Ti/650), lx=X(vl), ly=Y(Ti/vl);
+    c.fillStyle=tcol(Ti,.95); c.textAlign=lx<PL+56?'left':'right';
+    c.fillText(Ti+(Ti===600?' K':''), lx+(lx<PL+56?7:-7), ly-8);
+  }
+  // 当前温度等温线（虚线高亮）
+  c.strokeStyle=tcol(T,.95); c.lineWidth=1.6; c.setLineDash([7,5]); c.beginPath();
+  for(let v=Math.max(.6,T/690);v<=10.35;v+=.06){ const y=Y(T/v); v<=Math.max(.61,T/690)+.01?c.moveTo(X(v),y):c.lineTo(X(v),y); }
+  c.stroke(); c.setLineDash([]);
+  // 轨迹
+  c.lineWidth=2.2;
+  for(let i=1;i<trail.length;i++){
+    c.strokeStyle=tcol(trail[i].T,.9); c.beginPath();
+    c.moveTo(X(trail[i-1].V),Y(trail[i-1].p)); c.lineTo(X(trail[i].V),Y(trail[i].p)); c.stroke();
+  }
+  // 当前状态点 + 引线
+  const px=X(V), py2=Y(T/V);
+  c.strokeStyle='rgba(139,148,158,.5)'; c.lineWidth=1; c.setLineDash([4,4]);
+  c.beginPath(); c.moveTo(px,py2); c.lineTo(px,Y(0)); c.moveTo(px,py2); c.lineTo(X(0),py2); c.stroke(); c.setLineDash([]);
+  c.fillStyle='#fff'; c.beginPath(); c.arc(px,py2,5.5,0,7); c.fill();
+  c.strokeStyle=tcol(T,1); c.lineWidth=2.5; c.beginPath(); c.arc(px,py2,5.5,0,7); c.stroke();
+  const tx=px>X(7)?-12:12;
+  c.fillStyle='#e6edf3'; c.font='bold 12px system-ui'; c.textAlign=tx>0?'left':'right';
+  c.fillText(`(${V.toFixed(1)}, ${(T/V).toFixed(0)})`,px+tx,py2-14);
+  // 标题
+  c.fillStyle='#8b949e'; c.font='12px system-ui'; c.textAlign='left';
+  c.fillText('pV = C·T （C = nR 一定）    轨迹颜色：蓝=低温 → 红=高温',PL+10,PT+12);
+  c.textAlign='center'; c.fillText('V（体积）',(PL+PVW-PRr)/2,PVH-10);
+  c.save(); c.translate(16,(PT+PVH-PB)/2); c.rotate(-Math.PI/2); c.fillText('p（kPa）',0,0); c.restore();
+}
+
+/* ================= p – 1/V 图 ================= */
+const UW=640,UH=240,UL=54,UR=46,UT=14,UB=36,UM=1.05;
+function drawP1V(){
+  const c=p1ctx; c.clearRect(0,0,UW,UH);
+  const X=u=>UL+u/UM*(UW-UL-UR), Y=p=>UH-UB-p/PYM*(UH-UT-UB);
+  c.font='10px system-ui'; c.textBaseline='middle';
+  for(let u=0;u<=1.001;u+=.1){ c.strokeStyle=Math.abs(u-round1(u))<.01&&u>0?'#1e2735':'#161d29';
+    c.beginPath(); c.moveTo(X(u),Y(0)); c.lineTo(X(u),Y(PYM)); c.stroke(); }
+  for(let u=0;u<=1.001;u+=.2){ if(u>0){c.strokeStyle='#1e2735';c.beginPath();c.moveTo(X(u),Y(0));c.lineTo(X(u),Y(PYM));c.stroke();}
+    c.fillStyle='#8b949e'; c.textAlign='center'; c.fillText(u.toFixed(1),X(u),UH-UB+13); }
+  for(let p=0;p<=700;p+=200){ c.strokeStyle='#1e2735';
+    c.beginPath(); c.moveTo(X(0),Y(p)); c.lineTo(X(UM),Y(p)); c.stroke();
+    c.fillStyle='#8b949e'; c.textAlign='right'; c.fillText(p,UL-8,Y(p)); }
+  c.strokeStyle='#3d4756'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(UM),Y(0)); c.moveTo(X(0),Y(0)); c.lineTo(X(0),Y(PYM)); c.stroke();
+  // 参考直线族 p = T·(1/V)
+  for(let Ti=100;Ti<=600;Ti+=100){
+    c.strokeStyle=tcol(Ti,.5); c.lineWidth=1.3; c.setLineDash([5,4]);
+    c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(1.03),Y(Ti*1.03)); c.stroke(); c.setLineDash([]);
+    c.fillStyle=tcol(Ti,.95); c.textAlign='left'; c.font='10px system-ui';
+    c.fillText(Ti+(Ti===600?' K':''),X(1.045),Y(Ti*1.045));
+  }
+  // 当前温度直线
+  c.strokeStyle=tcol(T,.95); c.lineWidth=2;
+  c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(1.03),Y(T*1.03)); c.stroke();
+  // 轨迹点
+  for(const q of trail){ c.fillStyle=tcol(q.T,.9);
+    c.beginPath(); c.arc(X(1/q.V),Y(q.p),2.3,0,7); c.fill(); }
+  const px=X(1/V), py=Y(T/V);
+  c.fillStyle='#fff'; c.beginPath(); c.arc(px,py,4.5,0,7); c.fill();
+  c.strokeStyle=tcol(T,1); c.lineWidth=2.3; c.beginPath(); c.arc(px,py,4.5,0,7); c.stroke();
+  c.fillStyle='#8b949e'; c.font='11px system-ui'; c.textAlign='right';
+  c.fillText('定温：p ∝ 1/V（同色点共线，斜率 ∝ T）',UW-UR-6,UT+10);
+  c.textAlign='center'; c.fillText('1 / V（体积的倒数）',(UL+UW-UR)/2,UH-8);
+  c.save(); c.translate(15,(UT+UH-UB)/2); c.rotate(-Math.PI/2); c.fillText('p（kPa）',0,0); c.restore();
+}
+function round1(x){return Math.round(x*10)/10;}
+
+/* ================= 交互 ================= */
+const vS=$('vSlider'), tS=$('tSlider');
+function syncUI(){
+  vS.value=V; tS.value=T;
+  $('vVal').textContent=V.toFixed(2); $('tVal').textContent=T+' K';
+  $('rP').textContent=(T/V).toFixed(1); $('rM').textContent=meas.toFixed(1);
+  $('rPV').textContent=(T/V*V).toFixed(0); $('rC').textContent=((T/V)*V/T).toFixed(2);
+}
+vS.addEventListener('input',()=>{V=parseFloat(vS.value);});
+tS.addEventListener('input',()=>{T=parseFloat(tS.value);});
+$('heat').onclick=()=>{T=clamp(T+25,100,600);};
+$('cool').onclick=()=>{T=clamp(T-25,100,600);};
+$('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'▶ 继续':'⏸ 暂停';};
+$('reset').onclick=()=>{trail=[];lastVV=-1;};
+
+function canvasPos(e){ const r=$('syr').getBoundingClientRect();
+  return {x:(e.clientX-r.left)*SW/r.width, y:(e.clientY-r.top)*SH/r.height}; }
+const syrC=$('syr');
+syrC.addEventListener('pointerdown',e=>{
+  const {x,y}=canvasPos(e); const py=BB-V*PXV, hy=Math.max(24,py-62);
+  if(x>BL-30&&x<BR+30&&y>hy-10&&y<py+40){ dragging=true; syrC.setPointerCapture(e.pointerId); }
+});
+syrC.addEventListener('pointermove',e=>{
+  const {x,y}=canvasPos(e); const py=BB-V*PXV, hy=Math.max(24,py-62);
+  if(!dragging) syrC.style.cursor=(x>BL-30&&x<BR+30&&y>hy-10&&y<py+40)?'ns-resize':'default';
+  else V=clamp(Math.round((BB-y)/PXV*50)/50,1,10);
+});
+syrC.addEventListener('pointerup',()=>dragging=false);
+syrC.addEventListener('pointercancel',()=>dragging=false);
+
+/* ================= 主循环 ================= */
+let last=performance.now();
+trail.push({V:V,p:T/V,T:T});
+function loop(now){
+  const dt=Math.min(.033,(now-last)/1000); last=now;
+  if(!paused) step(dt);
+  drawSyringe(now/1000); drawPV(); drawP1V(); syncUI();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

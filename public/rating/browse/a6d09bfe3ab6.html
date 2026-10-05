@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>频闪照片测重力加速度</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific extensions (photo-stage palette) */
+      --sim-photo-bg: #10161f;
+      --sim-photo-ink: #dfe9f1;
+      --sim-photo-label: #7f95a6;
+      --sim-strobe: #f6ecd4;
+      --sim-photo-teal: #4cc9dd;
+      --sim-photo-amber: #f5b84d;
+      --sim-photo-red: #ff7a70;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1600px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .status.warn { border-color: rgba(245,158,11,.35); background: #fdf0da; color: #a35d00; }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(430px, 0.98fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+
+    /* ---- stage: the strobe photograph ---- */
+    .scene-panel { min-height: 430px; padding: 12px 14px 14px; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+    .scene-wrap { flex: 1; min-height: 0; display: flex; gap: 10px; }
+    .scene-body { flex: 1; min-width: 0; min-height: 0; }
+    #scene { width: 100%; height: 100%; min-height: 320px; display: block; border-radius: 18px; }
+    .stage-info { width: 152px; flex: none; display: flex; flex-direction: column; gap: 8px; }
+    .info-chip { border: 1px solid var(--sim-border); border-radius: 14px; background: linear-gradient(150deg, #f9fcfd, #f2f6fa); padding: 9px 11px; }
+    .info-chip small { display: block; color: var(--sim-muted); font-size: 11px; margin-bottom: 3px; letter-spacing: .02em; }
+    .info-chip strong { font-size: 15px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .info-chip em { display: block; font-style: normal; color: var(--sim-muted); font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .lamp-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--sim-warning); margin-right: 5px; vertical-align: 1px; }
+    .legend { font-size: 11px; color: var(--sim-muted); line-height: 1.9; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .legend .sw-seg { background: var(--sim-accent-soft); border: 1px solid var(--sim-accent); }
+    .legend .sw-img { background: var(--sim-strobe); border-radius: 50%; width: 9px; height: 9px; }
+    .legend .sw-vel { background: var(--sim-photo-amber); width: 4px; height: 12px; border-radius: 2px; }
+
+    /* SVG mark styles (photo is drawn dark) */
+    .tick { stroke: #8fa5b5; }
+    .ruler-num { fill: #8fa5b5; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .img-halo { fill: rgba(255, 226, 170, 0.16); }
+    .img-core { fill: var(--sim-strobe); }
+    .img-core.pickable { cursor: pointer; }
+    .img-core.pickable:hover { fill: #ffffff; }
+    .img-num { fill: var(--sim-photo-label); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .band { fill: rgba(76, 201, 221, 0.05); stroke: rgba(76, 201, 221, 0.10); cursor: pointer; }
+    .band:hover { fill: rgba(76, 201, 221, 0.16); }
+    .band:focus-visible { stroke: var(--sim-photo-teal); stroke-width: 2; outline: none; }
+    .band.measured { fill: rgba(76, 201, 221, 0.10); stroke: rgba(76, 201, 221, 0.22); stroke-dasharray: 4 4; }
+    .band.todo { animation: bandPulse 1.6s ease-in-out infinite; }
+    @keyframes bandPulse { 0%, 100% { fill: rgba(76, 201, 221, 0.05); } 50% { fill: rgba(76, 201, 221, 0.20); } }
+    .brk { stroke: var(--sim-photo-teal); stroke-width: 2; }
+    .brk-label { fill: #8fdce8; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+    .probe-ring { fill: none; stroke: var(--sim-photo-teal); stroke-width: 2.5; }
+    .probe-arrow { stroke: var(--sim-photo-amber); stroke-width: 3; fill: none; }
+    .probe-head { fill: var(--sim-photo-amber); }
+    .probe-label { fill: #ffd9a0; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .live-halo { fill: rgba(255, 236, 200, 0.22); }
+    .live-core { fill: #fff6e2; }
+    .live-streak { stroke: rgba(255, 236, 200, 0.30); stroke-width: 5; stroke-linecap: round; }
+    .chip-box { fill: rgba(8, 13, 20, 0.92); stroke: #33465a; }
+    .chip-text { fill: #cfe3ee; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+    /* ---- evidence column ---- */
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; gap: 12px; }
+    .table-panel { display: flex; flex-direction: column; min-height: 0; padding: 12px 14px 14px; }
+    .rec-scroll { flex: 1; min-height: 120px; overflow: auto; border: 1px solid var(--sim-grid); border-radius: 12px; }
+    .rec-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .rec-table th { position: sticky; top: 0; background: #eef4f8; color: #4d5c72; font-size: 11.5px; padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--sim-border); z-index: 1; }
+    .rec-table th:first-child, .rec-table td:first-child { text-align: center; }
+    .rec-table td { padding: 5.5px 8px; text-align: right; border-bottom: 1px solid var(--sim-grid); }
+    .rec-table td:first-child { color: var(--sim-muted); }
+    .row-unmeas td { color: #9aa7ba; }
+    .row-meas td:nth-child(2) { font-weight: 700; }
+    .mini { border: 1px solid rgba(15,159,186,.35); border-radius: 8px; padding: 3px 9px; font-size: 11.5px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); cursor: pointer; font-weight: 700; }
+    .mini:hover { background: #c7ecf2; }
+    .rec-summary { margin-top: 10px; display: grid; gap: 6px; }
+    .sum-line { font-size: 13px; color: var(--sim-text); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .sum-line b { font-size: 19px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .sum-line .good { color: var(--sim-accent-deep); }
+    .sum-line .bad { color: var(--sim-danger); }
+    .sum-line .aux { color: var(--sim-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .formula { color: var(--sim-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+    .velocity-panel { padding: 12px 14px 13px; }
+    .vel-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+    .vel-row label { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+    .vel-row select { flex: 1; min-width: 0; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 6px 8px; background: var(--sim-surface); }
+    .vel-lines { display: grid; gap: 6px; }
+    .vel-item { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding: 8px 11px; border-radius: 12px; border: 1px solid; font-size: 12.5px; }
+    .vel-item b { font-size: 17px; font-variant-numeric: tabular-nums; }
+    .vel-item.ok { border-color: rgba(15,159,186,.30); background: #eef9fb; color: var(--sim-accent-deep); }
+    .vel-item.no { border-color: rgba(220,38,38,.25); background: #fdf1f1; color: var(--sim-danger); }
+    .vel-item.note { border-color: rgba(245,158,11,.35); background: #fff8e8; color: #80510a; }
+    .vel-hint { color: var(--sim-muted); font-size: 12.5px; margin: 2px 0; }
+
+    .model-note { padding: 11px 14px 12px; display: grid; gap: 8px; }
+    .insight { padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 640; margin: 0; font-size: 12.8px; line-height: 1.55; }
+    .note-lines { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 11.5px; }
+
+    /* ---- controls dock ---- */
+    .controls { padding: 10px 12px; display: grid; grid-template-columns: auto minmax(170px, 1fr) minmax(170px, 1fr) minmax(150px, 0.85fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: grid; grid-template-columns: repeat(2, auto); gap: 7px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; font-size: 13px; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: default; transform: none; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.primary:disabled { background: linear-gradient(135deg, #6ea7b3, #8fc3ce); box-shadow: none; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+
+    @media (max-width: 1120px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      .scene-body { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 620 / 760; }
+      .stage-info { width: 100%; flex-direction: row; flex-wrap: wrap; }
+      .info-chip { flex: 1 1 150px; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .actions { grid-column: 1 / -1; }
+    }
+    @media (max-width: 700px) {
+      .controls { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .band.todo { animation: none; fill: rgba(76, 201, 221, 0.12); }
+      button, button:active { transition: none; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>频闪照片测重力加速度</h1>
+        <p>拍摄自由落体频闪照片 → 量出相邻像间距 → 逐段位移差求 g → 中点法求瞬时速度（含“首闪不在释放瞬间”的坑）</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">待拍摄</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">频闪照片</h2>
+          <span id="sceneMeta">f = 15.0 Hz · T ≈ 0.0667 s</span>
+        </div>
+        <div class="scene-wrap">
+          <div class="scene-body">
+            <svg id="scene" viewBox="0 0 620 760" role="img" aria-labelledby="scene-title scene-desc" preserveAspectRatio="xMidYMid meet">
+              <desc id="scene-desc">一张暗色频闪照片：自由落体的小球在相等时间间隔处的位置像，照片左侧带有厘米刻度尺。</desc>
+              <defs>
+                <linearGradient id="photoBg" x1="0" y1="0" x2="0.6" y2="1">
+                  <stop offset="0" stop-color="#151d29"></stop>
+                  <stop offset="0.55" stop-color="#10161f"></stop>
+                  <stop offset="1" stop-color="#0b1017"></stop>
+                </linearGradient>
+                <radialGradient id="vig" cx="50%" cy="42%" r="78%">
+                  <stop offset="0" stop-color="rgba(0,0,0,0)"></stop>
+                  <stop offset="0.72" stop-color="rgba(0,0,0,0)"></stop>
+                  <stop offset="1" stop-color="rgba(0,0,0,0.55)"></stop>
+                </radialGradient>
+              </defs>
+              <g id="photoStatic"></g>
+              <g id="bands"></g>
+              <g id="brackets"></g>
+              <g id="images"></g>
+              <g id="probe"></g>
+              <g id="liveLayer"></g>
+              <rect id="flashOverlay" x="1" y="1" width="618" height="758" rx="18" fill="#ffffff" opacity="0" pointer-events="none"></rect>
+              <g id="hoverChip" visibility="hidden" pointer-events="none">
+                <rect class="chip-box" x="330" y="-13" width="196" height="25" rx="7"></rect>
+                <text class="chip-text" id="chipText" x="428" y="4" text-anchor="middle"></text>
+              </g>
+            </svg>
+          </div>
+          <div class="stage-info">
+            <div class="info-chip">
+              <small><span id="lampDot" class="lamp-dot"></span>闪光频率</small>
+              <strong id="chipFreqVal">15.0 Hz</strong>
+              <em id="chipTVal">T = 1/f ≈ 0.0667 s</em>
+            </div>
+            <div class="info-chip">
+              <small>首闪延迟 Δt（坑开关）</small>
+              <strong id="chipDelayVal">0 ms</strong>
+              <em id="chipDelaySub">首闪恰在释放瞬间</em>
+            </div>
+            <div class="info-chip">
+              <small>像数 / 已测段数</small>
+              <strong id="chipCountVal">— / —</strong>
+              <em id="chipCountSub">拍摄后点击照片区带测段距</em>
+            </div>
+            <div class="info-chip">
+              <small>真值 g（供对照）</small>
+              <strong id="chipGVal">9.8 m/s²</strong>
+              <em>先用逐差法算出来再对照</em>
+            </div>
+            <div class="info-chip legend">
+              <div><i class="sw-seg"></i>已测段（teal 括号）</div>
+              <div><i class="sw-img"></i>频闪像（亮斑）</div>
+              <div><i class="sw-vel"></i>速度探针箭头</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel table-panel" aria-labelledby="rec-title" id="tablePanel">
+          <div class="panel-head">
+            <h2 id="rec-title">测量记录（逐段位移差）</h2>
+            <span>d<sub>k</sub> = x<sub>k+1</sub> − x<sub>k</sub> = gT²</span>
+          </div>
+          <div class="rec-scroll">
+            <table class="rec-table">
+              <thead>
+                <tr><th>段 k</th><th>x<sub>k</sub> (cm)</th><th>d<sub>k</sub> (cm)</th><th>g<sub>k</sub> (m/s²)</th><th></th></tr>
+              </thead>
+              <tbody id="recBody"></tbody>
+            </table>
+          </div>
+          <div class="rec-summary" id="recSummary"></div>
+        </section>
+
+        <section class="panel velocity-panel" id="velocityPanel" aria-labelledby="vel-title">
+          <div class="panel-head">
+            <h2 id="vel-title">瞬时速度（中点法）</h2>
+            <span>v<sub>n</sub> = (x<sub>n</sub> + x<sub>n+1</sub>) / 2T</span>
+          </div>
+          <div class="vel-row">
+            <label for="velSelect">选像 n（从 0 数起）</label>
+            <select id="velSelect" aria-label="选择计算瞬时速度的像序号 n"></select>
+          </div>
+          <div class="vel-lines" id="velLines"></div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">设置闪频与首闪延迟后点「拍摄」。相邻像间距不断增大，是匀加速直线运动的特征。</p>
+          <p class="note-lines">教学视图：忽略空气阻力，g 恒定；照片按 1:1 比例内嵌厘米刻度尺，读数为理想测量（未模拟刻度误差）；动画按 1/4 慢放。逐差法与中点法都只依赖相邻段数据，与计时起点无关。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">拍摄</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+        <button id="measureAllBtn" type="button">全部测量</button>
+      </div>
+      <div class="control">
+        <label for="freqInput">闪频 f <output id="freqOutput">15.0 Hz</output></label>
+        <input id="freqInput" type="range" min="5" max="30" step="0.5" value="15">
+      </div>
+      <div class="control">
+        <label for="delayInput">首闪延迟 Δt <output id="delayOutput">0 ms</output></label>
+        <input id="delayInput" type="range" min="0" max="0.3" step="0.005" value="0">
+      </div>
+      <div class="control">
+        <label for="gInput">真值 g（对照用） <output id="gOutput">9.8 m/s²</output></label>
+        <input id="gInput" type="range" min="5" max="15" step="0.1" value="9.8">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ---------- configuration ---------- */
+    const CFG = {
+      h0: 0.10,        // release position on the ruler (m)
+      sExit: 1.88,     // fallen distance at which the ball leaves the frame (m)
+      timeScale: 0.25, // teaching slow-motion factor (sim s per wall s)
+      yBase: 44,       // svg y of the ruler 0 cm mark
+      pxPerCm: 3.5,
+      trackX: 205,
+      bandX1: 125,
+      bandX2: 606,
+      brkX: 295
+    };
+    const parameterSchema = [
+      { key: "freq",  label: "闪频 f",      type: "slider", min: 5, max: 30, step: 0.5, default: 15, unit: "Hz" },
+      { key: "delay", label: "首闪延迟 Δt", type: "slider", min: 0, max: 0.3, step: 0.005, default: 0, unit: "s" },
+      { key: "gTrue", label: "真值 g",      type: "slider", min: 5, max: 15, step: 0.1, default: 9.8, unit: "m/s²" }
+    ];
+
+    /* ---------- pure model kernel (no DOM) ---------- */
+    // Analytic free fall from rest: s(t) = g t² / 2. Strobe flashes at t_k = Δt + kT.
+    function computePhoto(freq, delay, g) {
+      const T = 1 / freq;
+      const tExit = Math.sqrt((2 * CFG.sExit) / g);
+      const images = [];
+      for (let k = 0; k <= 60; k += 1) {
+        const t = delay + k * T;
+        if (t > tExit + 1e-12) break;
+        images.push({ k, t, s: 0.5 * g * t * t, v: g * t });
+      }
+      return { T, tExit, images };
+    }
+    // xs[i] is the length of segment (i+1): distance between image i and image i+1 (m).
+    function segmentLengths(photo) {
+      const im = photo.images, xs = [];
+      for (let k = 1; k < im.length; k += 1) xs.push(im[k].s - im[k - 1].s);
+      return xs;
+    }
+    // Statistics over the measured subset of segments (逐差法).
+    function analyze(photo, measured) {
+      const xs = segmentLengths(photo), T = photo.T;
+      const ds = [], gks = [];
+      for (let k = 1; k < xs.length; k += 1) {
+        if (measured.has(k) && measured.has(k + 1)) {
+          const d = xs[k] - xs[k - 1];
+          ds.push(d); gks.push(d / (T * T));
+        }
+      }
+      const gHat = ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length / (T * T) : null;
+      return { xs, ds, gks, gHat, x1: measured.has(1) ? xs[0] : null, measuredCount: measured.size };
+    }
+    // Instantaneous velocity at image n via the midpoint (adjacent-segment mean) rule (m/s).
+    function midVelocity(photo, n) {
+      const xs = segmentLengths(photo);
+      return (xs[n - 1] + xs[n]) / (2 * photo.T);
+    }
+    // Flash bookkeeping under stepped wall time: images are always taken at exact flash instants.
+    function recordWithStep(photo, wallStep) {
+      let t = 0; const rec = [];
+      const limit = photo.tExit + photo.T;
+      while (t < limit) {
+        t += wallStep * CFG.timeScale;
+        while (rec.length < photo.images.length && photo.images[rec.length].t <= t + 1e-9) {
+          rec.push(photo.images[rec.length]);
+        }
+      }
+      return rec;
+    }
+
+    /* ---------- state ---------- */
+    const state = {
+      phase: "idle",        // idle | capturing | done
+      running: false,
+      t: 0,                 // simulated seconds since release
+      freq: 15, delay: 0, gTrue: 9.8,
+      photo: null,          // { T, tExit, images }
+      recorded: 0,          // images burned onto the photo so far
+      measured: new Set(),  // measured segment indices (1-based)
+      selected: null,       // probe image index n
+      flashEnergy: 0,
+      note: null,           // transient status note (e.g. parameter changed)
+      lastTimestamp: null,
+      rev: 0, renderedRev: -1
+    };
+
+    const SUB = "₀₁₂₃₄₅₆₇₈₉";
+    const sub = (n) => String(n).split("").map((d) => SUB[+d]).join("");
+    const $ = (sel) => document.querySelector(sel);
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const cm = (m) => (m * 100).toFixed(2);
+    const bump = () => { state.rev += 1; };
+    const yOf = (s) => CFG.yBase + (CFG.h0 + s * 100) * CFG.pxPerCm;
+
+    const elements = {
+      status: $("#status"), sceneMeta: $("#sceneMeta"),
+      photoStatic: $("#photoStatic"), bands: $("#bands"), brackets: $("#brackets"),
+      images: $("#images"), probe: $("#probe"), liveLayer: $("#liveLayer"),
+      flashOverlay: $("#flashOverlay"), hoverChip: $("#hoverChip"), chipText: $("#chipText"),
+      chipFreqVal: $("#chipFreqVal"), chipTVal: $("#chipTVal"), chipDelayVal: $("#chipDelayVal"),
+      chipDelaySub: $("#chipDelaySub"), chipCountVal: $("#chipCountVal"), chipCountSub: $("#chipCountSub"),
+      chipGVal: $("#chipGVal"), lampDot: $("#lampDot"),
+      recBody: $("#recBody"), recSummary: $("#recSummary"), tablePanel: $("#tablePanel"),
+      velSelect: $("#velSelect"), velLines: $("#velLines"), velocityPanel: $("#velocityPanel"),
+      insight: $("#insight"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"), measureAllBtn: $("#measureAllBtn"),
+      freqInput: $("#freqInput"), freqOutput: $("#freqOutput"),
+      delayInput: $("#delayInput"), delayOutput: $("#delayOutput"),
+      gInput: $("#gInput"), gOutput: $("#gOutput")
+    };
+
+    /* ---------- static photo scenery ---------- */
+    function buildStatic() {
+      const parts = [];
+      parts.push(`<rect x="1" y="1" width="618" height="758" rx="18" fill="url(#photoBg)" stroke="#26303c" stroke-width="1.5"></rect>`);
+      parts.push(`<rect x="10" y="10" width="600" height="740" rx="12" fill="none" stroke="rgba(255,255,255,0.05)"></rect>`);
+      // ruler strip
+      parts.push(`<rect x="30" y="44" width="46" height="700" rx="4" fill="#161e28" stroke="#2a3440"></rect>`);
+      for (let c = 0; c <= 200; c += 1) {
+        const y = CFG.yBase + c * CFG.pxPerCm;
+        const major = c % 10 === 0, mid = c % 5 === 0;
+        const x1 = major ? 55 : mid ? 62 : 68;
+        parts.push(`<line class="tick" x1="${x1}" y1="${y}" x2="76" y2="${y}" stroke-width="${major ? 1.4 : 0.8}" opacity="${major ? 0.95 : mid ? 0.75 : 0.38}"></line>`);
+        if (major) parts.push(`<text class="ruler-num" x="47" y="${y + 3.6}" text-anchor="middle">${c}</text>`);
+      }
+      parts.push(`<text class="ruler-num" x="53" y="36" text-anchor="middle" font-size="10">cm</text>`);
+      parts.push(`<rect x="1" y="1" width="618" height="758" rx="18" fill="url(#vig)" pointer-events="none"></rect>`);
+      elements.photoStatic.innerHTML = parts.join("");
+      elements.liveLayer.innerHTML =
+        `<line id="liveStreak" class="live-streak" x1="0" y1="0" x2="0" y2="0" visibility="hidden"></line>` +
+        `<circle id="liveHalo" class="live-halo" r="12" cx="0" cy="0" visibility="hidden"></circle>` +
+        `<circle id="liveCore" class="live-core" r="7" cx="0" cy="0" visibility="hidden"></circle>`;
+    }
+
+    /* ---------- derived helpers ---------- */
+    const im = () => state.photo ? state.photo.images : [];
+    const segCount = () => Math.max(0, im().length - 1);
+    const isTrap = () => state.delay > 1e-12;
+    const currentAnalysis = () => state.photo ? analyze(state.photo, state.measured) : null;
+
+    function autoSelectProbe() {
+      const S = segCount();
+      if (S < 2) { state.selected = null; return; }
+      if (state.selected === null || state.selected < 1 || state.selected > S - 1) {
+        state.selected = clamp(Math.floor(S / 2), 1, S - 1);
+      }
+    }
+    function probeReady() {
+      return state.phase === "done" && state.selected !== null &&
+        state.measured.has(state.selected) && state.measured.has(state.selected + 1);
+    }
+
+    /* ---------- render: photo marks ---------- */
+    function renderPhoto() {
+      const f = state.freq, T = 1 / f;
+      elements.sceneMeta.textContent = `f = ${f.toFixed(1)} Hz · T ≈ ${T.toFixed(4)} s` + (state.photo ? ` · 像数 ${im().length}` : "");
+      elements.chipFreqVal.textContent = `${f.toFixed(1)} Hz`;
+      elements.chipTVal.textContent = `T = 1/f ≈ ${T.toFixed(4)} s`;
+      elements.chipDelayVal.textContent = `${Math.round(state.delay * 1000)} ms`;
+      elements.chipDelaySub.textContent = isTrap() ? `释放 ${state.delay.toFixed(3)} s 后才首闪` : "首闪恰在释放瞬间";
+      const S = segCount();
+      elements.chipCountVal.textContent = state.photo ? `${state.recorded}/${im().length}` : "— / —";
+      elements.chipCountSub.textContent = state.photo ? `已测 ${state.measured.size}/${S} 段` : "拍摄后点击照片区带测段距";
+      elements.chipGVal.textContent = `${state.gTrue.toFixed(1)} m/s²`;
+
+      // strobe images (only those already recorded)
+      const imgs = [];
+      for (let i = 0; i < state.recorded; i += 1) {
+        const y = yOf(im()[i].s);
+        const pickable = state.phase === "done" && i >= 1 && i <= segCount() - 1;
+        imgs.push(`<circle class="img-halo" cx="${CFG.trackX}" cy="${y.toFixed(1)}" r="11.5"></circle>`);
+        imgs.push(`<circle class="img-core${pickable ? " pickable" : ""}" data-i="${i}" cx="${CFG.trackX}" cy="${y.toFixed(1)}" r="6.5"><title>第 ${i} 像（从 0 数起）</title></circle>`);
+        imgs.push(`<text class="img-num" x="98" y="${(y + 3.8).toFixed(1)}" text-anchor="middle">${i}</text>`);
+      }
+      elements.images.innerHTML = imgs.join("");
+
+      // measurement hit bands (only when the photo is complete)
+      const bands = [];
+      if (state.phase === "done") {
+        const xs = segmentLengths(state.photo);
+        const firstTodo = xs.findIndex((_, idx) => !state.measured.has(idx + 1)) + 1;
+        for (let k = 1; k <= segCount(); k += 1) {
+          const y1 = yOf(im()[k - 1].s) + 8, y2 = yOf(im()[k].s) - 8;
+          let top = y1, h = y2 - y1;
+          if (h < 14) { top = (y1 + y2) / 2 - 7; h = 14; }
+          const cls = ["band", state.measured.has(k) ? "measured" : "", (!state.measured.has(k) && k === firstTodo) ? "todo" : ""].filter(Boolean).join(" ");
+          bands.push(`<rect class="${cls}" data-k="${k}" tabindex="0" x="${CFG.bandX1}" y="${top.toFixed(1)}" width="${CFG.bandX2 - CFG.bandX1}" height="${h.toFixed(1)}" rx="9"><title>测量第 ${k} 段：x${sub(k)} = 相邻两像的间距</title></rect>`);
+        }
+      }
+      elements.bands.innerHTML = bands.join("");
+
+      // measured brackets + labels (collision-pushed downward)
+      const brks = [];
+      if (state.phase === "done") {
+        const xs = segmentLengths(state.photo);
+        let lastLabelY = -1e9;
+        for (let k = 1; k <= segCount(); k += 1) {
+          if (!state.measured.has(k)) continue;
+          const y1 = yOf(im()[k - 1].s), y2 = yOf(im()[k].s);
+          brks.push(`<line class="brk" x1="${CFG.brkX}" y1="${(y1 + 5).toFixed(1)}" x2="${CFG.brkX}" y2="${(y2 - 5).toFixed(1)}"></line>`);
+          brks.push(`<line class="brk" x1="${CFG.brkX - 5}" y1="${(y1 + 5).toFixed(1)}" x2="${CFG.brkX + 5}" y2="${(y1 + 5).toFixed(1)}"></line>`);
+          brks.push(`<line class="brk" x1="${CFG.brkX - 5}" y1="${(y2 - 5).toFixed(1)}" x2="${CFG.brkX + 5}" y2="${(y2 - 5).toFixed(1)}"></line>`);
+          const want = (y1 + y2) / 2 + 4;
+          const labelY = Math.max(want, lastLabelY + 15);
+          lastLabelY = labelY;
+          brks.push(`<text class="brk-label" x="${CFG.brkX + 11}" y="${labelY.toFixed(1)}">x${sub(k)} = ${cm(xs[k - 1])} cm</text>`);
+        }
+      }
+      elements.brackets.innerHTML = brks.join("");
+
+      renderProbe();
+    }
+
+    function renderProbe() {
+      if (!probeReady()) { elements.probe.innerHTML = ""; return; }
+      const n = state.selected, photo = state.photo;
+      const v = midVelocity(photo, n);
+      const y = yOf(im()[n].s);
+      const L = clamp(v * 16, 26, 175);
+      const parts = [];
+      parts.push(`<circle class="probe-ring" cx="${CFG.trackX}" cy="${y.toFixed(1)}" r="12"></circle>`);
+      parts.push(`<line class="probe-arrow" x1="${CFG.trackX + 12}" y1="${y.toFixed(1)}" x2="252" y2="${y.toFixed(1)}" opacity="0.7"></line>`);
+      parts.push(`<line class="probe-arrow" x1="252" y1="${y.toFixed(1)}" x2="252" y2="${(y + L).toFixed(1)}"></line>`);
+      parts.push(`<polygon class="probe-head" points="252,${(y + L + 8).toFixed(1)} 246,${(y + L - 2).toFixed(1)} 258,${(y + L - 2).toFixed(1)}"></polygon>`);
+      parts.push(`<text class="probe-label" x="264" y="${(y + L / 2 + 4).toFixed(1)}">v${sub(n)} = ${v.toFixed(2)} m/s</text>`);
+      elements.probe.innerHTML = parts.join("");
+    }
+
+    /* ---------- render: evidence ---------- */
+    function renderTable() {
+      if (!state.photo) {
+        elements.recBody.innerHTML = `<tr class="row-unmeas"><td colspan="5" style="text-align:center;padding:18px 6px;">先拍摄一张频闪照片，再逐段测量</td></tr>`;
+        elements.recSummary.innerHTML = `<div class="sum-line aux">拍摄后：点击照片中相邻两像之间的区带（或表内「测量」按钮）量出 x<sub>k</sub>。</div>`;
+        return;
+      }
+      if (state.phase === "capturing") {
+        elements.recBody.innerHTML = `<tr class="row-unmeas"><td colspan="5" style="text-align:center;padding:18px 6px;">拍摄中 · 已定格 ${state.recorded}/${im().length} 个像（1/4 慢放）</td></tr>`;
+        elements.recSummary.innerHTML = `<div class="sum-line aux">照片完成后即可逐段测量。</div>`;
+        return;
+      }
+      const a = currentAnalysis(), T = state.photo.T, S = segCount();
+      const rows = [];
+      for (let k = 1; k <= S; k += 1) {
+        const got = state.measured.has(k);
+        const gotNext = state.measured.has(k + 1);
+        let xCell = "—", dCell = "—", gCell = "—", op = "";
+        if (got) {
+          xCell = cm(a.xs[k - 1]);
+          if (gotNext) {
+            const d = a.xs[k] - a.xs[k - 1];
+            dCell = cm(d); gCell = (d / (T * T)).toFixed(2);
+          }
+          op = `<button class="mini" type="button" data-unseg="${k}">清除</button>`;
+        } else {
+          op = `<button class="mini" type="button" data-seg="${k}">测量</button>`;
+        }
+        rows.push(`<tr class="${got ? "row-meas" : "row-unmeas"}"><td>${k}</td><td>${xCell}</td><td>${dCell}</td><td>${gCell}</td><td>${op}</td></tr>`);
+      }
+      elements.recBody.innerHTML = rows.join("");
+      renderSummary(a);
+    }
+
+    function renderSummary(a) {
+      const N = im().length, S = segCount(), T = state.photo.T;
+      const p0 = (CFG.h0 + 0.5 * state.gTrue * state.delay * state.delay) * 100;
+      if (N < 3) {
+        elements.recSummary.innerHTML =
+          `<div class="sum-line aux">首像位置 P₀ = ${p0.toFixed(2)} cm</div>` +
+          `<div class="sum-line bad">像数不足 3 个（当前 ${N} 个），算不出段差。请提高闪频 f 或减小首闪延迟 Δt 后重拍。</div>`;
+        return;
+      }
+      const lines = [];
+      lines.push(`<div class="sum-line aux">首像位置 P₀ = ${p0.toFixed(2)} cm（尺上直接读出）</div>`);
+      if (a.gHat !== null) {
+        const err = Math.abs(a.gHat - state.gTrue) / state.gTrue * 100;
+        lines.push(`<div class="sum-line">逐差法 ḡ = d̄/T² = <b class="good">${a.gHat.toFixed(2)}</b> m/s²` +
+          `<span class="aux">${a.ds.length} 个段差平均 · 真值 ${state.gTrue.toFixed(1)} · 相对误差 ${err.toFixed(2)}%</span></div>`);
+      } else {
+        lines.push(`<div class="sum-line aux">至少测量 3 段，才能得到段差 d<sub>k</sub> = x<sub>k+1</sub> − x<sub>k</sub> 并求 g。</div>`);
+      }
+      if (a.x1 !== null) {
+        const gPrime = 2 * a.x1 / (T * T);
+        const rel = Math.abs(gPrime - state.gTrue) / state.gTrue;
+        if (rel > 1e-6) {
+          lines.push(`<div class="sum-line">误区对照：把首像当释放点（x₁ = ½gT²）→ g′ = <b class="bad">${gPrime.toFixed(2)}</b> m/s²` +
+            `<span class="aux">偏大约 ${(gPrime / state.gTrue).toFixed(2)} 倍 —— 首像并非释放瞬间</span></div>`);
+        } else {
+          lines.push(`<div class="sum-line aux">g′ = 2x₁/T² = ${gPrime.toFixed(2)} m/s²，与逐差法一致 —— 本组首闪恰在释放瞬间（Δt = 0）。</div>`);
+        }
+      }
+      elements.recSummary.innerHTML = lines.join("");
+    }
+
+    function renderVelocity() {
+      const S = segCount();
+      if (!state.photo || S < 2) {
+        elements.velSelect.innerHTML = "";
+        elements.velSelect.disabled = true;
+        elements.velLines.innerHTML = `<p class="vel-hint">像数不足（至少需要 3 个像），无法用中点法求瞬时速度。</p>`;
+        return;
+      }
+      elements.velSelect.disabled = false;
+      const opts = [];
+      for (let n = 1; n <= S - 1; n += 1) opts.push(`<option value="${n}"${n === state.selected ? " selected" : ""}>第 ${n} 像</option>`);
+      elements.velSelect.innerHTML = opts.join("");
+      if (state.selected === null) elements.velSelect.value = "";
+      const n = state.selected;
+      if (n === null) {
+        elements.velLines.innerHTML = `<p class="vel-hint">选择一个像 n，并测好它上、下两段（x<sub>n</sub>、x<sub>n+1</sub>）。</p>`;
+        return;
+      }
+      const a = currentAnalysis(), T = state.photo.T;
+      if (!(state.measured.has(n) && state.measured.has(n + 1))) {
+        elements.velLines.innerHTML = `<p class="vel-hint">第 ${n} 像上、下两段还未测全：请先测量 x${sub(n)} 与 x${sub(n + 1)}（点照片区带或表内「测量」）。</p>`;
+        return;
+      }
+      const vMid = midVelocity(state.photo, n);
+      const lines = [];
+      lines.push(`<div class="vel-item ok"><span>✔ 中点法 v${sub(n)} = (x${sub(n)} + x${sub(n + 1)}) / 2T</span><b>${vMid.toFixed(2)} m/s</b></div>`);
+      if (a.gHat !== null) {
+        const vWrong = n * a.gHat * T;
+        const dv = vMid - vWrong;
+        lines.push(`<div class="vel-item no"><span>✗ 若把首像当释放点：v′ = n·ḡ·T</span><b>${vWrong.toFixed(2)} m/s</b></div>`);
+        if (Math.abs(dv) > 1e-6) {
+          lines.push(`<div class="vel-item note"><span>两法恒差 Δv ≈ g·Δt，与 n 无关</span><b>${dv.toFixed(2)} m/s</b></div>`);
+        } else {
+          lines.push(`<div class="vel-item note"><span>两法一致 → 首闪恰在释放瞬间（Δt = 0）</span><b>Δv ≈ 0</b></div>`);
+        }
+      } else {
+        lines.push(`<div class="vel-item note"><span>误区对照需先算出 ḡ（至少测 3 段）</span><b>—</b></div>`);
+      }
+      elements.velLines.innerHTML = lines.join("");
+    }
+
+    function renderInsight() {
+      let text;
+      const N = im().length, S = segCount(), a = currentAnalysis();
+      if (state.phase === "capturing") {
+        text = state.running
+          ? "闪光每隔 T 定格一次小球。看间距：越往下相邻像离得越开，且每段比上一段多 gT² —— 匀加速的特征。"
+          : "已暂停：画面与闪光节拍全部定格，可用刻度尺先估一估间距。";
+      } else if (!state.photo) {
+        text = state.note || "设置闪频与首闪延迟后点「拍摄」。想埋“坑”就把 Δt 调大于 0：首张像不再是释放瞬间。";
+      } else if (N < 3) {
+        text = "像数不足 3 个：闪频太低或首闪延迟太大。请提高 f 或减小 Δt 后重拍。";
+      } else if (probeReady() && a.gHat !== null) {
+        const dv = midVelocity(state.photo, state.selected) - state.selected * a.gHat * state.photo.T;
+        if (Math.abs(dv) > 1e-6) {
+          text = `陷阱被数据抓住了：中点法 v${sub(state.selected)} = ${midVelocity(state.photo, state.selected).toFixed(2)} m/s 与“当作释放点”的 v′ = ${(state.selected * a.gHat * state.photo.T).toFixed(2)} m/s 恒差 ${dv.toFixed(2)} m/s ≈ g·Δt。差值不随 n 变化，正是计时起点错了的签名 —— 中点法与逐差法都不需要知道起点。`;
+        } else {
+          text = `本组 Δt = 0：中点法与误区算法给出同一速度，说明首像恰在释放瞬间。一旦 Δt > 0，误区法就会恒偏 g·Δt，而中点法不受影响。`;
+        }
+      } else if (a.gHat !== null) {
+        const err = Math.abs(a.gHat - state.gTrue) / state.gTrue * 100;
+        text = `逐差法 ḡ = ${a.gHat.toFixed(2)} m/s²，与真值差 ${err.toFixed(2)}%。` +
+          (isTrap() ? `注意：这组照片 Δt = ${state.delay.toFixed(3)} s ≠ 0，ḡ 依然准确 —— 段差 d = gT² 与计时起点无关。` : `换不同闪频再拍一组，ḡ 应当不变。`);
+      } else if (state.measured.size > 0) {
+        text = `已测 ${state.measured.size}/${S} 段。盯住表中 d 列：它几乎不随 k 变化 —— 这正是 g 恒定、且逐差法不需要计时起点的体现。`;
+      } else {
+        text = `照片完成：共 ${N} 个像。点击照片中相邻两像之间的区带（或表内「测量」）逐段量距，凑满 3 段即可求 g。`;
+      }
+      elements.insight.textContent = text;
+    }
+
+    /* ---------- render: live layer, status, buttons ---------- */
+    function statusText() {
+      if (state.phase === "capturing") {
+        return state.running ? `拍摄中 · ${state.recorded}/${im().length} 像` : "已暂停";
+      }
+      if (state.phase === "done") {
+        const S = segCount();
+        if (S < 3) return "照片完成 · 像数不足";
+        if (state.measured.size === 0) return "照片完成 · 点击区带测段距";
+        return `测量中 · ${state.measured.size}/${S} 段`;
+      }
+      return state.note || "待拍摄";
+    }
+    function renderLive() {
+      const st = statusText();
+      elements.status.textContent = st;
+      elements.status.classList.toggle("warn", st.indexOf("不足") >= 0);
+      elements.startBtn.disabled = state.phase === "capturing";
+      elements.pauseBtn.disabled = state.phase !== "capturing";
+      elements.pauseBtn.textContent = state.phase === "capturing" && !state.running ? "继续" : "暂停";
+      elements.measureAllBtn.disabled = state.phase !== "done";
+
+      const core = document.querySelector("#liveCore"), halo = document.querySelector("#liveHalo"), streak = document.querySelector("#liveStreak");
+      let vis = false, y = 0, yPrev = 0, dim = false;
+      if (state.phase === "capturing") {
+        const s = 0.5 * state.gTrue * state.t * state.t;
+        const tPrev = Math.max(state.t - 0.045, 0);
+        y = yOf(s); yPrev = yOf(0.5 * state.gTrue * tPrev * tPrev); vis = true;
+      } else if (state.phase === "idle") {
+        y = yOf(0); yPrev = y; vis = true; dim = true;
+      }
+      const disp = vis ? "visible" : "hidden";
+      core.setAttribute("visibility", disp); halo.setAttribute("visibility", disp); streak.setAttribute("visibility", state.phase === "capturing" ? "visible" : "hidden");
+      if (vis) {
+        core.setAttribute("cx", CFG.trackX); core.setAttribute("cy", y.toFixed(1));
+        core.setAttribute("opacity", dim ? "0.55" : "1");
+        halo.setAttribute("cx", CFG.trackX); halo.setAttribute("cy", y.toFixed(1));
+        halo.setAttribute("opacity", dim ? "0.4" : "1");
+        streak.setAttribute("x1", CFG.trackX); streak.setAttribute("y1", yPrev.toFixed(1));
+        streak.setAttribute("x2", CFG.trackX); streak.setAttribute("y2", y.toFixed(1));
+      }
+      elements.flashOverlay.setAttribute("opacity", (state.flashEnergy * 0.30).toFixed(3));
+      elements.lampDot.style.opacity = (0.25 + 0.75 * state.flashEnergy).toFixed(3);
+    }
+
+    function render() {
+      if (state.renderedRev !== state.rev) {
+        renderPhoto(); renderTable(); renderVelocity(); renderInsight();
+        state.renderedRev = state.rev;
+      }
+      renderLive();
+    }
+
+    /* ---------- lifecycle ---------- */
+    function init() { buildStatic(); bindControls(); setParameters({ freq: 15, delay: 0, gTrue: 9.8 }); reset(); requestAnimationFrame(frame); }
+    function start() {
+      if (state.phase === "capturing") return;
+      state.photo = computePhoto(state.freq, state.delay, state.gTrue);
+      state.phase = "capturing"; state.running = true;
+      state.t = 0; state.recorded = 0; state.measured = new Set();
+      state.selected = null; state.note = null; state.flashEnergy = 0;
+      bump();
+    }
+    function pause() { if (state.phase === "capturing") state.running = false; }
+    function resume() { if (state.phase === "capturing") state.running = true; }
+    function reset() {
+      state.phase = "idle"; state.running = false;
+      state.photo = null; state.t = 0; state.recorded = 0;
+      state.measured = new Set(); state.selected = null;
+      state.flashEnergy = 0; state.lastTimestamp = null;
+      bump();
+    }
+    function update(dt) {
+      if (state.phase === "done") { state.flashEnergy *= Math.exp(-clamp(finite(dt, 0), 0, 0.05) * 9); if (state.flashEnergy < 1e-3) state.flashEnergy = 0; return; }
+      if (state.phase !== "capturing" || !state.running) return;
+      const wall = clamp(finite(dt, 0), 0, 0.05);
+      state.t += wall * CFG.timeScale;
+      const images = state.photo.images;
+      let burned = false;
+      while (state.recorded < images.length && images[state.recorded].t <= state.t + 1e-9) {
+        state.recorded += 1; state.flashEnergy = 1; burned = true;
+      }
+      state.flashEnergy *= Math.exp(-wall * 9);
+      if (state.recorded >= images.length) {
+        state.phase = "done"; state.running = false;
+        autoSelectProbe();
+      }
+      if (burned || state.phase === "done") bump();
+    }
+    function setParameters(values) {
+      const d = parameterSchema;
+      state.freq = clamp(finite(Number(values.freq), d[0].default), d[0].min, d[0].max);
+      state.delay = clamp(finite(Number(values.delay), d[1].default), d[1].min, d[1].max);
+      state.gTrue = clamp(finite(Number(values.gTrue), d[2].default), d[2].min, d[2].max);
+      elements.freqInput.value = String(state.freq);
+      elements.delayInput.value = String(state.delay);
+      elements.gInput.value = String(state.gTrue);
+      elements.freqOutput.textContent = `${state.freq.toFixed(1)} Hz`;
+      elements.delayOutput.textContent = `${Math.round(state.delay * 1000)} ms`;
+      elements.gOutput.textContent = `${state.gTrue.toFixed(1)} m/s²`;
+      if (state.phase !== "idle") { reset(); state.note = "参数已变更 · 请重新拍摄"; bump(); }
+    }
+    function getState() {
+      return { phase: state.phase, running: state.running, t: state.t, freq: state.freq, delay: state.delay, gTrue: state.gTrue,
+        images: state.photo ? state.photo.images.length : 0, recorded: state.recorded,
+        measured: [...state.measured], selected: state.selected };
+    }
+    function getReadouts() {
+      const a = currentAnalysis();
+      const n = state.selected;
+      return {
+        phase: state.phase, freq: state.freq, T: state.photo ? state.photo.T : 1 / state.freq, delay: state.delay,
+        gTrue: state.gTrue, segments: segCount(), measured: state.measured.size,
+        gHat: a ? a.gHat : null, gPrime: a && a.x1 !== null ? 2 * a.x1 / (state.photo.T * state.photo.T) : null,
+        n: n, vMid: probeReady() ? midVelocity(state.photo, n) : null,
+        vWrong: probeReady() && a !== null && a.gHat !== null ? n * a.gHat * state.photo.T : null
+      };
+    }
+
+    /* ---------- model checks (analytic oracle) ---------- */
+    function runModelChecks() {
+      const cases = [];
+      const full = (f, delay, g) => {
+        const photo = computePhoto(f, delay, g);
+        const S = photo.images.length - 1;
+        const all = new Set();
+        for (let k = 1; k <= S; k += 1) all.add(k);
+        return { photo, stats: analyze(photo, all) };
+      };
+      // 1. adjacent-segment difference is exactly gT², including the delayed-first-flash case
+      {
+        const { photo, stats } = full(15, 0.12, 9.8);
+        const gT2 = 9.8 * photo.T * photo.T;
+        const maxDev = Math.max(...stats.ds.map((d) => Math.abs(d - gT2)));
+        cases.push({ name: "段差恒定 d_k = gT²（Δt = 0.12 s 陷阱组）", pass: maxDev < 1e-9 && stats.ds.length >= 3,
+          expected: "max|d_k − gT²| < 1e-9 m", actual: `${maxDev.toExponential(3)} m over ${stats.ds.length} diffs`, tolerance: "1e-9 m" });
+      }
+      // 2. 逐差法 recovers g for ordinary, trap, and boundary parameter sets
+      {
+        const sets = [[15, 0, 9.8], [20, 0.21, 9.3], [25, 0.075, 12.5], [5, 0.3, 7], [30, 0, 15]];
+        const worst = Math.max(...sets.map(([f, d, g]) => Math.abs(full(f, d, g).stats.gHat - g) / g));
+        cases.push({ name: "逐差法还原 g（5 组参数，含 Δt > 0）", pass: Number.isFinite(worst) && worst < 1e-9,
+          expected: "max|ĝ − g|/g < 1e-9", actual: worst.toExponential(3), tolerance: "相对 1e-9" });
+      }
+      // 3. midpoint velocity equals g(Δt + nT) at every selectable image
+      {
+        const f = 20, d = 0.21, g = 9.3;
+        const { photo } = full(f, d, g);
+        const T = photo.T;
+        let maxErr = 0;
+        for (let n = 1; n <= photo.images.length - 2; n += 1) {
+          maxErr = Math.max(maxErr, Math.abs(midVelocity(photo, n) - g * (d + n * T)));
+        }
+        cases.push({ name: "中点法 vₙ 精确（各 n）", pass: maxErr < 1e-9 && photo.images.length >= 4,
+          expected: "max|v_mid − g(Δt + nT)| < 1e-9 m/s", actual: `${maxErr.toExponential(3)} m/s over n = 1..${photo.images.length - 2}`, tolerance: "1e-9 m/s" });
+      }
+      // 4. wrong-method signatures: v-error constant gΔt, and g′ = g(1 + 2Δt/T)
+      {
+        const f = 20, d = 0.21, g = 9.3;
+        const { photo, stats } = full(f, d, g);
+        const T = photo.T;
+        let maxDev = 0;
+        for (let n = 1; n <= photo.images.length - 2; n += 1) {
+          maxDev = Math.max(maxDev, Math.abs((midVelocity(photo, n) - n * stats.gHat * T) - g * d));
+        }
+        const gPrime = 2 * stats.x1 / (T * T);
+        const gPrimeExpect = g * (1 + 2 * d / T);
+        const relPrime = Math.abs(gPrime - gPrimeExpect) / gPrimeExpect;
+        cases.push({ name: "误区签名：Δv = gΔt 恒定 且 g′ = g(1 + 2Δt/T)", pass: maxDev < 1e-9 && relPrime < 1e-9,
+          expected: "max|Δv − gΔt| < 1e-9 m/s；|g′ − g(1+2Δt/T)|/g′ < 1e-9",
+          actual: `${maxDev.toExponential(3)} m/s；相对偏差 ${relPrime.toExponential(3)}`, tolerance: "1e-9" });
+      }
+      // 5. boundary: every legal (f, Δt, g) still yields ≥ 2 images; image count stays bounded
+      {
+        const worst = { f: 5, delay: 0.3, g: 15 };
+        const few = computePhoto(worst.f, worst.delay, worst.g).images.length;
+        const many = computePhoto(30, 0, 5).images.length;
+        cases.push({ name: "边界像数：最少 2 个像，最多不超过 40", pass: few >= 2 && many <= 40,
+          expected: "images ≥ 2 at (5 Hz, 0.30 s, g=15)；images ≤ 40 at (30 Hz, 0, g=5)",
+          actual: `${few} 个 / ${many} 个`, tolerance: "计数" });
+      }
+      // 6. flash bookkeeping is invariant to the wall-clock frame step (analytic positions)
+      {
+        const photo = computePhoto(15, 0.1, 9.8);
+        const coarse = recordWithStep(photo, 1 / 30);
+        const fine = recordWithStep(photo, 1 / 240);
+        const same = coarse.length === fine.length && coarse.length === photo.images.length &&
+          coarse.every((img, i) => img.s === fine[i].s && img.t === photo.images[i].t);
+        cases.push({ name: "闪光记录与帧步长无关（时间标度不变性）", pass: same,
+          expected: "1/30 s 与 1/240 s 帧步长记录到完全相同的像序列",
+          actual: same ? `${coarse.length} 像逐一相同` : "序列不一致", tolerance: "严格相等" });
+      }
+      return cases;
+    }
+
+    /* ---------- interaction ---------- */
+    function measureSegment(k) {
+      if (state.phase !== "done") return;
+      state.measured.add(k);
+      autoSelectProbe(); bump();
+    }
+    function unmeasureSegment(k) {
+      if (state.phase !== "done") return;
+      state.measured.delete(k); bump();
+    }
+    function measureAll() {
+      if (state.phase !== "done") return;
+      for (let k = 1; k <= segCount(); k += 1) state.measured.add(k);
+      autoSelectProbe(); bump();
+    }
+    function hideChip() { elements.hoverChip.setAttribute("visibility", "hidden"); }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", () => (state.running ? pause() : resume()));
+      elements.resetBtn.addEventListener("click", reset);
+      elements.measureAllBtn.addEventListener("click", measureAll);
+      elements.freqInput.addEventListener("input", () => setParameters({ freq: elements.freqInput.value }));
+      elements.delayInput.addEventListener("input", () => setParameters({ delay: elements.delayInput.value }));
+      elements.gInput.addEventListener("input", () => setParameters({ gTrue: elements.gInput.value }));
+
+      // photo: click / keyboard on segment bands, hover preview chip
+      elements.bands.addEventListener("click", (e) => {
+        const k = e.target.getAttribute && e.target.getAttribute("data-k");
+        if (k) { measureSegment(+k); hideChip(); }
+      });
+      elements.bands.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const k = e.target.getAttribute && e.target.getAttribute("data-k");
+        if (k) { e.preventDefault(); measureSegment(+k); hideChip(); }
+      });
+      elements.bands.addEventListener("mouseover", (e) => {
+        const k = e.target.getAttribute && e.target.getAttribute("data-k");
+        if (!k || state.measured.has(+k)) { hideChip(); return; }
+        const xs = segmentLengths(state.photo);
+        elements.chipText.textContent = `x${sub(+k)} ≈ ${cm(xs[+k - 1])} cm · 点击测量`;
+        const yTop = +e.target.getAttribute("y"), h = +e.target.getAttribute("height");
+        const y = clamp(yTop + h / 2, 62, 730);
+        elements.hoverChip.setAttribute("transform", `translate(0, ${y.toFixed(1)})`);
+        elements.hoverChip.setAttribute("visibility", "visible");
+      });
+      elements.bands.addEventListener("mouseleave", hideChip);
+
+      // photo: click an image to aim the velocity probe
+      elements.images.addEventListener("click", (e) => {
+        const i = e.target.getAttribute && e.target.getAttribute("data-i");
+        if (!i || state.phase !== "done") return;
+        const n = +i;
+        if (n >= 1 && n <= segCount() - 1) { state.selected = n; bump(); }
+      });
+
+      // table: measure / clear buttons (delegated)
+      elements.tablePanel.addEventListener("click", (e) => {
+        const seg = e.target.getAttribute && e.target.getAttribute("data-seg");
+        const unseg = e.target.getAttribute && e.target.getAttribute("data-unseg");
+        if (seg) measureSegment(+seg);
+        if (unseg) unmeasureSegment(+unseg);
+      });
+
+      // velocity probe select
+      elements.velSelect.addEventListener("change", () => {
+        state.selected = elements.velSelect.value === "" ? null : +elements.velSelect.value;
+        bump();
+      });
+    }
+
+    /* ---------- scheduler ---------- */
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt); render(); requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks,
+      measureSegment, measureAll };
+    init();
+  })();
+  </script>
+</body>
+</html>

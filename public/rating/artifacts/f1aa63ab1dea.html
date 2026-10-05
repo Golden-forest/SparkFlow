@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分子速率分布仿真 · 麦克斯韦分布</title>
+<style>
+:root{
+  --bg:#0b1220; --panel:#121b2e; --panel2:#0e1626; --line:#23324d;
+  --txt:#e2e8f0; --sub:#93a3ba; --accent:#38bdf8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--txt);
+  font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  padding:18px;max-width:1420px;margin:0 auto;
+}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+h1{font-size:20px;font-weight:700}
+h1 small{font-weight:400;color:var(--sub);font-size:13px;margin-left:8px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{
+  background:#1b2942;color:var(--txt);border:1px solid var(--line);
+  padding:7px 14px;border-radius:9px;font-size:13px;cursor:pointer;transition:.15s;
+}
+button:hover{background:#24365a;border-color:#3a5residents}
+button:hover{background:#24365a;border-color:#3a5580}
+button.primary{background:#0e7490;border-color:#0e7490}
+button.primary:hover{background:#0891b2}
+label.toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub);cursor:pointer}
+main{display:grid;grid-template-columns:minmax(320px,46fr) minmax(380px,54fr);gap:14px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.card h2{font-size:14px;color:var(--sub);font-weight:600;margin-bottom:8px}
+#box{width:100%;height:clamp(340px,52vh,520px);display:block;background:var(--panel2);border-radius:10px}
+.legendBar{height:10px;border-radius:5px;margin:8px 2px 2px;
+  background:linear-gradient(90deg,hsl(222,85%,60%),hsl(160,85%,50%),hsl(90,85%,48%),hsl(40,90%,55%),hsl(0,85%,60%));}
+.legendTxt{display:flex;justify-content:space-between;font-size:11px;color:var(--sub)}
+.ctlRow{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px;flex-wrap:wrap}
+.ctlRow label{color:var(--sub);min-width:96px}
+input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
+.val{font-variant-numeric:tabular-nums;color:var(--txt);min-width:128px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{
+  background:#1b2942;border:1px solid var(--line);border-radius:8px;
+  padding:6px 10px;font-size:13px;cursor:pointer;color:var(--txt);
+}
+.chip small{color:var(--sub);margin-left:5px}
+.chip.on{background:#0e7490;border-color:#38bdf8}
+.chip.on small{color:#bae6fd}
+#chart{width:100%;height:clamp(360px,56vh,540px);display:block;background:var(--panel2);border-radius:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:center}
+.stat .sym{font-size:15px;font-weight:700;display:block}
+.stat .f{display:block;font-size:11px;color:var(--sub);margin:2px 0}
+.stat b{font-size:17px;font-variant-numeric:tabular-nums}
+.stat i{display:block;font-style:normal;font-size:10px;color:var(--sub)}
+.sample{margin-top:8px;font-size:12px;color:var(--sub);line-height:1.6}
+.ovRow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:0}
+.ovTag{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;padding:4px 8px;font-size:12px}
+.ovTag .dot{width:10px;height:10px;border-radius:50%}
+.ovTag span{cursor:pointer;color:var(--sub);margin-left:2px}
+.ovTag span:hover{color:#f87171}
+.hint{font-size:11px;color:var(--sub);margin-top:8px}
+.teach{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:14px}
+.tCard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.65}
+.tCard b{color:#7dd3fc;display:block;margin-bottom:3px;font-size:13px}
+footer{margin-top:12px;font-size:11px;color:#5c6b82;text-align:center}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:#1e293b;border:1px solid #3a5580;color:var(--txt);padding:8px 16px;border-radius:9px;
+  font-size:13px;opacity:0;pointer-events:none;transition:.25s}
+#toast.show{opacity:1;transform:translateX(-50%)}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>分子速率分布仿真<small>麦克斯韦速率分布律 f(v)（归一化）</small></h1>
+  <div class="toolbar">
+    <button id="btnPlay" class="primary">⏸ 暂停</button>
+    <button id="btnReset">↻ 重置（重新抽样）</button>
+    <button id="btnAdd">＋ 叠加当前曲线</button>
+    <button id="btnClear">✕ 清除叠加</button>
+    <label class="toggle"><input type="checkbox" id="chkHist" checked>粒子直方图</label>
+  </div>
+</header>
+
+<main>
+  <!-- 左：分子容器 -->
+  <section class="card">
+    <h2>分子容器 · 按速率着色（慢 → 快）</h2>
+    <canvas id="box"></canvas>
+    <div class="legendBar"></div>
+    <div class="legendTxt"><span>慢（v≈0）</span><span>颜色按 v / v<sub>rms</sub> 分层</span><span>快（≈2.3 v<sub>rms</sub>）</span></div>
+
+    <div class="ctlRow">
+      <label>气体种类</label>
+    </div>
+    <div class="chips" id="gasChips"></div>
+    <div class="hint">括号内为摩尔质量 M（g/mol）；速率 vₚ ∝ 1/√M，越轻的气体峰越靠高速端。</div>
+
+    <div class="ctlRow">
+      <label>温度 T</label>
+      <input type="range" id="sldT" min="200" max="800" step="5" value="300">
+      <span class="val" id="tVal"></span>
+    </div>
+    <div class="ctlRow">
+      <label>抽样粒子数 N</label>
+      <input type="range" id="sldN" min="20" max="2000" step="10" value="400">
+      <span class="val" id="nVal"></span>
+    </div>
+    <div class="hint">分子做弹性碰撞（速率不变），直方图静止；多次点“重置”可观察统计涨落：N 越小涨落越明显。</div>
+  </section>
+
+  <!-- 右：分布曲线 -->
+  <section class="card">
+    <h2>速率分布函数 f(v) 与粒子抽样直方图</h2>
+    <canvas id="chart"></canvas>
+    <div class="stats" id="stats"></div>
+    <div class="sample" id="sample"></div>
+    <div class="ovRow" id="ovList"></div>
+    <div class="hint">改变温度或气体后点“叠加当前曲线”，可同屏对比不同 T / 不同气体的曲线；竖直参考线为 vₚ、v̄、v<sub>rms</sub>（仅对当前曲线标注）。</div>
+  </section>
+</main>
+
+<!-- 教学要点 -->
+<div class="teach">
+  <div class="tCard"><b>① 中间多、两头少</b>速率过大或过小的分子都很少，大多数分子集中在最概然速率 vₚ 附近，分布呈单峰不对称形状。</div>
+  <div class="tCard"><b>② 升温：峰右移、变矮、展宽</b>T 升高使 vₚ ∝ √T 增大；由于曲线下面积恒为 1（概率归一化），峰变矮同时高速“尾巴”增厚，总面积不变。</div>
+  <div class="tCard"><b>③ 轻气体峰靠高速端</b>同温度下 vₚ ∝ 1/√M：H₂（M=2）的分子整体比 CO₂（M=44）快得多，曲线整体右移。</div>
+  <div class="tCard"><b>④ v̄ 恒大于 vₚ</b>分布右侧拖尾拉高了平均值：v̄ ≈ 1.13 vₚ，v<sub>rms</sub> ≈ 1.22 vₚ，即 vₚ &lt; v̄ &lt; v<sub>rms</sub>。</div>
+  <div class="tCard"><b>⑤ 快慢分子并存</b>任何温度下都同时存在低速与高速分子；升温不意味着所有分子同速，只是整体分布向高速区移动。</div>
+</div>
+
+<footer>模型：理想气体，三维速率按麦克斯韦分布抽样，容器内做弹性碰撞（二维投影运动展示）</footer>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============ 常量与状态 ============ */
+const R = 8.314;                       // 气体常数 J/(mol·K)
+const GASES = {
+  H2 :{M:0.002, name:'H₂'},
+  He :{M:0.004, name:'He'},
+  N2 :{M:0.028, name:'N₂'},
+  O2 :{M:0.032, name:'O₂'},
+  CO2:{M:0.044, name:'CO₂'}
+};
+const M_LABEL = {H2:2, He:4, N2:28, O2:32, CO2:44};
+const PALETTE = ['#f59e0b','#a78bfa','#34d399','#f472b6','#94a3b8'];
+const REF = [ ['vₚ',  '#4ade80', v=>Math.sqrt(2*R*T/Mcur())],
+              ['v̄',   '#fbbf24', v=>Math.sqrt(8*R*T/(Math.PI*Mcur()))],
+              ['v\u1D63\u2098\u209B'.normalize(),'#f87171', v=>Math.sqrt(3*R*T/Mcur())] ];
+
+let T = 300, gas = 'N2', N = 400;
+let running = true, showHist = true;
+let overlays = [];        // {T, gas, color}
+let particles = [];       // {x,y,vx,vy,vz,v}
+
+const $ = id => document.getElementById(id);
+const boxCv = $('box'), chartCv = $('chart');
+const bctx = boxCv.getContext('2d'), cctx = chartCv.getContext('2d');
+const Mcur = () => GASES[gas].M;
+
+/* ============ 物理公式 ============ */
+function maxwell(v, Ti, Mi){
+  const a = Mi/(2*R*Ti);
+  return 4*Math.PI*Math.pow(a/Math.PI,1.5)*v*v*Math.exp(-a*v*v);
+}
+const vMost    = () => Math.sqrt(2*R*T/Mcur());
+const vMean    = () => Math.sqrt(8*R*T/(Math.PI*Mcur()));
+const vRmsTheo = () => Math.sqrt(3*R*T/Mcur());
+function gauss(){
+  let u=0,v=0;
+  while(!u) u=Math.random();
+  while(!v) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+function particleRadius(){ return N>900?2.2 : N>400?2.7 : N>120?3.2 : 4; }
+function speedColor(v){
+  const t = Math.min(v/(2.3*vRmsTheo()), 1);
+  return `hsl(${(222-222*t).toFixed(0)},85%,60%)`;
+}
+
+/* ============ 粒子 ============ */
+function buildParticles(keepPos){
+  const W = boxCv.clientWidth||420, H = boxCv.clientHeight||360;
+  const s = Math.sqrt(R*T/Mcur());          // 速度分量标准差 → 速率服从麦克斯韦分布
+  const old = particles; particles = [];
+  for(let i=0;i<N;i++){
+    const o = keepPos ? old[i] : null;
+    particles.push({
+      x: o?o.x : W*(0.05+0.90*Math.random()),
+      y: o?o.y : H*(0.05+0.90*Math.random()),
+      vx: gauss()*s, vy: gauss()*s, vz: gauss()*s, v: 0
+    });
+  }
+  for(const p of particles) p.v = Math.hypot(p.vx,p.vy,p.vz);
+}
+function update(dt){
+  const k = 0.10;                            // 视觉比例 px/(m/s)/s
+  const W = boxCv.clientWidth, H = boxCv.clientHeight;
+  const r = particleRadius()+0.5;
+  for(const p of particles){
+    p.x += p.vx*k*dt;  p.y += p.vy*k*dt;
+    if(p.x<r){p.x=r; p.vx=Math.abs(p.vx);}       // 弹性反射：速度反向、速率不变
+    else if(p.x>W-r){p.x=W-r; p.vx=-Math.abs(p.vx);}
+    if(p.y<r){p.y=r; p.vy=Math.abs(p.vy);}
+    else if(p.y>H-r){p.y=H-r; p.vy=-Math.abs(p.vy);}
+  }
+}
+
+/* ============ 画布尺寸 ============ */
+function fit(c){
+  const d = window.devicePixelRatio||1;
+  const w = Math.max(1,c.clientWidth), h = Math.max(1,c.clientHeight);
+  if(c.width!==Math.round(w*d)||c.height!==Math.round(h*d)){ c.width=Math.round(w*d); c.height=Math.round(h*d); }
+  return d;
+}
+
+/* ============ 左侧容器绘制 ============ */
+function drawBox(){
+  const d = fit(boxCv);
+  bctx.setTransform(d,0,0,d,0,0);
+  const W = boxCv.clientWidth, H = boxCv.clientHeight;
+  bctx.clearRect(0,0,W,H);
+  bctx.strokeStyle='rgba(148,163,184,.3)'; bctx.lineWidth=1;
+  bctx.strokeRect(.5,.5,W-1,H-1);
+  const r = particleRadius();
+  for(const p of particles){
+    bctx.beginPath(); bctx.arc(p.x,p.y,r,0,6.2832);
+    bctx.fillStyle = speedColor(p.v); bctx.fill();
+  }
+}
+
+/* ============ 右侧曲线绘制 ============ */
+function niceStep(x){
+  const p = Math.pow(10,Math.floor(Math.log10(x))), n = x/p;
+  return (n<1.5?1:n<3.5?2:n<7.5?5:10)*p;
+}
+const fmtF = f => f===0?'0':Number(f.toPrecision(2)).toString();
+const labelOf = c => `${GASES[c.gas].name} · ${c.T} K`;
+
+function drawChart(){
+  const d = fit(chartCv);
+  cctx.setTransform(d,0,0,d,0,0);
+  const W = chartCv.clientWidth, H = chartCv.clientHeight;
+  cctx.clearRect(0,0,W,H);
+  const L=60, Rm=16, Tm=48, B=46, pw=W-L-Rm, ph=H-Tm-B;
+  if(pw<40||ph<40) return;
+
+  // 待绘曲线：当前 + 叠加
+  const list = [{T:T, gas:gas, cur:true}].concat(overlays.map(o=>({T:o.T, gas:o.gas, cur:false, color:o.color})));
+  let vMax=0, fMax=0;
+  for(const c of list){
+    c.vp = Math.sqrt(2*R*c.T/GASES[c.gas].M);
+    c.fp = maxwell(c.vp, c.T, GASES[c.gas].M);
+    vMax = Math.max(vMax, 3.35*c.vp);
+    fMax = Math.max(fMax, c.fp);
+  }
+  vMax = Math.max(600, Math.ceil(vMax/100)*100);
+  fMax *= 1.14;
+  const X = v => L+pw*v/vMax, Y = f => Tm+ph*(1-f/fMax);
+
+  // 网格与刻度
+  cctx.font='11px system-ui,sans-serif';
+  const xs = niceStep(vMax/7);
+  cctx.textAlign='center'; cctx.textBaseline='top'; cctx.fillStyle='#7d8aa0';
+  for(let v=0; v<=vMax+1; v+=xs){
+    cctx.strokeStyle='rgba(148,163,184,.1)';
+    cctx.beginPath(); cctx.moveTo(X(v),Tm); cctx.lineTo(X(v),Tm+ph); cctx.stroke();
+    cctx.fillText(String(Math.round(v)), X(v), Tm+ph+7);
+  }
+  const ys = niceStep(fMax/5);
+  cctx.textAlign='right'; cctx.textBaseline='middle';
+  for(let f=0; f<=fMax*1.0001; f+=ys){
+    cctx.strokeStyle='rgba(148,163,184,.1)';
+    cctx.beginPath(); cctx.moveTo(L,Y(f)); cctx.lineTo(L+pw,Y(f)); cctx.stroke();
+    cctx.fillStyle='#7d8aa0'; cctx.fillText(fmtF(f), L-7, Y(f));
+  }
+  // 坐标轴与轴名
+  cctx.strokeStyle='#8ea1bb'; cctx.lineWidth=1;
+  cctx.beginPath(); cctx.moveTo(L,Tm); cctx.lineTo(L,Tm+ph); cctx.lineTo(L+pw,Tm+ph); cctx.stroke();
+  cctx.fillStyle='#93a3ba'; cctx.textAlign='center'; cctx.textBaseline='alphabetic';
+  cctx.fillText('v / (m·s⁻¹)', L+pw/2, H-10);
+  cctx.save(); cctx.translate(15,Tm+ph/2); cctx.rotate(-Math.PI/2);
+  cctx.fillText('f(v) / (s·m⁻¹)',0,0); cctx.restore();
+
+  // 裁剪到绘图区
+  cctx.save(); cctx.beginPath(); cctx.rect(L,Tm,pw,ph); cctx.clip();
+
+  // 粒子直方图（密度归一化，可与 f(v) 直接比较）
+  if(showHist && particles.length){
+    const bins=44, bw=vMax/bins, cnt=new Array(bins).fill(0);
+    for(const p of particles){ const b=Math.min(bins-1,Math.floor(p.v/bw)); cnt[b]++; }
+    const n=particles.length, wpx=pw/bins;
+    cctx.fillStyle='rgba(56,189,248,.26)'; cctx.strokeStyle='rgba(56,189,248,.45)';
+    for(let b=0;b<bins;b++){
+      if(!cnt[b]) continue;
+      const dens=cnt[b]/(n*bw), y=Y(dens);
+      cctx.fillRect(L+b*wpx+.5, y, wpx-1, Tm+ph-y);
+      cctx.strokeRect(L+b*wpx+.5, y, wpx-1, Tm+ph-y);
+    }
+  }
+
+  // 曲线路径
+  const path = c => {
+    const n=240; cctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const v=vMax*i/n, x=X(v), y=Y(maxwell(v,c.T,GASES[c.gas].M));
+      i?cctx.lineTo(x,y):cctx.moveTo(x,y);
+    }
+  };
+  // 叠加曲线（虚线）
+  for(const c of list){
+    if(c.cur) continue;
+    cctx.strokeStyle=c.color; cctx.lineWidth=1.6; cctx.setLineDash([6,4]);
+    path(c); cctx.stroke(); cctx.setLineDash([]);
+  }
+  // 当前曲线（填充 + 实线）
+  const cur=list[0];
+  path(cur);
+  cctx.lineTo(X(vMax),Y(0)); cctx.lineTo(X(0),Y(0)); cctx.closePath();
+  cctx.fillStyle='rgba(56,189,248,.10)'; cctx.fill();
+  path(cur); cctx.strokeStyle='#38bdf8'; cctx.lineWidth=2.4; cctx.stroke();
+
+  cctx.restore(); // 结束裁剪
+
+  // 参考线 vₚ / v̄ / v_rms（错行标注，避免重叠）
+  const refs=[[vMost(),'vₚ','#4ade80',16],[vMean(),'v̄','#fbbf24',30],[vRmsTheo(),'v\u1D63\u2098\u209B','#f87171',44]];
+  cctx.setLineDash([5,4]); cctx.lineWidth=1.2;
+  for(const [v,sym,col,ty] of refs){
+    cctx.strokeStyle=col;
+    cctx.beginPath(); cctx.moveTo(X(v),Tm); cctx.lineTo(X(v),Tm+ph); cctx.stroke();
+    cctx.fillStyle=col; cctx.textAlign='center'; cctx.textBaseline='alphabetic';
+    const lx=Math.min(Math.max(X(v),L+26),L+pw-26);
+    cctx.fillText(`${sym} ${Math.round(v)}`, lx, ty);
+  }
+  cctx.setLineDash([]);
+
+  // 注释：面积归一化
+  cctx.fillStyle='#9fb0c6'; cctx.textAlign='left'; cctx.font='italic 11px system-ui,sans-serif';
+  cctx.fillText('曲线下面积恒为 1（归一化）', L+8, Tm+ph-10);
+
+  // 图例（右上角）
+  cctx.font='11px system-ui,sans-serif'; cctx.textAlign='right'; cctx.textBaseline='middle';
+  let ly=Tm+10;
+  const legend=[['#38bdf8', labelOf(cur)+'（当前）']].concat(overlays.map(o=>[o.color,labelOf(o)]));
+  for(const [col,txt] of legend){
+    cctx.fillStyle=col; cctx.fillText(txt, L+pw-14, ly);
+    cctx.beginPath(); cctx.arc(L+pw-8, ly, 3.2, 0, 6.2832); cctx.fill();
+    ly+=16;
+  }
+}
+
+/* ============ 统计读数 ============ */
+function updateStats(){
+  const a=vMost(), b=vMean(), c=vRmsTheo();
+  let sm=0,s2=0; const n=particles.length||1;
+  for(const p of particles){ sm+=p.v; s2+=p.v*p.v; }
+  sm/=n; s2=Math.sqrt(s2/n);
+  $('stats').innerHTML = [
+    ['v<sub>p</sub>','#4ade80','√(2RT/M)',a],
+    ['v̄','#fbbf24','√(8RT/πM)',b],
+    ['v<sub>rms</sub>','#f87171','√(3RT/M)',c]
+  ].map(([s,col,f,v])=>`<div class="stat"><span class="sym" style="color:${col}">${s}</span>
+    <span class="f">${f}</span><b>${v.toFixed(0)}</b><i>m/s</i></div>`).join('');
+  $('sample').innerHTML =
+    `当前气体 ${GASES[gas].name}（M=${M_LABEL[gas]} g/mol），T=${T} K（${(T-273.15).toFixed(1)} ℃），N=${N}。` +
+    `样本统计：v̄<sub>样本</sub> ≈ ${sm.toFixed(0)} m/s，v<sub>rms,样本</sub> ≈ ${s2.toFixed(0)} m/s —— 与理论值接近但略有偏差，多次“重置”可观察涨落。`;
+}
+
+/* ============ UI ============ */
+function syncUI(){
+  $('tVal').textContent = `${T} K（${(T-273.15).toFixed(1)} ℃）`;
+  $('nVal').textContent = `${N} 个`;
+  document.querySelectorAll('#gasChips .chip').forEach(el=>
+    el.classList.toggle('on', el.dataset.gas===gas));
+  updateStats();
+}
+function buildGasChips(){
+  const box=$('gasChips');
+  for(const k of Object.keys(GASES)){
+    const b=document.createElement('button');
+    b.className='chip'; b.dataset.gas=k;
+    b.innerHTML=`${GASES[k].name}<small>${M_LABEL[k]} g/mol</small>`;
+    b.onclick=()=>{ if(gas===k)return; gas=k; buildParticles(true); syncUI(); };
+    box.appendChild(b);
+  }
+}
+function renderOvList(){
+  const box=$('ovList'); box.innerHTML='';
+  overlays.forEach((o,i)=>{
+    const tag=document.createElement('div'); tag.className='ovTag';
+    tag.innerHTML=`<span class="dot" style="background:${o.color}"></span>${labelOf(o)}<span title="删除">✕</span>`;
+    tag.querySelector('span[title]').onclick=()=>{ overlays.splice(i,1); renderOvList(); };
+    box.appendChild(tag);
+  });
+}
+let toastTimer=null;
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1600);
+}
+
+$('sldT').addEventListener('input', e=>{
+  const nT=+e.target.value, f=Math.sqrt(nT/T);   // 升温：速率按 √(T₂/T₁) 缩放，分布平滑演化
+  T=nT;
+  for(const p of particles){ p.vx*=f; p.vy*=f; p.vz*=f; p.v*=f; }
+  syncUI();
+});
+$('sldN').addEventListener('input', e=>{ N=+e.target.value; buildParticles(true); syncUI(); });
+$('btnPlay').onclick=()=>{ running=!running; $('btnPlay').textContent = running?'⏸ 暂停':'▶ 继续'; };
+$('btnReset').onclick=()=>{ buildParticles(false); toast('已重新抽样（观察直方图涨落）'); };
+$('btnAdd').onclick=()=>{
+  if(overlays.length>=5){ toast('最多叠加 5 条对比曲线'); return; }
+  if(overlays.some(o=>o.gas===gas&&o.T===T)){ toast('相同温度与气体的曲线已在对比中'); return; }
+  overlays.push({T:T, gas:gas, color:PALETTE[overlays.length%PALETTE.length]});
+  renderOvList();
+};
+$('btnClear').onclick=()=>{ overlays=[]; renderOvList(); };
+$('chkHist').addEventListener('change', e=>{ showHist=e.target.checked; });
+
+/* ============ 主循环 ============ */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,.05); last=now;
+  if(running) update(dt);
+  drawBox(); drawChart();
+  requestAnimationFrame(frame);
+}
+
+buildGasChips();
+buildParticles(false);
+syncUI();
+renderOvList();
+setInterval(updateStats, 500);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

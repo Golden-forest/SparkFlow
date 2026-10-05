@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>布朗运动 · 数字显微镜实验台</title>
+<style>
+:root{
+  --bg:#0a0e13; --panel:#111a24; --panel2:#0e1520; --line:#223042;
+  --text:#d5e0ea; --muted:#93a8ba; --accent:#37d6ff; --accent2:#ffb454;
+  --good:#3ddc97; --bad:#ff6b6b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:radial-gradient(1200px 700px at 50% -10%, #0f1722 0%, var(--bg) 60%) fixed;
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px; line-height:1.6;
+}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+.wrap{max-width:1240px;margin:0 auto;padding:22px 18px 60px}
+.hidden{display:none!important}
+
+/* ---------- 顶栏 ---------- */
+header.site{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:6px 2px 18px}
+header.site h1{font-size:24px;letter-spacing:.5px}
+header.site h1 em{font-style:normal;color:var(--accent)}
+header.site p{color:var(--muted);font-size:13.5px;margin-top:4px}
+.pagebadge{font-size:12.5px;color:#ffd08a;border:1px solid rgba(255,180,84,.4);background:rgba(255,180,84,.07);
+  padding:5px 13px;border-radius:999px;white-space:nowrap}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.card-head h2{font-size:17px;font-weight:600}
+.chip{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 12px;background:var(--panel2)}
+
+/* ---------- 舞台布局 ---------- */
+.stage-grid{display:grid;grid-template-columns:minmax(360px,1fr) 380px;gap:18px;align-items:start}
+@media (max-width:980px){.stage-grid{grid-template-columns:1fr}}
+
+/* ---------- 警示条 ---------- */
+.warn{border-left:3px solid var(--accent2);background:rgba(255,180,84,.08);border-radius:0 10px 10px 0;
+  padding:10px 14px;font-size:13.5px;color:#f2dfc2;margin-bottom:16px}
+.warn b{color:#ffd08a}
+
+/* ---------- 显微镜视野 ---------- */
+.eye-holder{max-width:520px;margin:0 auto}
+.eye{position:relative;width:100%;aspect-ratio:1;border-radius:50%;overflow:hidden;background:#0a1218;
+  border:10px solid #17212d;
+  box-shadow:0 0 0 1px #2b3b4d, 0 0 0 8px #0e1620, 0 0 0 9px #263444, 0 22px 60px rgba(0,0,0,.55), inset 0 0 46px rgba(0,0,0,.65)}
+.eye canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.eye-tag{position:absolute;font-size:11px;color:#b9cbda;background:rgba(9,15,21,.62);border:1px solid rgba(130,160,185,.28);
+  padding:3px 10px;border-radius:999px;pointer-events:none;backdrop-filter:blur(2px)}
+.tagTL{top:8%;left:8%}
+.tagTR{top:8%;right:8%}
+.tagBL{bottom:8%;left:8%;color:#9fd4ff;border-color:rgba(55,214,255,.45)}
+.pause-badge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.pause-badge span{font-size:14px;color:#e8f3fb;background:rgba(8,13,18,.72);border:1px solid rgba(150,180,205,.35);
+  padding:8px 22px;border-radius:999px;letter-spacing:2px}
+.hint{font-size:12.5px;color:var(--muted);text-align:center;margin-top:12px}
+.mol-note{margin-top:12px;border:1px dashed rgba(55,214,255,.4);background:rgba(55,214,255,.05);border-radius:10px;
+  padding:10px 14px;font-size:13px;color:#bfe6f5}
+.mol-note b{color:#8fe3ff}
+
+/* ---------- 控制台 ---------- */
+.steps{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+.steps button{padding:6px 13px;border-radius:999px;font-size:12.5px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--muted);cursor:pointer;transition:.15s}
+.steps button:hover{border-color:#3b6f8f;color:var(--text)}
+.steps button.done{border-color:rgba(61,220,151,.5);color:#9fe8c5;background:rgba(61,220,151,.07)}
+.ctl{margin-bottom:18px}
+.ctl-l{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ctl-l label{font-size:13.5px;font-weight:600}
+.ctl-l .mono{font-size:13px;color:#8fe3ff}
+.sub{font-size:12px;color:var(--muted);margin-top:6px}
+.sub b{color:#cfe6f5}
+
+/* 滑块 */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:26px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:var(--line)}
+input[type=range].temp::-webkit-slider-runnable-track{background:linear-gradient(90deg,#59a8ff,#ffd166,#ff6b4a)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;
+  border:3px solid var(--accent);margin-top:-6px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:var(--line)}
+input[type=range].temp::-moz-range-track{background:linear-gradient(90deg,#59a8ff,#ffd166,#ff6b4a)}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:#fff;border:3px solid var(--accent);
+  box-shadow:0 2px 8px rgba(0,0,0,.5)}
+
+/* 分段按钮 */
+.seg{display:flex;gap:6px}
+.seg button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 4px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:13px;transition:.15s}
+.seg button:hover{border-color:#3b6f8f}
+.seg button.on{background:rgba(55,214,255,.12);border-color:#2e7fa0;color:#bfeeff}
+.seg button i{display:inline-block;border-radius:50%;background:currentColor;flex:none}
+
+/* 开关 */
+.switch{position:relative;display:inline-block;width:46px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:999px;background:#22303f;border:1px solid var(--line);transition:.2s}
+.switch span::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#8fa3b5;transition:.2s}
+.switch input:checked + span{background:rgba(55,214,255,.25);border-color:#2e7fa0}
+.switch input:checked + span::after{transform:translateX(20px);background:#7fe8ff}
+
+/* 按钮 */
+.btnrow{display:flex;gap:10px;margin-bottom:18px}
+.btn{flex:1;padding:10px 6px;border-radius:10px;border:1px solid #2e7fa0;background:rgba(55,214,255,.10);
+  color:#bfeeff;font-size:13.5px;cursor:pointer;transition:.15s}
+.btn:hover{background:rgba(55,214,255,.18)}
+.btn.ghost{border-color:var(--line);background:var(--panel2);color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:#3b6f8f}
+
+/* 数据区 */
+.data{border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:14px}
+.data h3{font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:1px;margin-bottom:10px}
+.drow{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);
+  padding:5px 0;border-bottom:1px dashed rgba(34,48,66,.6)}
+.drow:last-of-type{border-bottom:none}
+.drow b{color:#8fe3ff;font-weight:600;font-size:13px}
+.foot-note{font-size:11.5px;color:#6d8296;margin-top:10px;line-height:1.5}
+
+/* ---------- 对照组 ---------- */
+.tabs{display:flex;gap:8px}
+.tabs button{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);
+  color:var(--muted);font-size:12.5px;cursor:pointer}
+.tabs button.on{background:rgba(255,180,84,.12);border-color:#8a6a3a;color:#ffd08a}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media (max-width:720px){.trio{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}}
+.mini .eye{border-width:6px;box-shadow:0 0 0 1px #2b3b4d,0 0 0 5px #0e1620,0 0 0 6px #263444,0 12px 34px rgba(0,0,0,.5),
+  inset 0 0 30px rgba(0,0,0,.6)}
+figcaption{margin-top:10px;text-align:center;font-size:13.5px}
+figcaption b{color:#ffd08a;font-weight:600}
+figcaption span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.mread{margin-top:5px;text-align:center;font-size:12.5px;color:#7fe3ff}
+
+/* ---------- 概念辨析 ---------- */
+.quiz-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.qcard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}
+.qcard .qtext{font-size:14px;line-height:1.7;margin-bottom:13px}
+.qcard .qtext .qn{color:var(--accent);font-weight:600;margin-right:4px}
+.qbtns{display:flex;gap:10px}
+.qbtns button{padding:7px 20px;border-radius:9px;border:1px solid var(--line);background:#121c28;color:var(--text);
+  font-size:13px;cursor:pointer;transition:.15s}
+.qbtns button:hover{border-color:#3b6f8f}
+.qcard.locked .qbtns button{opacity:.4;cursor:default;pointer-events:none}
+.qcard.locked .qbtns button.picked{opacity:1;border-color:var(--accent)}
+.qwhy{margin-top:13px;padding:11px 14px;border-radius:9px;font-size:13px;line-height:1.75}
+.qwhy.ok{background:rgba(61,220,151,.08);border:1px solid rgba(61,220,151,.35);color:#c9f5e2}
+.qwhy.no{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.35);color:#ffd9d9}
+.quiz-final{margin-top:16px;padding:14px 18px;border-radius:12px;text-align:center;font-size:14.5px;
+  border:1px solid rgba(61,220,151,.35);background:rgba(61,220,151,.07);color:#c9f5e2}
+
+/* ---------- 推理链 ---------- */
+.chain{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.step-card{background:var(--panel2);border:1px solid var(--line);border-top:3px solid #3a86c8;border-radius:12px;padding:14px}
+.step-card:nth-child(2){border-top-color:#3aa0c8}
+.step-card:nth-child(3){border-top-color:#37b6c8}
+.step-card:nth-child(4){border-top-color:#37d6ff}
+.step-card:nth-child(5){border-top-color:#ffb454}
+.step-card h4{font-size:12px;color:#8fd8ff;letter-spacing:1.5px;margin-bottom:8px}
+.step-card:nth-child(5) h4{color:#ffd08a}
+.step-card h4 b{font-size:14.5px;letter-spacing:0;margin-right:6px}
+.step-card p{font-size:12.8px;line-height:1.75;color:var(--text)}
+.punch{margin-top:16px;text-align:center;padding:20px 24px;border:1px solid rgba(255,180,84,.4);border-radius:14px;
+  background:linear-gradient(135deg,rgba(255,180,84,.08),rgba(55,214,255,.06));font-size:16px;line-height:1.9}
+.punch b{color:#ffd08a}
+.punch em{font-style:normal;color:#8fe3ff}
+
+/* ---------- 页脚 ---------- */
+footer{color:#6d8296;font-size:12.5px;line-height:1.8;border-top:1px solid var(--line);padding-top:16px}
+footer b{color:#93a8ba}
+footer ul{margin:6px 0 0 18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="site">
+    <div>
+      <h1>🔬 布朗运动 · 数字显微镜实验台</h1>
+      <p>显微镜看不见分子——我们看见的，是分子撞出来的痕迹。</p>
+    </div>
+    <span class="pagebadge">轨迹 = 分子无规则运动的「间接证据」</span>
+  </header>
+
+  <!-- ================= 主舞台 ================= -->
+  <div class="stage-grid">
+    <section class="card">
+      <div class="card-head">
+        <h2>显微镜视野 · 花粉颗粒的布朗运动</h2>
+        <span class="chip">暗视野成像（示意）</span>
+      </div>
+      <div class="warn">⚠️ 视野里发亮的小球是<b>花粉颗粒</b>，不是分子——单个水分子比它小上万倍，光学显微镜下根本看不见。</div>
+      <div class="eye-holder">
+        <div class="eye">
+          <canvas id="mainCanvas"></canvas>
+          <span class="eye-tag tagTL">暗视野 · ×400（示意）</span>
+          <span class="eye-tag tagTR" id="tagTR">当前：中颗粒 φ1.1 μm</span>
+          <span class="eye-tag tagBL hidden" id="tagMol">🫧 分子透视 · 示意放大</span>
+          <div class="pause-badge hidden" id="pauseBadge"><span>⏸ 已暂停</span></div>
+        </div>
+      </div>
+      <div class="hint">💡 点击视野中任意颗粒可切换追踪目标（虚线环标记）；青色折线 = 每 <span class="mono" id="ivText">0.90</span> s 记录一次位置后连成的轨迹。</div>
+      <div class="mol-note hidden" id="molNote">🫧 <b>分子透视为示意放大</b>：真实水分子直径约 0.4 nm，比花粉颗粒小上万倍、数量多千万亿倍。这些亮点只是帮你想象「看不见的分子在四面八方乱撞」——每一点闪光，就是一次撞击。</div>
+    </section>
+
+    <!-- ================= 控制台 ================= -->
+    <aside class="card">
+      <div class="card-head">
+        <h2>控制台</h2>
+        <span class="chip" id="runBadge">● 运行中</span>
+      </div>
+      <div class="steps" id="stepsBox"></div>
+
+      <div class="ctl">
+        <div class="ctl-l"><label>液体温度</label><span class="mono" id="tempVal">25 °C · 常温</span></div>
+        <input type="range" class="temp" id="tempSlider" min="0" max="100" step="1" value="25">
+        <div class="sub">水分子平均速率 <b class="mono" id="molSpeed">≈ 642 m/s</b>（示意，∝ √T）</div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-l"><label>颗粒大小</label><span class="mono" id="sizeVal">中颗粒 φ1.1 μm</span></div>
+        <div class="seg" id="sizeSeg">
+          <button data-size="small"><i style="width:5px;height:5px"></i>小</button>
+          <button data-size="mid" class="on"><i style="width:9px;height:9px"></i>中</button>
+          <button data-size="big"><i style="width:14px;height:14px"></i>大</button>
+        </div>
+        <div class="sub">换颗粒会自动清除旧轨迹，便于前后对比</div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-l"><label>分子透视（示意）</label>
+          <label class="switch"><input type="checkbox" id="perspSwitch"><span></span></label>
+        </div>
+        <div class="sub">显示追踪颗粒周围的「水分子」，实时呈现每一次撞击</div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-l"><label>轨迹记录间隔</label><span class="mono" id="intervalVal">0.90 s</span></div>
+        <input type="range" id="intervalSlider" min="0.25" max="2.5" step="0.05" value="0.9">
+        <div class="sub">间隔越小折线越细密；佩兰经典图是<b>每 30 s 记一点</b>再连线</div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn" id="btnPause">⏸ 暂停</button>
+        <button class="btn ghost" id="btnClear">🧹 清除轨迹</button>
+      </div>
+
+      <div class="data">
+        <h3>实时读数 · 追踪颗粒</h3>
+        <div class="drow"><span>轨迹点数</span><b class="mono" id="dPoints">0</b></div>
+        <div class="drow"><span>平均步长（近 10 s）</span><b class="mono" id="dStep">—</b></div>
+        <div class="drow"><span>折合位移（按视野标尺）</span><b class="mono" id="dStepUm">—</b></div>
+        <div class="drow"><span>可见撞击频率（示意）</span><b class="mono" id="dHits">—</b></div>
+        <div class="foot-note">说明：为便于观察，演示放大了温度与尺度差异，时空比例非真实。</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ================= 对照组 ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>对照组 · 控制变量，一次只改一个量</h2>
+      <div class="tabs">
+        <button id="tabSize" class="on">比颗粒大小</button>
+        <button id="tabTemp">比温度</button>
+      </div>
+    </div>
+    <div class="trio">
+      <figure class="mini">
+        <div class="eye"><canvas id="mini0"></canvas></div>
+        <figcaption id="cap0"></figcaption>
+        <div class="mread mono" id="mval0">—</div>
+      </figure>
+      <figure class="mini">
+        <div class="eye"><canvas id="mini1"></canvas></div>
+        <figcaption id="cap1"></figcaption>
+        <div class="mread mono" id="mval1">—</div>
+      </figure>
+      <figure class="mini">
+        <div class="eye"><canvas id="mini2"></canvas></div>
+        <figcaption id="cap2"></figcaption>
+        <div class="mread mono" id="mval2">—</div>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ================= 概念辨析 ================= -->
+  <section class="card" id="quizSec">
+    <div class="card-head">
+      <h2>概念辨析 · 别把「颗粒的运动」当成「分子的运动」</h2>
+      <span class="chip" id="quizScore">已辨析 0 / 5 · 答对 0</span>
+    </div>
+    <div class="quiz-grid" id="quizBox"></div>
+    <div class="quiz-final hidden" id="quizFinal"></div>
+  </section>
+
+  <!-- ================= 推理链 ================= -->
+  <section class="card">
+    <div class="card-head">
+      <h2>证据推理链 · 从看得见的轨迹，到看不见的分子</h2>
+      <span class="chip">由果溯因</span>
+    </div>
+    <div class="chain">
+      <div class="step-card"><h4><b>①</b>观察</h4><p>花粉颗粒永不停息地走无规则折线；升温后动得更欢，颗粒越小动得越欢。</p></div>
+      <div class="step-card"><h4><b>②</b>排除</h4><p>不是颗粒「有生命」——干枯的花粉照动不误；不是水流带动——相邻颗粒各走各路，没有统一方向。</p></div>
+      <div class="step-card"><h4><b>③</b>归因</h4><p>唯一不停的「推手」是周围大量液体分子：某一瞬间四面八方的撞击不平衡，合力随机变化，颗粒就被随机推动。</p></div>
+      <div class="step-card"><h4><b>④</b>推断</h4><p>液体分子在永不停息地做无规则运动；温度越高，无规则运动越剧烈。</p></div>
+      <div class="step-card"><h4><b>⑤</b>结论</h4><p>颗粒的运动 ≠ 分子的运动。折线轨迹是分子无规则热运动的<b>间接证据</b>：看不见的分子，留下了看得见的痕迹。</p></div>
+    </div>
+    <div class="punch">我们从未看见分子——我们看见的，是无数看不见的撞击在颗粒上留下的「合影」。<br><b>颗粒是探针，折线是证据</b>：分子在做<em>永不停息的无规则热运动</em>。</div>
+  </section>
+
+  <footer>
+    <b>教学要点备忘</b>
+    <ul>
+      <li>观察重点：轨迹<b>无规则</b>且<b>永不停息</b>；两条规律——温度越高越明显，颗粒越小越明显。</li>
+      <li>核心逻辑：颗粒运动是分子无规则运动的<b>间接证据</b>（由果溯因），不是分子热运动本身。</li>
+      <li>常见误区：① 把颗粒当成分子；② 以为「大颗粒被撞次数多所以更明显」（各向撞击几乎抵消、惯性大，反而更不明显）。</li>
+      <li>方法论：下方对照组体现<b>控制变量法</b>——一次只改一个量。</li>
+      <li>演示说明：分子的大小与数量、温度与尺度差异、时间比例均经示意性放大，重在呈现定性与比例关系。</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* ================= 工具 ================= */
+const TAU = Math.PI * 2;
+const $ = s => document.querySelector(s);
+const rand = (a=1,b) => b===undefined ? Math.random()*a : a + Math.random()*(b-a);
+const clamp = (x,a,b) => Math.min(b, Math.max(a,x));
+function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v); }
+
+/* ================= 全局状态 ================= */
+const state = {
+  tempC: 25,
+  sizeKey: 'mid',        // small | mid | big
+  perspective: false,
+  recordInterval: 0.9,
+  paused: false,
+  compareMode: 'size',   // size | temp
+};
+const SIZES = {
+  small: { label:'小颗粒', um:0.6, activity:1.00 },
+  mid:   { label:'中颗粒', um:1.1, activity:0.42 },
+  big:   { label:'大颗粒', um:1.9, activity:0.18 },
+};
+// 温度因子（示意放大，保证 0→100 °C 差异肉眼可辨；真实比例仅约 √(373/273)≈1.17）
+const tempFactor = tc => 0.22 + 1.9 * Math.pow(Math.max(tc,0)/100, 1.9);
+const BASE_SIGMA = 42; // 位移基准（px / √s，按视野比例缩放）
+
+/* ================= 视野（布朗运动模拟） ================= */
+class Scope {
+  constructor(canvas, opts){
+    this.cv = canvas; this.ctx = canvas.getContext('2d');
+    this.isMain  = !!opts.isMain;
+    this.umSpan  = opts.umSpan || 60;   // 视野直径代表多少微米
+    this.nP      = opts.nParticles || 1;
+    this.tempC   = opts.tempC; this.sizeKey = opts.sizeKey;
+    this.time=0; this.R=0; this.S=0;
+    this.particles=[]; this.tracked=0;
+    this.molecules=[]; this.hits=[]; this.hitRate=0;
+    this.showMol=false;
+    this.fit(); this.spawn();
+  }
+  fit(){
+    const cw = this.cv.clientWidth || this.cv.width; if(!cw) return;
+    const dpr = Math.min(window.devicePixelRatio||1, 2);
+    const w = Math.round(cw*dpr);
+    if(this.cv.width !== w){ this.cv.width = w; this.cv.height = w; }
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.S = cw;
+    const newR = cw/2 - 8;
+    if(this.R && Math.abs(newR-this.R) > 0.5){       // 尺寸变化时等比迁移坐标
+      const k = newR/this.R;
+      for(const p of this.particles){
+        p.x*=k; p.y*=k;
+        p.trail.forEach(q=>{q.x*=k; q.y*=k;});
+        p.ghost.forEach(q=>{q.x*=k; q.y*=k;});
+      }
+      for(const m of this.molecules){ m.x*=k; m.y*=k; m.px*=k; m.py*=k; }
+      this.hits.length = 0;
+    }
+    this.R = newR;
+    this.pxPerUm  = 2*this.R/this.umSpan;
+    this.dispScale = this.R/250;
+    for(const p of this.particles) p.r = Math.max(2.5, p.um*this.pxPerUm);
+  }
+  makeP(x,y){
+    const s = SIZES[this.sizeKey];
+    return { x,y, um:s.um, activity:s.activity,
+      r:Math.max(2.5, s.um*this.pxPerUm),
+      trail:[], ghost:[], recT:rand(0,0.3), gT:0, avgStep:null };
+  }
+  spawn(){
+    this.particles = [];
+    for(let i=0;i<this.nP;i++){
+      let x=0,y=0,ok=false,tries=0;
+      while(!ok && tries++<80){
+        const a=rand(TAU), rr=Math.sqrt(Math.random())*this.R*0.7;
+        x=Math.cos(a)*rr; y=Math.sin(a)*rr;
+        ok=this.particles.every(q=>Math.hypot(q.x-x,q.y-y) > 46);
+      }
+      this.particles.push(this.makeP(x,y));
+    }
+    this.tracked = 0;
+  }
+  setSpec(sizeKey){
+    this.sizeKey = sizeKey;
+    const s = SIZES[sizeKey];
+    for(const p of this.particles){
+      p.um=s.um; p.activity=s.activity;
+      p.r=Math.max(2.5, s.um*this.pxPerUm);
+      p.trail=[]; p.ghost=[]; p.avgStep=null; p.recT=0;
+    }
+    if(this.showMol) this.spawnMol();
+  }
+  clearTrail(){
+    const p=this.particles[this.tracked];
+    p.trail=[]; p.avgStep=null; p.recT=0;
+  }
+  /* ---- 物理步进：过阻尼布朗运动 + 可见分子撞击 ---- */
+  step(dt){
+    this.time += dt;
+    const fT = tempFactor(this.tempC);
+    const tracked = this.particles[this.tracked];
+    for(let i=0;i<this.particles.length;i++){
+      const p = this.particles[i];
+      const sig = BASE_SIGMA * this.dispScale * Math.sqrt(tempFactor(this.tempC)*p.activity*dt)
+                * ((this.showMol && i===this.tracked) ? 0.62 : 1); // 透视时部分位移由可见撞击承担
+      p.x += gauss()*sig; p.y += gauss()*sig;
+      const d=Math.hypot(p.x,p.y), lim=this.R-p.r-3;   // 视野软边界
+      if(d>lim){ p.x*=lim/d; p.y*=lim/d; }
+      if(i!==this.tracked){                              // 非追踪颗粒留淡尾
+        p.gT+=dt;
+        if(p.gT>0.07){ p.gT=0; p.ghost.push({x:p.x,y:p.y}); if(p.ghost.length>9)p.ghost.shift(); }
+      }
+    }
+    tracked.recT += dt;                                  // 按记录间隔采点连折线
+    if(tracked.recT >= state.recordInterval){
+      tracked.recT -= state.recordInterval;
+      tracked.trail.push({x:tracked.x, y:tracked.y, t:this.time});
+      if(tracked.trail.length > (this.isMain?84:42)) tracked.trail.shift();
+      tracked.avgStep = this.calcAvg(tracked);
+    }
+    if(this.showMol) this.stepMol(dt, fT, tracked);
+    else { this.hitRate *= 0.85; if(this.hits.length) this.hits.length=0; }
+    this.hits = this.hits.filter(h=>this.time-h.t < 0.18);
+  }
+  calcAvg(p){
+    const now=this.time, pts=p.trail.filter(q=>now-q.t<=10.5);
+    if(pts.length<2) return null;
+    let s=0;
+    for(let i=1;i<pts.length;i++) s+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+    return s/(pts.length-1);
+  }
+  /* ---- 示意分子：自身走短折线、撞颗粒施加冲量 ---- */
+  MOLR(p){ return p.r + 118*this.dispScale; }
+  newMol(p){
+    const a=rand(TAU), rr=Math.sqrt(Math.random())*this.MOLR(p);
+    const x=p.x+Math.cos(a)*rr, y=p.y+Math.sin(a)*rr;
+    return { x,y, px:x, py:y, vx:0, vy:0, turn:0 };
+  }
+  spawnMol(){
+    this.molecules=[];
+    const p=this.particles[this.tracked];
+    const n=Math.round(58+62*tempFactor(this.tempC));
+    for(let i=0;i<n;i++) this.molecules.push(this.newMol(p));
+  }
+  stepMol(dt, fT, p){
+    const spd=(85+250*fT)*this.dispScale;
+    const target=Math.round(58+62*fT);
+    while(this.molecules.length<target) this.molecules.push(this.newMol(p));
+    while(this.molecules.length>target) this.molecules.pop();
+    const MR=this.MOLR(p), rr=p.r+1.8;
+    let hitsThis=0;
+    for(const m of this.molecules){
+      m.px=m.x; m.py=m.y;
+      m.turn -= dt;
+      if(m.turn<=0){                                    // 模拟分子间碰撞 → 随机改向（分子自身也无规则）
+        const a=rand(TAU);
+        m.vx=Math.cos(a)*spd; m.vy=Math.sin(a)*spd;
+        m.turn=0.10+rand(0.26);
+      }
+      m.x+=m.vx*dt; m.y+=m.vy*dt;
+      const dx=m.x-p.x, dy=m.y-p.y, d=Math.hypot(dx,dy);
+      if(d>MR){                                         // 飞出局部区 → 从环上回流（分子流不断补充）
+        const a=rand(TAU), inward=Math.atan2(-dy,-dx)+rand(-1.1,1.1);
+        m.x=p.x+Math.cos(a)*MR*0.98; m.y=p.y+Math.sin(a)*MR*0.98;
+        m.vx=Math.cos(inward)*spd; m.vy=Math.sin(inward)*spd;
+        m.turn=0.1+rand(0.25); continue;
+      }
+      if(d<rr && d>0.001){                              // 撞上颗粒：反弹 + 给颗粒一记冲量
+        const nx=dx/d, ny=dy/d;
+        m.x=p.x+nx*(rr+0.6); m.y=p.y+ny*(rr+0.6);
+        const dot=m.vx*nx+m.vy*ny;
+        if(dot<0){ m.vx-=2*dot*nx; m.vy-=2*dot*ny; }
+        const K=clamp((0.8+1.5*fT)/Math.pow(p.um,0.8), 0.25, 4.5)*this.dispScale;
+        p.x-=nx*K; p.y-=ny*K;                           // 分子沿 -n 方向来，把颗粒往 -n 推
+        hitsThis++;
+        if(this.hits.length<160) this.hits.push({x:m.x,y:m.y,t:this.time});
+      }
+    }
+    const inst = dt>0 ? hitsThis/dt : 0;
+    this.hitRate += (inst-this.hitRate)*Math.min(1, dt*3);
+  }
+  pickAt(x,y){
+    let best=-1, bd=34;
+    this.particles.forEach((q,i)=>{ const d=Math.hypot(q.x-x,q.y-y); if(d<bd){bd=d;best=i;} });
+    if(best>=0 && best!==this.tracked){
+      this.tracked=best;
+      const p=this.particles[best];
+      p.trail=[]; p.recT=0; p.avgStep=null;
+      if(this.showMol) this.spawnMol();
+      return true;
+    }
+    return false;
+  }
+  /* ---- 绘制 ---- */
+  draw(){
+    const ctx=this.ctx, R=this.R, S=this.S; if(!R) return;
+    ctx.clearRect(0,0,S,S);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(S/2,S/2,R,0,TAU); ctx.clip();   // 圆形视野
+    ctx.translate(S/2,S/2);
+    let g=ctx.createRadialGradient(0,0,R*0.05,0,0,R);        // 暗视野底色
+    g.addColorStop(0,'#16232e'); g.addColorStop(1,'#0a1218');
+    ctx.fillStyle=g; ctx.fillRect(-R,-R,2*R,2*R);
+    g=ctx.createRadialGradient(0,0,0,0,0,R*0.85);            // 照明光晕
+    g.addColorStop(0,'rgba(150,225,255,0.075)'); g.addColorStop(1,'rgba(150,225,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(-R,-R,2*R,2*R);
+    ctx.strokeStyle='rgba(180,210,230,0.06)'; ctx.lineWidth=1;  // 目镜刻线
+    ctx.beginPath(); ctx.moveTo(-R,0); ctx.lineTo(R,0); ctx.moveTo(0,-R); ctx.lineTo(0,R); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,R*0.35,0,TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,R*0.7,0,TAU); ctx.stroke();
+    if(this.showMol) this.drawMol(ctx);
+    for(let i=0;i<this.particles.length;i++){                // 非追踪颗粒（灰）
+      if(i===this.tracked) continue;
+      const p=this.particles[i];
+      this.drawGhost(ctx,p); this.drawBall(ctx,p,false);
+    }
+    const p=this.particles[this.tracked];                    // 追踪颗粒（暖亮）+ 轨迹
+    this.drawTrail(ctx,p);
+    this.drawBall(ctx,p,true);
+    for(const h of this.hits){                               // 撞击闪光
+      const age=(this.time-h.t)/0.18, a=Math.max(0,1-age);
+      ctx.fillStyle=`rgba(200,240,255,${0.85*a})`;
+      ctx.beginPath(); ctx.arc(h.x,h.y,2+3.5*age,0,TAU); ctx.fill();
+    }
+    ctx.setLineDash([6,7]); ctx.lineDashOffset=-this.time*16; // 追踪选择环（旋转虚线）
+    ctx.strokeStyle='rgba(127,232,255,0.55)'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r+7,0,TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    g=ctx.createRadialGradient(0,0,R*0.55,0,0,R);            // 暗角
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.55)');
+    ctx.fillStyle=g; ctx.fillRect(-R,-R,2*R,2*R);
+    const span=this.isMain?10:5, len=span*this.pxPerUm;      // 视野标尺
+    const x0=-R*0.58, y0=R*0.8;
+    ctx.strokeStyle='rgba(200,220,235,0.75)'; ctx.lineWidth=1.4;
+    ctx.beginPath();
+    ctx.moveTo(x0,y0); ctx.lineTo(x0+len,y0);
+    ctx.moveTo(x0,y0-4); ctx.lineTo(x0,y0+4);
+    ctx.moveTo(x0+len,y0-4); ctx.lineTo(x0+len,y0+4);
+    ctx.stroke();
+    ctx.fillStyle='rgba(200,220,235,0.85)';
+    ctx.font='10.5px ui-sans-serif,system-ui,sans-serif'; ctx.textAlign='center';
+    ctx.fillText(span+' μm', x0+len/2, y0-8);
+    ctx.restore();
+  }
+  drawMol(ctx){
+    for(const m of this.molecules){
+      const sp=Math.hypot(m.vx,m.vy);
+      if(sp>1){
+        const L=Math.min(11, sp*0.055);
+        ctx.strokeStyle='rgba(140,200,255,0.35)'; ctx.lineWidth=1.2;
+        ctx.beginPath();
+        ctx.moveTo(m.x-m.vx/sp*L, m.y-m.vy/sp*L); ctx.lineTo(m.x,m.y); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(205,235,255,0.95)';
+      ctx.beginPath(); ctx.arc(m.x,m.y,1.5,0,TAU); ctx.fill();
+    }
+  }
+  drawGhost(ctx,p){
+    const gs=p.ghost; if(gs.length<2) return;
+    ctx.strokeStyle='rgba(150,175,195,0.18)'; ctx.lineWidth=1.1;
+    ctx.beginPath(); ctx.moveTo(gs[0].x,gs[0].y);
+    for(let i=1;i<gs.length;i++) ctx.lineTo(gs[i].x,gs[i].y);
+    ctx.stroke();
+  }
+  drawTrail(ctx,p){
+    const tr=p.trail, n=tr.length;
+    if(n>1){
+      ctx.lineWidth=1.6;
+      for(let i=1;i<n;i++){
+        ctx.strokeStyle=`rgba(58,214,255,${0.10+0.75*(i/n)})`;
+        ctx.beginPath(); ctx.moveTo(tr[i-1].x,tr[i-1].y); ctx.lineTo(tr[i].x,tr[i].y); ctx.stroke();
+      }
+      for(let i=0;i<n;i++){
+        ctx.fillStyle=`rgba(120,230,255,${0.25+0.6*(i/n)})`;
+        ctx.beginPath(); ctx.arc(tr[i].x,tr[i].y,1.9,0,TAU); ctx.fill();
+      }
+    }
+    if(n>0){                                                 // 正在走向下一个记录点（虚线）
+      ctx.setLineDash([3,5]);
+      ctx.strokeStyle='rgba(58,214,255,0.35)'; ctx.lineWidth=1.3;
+      ctx.beginPath(); ctx.moveTo(tr[n-1].x,tr[n-1].y); ctx.lineTo(p.x,p.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  drawBall(ctx,p,hot){
+    let g;
+    if(hot){
+      g=ctx.createRadialGradient(p.x-p.r*0.35,p.y-p.r*0.4,p.r*0.1,p.x,p.y,p.r);
+      g.addColorStop(0,'#ffe9b0'); g.addColorStop(0.55,'#f7a83f'); g.addColorStop(1,'#8f4d13');
+      ctx.shadowColor='rgba(255,178,74,0.5)'; ctx.shadowBlur=12;
+    }else{
+      g=ctx.createRadialGradient(p.x-p.r*0.35,p.y-p.r*0.4,p.r*0.1,p.x,p.y,p.r);
+      g.addColorStop(0,'#cfd9e2'); g.addColorStop(1,'#5c6e7e');
+      ctx.shadowColor='rgba(160,190,215,0.3)'; ctx.shadowBlur=4;
+    }
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,TAU); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+}
+
+/* ================= 建立视野 ================= */
+const mainScope = new Scope($('#mainCanvas'), {isMain:true, umSpan:60, nParticles:5, tempC:state.tempC, sizeKey:state.sizeKey});
+const minis = [0,1,2].map(i => new Scope($('#mini'+i), {umSpan:24, nParticles:1, tempC:state.tempC, sizeKey:state.sizeKey}));
+const allScopes=[mainScope,...minis];
+
+/* ================= 控件逻辑 ================= */
+const tempWord = t => t<10?'冰水':t<32?'常温':t<65?'温热':'近沸腾';
+function setTemp(t){
+  state.tempC=t;
+  $('#tempVal').textContent=`${t} °C · ${tempWord(t)}`;
+  $('#molSpeed').textContent=`≈ ${Math.round(642*Math.sqrt((t+273)/298))} m/s`;
+  $('#tempSlider').value=t;
+  syncCompare();
+}
+function setSize(k){
+  state.sizeKey=k;
+  document.querySelectorAll('#sizeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.size===k));
+  $('#sizeVal').textContent=`${SIZES[k].label} φ${SIZES[k].um} μm`;
+  $('#tagTR').textContent=`当前：${SIZES[k].label} φ${SIZES[k].um} μm`;
+  mainScope.setSpec(k);
+  syncCompare();
+}
+function setPerspective(on){
+  state.perspective=on;
+  $('#perspSwitch').checked=on;
+  mainScope.showMol=on;
+  if(on && !mainScope.molecules.length) mainScope.spawnMol();
+  $('#molNote').classList.toggle('hidden',!on);
+  $('#tagMol').classList.toggle('hidden',!on);
+}
+function setPaused(v){
+  state.paused=v;
+  $('#btnPause').textContent = v?'▶ 继续':'⏸ 暂停';
+  $('#pauseBadge').classList.toggle('hidden',!v);
+  $('#runBadge').textContent = v?'⏸ 已暂停':'● 运行中';
+  $('#runBadge').style.color = v?'#93a8ba':'#9fe8c5';
+}
+$('#tempSlider').addEventListener('input',e=>setTemp(+e.target.value));
+$('#sizeSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(b) setSize(b.dataset.size);
+});
+$('#perspSwitch').addEventListener('change',e=>setPerspective(e.target.checked));
+$('#intervalSlider').addEventListener('input',e=>{
+  state.recordInterval=+e.target.value;
+  $('#intervalVal').textContent=state.recordInterval.toFixed(2)+' s';
+  $('#ivText').textContent=state.recordInterval.toFixed(2);
+});
+$('#btnPause').addEventListener('click',()=>setPaused(!state.paused));
+$('#btnClear').addEventListener('click',()=>mainScope.clearTrail());
+$('#mainCanvas').addEventListener('click',e=>{
+  mainScope.pickAt(e.offsetX-mainScope.S/2, e.offsetY-mainScope.S/2);
+});
+
+/* ---------- 对照组 ---------- */
+function syncCompare(){
+  const mode=state.compareMode;
+  $('#tabSize').classList.toggle('on',mode==='size');
+  $('#tabTemp').classList.toggle('on',mode==='temp');
+  for(let i=0;i<3;i++){
+    const s=minis[i];
+    let sizeKey=state.sizeKey, t=state.tempC;
+    let main, sub;
+    if(mode==='size'){
+      sizeKey=['small','mid','big'][i];
+      main=`<b>${SIZES[sizeKey].label}</b> · φ${SIZES[sizeKey].um} μm`;
+      sub=`同温度 ${state.tempC} °C`;
+    }else{
+      t=[0,45,90][i];
+      main=`<b>${t} °C</b> · ${t===0?'冰水':t===45?'温水':'热水'}`;
+      sub=`同颗粒 φ${SIZES[state.sizeKey].um} μm`;
+    }
+    if(s.sizeKey!==sizeKey) s.setSpec(sizeKey);
+    s.tempC=t;
+    $('#cap'+i).innerHTML=`${main}<span>${sub}</span>`;
+  }
+}
+$('#tabSize').addEventListener('click',()=>{state.compareMode='size'; syncCompare();});
+$('#tabTemp').addEventListener('click',()=>{state.compareMode='temp'; syncCompare();});
+
+/* ---------- 引导步骤 ---------- */
+const STEPS=[
+  {t:'① 观察常温轨迹', act:()=>mainScope.clearTrail()},
+  {t:'② 打开分子透视', act:()=>setPerspective(true)},
+  {t:'③ 升温到 90 °C', act:()=>setTemp(90)},
+  {t:'④ 换最小颗粒',   act:()=>setSize('small')},
+  {t:'⑤ 去做概念辨析', act:()=>$('#quizSec').scrollIntoView({behavior:'smooth'})},
+];
+STEPS.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.textContent=s.t;
+  b.addEventListener('click',()=>{ s.act(); b.classList.add('done'); });
+  $('#stepsBox').appendChild(b);
+});
+
+/* ---------- 概念辨析 ---------- */
+const QUIZ=[
+  {s:'显微镜下看到花粉颗粒沿折线运动，这就是分子热运动本身。', correct:false,
+   why:'✗ 这是最常见的误会。花粉颗粒由亿万个分子组成，直径几微米，在显微镜下是「宏观」微粒；而水分子直径约 0.4 nm，比它小上万倍，光学显微镜根本分辨不了。你看到的是「颗粒被撞」，不是「分子本身」。'},
+  {s:'颗粒的无规则折线轨迹，可以作为液体分子在做无规则运动的证据。', correct:true,
+   why:'✓ 颗粒自身没有动力，唯一不停的「推手」是四面八方液体分子的撞击。轨迹无规则 ⇒ 撞击的方向与力度在不断随机变化 ⇒ 分子在永不停息地做无规则运动。这就是「由果溯因」的间接证据。'},
+  {s:'升温后颗粒动得更欢，说明温度越高分子无规则运动越剧烈。', correct:true,
+   why:'✓ 分子撞得更频繁、更有力，颗粒才动得更欢。温度是分子无规则运动剧烈程度的标志——颗粒的活跃度相当于分子剧烈程度的「温度计读数」。'},
+  {s:'颗粒越大、被撞的次数越多，所以运动得越明显。', correct:false,
+   why:'✗ 恰恰相反。大颗粒被撞次数确实更多，但四面八方的撞击几乎互相抵消（不平衡的「净效果」相对更小），加上惯性大，几乎不动；小颗粒的撞击不平衡才显著，所以动得更欢。'},
+  {s:'只要观察时间够长，总能在某个时刻看到颗粒完全停下来。', correct:false,
+   why:'✗ 布朗运动永不停息：无论多久，颗粒都在无规则地动——因为分子热运动永不停止。温度再低也只是动得慢些，绝不会停下。'},
+];
+let qDone=0, qRight=0;
+QUIZ.forEach((q,i)=>{
+  const card=document.createElement('div');
+  card.className='qcard';
+  card.innerHTML=`
+    <div class="qtext"><span class="qn">Q${i+1}.</span>${q.s}</div>
+    <div class="qbtns">
+      <button data-a="1">✓ 对</button>
+      <button data-a="0">✗ 错</button>
+    </div>
+    <div class="qwhy hidden"></div>`;
+  card.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b || card.classList.contains('locked')) return;
+    const pick=b.dataset.a==='1', ok=(pick===q.correct);
+    card.classList.add('locked'); b.classList.add('picked');
+    const why=card.querySelector('.qwhy');
+    why.textContent=q.why;
+    why.classList.remove('hidden');
+    why.classList.add(ok?'ok':'no');
+    qDone++; if(ok)qRight++;
+    $('#quizScore').textContent=`已辨析 ${qDone} / 5 · 答对 ${qRight}`;
+    if(qDone===QUIZ.length){
+      const f=$('#quizFinal');
+      f.classList.remove('hidden');
+      f.innerHTML = qRight===5
+        ? `🌟 ${qRight}/5 全对！你已经分清了「颗粒的运动」与「分子的运动」——折线是证据，不是本身。`
+        : `${qRight}/5。翻回上面对照实验再看看：颗粒是<b>被撞的探针</b>，分子才是在动的主角。`;
+    }
+  });
+  $('#quizBox').appendChild(card);
+});
+
+/* ================= 主循环 ================= */
+let last=performance.now(), uiAcc=0;
+function frame(now){
+  let dt=(now-last)/1000; last=now; dt=Math.min(dt,0.05);
+  if(!state.paused){
+    mainScope.step(dt);
+    minis.forEach(s=>s.step(dt));
+    uiAcc+=dt;
+  }
+  mainScope.draw(); minis.forEach(s=>s.draw());
+  if(uiAcc>0.3){ uiAcc=0; updateReadouts(); }
+  requestAnimationFrame(frame);
+}
+function updateReadouts(){
+  const p=mainScope.particles[mainScope.tracked];
+  $('#dPoints').textContent=p.trail.length;
+  if(p.avgStep!=null){
+    const ratio=p.avgStep/(2*p.r), um=p.avgStep/mainScope.pxPerUm;
+    $('#dStep').textContent=`≈ ${ratio.toFixed(1)} × 颗粒直径`;
+    $('#dStepUm').textContent=`≈ ${um.toFixed(1)} μm / 步`;
+  }else{
+    $('#dStep').textContent='—'; $('#dStepUm').textContent='—';
+  }
+  $('#dHits').textContent = mainScope.showMol ? `≈ ${Math.round(mainScope.hitRate)} 次/秒` : '—（透视关闭）';
+  minis.forEach((s,i)=>{
+    const mp=s.particles[0];
+    $('#mval'+i).textContent = (mp.avgStep!=null)
+      ? `平均步长 ≈ ${(mp.avgStep/(2*mp.r)).toFixed(1)} × 颗粒直径` : '—';
+  });
+}
+
+/* ---------- 尺寸自适应 ---------- */
+let rzT;
+window.addEventListener('resize',()=>{
+  clearTimeout(rzT);
+  rzT=setTimeout(()=>allScopes.forEach(s=>s.fit()),120);
+});
+
+/* ---------- 启动 ---------- */
+setTemp(25); setSize('mid'); syncCompare(); updateReadouts();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>匀变速直线运动 · 图像同步探究课件</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#e9eef5;color:#1e293b}
+header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:12px 20px;background:#fff;border-bottom:1px solid #dbe3ee}
+h1{font-size:19px;margin:0}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{padding:8px 16px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;cursor:pointer;font-size:14px}
+.tab.active{background:#2563eb;border-color:#2563eb;color:#fff}
+main{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap}
+aside{width:300px;flex:0 0 300px;display:flex;flex-direction:column;gap:12px}
+.card{background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 2px 8px rgba(15,23,42,.06)}
+.card h3{margin:2px 0 6px;font-size:14px}
+.right{flex:1;min-width:520px;display:flex;flex-direction:column;gap:12px}
+.ctl{display:none}.ctl.show{display:block}
+.row{display:flex;align-items:center;gap:8px;margin:9px 0}
+.row label{flex:0 0 104px;font-size:13px}
+.row input[type=range]{flex:1;accent-color:#2563eb;min-width:0}
+.val{flex:0 0 82px;text-align:center;font-size:13px;background:#eef2ff;border-radius:6px;padding:2px 4px;font-variant-numeric:tabular-nums}
+.ck{display:flex;align-items:center;gap:6px;font-size:13px;margin:7px 0;cursor:pointer}
+.tip{font-size:12px;color:#64748b;margin:6px 0 0;line-height:1.6}
+.btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.btn{flex:1;border:none;border-radius:9px;padding:9px 0;font-size:14px;cursor:pointer;background:#2563eb;color:#fff;min-width:90px}
+.btn.gray{background:#64748b}
+select{padding:5px 8px;border-radius:8px;border:1px solid #cbd5e1;font-size:13px;background:#fff}
+canvas{display:block;width:100%}
+#road{height:200px}
+.graphs{display:flex;gap:12px;flex-wrap:wrap}
+.gcard{flex:1;min-width:280px}
+#g_x,#g_v,#g_a{height:235px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;align-items:center}
+.pill{background:#f1f5f9;border-radius:8px;padding:4px 10px}
+.pill b{font-variant-numeric:tabular-nums}
+.trow{display:flex;align-items:center;gap:10px}
+.trow input{flex:1;accent-color:#2563eb}
+#log{font-size:13px;line-height:1.75}
+#log .hl{background:#fef9c3;border-radius:4px;padding:0 4px}
+.lgA{color:#e11d48;font-weight:700}.lgB{color:#2563eb;font-weight:700}
+.foot{font-size:12px;color:#64748b}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚗 匀变速直线运动 · 图像同步课件</h1>
+  <nav class="tabs">
+    <button class="tab active" data-mode="basic">① 基础模式</button>
+    <button class="tab" data-mode="brake">② 刹车模式</button>
+    <button class="tab" data-mode="pursuit">③ 追及模式（两车）</button>
+  </nav>
+</header>
+
+<main>
+<aside>
+  <div class="card ctl show" data-mode="basic">
+    <h3>🚗 小车参数</h3>
+    <div class="row"><label>初速度 v₀</label><input type="range" id="b_v0" min="-10" max="10" step="0.5"><span class="val" id="b_v0_v"></span></div>
+    <div class="row"><label>加速度 a</label><input type="range" id="b_a" min="-3" max="3" step="0.1"><span class="val" id="b_a_v"></span></div>
+    <p class="tip">试试 a&lt;0：小车减速 → 停止 → <b>倒退</b>，观察 v–t 穿过 t 轴、x–t 下弯。</p>
+  </div>
+  <div class="card ctl" data-mode="brake">
+    <h3>🛑 刹车参数</h3>
+    <div class="row"><label>初速度 v₀</label><input type="range" id="k_v0" min="2" max="20" step="0.5"><span class="val" id="k_v0_v"></span></div>
+    <div class="row"><label>刹车加速度 a</label><input type="range" id="k_a" min="-6" max="-0.5" step="0.1"><span class="val" id="k_a_v"></span></div>
+    <label class="ck"><input type="checkbox" id="ck_ghost" checked> 显示"公式外推"虚线（错误示范）</label>
+  </div>
+  <div class="card ctl" data-mode="pursuit">
+    <h3 style="color:#e11d48">🚗 甲车 A（前方）</h3>
+    <div class="row"><label>v₀</label><input type="range" id="p_vA" min="0" max="15" step="0.5"><span class="val" id="p_vA_v"></span></div>
+    <div class="row"><label>a</label><input type="range" id="p_aA" min="-2" max="2" step="0.1"><span class="val" id="p_aA_v"></span></div>
+    <h3 style="color:#2563eb">🚙 乙车 B（后方）</h3>
+    <div class="row"><label>v₀</label><input type="range" id="p_vB" min="0" max="15" step="0.5"><span class="val" id="p_vB_v"></span></div>
+    <div class="row"><label>a</label><input type="range" id="p_aB" min="-2" max="2" step="0.1"><span class="val" id="p_aB_v"></span></div>
+    <div class="row"><label>初始间距</label><input type="range" id="p_gap" min="4" max="60" step="1"><span class="val" id="p_gap_v"></span></div>
+  </div>
+  <div class="card">
+    <h3>⚙️ 通用控制</h3>
+    <div class="row"><label>总时长 T</label><input type="range" id="dur" min="4" max="24" step="0.5"><span class="val" id="dur_v"></span></div>
+    <div class="row"><label>播放倍速</label>
+      <select id="spd"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+    </div>
+    <label class="ck"><input type="checkbox" id="ck_tan" checked> 显示 x–t 切线（斜率=速度）</label>
+    <label class="ck"><input type="checkbox" id="ck_area" checked> 显示 v–t 面积（面积=位移）</label>
+    <div class="btns">
+      <button class="btn" id="play">▶ 播放</button>
+      <button class="btn gray" id="reset">↺ 重置</button>
+    </div>
+  </div>
+  <div class="card"><h3>📖 结论与事件</h3><div id="log"></div></div>
+</aside>
+
+<section class="right">
+  <div class="card">
+    <canvas id="road"></canvas>
+    <div class="trow"><span style="font-size:13px">t</span><input type="range" id="tslider" min="0" max="10" step="0.01" value="0"><span id="tval" style="font-size:13px;width:70px;text-align:right">0.00 s</span></div>
+  </div>
+  <div class="card stats" id="stats"></div>
+  <div class="graphs">
+    <div class="card gcard"><canvas id="g_x"></canvas></div>
+    <div class="card gcard"><canvas id="g_v"></canvas></div>
+    <div class="card gcard"><canvas id="g_a"></canvas></div>
+  </div>
+  <p class="foot">💡 提示：按住任意图像左右拖动可"快进 / 回放"时间；空格键 = 播放 / 暂停。图上的点会与路面上的车一一对齐。</p>
+</section>
+</main>
+
+<script>
+'use strict';
+/* ---------- 工具 ---------- */
+const $=id=>document.getElementById(id);
+const fmt=(v,d=1)=>((Math.abs(v)<5e-3?0:v)).toFixed(d);
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+function niceStep(range,n){const raw=range/n,p=Math.pow(10,Math.floor(Math.log10(raw)));for(const m of[1,2,2.5,5,10]){if(raw<=m*p+1e-12)return m*p;}return 10*p;}
+const GRID='#e8edf4',AXIS='#64748b',TEXT='#475569',CUR='#334155';
+
+/* ---------- 状态与参数 ---------- */
+const state={mode:'basic',t:0,playing:false,speed:1,duration:10,showTan:true,showArea:true,meets:[],vsame:[]};
+const par={
+  basic:{v0:4,a:0.8,dur:10},
+  brake:{v0:12,a:-3,dur:8},
+  pursuit:{vA:5,aA:0,vB:0,aB:1,gap:12,dur:14}
+};
+const META={single:[{name:'小车',color:'#e11d48',tag:'🚗'}],
+            pursuit:[{name:'甲车 A',color:'#e11d48',tag:'A'},{name:'乙车 B',color:'#2563eb',tag:'B'}]};
+
+/* ---------- 物理（解析解，保证图与车严格同步） ---------- */
+function tStop(p){return(p.a<0&&p.v0>0)?p.v0/(-p.a):Infinity;}
+function carAt(p,t,x0,clamp){ // clamp=true：刹车后静止（真实情形）；false：允许倒退
+  const ts=tStop(p);
+  if(clamp&&t>=ts)return{x:x0+p.v0*p.v0/(2*(-p.a)),v:0,a:0};
+  return{x:x0+p.v0*t+.5*p.a*t*t,v:p.v0+p.a*t,a:p.a};
+}
+function carsAt(t){
+  if(state.mode==='pursuit'){const p=par.pursuit;
+    return[carAt({v0:p.vA,a:p.aA},t,0,true),carAt({v0:p.vB,a:p.aB},t,-p.gap,true)];}
+  const p=state.mode==='brake'?par.brake:par.basic;
+  return[carAt({v0:p.v0,a:p.a},t,0,state.mode==='brake')];
+}
+const meta=()=>state.mode==='pursuit'?META.pursuit:META.single;
+
+/* 数值求交点（二分细化） */
+function crossings(f,g,T){
+  const out=[];let pv=f(0)-g(0);const n=800;
+  for(let i=1;i<=n;i++){const t=T*i/n,d=f(t)-g(t);
+    if(pv*d<0){let a=T*(i-1)/n,b=t;
+      for(let k=0;k<40;k++){const m=(a+b)/2;((f(a)-g(a))*(f(m)-g(m))<=0)?b=m:a=m;}
+      out.push((a+b)/2);}
+    pv=d;}
+  return out.filter((t,i)=>i===0||t-out[i-1]>.1);
+}
+function onParams(){
+  if(state.mode==='pursuit'){const p=par.pursuit,T=state.duration;
+    const fA=t=>carAt({v0:p.vA,a:p.aA},t,0,true).x, fB=t=>carAt({v0:p.vB,a:p.aB},t,-p.gap,true).x;
+    const vA=t=>carAt({v0:p.vA,a:p.aA},t,0,true).v, vB=t=>carAt({v0:p.vB,a:p.aB},t,-p.gap,true).v;
+    state.meets=crossings(fA,fB,T).map(t=>({t,x:fA(t)}));
+    state.vsame=crossings(vA,vB,T).map(t=>({t,v:vA(t),gap:fA(t)-fB(t)}));
+  }else{state.meets=[];state.vsame=[];}
+  buildLog();
+}
+
+/* ---------- 结论面板 ---------- */
+function buildLog(){
+  const m=state.mode;let h='';
+  if(m==='basic'){const p=par.basic;
+    h+=`<p>👉 拖动 <b>v₀</b>、<b>a</b>，小车与三条图像<b>同步变化</b>。</p>
+    <p>• v–t 是直线，<b>斜率 = a = ${fmt(p.a)} m/s²</b></p>
+    <p>• <span class="hl">x–t 曲线的切线斜率 = 该时刻的速度</span></p>
+    <p>• v–t 图线下<b>彩色面积 = 位移</b>（t 轴下方记负值）</p>`;
+  }else if(m==='brake'){const p=par.brake,ts=p.v0/(-p.a),xm=p.v0*p.v0/(2*(-p.a));
+    h+=`<p>🛑 v₀=${fmt(p.v0)} m/s，a=${fmt(p.a)} m/s²</p>
+    <p>刹车时间 <b>t停 = v₀/|a| = ${fmt(ts)} s</b>，之后 v=0、a=0，<b>车静止</b></p>
+    <p>最大位移 <b>x = v₀²/(2|a|) = ${fmt(xm)} m</b>（= v–t 三角形面积）</p>
+    <p>⚠️ 红虚线是死套公式的<b>错误外推</b>（v 变负＝倒退）。做题先算 t停，与题给时间比较！</p>`;
+  }else{const p=par.pursuit;
+    h+=`<p><span class="lgA">甲车A</span>：v₀=${fmt(p.vA)}，a=${fmt(p.aA)}；<span class="lgB">乙车B</span> 后方 ${fmt(p.gap,0)} m：v₀=${fmt(p.vB)}，a=${fmt(p.aB)}</p>`;
+    if(state.vsame.length){const e=state.vsame[0];
+      h+=`<p>⭐ 速度相等：t=${fmt(e.t)} s，此刻两车${e.gap>0?'尚未相遇 → <b>相距最远</b>':'已擦身 → 间距极值'}，|Δ|=<b>${fmt(Math.abs(e.gap))} m</b></p>`;}
+    if(state.meets.length){for(const e of state.meets)h+=`<p>🏁 <b>相遇</b>：t=${fmt(e.t)} s，x=${fmt(e.x)} m —— 正是 <b>x–t 图的交点</b>！</p>`;}
+    else h+=`<p>⏳ ${fmt(state.duration,0)} s 内未追上：加大 B 的加速度或延长时间试试。</p>`;
+    h+=`<p>📌 交点含义：<b>x–t 交点 = 相遇</b>；<b>v–t 交点 = 速度相等</b>（间距极值时刻）。</p>`;}
+  $('log').innerHTML=h;
+}
+
+/* ---------- 画布初始化 ---------- */
+const PANELS=[
+ {id:'g_x',key:'x',title:'x – t 图像',unit:'x / m',fn:c=>c.x},
+ {id:'g_v',key:'v',title:'v – t 图像',unit:'v / (m·s⁻¹)',fn:c=>c.v},
+ {id:'g_a',key:'a',title:'a – t 图像',unit:'a / (m·s⁻²)',fn:c=>c.a}];
+const PAD={l:52,r:14,t:30,b:28};
+const ROAD={el:$('road')};ROAD.ctx=ROAD.el.getContext('2d');
+function fitAll(){
+  const d=devicePixelRatio||1;
+  for(const P of PANELS){const r=P.el.getBoundingClientRect();P.el.width=r.width*d;P.el.height=r.height*d;P.ctx.setTransform(d,0,0,d,0,0);P.w=r.width;P.h=r.height;}
+  const r=ROAD.el.getBoundingClientRect();ROAD.el.width=r.width*d;ROAD.el.height=r.height*d;ROAD.ctx.setTransform(d,0,0,d,0,0);ROAD.w=r.width;ROAD.h=r.height;
+}
+PANELS.forEach(P=>{P.el=$(P.id);P.ctx=P.el.getContext('2d');});
+window.addEventListener('resize',fitAll);
+
+/* 图像上拖动 → 定位时间 */
+function scrub(P){const c=P.el;
+  const f=e=>{const r=c.getBoundingClientRect();let k=(e.clientX-r.left-PAD.l)/(P.w-PAD.l-PAD.r);k=Math.max(0,Math.min(1,k));state.t=k*state.duration;};
+  c.addEventListener('pointerdown',e=>{c.setPointerCapture(e.pointerId);f(e);
+    const mv=e2=>f(e2);
+    c.addEventListener('pointermove',mv);
+    c.addEventListener('pointerup',()=>c.removeEventListener('pointermove',mv),{once:true});});
+}
+PANELS.forEach(scrub);
+
+/* ---------- 三个图像面板 ---------- */
+function rangeOf(fn,include0){const T=state.duration;let mn=1/0,mx=-1/0;
+  for(let i=0;i<=180;i++){const t=T*i/180;for(const c of carsAt(t)){const y=fn(c);if(y<mn)mn=y;if(y>mx)mx=y;}}
+  if(include0){mn=Math.min(mn,0);mx=Math.max(mx,0);}
+  let s=mx-mn;if(s<1e-6){mn-=1;mx+=1;}else{mn-=s*.07;mx+=s*.07;}
+  return[mn,mx];}
+
+function renderPanel(P){
+  const ctx=P.ctx,W=P.w,H=P.h,T=state.duration,t=state.t,M=meta();
+  ctx.clearRect(0,0,W,H);
+  const[mn,mx]=rangeOf(P.fn,P.key!=='x');
+  const X=tt=>PAD.l+(W-PAD.l-PAD.r)*tt/T;
+  const Y=y=>H-PAD.b-(H-PAD.t-PAD.b)*(y-mn)/(mx-mn);
+  /* 网格与刻度 */
+  const ys=niceStep(mx-mn,4),xs=niceStep(T,6),yd=ys<0.1?2:ys<1?1:0;
+  ctx.font='10px system-ui';ctx.textBaseline='middle';
+  for(let y=Math.ceil(mn/ys-1e-9)*ys;y<=mx+1e-9;y+=ys){
+    ctx.strokeStyle=Math.abs(y)<ys*1e-6?'#b6c2d2':GRID;ctx.beginPath();
+    ctx.moveTo(PAD.l,Y(y));ctx.lineTo(W-PAD.r,Y(y));ctx.stroke();
+    ctx.fillStyle=TEXT;ctx.textAlign='right';ctx.fillText(y.toFixed(yd),PAD.l-5,Y(y));}
+  ctx.textAlign='center';
+  for(let x=0;x<=T+1e-9;x+=xs){ctx.strokeStyle=GRID;ctx.beginPath();
+    ctx.moveTo(X(x),PAD.t);ctx.lineTo(X(x),H-PAD.b);ctx.stroke();
+    ctx.fillStyle=TEXT;ctx.fillText(x.toFixed(xs<1?1:0),X(x),H-PAD.b+10);}
+  ctx.strokeStyle=AXIS;ctx.lineWidth=1.4;ctx.beginPath();
+  ctx.moveTo(PAD.l,PAD.t);ctx.lineTo(PAD.l,H-PAD.b);ctx.lineTo(W-PAD.r,H-PAD.b);ctx.stroke();
+  /* 标题 / 图例 */
+  ctx.textAlign='left';ctx.fillStyle='#0f172a';ctx.font='bold 13px system-ui';
+  ctx.fillText(P.title,10,15);
+  ctx.font='11px system-ui';ctx.fillStyle=TEXT;ctx.fillText(P.unit,10+ctx.measureText(P.title).width*1.35+14,15);
+  let lx=W-PAD.r;ctx.textAlign='right';
+  [...M].reverse().forEach(m=>{ctx.fillStyle=TEXT;ctx.fillText(m.name,lx,15);lx-=ctx.measureText(m.name).width+14;
+    ctx.fillStyle=m.color;ctx.fillRect(lx,11,10,8);lx-=16;});
+  ctx.textAlign='right';ctx.fillStyle=AXIS;ctx.fillText('t / s',W-PAD.r+4,H-PAD.b+10);
+
+  const plot=()=>{ctx.save();ctx.beginPath();ctx.rect(PAD.l,PAD.t,W-PAD.l-PAD.r,H-PAD.t-PAD.b);ctx.clip();};
+  plot();
+  /* v–t 面积 = 位移 */
+  if(P.key==='v'&&state.showArea&&t>.03){
+    M.forEach((m,i)=>{ctx.fillStyle=m.color+'26';ctx.beginPath();ctx.moveTo(X(0),Y(0));
+      const N=Math.max(2,Math.ceil(200*t/T));
+      for(let j=0;j<=N;j++){const tt=t*j/N;ctx.lineTo(X(tt),Y(P.fn(carsAt(tt)[i])));}
+      ctx.lineTo(X(t),Y(0));ctx.closePath();ctx.fill();});
+    ctx.fillStyle='#0f172a';ctx.font='11px system-ui';ctx.textAlign='left';
+    ctx.fillText('彩色面积 = 位移 x',PAD.l+8,PAD.t+12);
+  }
+  /* 曲线（随时间逐步描出） */
+  M.forEach((m,i)=>{ctx.strokeStyle=m.color;ctx.lineWidth=2.5;ctx.beginPath();
+    const N=Math.max(2,Math.ceil(300*t/T));
+    for(let j=0;j<=N;j++){const tt=t*j/N,y=P.fn(carsAt(tt)[i]);
+      j?ctx.lineTo(X(tt),Y(y)):ctx.moveTo(X(tt),Y(y));}
+    ctx.stroke();});
+  /* 刹车模式：t停 竖线 + 公式外推虚线 */
+  if(state.mode==='brake'){const p=par.brake,ts=tStop(p);
+    if(ts<T){
+      ctx.strokeStyle='#d97706';ctx.setLineDash([3,3]);ctx.beginPath();
+      ctx.moveTo(X(ts),PAD.t);ctx.lineTo(X(ts),H-PAD.b);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#d97706';ctx.font='bold 11px system-ui';ctx.textAlign='left';
+      ctx.fillText(`t停=${fmt(ts)}s`,X(ts)+4,PAD.t+24);
+      if($('ck_ghost').checked&&(P.key==='x'||P.key==='v')){
+        const f=P.key==='x'?(tt=>p.v0*tt+.5*p.a*tt*tt):(tt=>p.v0+p.a*tt);
+        ctx.strokeStyle='#ef4444';ctx.globalAlpha=.55;ctx.setLineDash([5,4]);ctx.lineWidth=2;ctx.beginPath();
+        for(let j=0;j<=60;j++){const tt=ts+(T-ts)*j/60;const px=X(tt),py=Y(f(tt));j?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+        ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+        ctx.fillStyle='#ef4444';ctx.font='bold 10px system-ui';ctx.textAlign='right';
+        ctx.fillText('公式外推 ✗',X(T)-4,Math.min(H-PAD.b-8,Math.max(PAD.t+10,Y(f(T))-8)));
+      }
+      if(P.key==='x'){mark(P,X(ts),Y(p.v0*p.v0/(2*(-p.a))),'#d97706',`x_max=${fmt(p.v0*p.v0/(2*(-p.a)))}m`);}
+      if(P.key==='v'){mark(P,X(ts),Y(0),'#d97706','v=0 停止');}
+    }
+  }
+  /* 追及模式：交点标记（事件发生瞬间才出现） */
+  if(state.mode==='pursuit'){
+    if(P.key==='x'){
+      for(const e of state.vsame)if(e.t<=t){ctx.strokeStyle='#0ea5e9';ctx.setLineDash([3,3]);ctx.beginPath();
+        ctx.moveTo(X(e.t),PAD.t);ctx.lineTo(X(e.t),H-PAD.b);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle='#0ea5e9';ctx.font='bold 10px system-ui';ctx.textAlign='left';
+        ctx.fillText('v相等→间距极值',X(e.t)+4,PAD.t+10);}
+      for(const e of state.meets)if(e.t<=t)mark(P,X(e.t),Y(e.x),'#0f172a',`相遇 t=${fmt(e.t)}s`);
+    }
+    if(P.key==='v')for(const e of state.vsame)if(e.t<=t)mark(P,X(e.t),Y(e.v),'#0ea5e9',`v相等 t=${fmt(e.t)}s`);
+  }
+  /* x–t 切线：斜率 = 速度 */
+  if(P.key==='x'&&state.showTan&&t>.03){const c=carsAt(t)[0],v=c.v,hw=.8;
+    const x1=Math.max(0,t-hw),x2=Math.min(T,t+hw);
+    ctx.strokeStyle='#0f172a';ctx.lineWidth=1.5;ctx.beginPath();
+    ctx.moveTo(X(x1),Y(c.x-v*(t-x1)));ctx.lineTo(X(x2),Y(c.x+v*(x2-t)));ctx.stroke();
+    ctx.fillStyle='#0f172a';ctx.font='bold 11px system-ui';ctx.textAlign='left';
+    ctx.fillText(`切线斜率 = v = ${fmt(v)} m/s`,PAD.l+8,H-PAD.b-10);}
+  ctx.restore();
+  /* 时间游标 + 各曲线当前点 */
+  ctx.strokeStyle=CUR;ctx.setLineDash([4,4]);ctx.beginPath();
+  ctx.moveTo(X(t),PAD.t);ctx.lineTo(X(t),H-PAD.b);ctx.stroke();ctx.setLineDash([]);
+  M.forEach((m,i)=>{const y=P.fn(carsAt(t)[i]);
+    ctx.fillStyle=m.color;ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(X(t),Y(y),5,0,7);ctx.fill();ctx.stroke();});
+}
+function mark(P,x,y,color,txt){
+  const ctx=P.ctx;ctx.fillStyle='#fff';ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fill();ctx.stroke();
+  ctx.font='bold 11px system-ui';const w=ctx.measureText(txt).width+10;
+  let lx=Math.min(Math.max(x+8,PAD.l),P.w-PAD.r-w),ly=y-9;
+  ctx.fillStyle='#fff';rr(ctx,lx,ly-11,w,17,4);ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=1;rr(ctx,lx,ly-11,w,17,4);ctx.stroke();
+  ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText(txt,lx+5,ly-2);ctx.textBaseline='alphabetic';
+}
+
+/* ---------- 路面动画 ---------- */
+function renderRoad(){
+  const ctx=ROAD.ctx,W=ROAD.w,H=ROAD.h,t=state.t,T=state.duration,M=meta();
+  const cars=carsAt(t);ctx.clearRect(0,0,W,H);
+  let wmin=0,wmax=10;
+  for(let i=0;i<=180;i++){const tt=T*i/180;for(const c of carsAt(tt)){wmin=Math.min(wmin,c.x);wmax=Math.max(wmax,c.x);}}
+  const marg=(wmax-wmin)*.08+1;wmin-=marg;wmax+=marg;
+  const padL=46,padR=14,px=x=>padL+(x-wmin)/(wmax-wmin)*(W-padL-padR);
+  const pur=state.mode==='pursuit';
+  const grounds=pur?[H-86,H-40]:[H-64];
+  /* 路面 */
+  grounds.forEach(gy=>{ctx.fillStyle='#45526b';rr(ctx,padL-10,gy-42,W-padL-padR+20,42,8);ctx.fill();
+    ctx.strokeStyle='#cbd5e1';ctx.setLineDash([14,10]);ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(padL-2,gy-7);ctx.lineTo(W-padR+2,gy-7);ctx.stroke();ctx.setLineDash([]);});
+  /* 标尺 */
+  const st=niceStep(wmax-wmin,10),ry=H-16;
+  ctx.strokeStyle=AXIS;ctx.fillStyle=TEXT;ctx.font='10px system-ui';ctx.textAlign='center';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(padL,ry);ctx.lineTo(W-padR+6,ry);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W-padR+6,ry);ctx.lineTo(W-padR,ry-3);ctx.lineTo(W-padR,ry+3);ctx.closePath();ctx.fillStyle=AXIS;ctx.fill();
+  for(let x=Math.ceil(wmin/st-1e-9)*st;x<=wmax;x+=st){ctx.strokeStyle=AXIS;ctx.beginPath();
+    ctx.moveTo(px(x),ry);ctx.lineTo(px(x),ry-4);ctx.stroke();
+    ctx.fillStyle=TEXT;ctx.fillText(x.toFixed(st<1?1:0),px(x),ry+5);}
+  ctx.textAlign='right';ctx.fillText('x / m',W-padR+6,ry-8);
+  /* 起点旗 */
+  function flag(wx,gy2,color,label){ctx.strokeStyle='#334155';ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(wx,gy2-2);ctx.lineTo(wx,gy2-36);ctx.stroke();
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(wx,gy2-36);ctx.lineTo(wx+16,gy2-31);ctx.lineTo(wx,gy2-26);ctx.closePath();ctx.fill();
+    ctx.fillStyle=TEXT;ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(label,wx+8,gy2-40);}
+  flag(px(0),grounds[0],'#e11d48',pur?'A 起点':'出发点');
+  if(pur)flag(px(-par.pursuit.gap),grounds[1],'#2563eb','B 起点');
+  /* 追及：间距标注 */
+  if(pur){const d=cars[0].x-cars[1].x,ay=42,x1=px(cars[1].x),x2=px(cars[0].x);
+    ctx.strokeStyle='#0f172a';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(x1,ay);ctx.lineTo(x2,ay);ctx.stroke();
+    [[x1,1],[x2,-1]].forEach(([xx,s])=>{ctx.beginPath();ctx.moveTo(xx,ay);ctx.lineTo(xx+6*s,ay-3);ctx.lineTo(xx+6*s,ay+3);ctx.closePath();ctx.fillStyle='#0f172a';ctx.fill();});
+    ctx.font='bold 12px system-ui';ctx.textAlign='center';
+    if(Math.abs(d)<1.5){ctx.fillStyle='#e11d48';ctx.fillText('📌 相遇！',(x1+x2)/2,ay-8);}
+    else{ctx.fillStyle='#fff';rr(ctx,(x1+x2)/2-34,ay-9,68,17,4);ctx.fill();
+      ctx.fillStyle='#0f172a';ctx.fillText(`Δx = ${fmt(d)} m`,(x1+x2)/2,ay+4);}}
+  /* 车 */
+  cars.forEach((c,i)=>drawCar(ctx,px(c.x),grounds[i],M[i],c,!pur));
+}
+function drawCar(ctx,x,gy,m,c,showV){
+  ctx.save();ctx.translate(x,gy);
+  ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(0,-1,30,3.5,0,0,7);ctx.fill();
+  ctx.fillStyle=m.color;rr(ctx,-27,-20,54,13,5);ctx.fill();
+  ctx.beginPath();ctx.moveTo(-15,-20);ctx.lineTo(-9,-30);ctx.lineTo(11,-30);ctx.lineTo(17,-20);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#dbeafe';
+  ctx.beginPath();ctx.moveTo(-12,-21);ctx.lineTo(-7,-28.5);ctx.lineTo(1,-28.5);ctx.lineTo(1,-21);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(3,-28.5);ctx.lineTo(10,-28.5);ctx.lineTo(15,-21);ctx.lineTo(3,-21);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(m.tag,0,-13);ctx.textBaseline='alphabetic';
+  const ang=c.x/.3;
+  for(const wx of[-16,16]){
+    ctx.fillStyle='#1e293b';ctx.beginPath();ctx.arc(wx,-6,7,0,7);ctx.fill();
+    ctx.fillStyle='#94a3b8';ctx.beginPath();ctx.arc(wx,-6,3.2,0,7);ctx.fill();
+    ctx.strokeStyle='#334155';ctx.lineWidth=1.4;ctx.beginPath();
+    ctx.moveTo(wx+5.5*Math.cos(ang),-6+5.5*Math.sin(ang));ctx.lineTo(wx-5.5*Math.cos(ang),-6-5.5*Math.sin(ang));
+    ctx.moveTo(wx+5.5*Math.cos(ang+1.57),-6+5.5*Math.sin(ang+1.57));ctx.lineTo(wx-5.5*Math.cos(ang+1.57),-6-5.5*Math.sin(ang+1.57));
+    ctx.stroke();}
+  ctx.fillStyle='#fde68a';ctx.fillRect(26,-18,3,5);           // 前灯
+  if(c.a<0&&c.v>1e-6){ctx.fillStyle='#fb7185';ctx.fillRect(-29,-18,4,6); // 刹车灯
+    ctx.fillStyle='#fecdd3';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.fillText('刹车！',0,-46);}
+  if(c.v===0&&c.a===0&&tStopCache()){ctx.fillStyle='#64748b';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText('⛔ 已停止 v=0',0,-46);}
+  else if(showV){ctx.fillStyle='#0f172a';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText(`v = ${fmt(c.v)} m/s`,0,-46);}
+  ctx.restore();
+}
+function tStopCache(){return state.mode==='brake';}
+
+/* ---------- 实时数据条 ---------- */
+function renderStats(){
+  const t=state.t,cars=carsAt(t),M=meta();let h=`<span class="pill">⏱ t = <b>${fmt(t,2)} s</b></span>`;
+  cars.forEach((c,i)=>{h+=`<span class="pill" style="border-left:4px solid ${M[i].color}">${M[i].name}：x=<b>${fmt(c.x)}</b> m ｜ v=<b>${fmt(c.v)}</b> m/s ｜ a=<b>${fmt(c.a,2)}</b> m/s²</span>`;});
+  if(state.mode==='pursuit')h+=`<span class="pill">两车间距 Δx = <b>${fmt(cars[0].x-cars[1].x)}</b> m</span>`;
+  $('stats').innerHTML=h;
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now(),tsDrag=false;
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(state.playing){state.t+=dt*state.speed;
+    if(state.t>=state.duration){state.t=state.duration;state.playing=false;updPlay();}}
+  renderRoad();PANELS.forEach(renderPanel);renderStats();
+  $('tval').textContent=fmt(state.t,2)+' s';
+  if(!tsDrag)$('tslider').value=state.t;
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 交互绑定 ---------- */
+function bind(id,obj,key,unit,dec=1){const el=$(id),out=$(id+'_v');
+  const show=()=>out.textContent=(+obj[key]).toFixed(dec)+unit;
+  el.addEventListener('input',()=>{obj[key]=+el.value;show();onParams();});
+  el.value=obj[key];show();}
+bind('b_v0',par.basic,'v0',' m/s');   bind('b_a',par.basic,'a',' m/s²');
+bind('k_v0',par.brake,'v0',' m/s');   bind('k_a',par.brake,'a',' m/s²');
+bind('p_vA',par.pursuit,'vA',' m/s'); bind('p_aA',par.pursuit,'aA',' m/s²');
+bind('p_vB',par.pursuit,'vB',' m/s'); bind('p_aB',par.pursuit,'aB',' m/s²');
+bind('p_gap',par.pursuit,'gap',' m',0);
+$('ck_tan').onchange=e=>state.showTan=e.target.checked;
+$('ck_area').onchange=e=>state.showArea=e.target.checked;
+$('spd').onchange=e=>state.speed=+e.target.value;
+$('dur').addEventListener('input',e=>{state.duration=+e.target.value;par[state.mode].dur=state.duration;
+  $('dur_v').textContent=state.duration+' s';$('tslider').max=state.duration;
+  state.t=Math.min(state.t,state.duration);onParams();});
+$('tslider').addEventListener('pointerdown',()=>tsDrag=true);
+$('tslider').addEventListener('pointerup',()=>tsDrag=false);
+$('tslider').addEventListener('input',e=>state.t=+e.target.value);
+function updPlay(){$('play').textContent=state.playing?'⏸ 暂停':'▶ 播放';}
+$('play').onclick=()=>{if(!state.playing&&state.t>=state.duration)state.t=0;state.playing=!state.playing;updPlay();};
+$('reset').onclick=()=>{state.t=0;state.playing=false;updPlay();};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  state.mode=b.dataset.mode;state.t=0;state.playing=false;updPlay();
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.ctl').forEach(g=>g.classList.toggle('show',g.dataset.mode===state.mode));
+  state.duration=par[state.mode].dur;
+  $('dur').value=state.duration;$('dur_v').textContent=state.duration+' s';$('tslider').max=state.duration;
+  onParams();});
+window.addEventListener('keydown',e=>{if(e.code==='Space'&&e.target===document.body){e.preventDefault();$('play').click();}});
+
+/* ---------- 启动 ---------- */
+$('dur').value=state.duration;$('dur_v').textContent=state.duration+' s';$('tslider').max=state.duration;
+fitAll();onParams();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

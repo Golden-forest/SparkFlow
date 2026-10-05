@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>人造卫星轨道与变轨演示 · 开普勒定律 · 失重的本质</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      /* Dark-stage theme (astronomy subject): same --sim-* token names, space values. */
+      --sim-bg: #050914;
+      --sim-surface: #0c1424;
+      --sim-surface-soft: #101b30;
+      --sim-text: #e9effc;
+      --sim-muted: #8d9ab9;
+      --sim-border: #22304b;
+      --sim-grid: #1a2439;
+      --sim-accent: #38c8e8;
+      --sim-accent-deep: #1794b4;
+      --sim-accent-soft: rgba(56, 200, 232, 0.14);
+      --sim-positive: #4ade80;
+      --sim-warning: #fbbf24;
+      --sim-danger: #f87171;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic extensions (extend, never replace, the base set) */
+      --sim-burn: #ff9a3d;
+      --sim-target: #93a5f9;
+      --sim-earth-day: #2f7fe0;
+      --sim-earth-night: #123a75;
+      --sim-land: rgba(74, 222, 128, 0.30);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 14% 0%, rgba(56, 200, 232, 0.09), transparent 30%),
+        radial-gradient(circle at 90% 6%, rgba(147, 165, 249, 0.07), transparent 28%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(56, 200, 232, 0.45); outline-offset: 2px; }
+    .app {
+      width: min(1560px, 100%); height: 100vh; margin: 0 auto;
+      padding: 14px 18px 12px; display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden;
+    }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.45rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; font-weight: 780; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+    .status {
+      border: 1px solid rgba(56, 200, 232, 0.30); border-radius: 999px; padding: 9px 15px;
+      background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 760; white-space: nowrap; font-size: 0.92rem;
+    }
+    .status.warn { border-color: rgba(251, 191, 36, 0.42); background: rgba(251, 191, 36, 0.12); color: var(--sim-warning); }
+    .status.burn { border-color: rgba(255, 154, 61, 0.45); background: rgba(255, 154, 61, 0.13); color: var(--sim-burn); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.66fr); gap: 12px; }
+    .panel {
+      min-width: 0; background: rgba(12, 20, 36, 0.92); border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow);
+    }
+    .scene-panel { min-height: 420px; padding: 12px 14px 8px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; position: relative; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; font-weight: 760; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    .stage-wrap { position: relative; min-height: 0; }
+    #scene { width: 100%; height: 100%; min-height: 330px; display: block; border-radius: 18px; background: radial-gradient(circle at 50% 44%, #0b1326 0%, #060a17 62%, #03060e 100%); cursor: crosshair; touch-action: none; }
+    #scene.dragging { cursor: grabbing; }
+    #scene.no-drag { cursor: default; }
+    .stage-overlay { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 10px 12px; }
+    .phase-badge {
+      align-self: flex-start; border: 1px solid rgba(56, 200, 232, 0.35); background: rgba(5, 9, 20, 0.72);
+      color: var(--sim-accent); border-radius: 999px; padding: 6px 13px; font-size: 0.85rem; font-weight: 740;
+      backdrop-filter: blur(4px);
+    }
+    .phase-badge.burn { border-color: rgba(255, 154, 61, 0.55); color: var(--sim-burn); }
+    .drag-hint { align-self: center; color: var(--sim-muted); font-size: 0.78rem; background: rgba(5, 9, 20, 0.6); padding: 4px 12px; border-radius: 999px; }
+    .stage-note { color: var(--sim-muted); font-size: 0.72rem; padding: 6px 4px 2px; text-align: right; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 10px; }
+    .readouts { padding: 12px 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(56, 200, 232, 0.14); border-radius: 14px; background: linear-gradient(150deg, #101b30, #0c1424); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.22rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; font-weight: 760; }
+    .metric .sub { display: block; margin-top: 2px; color: var(--sim-muted); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+    .charts-panel { padding: 10px 12px 8px; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .chart-stack { min-height: 0; display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .chart-box { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); border: 1px solid var(--sim-grid); border-radius: 12px; padding: 6px 6px 2px; background: rgba(8, 13, 26, 0.6); }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px; }
+    .chart-title h3 { margin: 0; font-size: 0.82rem; font-weight: 740; }
+    .chart-title span { font-size: 0.66rem; color: var(--sim-muted); text-align: right; }
+    .chart-box svg { width: 100%; height: 100%; min-height: 0; display: block; }
+    .insight-card { padding: 11px 14px; }
+    .insight {
+      margin: 0; padding: 10px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0;
+      background: rgba(251, 191, 36, 0.09); color: #f6d788; font-weight: 640; line-height: 1.5; font-size: 0.86rem;
+    }
+    .formula-note { margin: 8px 2px 0; color: var(--sim-muted); font-size: 0.72rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
+    .weightless { padding: 11px 14px 12px; }
+    .weightless h2 { margin: 0 0 6px; font-size: 0.95rem; font-weight: 760; }
+    .weightless h2 em { font-style: normal; color: var(--sim-accent); }
+    #cabView { width: 100%; height: auto; display: block; border: 1px solid var(--sim-grid); border-radius: 12px; background: rgba(8, 13, 26, 0.6); margin-bottom: 7px; }
+    .w-line { margin: 0 0 6px; color: #f6d788; font-size: 0.8rem; font-weight: 660; font-variant-numeric: tabular-nums; }
+    .w-text { margin: 0; color: var(--sim-muted); font-size: 0.78rem; line-height: 1.55; }
+    .w-text strong { color: var(--sim-text); }
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto auto minmax(200px, 1.1fr) minmax(170px, 0.9fr) minmax(150px, 0.75fr); gap: 14px; align-items: center; border-radius: 17px; }
+    .seg { display: flex; gap: 0; border: 1px solid var(--sim-border); border-radius: 12px; overflow: hidden; }
+    .seg button { border: none; border-radius: 0; background: transparent; padding: 9px 14px; color: var(--sim-muted); font-weight: 720; }
+    .seg button + button { border-left: 1px solid var(--sim-border); }
+    .seg button[aria-pressed="true"] { background: var(--sim-accent-soft); color: var(--sim-accent); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 730; transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease; }
+    button:hover { border-color: #34456b; background: #15223c; }
+    button:active { transform: scale(0.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #04121a; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(23, 148, 180, 0.25); }
+    button.primary:hover { filter: brightness(1.06); }
+    button.burn-btn { border-color: rgba(255, 154, 61, 0.6); color: var(--sim-burn); background: rgba(255, 154, 61, 0.10); }
+    button.burn-btn:hover { background: rgba(255, 154, 61, 0.18); }
+    button:disabled { opacity: 0.42; cursor: not-allowed; transform: none; }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(56, 200, 232, 0.35); }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 710; }
+    .control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    input[type="range"]:disabled { opacity: 0.4; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis-line { stroke: #44536f; stroke-width: 1.2; }
+    .axis-text { fill: var(--sim-muted); font-size: 9.5px; }
+    .curve { fill: none; stroke: var(--sim-accent); stroke-width: 2.4; stroke-linecap: round; }
+    .curve-faint { fill: none; stroke: rgba(56, 200, 232, 0.34); stroke-width: 1.8; stroke-dasharray: 4 4; }
+    .curve-plan { fill: none; stroke: rgba(56, 200, 232, 0.35); stroke-width: 1.8; }
+    .curve-live { fill: none; stroke: var(--sim-accent); stroke-width: 2.6; stroke-linejoin: round; }
+    .chart-dot { fill: var(--sim-warning); stroke: #050914; stroke-width: 1.5; }
+    .chart-anchor { fill: rgba(251, 191, 36, 0.75); }
+    .chart-anchor-text { fill: #c9d2e8; font-size: 9px; }
+    .guide-dash { stroke: rgba(251, 191, 36, 0.55); stroke-width: 1.2; stroke-dasharray: 4 4; }
+    .ref-line { stroke: rgba(141, 154, 185, 0.55); stroke-width: 1.1; stroke-dasharray: 6 5; }
+    .ref-text { fill: var(--sim-muted); font-size: 9px; }
+    .burn-mark { stroke: var(--sim-burn); stroke-width: 1.4; stroke-dasharray: 3 3; }
+    .burn-mark-text { fill: var(--sim-burn); font-size: 9.5px; font-weight: 700; }
+    #orbitCurrent { fill: none; stroke: var(--sim-accent); stroke-width: 2; opacity: 0.9; }
+    #orbitTarget { fill: none; stroke: var(--sim-target); stroke-width: 1.6; stroke-dasharray: 7 7; opacity: 0.75; }
+    #orbitStart { fill: none; stroke: rgba(56, 200, 232, 0.35); stroke-width: 1.4; stroke-dasharray: 3 5; }
+    #transferEllipse { fill: none; stroke: var(--sim-burn); stroke-width: 1.9; stroke-dasharray: 8 6; opacity: 0.85; }
+    #trail { fill: none; stroke: rgba(74, 222, 128, 0.5); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    #radiusGuide { stroke: rgba(233, 239, 252, 0.4); stroke-width: 1; stroke-dasharray: 4 5; }
+    #radiusLabel { fill: #c9d2e8; font-size: 12px; font-weight: 640; paint-order: stroke; stroke: #050914; stroke-width: 3px; }
+    .ap-label { fill: #ffb478; font-size: 11px; font-weight: 700; paint-order: stroke; stroke: #050914; stroke-width: 3px; }
+    .ap-tick { stroke: var(--sim-burn); stroke-width: 1.2; stroke-dasharray: 2 3; }
+    #vArrowLine { stroke: var(--sim-positive); stroke-width: 3.4; stroke-linecap: round; }
+    #gArrowLine { stroke: var(--sim-warning); stroke-width: 3; stroke-linecap: round; }
+    .vec-text { font-size: 12.5px; font-weight: 760; paint-order: stroke; stroke: #050914; stroke-width: 3px; }
+    #vArrowText { fill: var(--sim-positive); }
+    #gArrowText { fill: var(--sim-warning); }
+    #burnRing { fill: none; stroke: var(--sim-burn); stroke-width: 3; opacity: 0; }
+    #burnRing.flash { animation: burnFlash 1.3s ease-out 1 forwards; }
+    #burnLabel { fill: var(--sim-burn); font-size: 14px; font-weight: 780; opacity: 0; paint-order: stroke; stroke: #050914; stroke-width: 4px; }
+    #burnLabel.flash { animation: burnText 1.6s ease-out 1 forwards; }
+    @keyframes burnFlash { 0% { opacity: 0.95; r: 10; } 100% { opacity: 0; r: 64; } }
+    @keyframes burnText { 0% { opacity: 0; } 12% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+    body[data-paused="true"] #burnRing.flash, body[data-paused="true"] #burnLabel.flash { animation-play-state: paused; }
+    #satGlow { fill: rgba(74, 222, 128, 0.16); }
+    .sat-body { fill: #d7e3f8; }
+    .sat-panel { fill: #3a6fd8; stroke: #9db9f0; stroke-width: 0.8; }
+    #plume { fill: var(--sim-burn); opacity: 0; }
+    #plume.flash { animation: plumePulse 1.2s ease-out 1 forwards; }
+    @keyframes plumePulse { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+    .cab-frame { fill: rgba(8, 13, 26, 0.5); stroke: #44536f; stroke-width: 1.5; }
+    .cab-earth { fill: rgba(47, 127, 224, 0.5); }
+    .cab-astro { fill: #e9effc; }
+    .cab-vec { stroke: var(--sim-warning); stroke-width: 2.4; stroke-linecap: round; }
+    .cab-text { fill: #c9d2e8; font-size: 10px; }
+    .cab-caption { fill: var(--sim-muted); font-size: 9.5px; }
+    @media (max-width: 960px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      .stage-wrap { height: auto; aspect-ratio: 760 / 720; }
+      .chart-stack { grid-template-rows: none; grid-auto-rows: minmax(150px, auto); }
+    }
+    @media (max-height: 800px) and (min-width: 961px) {
+      .app { height: auto; overflow: visible; }
+      .stage-wrap { min-height: 430px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body data-paused="true">
+  <!-- AppShell shell: five data-zones preserved (header/stage/evidence/insight/controls). -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>人造卫星轨道与变轨演示</h1>
+        <p>半径越大，速度越小、周期越大 —— 验证开普勒定律 · 演示霍曼变轨与失重的本质</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">轨道场景（真实径向比例）</h2><span>地球半径 R⊕ = 6371 km · 卫星可拖拽</span></div>
+        <div class="stage-wrap">
+          <svg id="scene" viewBox="0 0 760 720" role="img" aria-labelledby="scene-title scene-desc">
+            <desc id="scene-desc">地球位于中心，卫星沿圆轨道或转移椭圆运行，带速度与引力矢量箭头。</desc>
+            <defs>
+              <radialGradient id="earthBody" cx="38%" cy="34%" r="75%">
+                <stop offset="0%" stop-color="#4a9af0"></stop>
+                <stop offset="45%" stop-color="#2f7fe0"></stop>
+                <stop offset="80%" stop-color="#1a4fa0"></stop>
+                <stop offset="100%" stop-color="#0d2a5c"></stop>
+              </radialGradient>
+              <radialGradient id="atmo" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="rgba(120,190,255,0)"></stop>
+                <stop offset="82%" stop-color="rgba(120,190,255,0)"></stop>
+                <stop offset="93%" stop-color="rgba(120,190,255,0.34)"></stop>
+                <stop offset="100%" stop-color="rgba(120,190,255,0)"></stop>
+              </radialGradient>
+              <clipPath id="earthClip"><circle cx="380" cy="360" r="52"></circle></clipPath>
+              <marker id="headV" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.4" markerHeight="4.4" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"></path>
+              </marker>
+              <marker id="headG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.2" markerHeight="4.2" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"></path>
+              </marker>
+            </defs>
+            <g id="stars"></g>
+            <circle id="orbitStart" cx="380" cy="360" r="0" visibility="hidden"></circle>
+            <circle id="orbitTarget" cx="380" cy="360" r="0" visibility="hidden"></circle>
+            <ellipse id="transferEllipse" cx="380" cy="360" rx="0" ry="0" visibility="hidden"></ellipse>
+            <circle id="orbitCurrent" cx="380" cy="360" r="0"></circle>
+            <g id="apogeeGroup" visibility="hidden">
+              <line class="ap-tick" x1="0" y1="0" x2="0" y2="0" id="apTick"></line>
+              <text class="ap-label" id="apLabel" text-anchor="middle">远地点 r₂</text>
+              <line class="ap-tick" x1="0" y1="0" x2="0" y2="0" id="peTick"></line>
+              <text class="ap-label" id="peLabel" text-anchor="middle">近地点 r₁</text>
+            </g>
+            <polyline id="trail" points=""></polyline>
+            <line id="radiusGuide" x1="380" y1="360" x2="380" y2="360"></line>
+            <text id="radiusLabel" x="0" y="0">r</text>
+            <g id="earthGroup">
+              <circle cx="380" cy="360" r="62" fill="url(#atmo)"></circle>
+              <circle cx="380" cy="360" r="52" fill="url(#earthBody)"></circle>
+              <g clip-path="url(#earthClip)" id="landGroup">
+                <ellipse cx="358" cy="342" rx="17" ry="11" fill="var(--sim-land)" transform="rotate(-24 358 342)"></ellipse>
+                <ellipse cx="398" cy="352" rx="13" ry="8" fill="var(--sim-land)" transform="rotate(18 398 352)"></ellipse>
+                <ellipse cx="374" cy="382" rx="15" ry="9" fill="var(--sim-land)" transform="rotate(-8 374 382)"></ellipse>
+                <ellipse cx="408" cy="378" rx="9" ry="6" fill="var(--sim-land)" transform="rotate(30 408 378)"></ellipse>
+                <ellipse cx="380" cy="316" rx="20" ry="6" fill="rgba(233,245,255,0.5)"></ellipse>
+                <ellipse cx="380" cy="404" rx="18" ry="5.5" fill="rgba(233,245,255,0.45)"></ellipse>
+              </g>
+            </g>
+            <g id="gArrowGroup">
+              <line id="gArrowLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#headG)"></line>
+              <text id="gArrowText" class="vec-text" x="0" y="0">g</text>
+            </g>
+            <g id="vArrowGroup">
+              <line id="vArrowLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#headV)"></line>
+              <text id="vArrowText" class="vec-text" x="0" y="0">v</text>
+            </g>
+            <circle id="burnRing" cx="0" cy="0" r="10"></circle>
+            <g id="satellite">
+              <circle id="satGlow" cx="0" cy="0" r="15"></circle>
+              <g id="satBody">
+                <path id="plume" d="M -9 0 L -24 -4 L -21 0 L -24 4 Z"></path>
+                <line x1="0" y1="-6" x2="0" y2="-13" stroke="#9aa7ba" stroke-width="1.4"></line>
+                <line x1="0" y1="6" x2="0" y2="13" stroke="#9aa7ba" stroke-width="1.4"></line>
+                <rect class="sat-panel" x="-4" y="-27" width="8" height="14" rx="1.5"></rect>
+                <rect class="sat-panel" x="-4" y="13" width="8" height="14" rx="1.5"></rect>
+                <rect class="sat-body" x="-9" y="-6" width="18" height="12" rx="3"></rect>
+                <line x1="9" y1="0" x2="16" y2="0" stroke="#d7e3f8" stroke-width="1.6"></line>
+                <circle cx="17.5" cy="0" r="1.8" fill="#4ade80"></circle>
+              </g>
+            </g>
+            <text id="burnLabel" x="0" y="0" text-anchor="middle"></text>
+          </svg>
+          <div class="stage-overlay">
+            <div id="phaseBadge" class="phase-badge">圆轨道</div>
+            <div id="dragHint" class="drag-hint">↕ 在场景中拖动可改变轨道半径</div>
+          </div>
+        </div>
+        <p class="stage-note">教学视图：时间按倍率压缩 · 地球与轨道半径为真实比例 · 矢量箭头长度为示意（g⃗ 经压缩），数值以读数为准</p>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>轨道半径 r</small><strong id="mR">—</strong><span class="sub" id="mH">—</span></div>
+            <div class="metric"><small>环绕速度 v</small><strong id="mV">—</strong><span class="sub" id="mVsub">v = √(μ/r)</span></div>
+            <div class="metric"><small id="mTlabel">周期 T</small><strong id="mT">—</strong><span class="sub" id="mTsub">T²/r³ = 恒量</span></div>
+            <div class="metric"><small>轨道重力 g</small><strong id="mG">—</strong><span class="sub" id="mGsub">引力并未消失</span></div>
+          </div>
+        </section>
+
+        <section class="panel charts-panel" aria-label="图表证据">
+          <div class="panel-head" style="margin-bottom:6px"><h2>定量证据</h2><span id="chartHint">v–r 关系 · 开普勒第三定律验证</span></div>
+          <div id="chartCircularWrap" class="chart-stack">
+            <div class="chart-box">
+              <div class="chart-title"><h3>速度 v – 半径 r</h3><span>v=√(μ/r)：越高越慢</span></div>
+              <svg id="chartVR" viewBox="0 0 300 168" role="img" aria-label="速度随半径增大而减小的曲线图">
+                <g id="vrGrid"></g><polyline id="vrCurve" class="curve" points=""></polyline>
+                <g id="vrAnchors"></g>
+                <line id="vrGuideX" class="guide-dash" x1="0" y1="0" x2="0" y2="0"></line>
+                <line id="vrGuideY" class="guide-dash" x1="0" y1="0" x2="0" y2="0"></line>
+                <circle id="vrDot" class="chart-dot" r="4.5" cx="0" cy="0"></circle>
+              </svg>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title"><h3>开普勒第三定律验证</h3><span>T²–r³ 过原点直线</span></div>
+              <svg id="chartKepler" viewBox="0 0 300 168" role="img" aria-label="T平方与r立方关系的验证图，数据点落在过原点的直线上">
+                <g id="kepGrid"></g><polyline id="kepLine" class="curve" points=""></polyline>
+                <g id="kepDots"></g>
+                <circle id="kepDot" class="chart-dot" r="4.5" cx="0" cy="0"></circle>
+              </svg>
+            </div>
+          </div>
+          <div id="chartTransferWrap" class="chart-stack" hidden>
+            <div class="chart-box" style="grid-template-rows:auto minmax(0,1fr)">
+              <div class="chart-title"><h3>变轨速度–时间</h3><span>两次点火都加速，稳定后反而更慢</span></div>
+              <svg id="chartVT" viewBox="0 0 300 196" role="img" aria-label="变轨过程速度随时间变化的曲线，含两次点火增速">
+                <g id="vtGrid"></g>
+                <polyline id="vtPlan" class="curve-plan" points=""></polyline>
+                <line id="vtRefV1" class="ref-line" x1="0" y1="0" x2="0" y2="0"></line>
+                <text id="vtRefV1Text" class="ref-text" x="0" y="0" text-anchor="end"></text>
+                <line id="vtRefV2" class="ref-line" x1="0" y1="0" x2="0" y2="0"></line>
+                <text id="vtRefV2Text" class="ref-text" x="0" y="0" text-anchor="end"></text>
+                <polyline id="vtLive" class="curve-live" points=""></polyline>
+                <line id="vtBurn1" class="burn-mark" x1="0" y1="0" x2="0" y2="0"></line>
+                <text id="vtBurn1Text" class="burn-mark-text" x="0" y="0" text-anchor="start">点火①</text>
+                <line id="vtBurn2" class="burn-mark" x1="0" y1="0" x2="0" y2="0"></line>
+                <text id="vtBurn2Text" class="burn-mark-text" x="0" y="0" text-anchor="end">点火②</text>
+                <circle id="vtDot" class="chart-dot" r="4.5" cx="0" cy="0"></circle>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel insight-card" data-zone="insight" aria-label="当前解读">
+          <p id="insight" class="insight">拖动高度滑块或直接拖拽卫星：半径增大，速度立即变小、周期变长。</p>
+          <p class="formula-note" id="formulaNote">v=√(μ/r) · T=2π√(r³/μ) ⇒ T²/r³=4π²/μ=9.905×10⁻¹⁴ s²/m³（恒量，与卫星质量无关）</p>
+        </section>
+
+        <section class="panel weightless" aria-label="失重的本质">
+          <h2>失重的本质：<em>自由落体</em>，不是没有引力</h2>
+          <svg id="cabView" viewBox="0 0 280 92" role="img" aria-label="飞船舱内：宇航员与飞船以相同加速度落向地球">
+            <path class="cab-earth" d="M 0 92 A 150 150 0 0 1 60 40 L 60 92 Z"></path>
+            <rect class="cab-frame" x="70" y="10" width="180" height="66" rx="14"></rect>
+            <g id="cabCabinArrow">
+              <line class="cab-vec" x1="230" y1="24" x2="210" y2="38" marker-end="url(#headG)"></line>
+            </g>
+            <g id="cabAstronaut">
+              <circle cx="150" cy="38" r="6.5" class="cab-astro"></circle>
+              <rect x="143.5" y="46" width="13" height="17" rx="6" class="cab-astro"></rect>
+              <line class="cab-vec" x1="160" y1="50" x2="142" y2="62" marker-end="url(#headG)"></line>
+            </g>
+            <text class="cab-text" x="196" y="18">飞船 a=g</text>
+            <text class="cab-text" x="166" y="72">宇航员 a=g</text>
+            <text class="cab-caption" x="6" y="86">← 地球方向</text>
+          </svg>
+          <p class="w-line" id="wLive">当前轨道 g = — m/s²</p>
+          <p class="w-text">飞船与宇航员以<strong>完全相同的加速度</strong>一起向地球"下落"（自由落体），舱内地板不需要提供支撑力，于是表现为<strong>失重</strong>。卫星不掉下来，是因为横向速度让它一直在"下落"，却总是错过地球。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="seg" role="group" aria-label="模式切换">
+        <button id="modeOrbitBtn" type="button" aria-pressed="true">圆轨道规律</button>
+        <button id="modeTransferBtn" type="button" aria-pressed="false">霍曼变轨</button>
+      </div>
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+        <button id="burnBtn" class="burn-btn" type="button" hidden>点火</button>
+      </div>
+      <div class="control">
+        <label for="heightInput"><span id="heightLabelText">轨道高度 h</span><output id="heightOutput">400 km</output></label>
+        <input id="heightInput" type="range" min="0" max="1000" step="1" value="133" aria-describedby="heightUnit">
+        <span id="heightUnit" hidden>高度以对数刻度映射到滑块</span>
+      </div>
+      <div class="control">
+        <label for="timeInput">时间倍率<output id="timeOutput">300×</output></label>
+        <input id="timeInput" type="range" min="50" max="3000" step="50" value="300">
+      </div>
+      <div class="control" id="compareBox" hidden>
+        <label>变轨对比<output id="compareOutput">—</output></label>
+      </div>
+    </section>
+  </div>
+  <script>
+  (() => {
+    "use strict";
+
+    /* ================= Physics kernel (pure, DOM-free, exact closed forms) ================= */
+    const MU = 3.986004418e14;              // GM_Earth [m^3/s^2]
+    const R_EARTH = 6.371e6;                // Earth mean radius [m]
+    const G0 = MU / (R_EARTH * R_EARTH);    // surface gravity from the same constants (~9.82 m/s^2)
+    const TWO_PI = 2 * Math.PI;
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    const vCirc = (r) => Math.sqrt(MU / r);                 // circular speed [m/s]
+    const period = (r) => TWO_PI * Math.sqrt(r * r * r / MU); // circular period [s]
+    const gAt = (r) => MU / (r * r);                        // gravity at r [m/s^2]
+
+    // Hohmann transfer r1 -> r2 (requires r2 > r1). Returns null on illegal input.
+    function hohmann(r1, r2) {
+      if (!Number.isFinite(r1) || !Number.isFinite(r2) || !(r1 > 0) || !(r2 > r1)) return null;
+      const a = (r1 + r2) / 2;
+      const e = (r2 - r1) / (r2 + r1);
+      const vp = Math.sqrt(MU * (2 / r1 - 1 / a));  // perigee speed on the transfer ellipse
+      const va = Math.sqrt(MU * (2 / r2 - 1 / a));  // apogee speed on the transfer ellipse
+      const v1 = vCirc(r1), v2 = vCirc(r2);
+      return {
+        r1, r2, a, e, v1, v2, vp, va,
+        dv1: vp - v1, dv2: v2 - va,
+        tTransfer: Math.PI * Math.sqrt(a * a * a / MU), // half period of the ellipse
+        thetaP: 0
+      };
+    }
+
+    // Kepler equation M = E - e*sinE solved by Newton iteration (M in [0, PI]).
+    function solveKepler(M, e) {
+      let E = M + e * Math.sin(M);
+      for (let i = 0; i < 40; i += 1) {
+        const d = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+        E -= d;
+        if (Math.abs(d) < 1e-13) break;
+      }
+      return E;
+    }
+
+    // Exact state on the transfer ellipse at coast time t (perigee at angle thetaP).
+    function coastState(tr, t) {
+      const M = Math.PI * clamp(t / tr.tTransfer, 0, 1);
+      const E = solveKepler(M, tr.e);
+      const nu = 2 * Math.atan2(Math.sqrt(1 + tr.e) * Math.sin(E / 2), Math.sqrt(1 - tr.e) * Math.cos(E / 2));
+      const r = tr.a * (1 - tr.e * Math.cos(E));
+      const v = Math.sqrt(MU * (2 / r - 1 / tr.a));           // vis-viva
+      const hAng = Math.sqrt(MU * tr.a * (1 - tr.e * tr.e));  // specific angular momentum
+      const vr = (MU / hAng) * tr.e * Math.sin(nu);
+      const vt = (MU / hAng) * (1 + tr.e * Math.cos(nu));
+      const theta = tr.thetaP + nu;
+      return { r, theta, v, vr, vt, vAngle: theta + Math.atan2(vr, vt) };
+    }
+
+    /* ================= Formatting ================= */
+    const fmtInt = (n) => Math.round(n).toLocaleString("zh-CN");
+    const fmtV = (v) => (v / 1000).toFixed(2) + " km/s";
+    const fmtT = (T) => { const m = T / 60; return m < 120 ? m.toFixed(1) + " 分钟" : (T / 3600).toFixed(2) + " 小时"; };
+    const fmtHours = (T) => (T / 3600).toFixed(1) + " h";
+
+    /* ================= Parameter schema ================= */
+    const parameterSchema = [
+      { key: "height", label: "轨道高度", type: "slider", min: 200, max: 36000, default: 400, unit: "km" },
+      { key: "timeScale", label: "时间倍率", type: "slider", min: 50, max: 3000, step: 50, default: 300, unit: "×" }
+    ];
+    const CIRC_H_MIN = 200, CIRC_H_MAX = 36000;      // circular altitude range [km]
+    const TRANS_H_MIN = 2000, TRANS_H_MAX = 36000;   // transfer target altitude range [km]
+    const H1_FIXED = 400;                            // transfer start altitude [km], ISS-like
+    const START_THETA = -1.0;                        // start angle [rad]
+
+    // logarithmic slider mapping for altitude
+    const hToSlider = (h, hMin, hMax) => Math.round(1000 * Math.log(h / hMin) / Math.log(hMax / hMin));
+    const sliderToH = (s, hMin, hMax) => hMin * Math.pow(hMax / hMin, s / 1000);
+
+    /* ================= Authoritative state (single source of truth) ================= */
+    const state = {
+      running: false,
+      mode: "circular",        // circular | transfer
+      phase: "orbit",          // circular: orbit | transfer: ready -> coast -> apogee -> settled
+      rCirc: R_EARTH + 400e3,  // current circular orbit radius [m]
+      circAltKm: 400,
+      targetAltKm: 35786,
+      th0: START_THETA,        // angle at segment start [rad]
+      simT: 0,                 // simulated time inside current segment [s]
+      timeScale: 300,
+      tr: null,                // active transfer object (hohmann + thetaP)
+      trail: [],               // [{r, theta}] history
+      lastTrailT: 0,
+      burnFlash: null,         // {id, label} visual-only event marker
+      vtCurve: [],             // planned v(t) samples for the transfer chart
+      trDone: false            // transfer chart traversal completed
+    };
+    let flashSeq = 0;
+
+    const hasDOM = typeof document !== "undefined";
+    const elements = hasDOM ? {
+      status: document.querySelector("#status"),
+      phaseBadge: document.querySelector("#phaseBadge"),
+      dragHint: document.querySelector("#dragHint"),
+      scene: document.querySelector("#scene"),
+      stars: document.querySelector("#stars"),
+      orbitCurrent: document.querySelector("#orbitCurrent"),
+      orbitTarget: document.querySelector("#orbitTarget"),
+      orbitStart: document.querySelector("#orbitStart"),
+      transferEllipse: document.querySelector("#transferEllipse"),
+      apogeeGroup: document.querySelector("#apogeeGroup"),
+      apTick: document.querySelector("#apTick"), apLabel: document.querySelector("#apLabel"),
+      peTick: document.querySelector("#peTick"), peLabel: document.querySelector("#peLabel"),
+      trail: document.querySelector("#trail"),
+      radiusGuide: document.querySelector("#radiusGuide"), radiusLabel: document.querySelector("#radiusLabel"),
+      gArrowLine: document.querySelector("#gArrowLine"), gArrowText: document.querySelector("#gArrowText"),
+      vArrowLine: document.querySelector("#vArrowLine"), vArrowText: document.querySelector("#vArrowText"),
+      satellite: document.querySelector("#satellite"), plume: document.querySelector("#plume"),
+      burnRing: document.querySelector("#burnRing"), burnLabel: document.querySelector("#burnLabel"),
+      mR: document.querySelector("#mR"), mH: document.querySelector("#mH"),
+      mV: document.querySelector("#mV"), mVsub: document.querySelector("#mVsub"),
+      mT: document.querySelector("#mT"), mTsub: document.querySelector("#mTsub"), mTlabel: document.querySelector("#mTlabel"),
+      mG: document.querySelector("#mG"), mGsub: document.querySelector("#mGsub"),
+      vrGrid: document.querySelector("#vrGrid"), vrCurve: document.querySelector("#vrCurve"), vrAnchors: document.querySelector("#vrAnchors"),
+      vrDot: document.querySelector("#vrDot"), vrGuideX: document.querySelector("#vrGuideX"), vrGuideY: document.querySelector("#vrGuideY"),
+      kepGrid: document.querySelector("#kepGrid"), kepLine: document.querySelector("#kepLine"), kepDots: document.querySelector("#kepDots"),
+      kepDot: document.querySelector("#kepDot"),
+      vtGrid: document.querySelector("#vtGrid"), vtPlan: document.querySelector("#vtPlan"), vtLive: document.querySelector("#vtLive"),
+      vtRefV1: document.querySelector("#vtRefV1"), vtRefV1Text: document.querySelector("#vtRefV1Text"),
+      vtRefV2: document.querySelector("#vtRefV2"), vtRefV2Text: document.querySelector("#vtRefV2Text"),
+      vtBurn1: document.querySelector("#vtBurn1"), vtBurn1Text: document.querySelector("#vtBurn1Text"),
+      vtBurn2: document.querySelector("#vtBurn2"), vtBurn2Text: document.querySelector("#vtBurn2Text"),
+      vtDot: document.querySelector("#vtDot"),
+      chartCircularWrap: document.querySelector("#chartCircularWrap"),
+      chartTransferWrap: document.querySelector("#chartTransferWrap"),
+      insight: document.querySelector("#insight"),
+      wLive: document.querySelector("#wLive"), cabAstronaut: document.querySelector("#cabAstronaut"),
+      modeOrbitBtn: document.querySelector("#modeOrbitBtn"), modeTransferBtn: document.querySelector("#modeTransferBtn"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"), burnBtn: document.querySelector("#burnBtn"),
+      heightInput: document.querySelector("#heightInput"), heightOutput: document.querySelector("#heightOutput"),
+      heightLabelText: document.querySelector("#heightLabelText"),
+      timeInput: document.querySelector("#timeInput"), timeOutput: document.querySelector("#timeOutput"),
+      compareBox: document.querySelector("#compareBox"), compareOutput: document.querySelector("#compareOutput")
+    } : {};
+
+    /* ================= Scene geometry (viewBox 760x720, Earth center 380,360) ================= */
+    const CX = 380, CY = 360, RE_PX = 52;
+    const PX_PER_M = RE_PX / R_EARTH;
+    const rToPx = (r) => r * PX_PER_M;
+    const toX = (r, theta) => CX + rToPx(r) * Math.cos(theta);
+    const toY = (r, theta) => CY - rToPx(r) * Math.sin(theta); // svg y is down -> CCW on screen
+
+    /* ================= Derived state (the only place state is interpreted) ================= */
+    function orbitalState() {
+      if (state.mode === "circular") {
+        const r = state.rCirc, T = period(r);
+        const theta = state.th0 + TWO_PI * state.simT / T;
+        return { r, theta, v: vCirc(r), vAngle: theta + Math.PI / 2, T };
+      }
+      const tr = state.tr;
+      if (state.phase === "ready") {
+        const T = period(tr.r1);
+        const theta = state.th0 + TWO_PI * state.simT / T;
+        return { r: tr.r1, theta, v: vCirc(tr.r1), vAngle: theta + Math.PI / 2, T };
+      }
+      if (state.phase === "coast") {
+        const s = coastState(tr, state.simT);
+        return { r: s.r, theta: s.theta, v: s.v, vAngle: s.vAngle, T: 2 * tr.tTransfer };
+      }
+      if (state.phase === "apogee") {
+        const theta = tr.thetaP + Math.PI;
+        return { r: tr.r2, theta, v: tr.va, vAngle: theta + Math.PI / 2, T: 2 * tr.tTransfer };
+      }
+      const T = period(tr.r2);
+      const theta = state.th0 + TWO_PI * state.simT / T;
+      return { r: tr.r2, theta, v: vCirc(tr.r2), vAngle: theta + Math.PI / 2, T };
+    }
+
+    function pushTrail() {
+      const s = orbitalState();
+      const refT = state.mode === "transfer" ? (state.tr ? 2 * state.tr.tTransfer : 1) : period(s.r);
+      if (state.trail.length === 0 || state.simT - state.lastTrailT >= refT / 480) {
+        state.trail.push({ r: s.r, theta: s.theta });
+        if (state.trail.length > 480) state.trail.shift();
+        state.lastTrailT = state.simT;
+      }
+    }
+
+    /* ================= State transitions ================= */
+    function buildTransferCurve() {
+      state.vtCurve = [];
+      const tr = state.tr;
+      if (!tr) return;
+      const n = 150;
+      for (let i = 0; i <= n; i += 1) {
+        const E = Math.PI * i / n;
+        const M = E - tr.e * Math.sin(E);
+        const r = tr.a * (1 - tr.e * Math.cos(E));
+        const v = Math.sqrt(MU * (2 / r - 1 / tr.a));
+        state.vtCurve.push({ t: (M / Math.PI) * tr.tTransfer, v });
+      }
+      const tail = tr.tTransfer * 0.12;
+      state.vtCurve.push({ t: tr.tTransfer + tail * 0.4, v: tr.v2 });
+      state.vtCurve.push({ t: tr.tTransfer + tail, v: tr.v2 });
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      state.running = false;
+      state.simT = 0;
+      state.th0 = START_THETA;
+      state.trail = [];
+      state.lastTrailT = 0;
+      state.burnFlash = null;
+      state.trDone = false;
+      if (mode === "circular") {
+        state.phase = "orbit";
+        state.tr = null;
+        state.rCirc = R_EARTH + state.circAltKm * 1000;
+      } else {
+        state.phase = "ready";
+        state.tr = hohmann(R_EARTH + H1_FIXED * 1000, R_EARTH + state.targetAltKm * 1000);
+        buildTransferCurve();
+      }
+      if (hasDOM) { buildCharts(); syncControls(); }
+    }
+
+    function fireBurn1() {
+      if (state.mode !== "transfer" || state.phase !== "ready" || !state.tr) return false;
+      const s = orbitalState();
+      state.tr.thetaP = s.theta;                 // perigee anchored at the burn position
+      state.phase = "coast";
+      state.simT = 0; state.lastTrailT = 0; state.trail = [];
+      state.burnFlash = { id: (flashSeq += 1), label: `点火① Δv₁ +${(state.tr.dv1 / 1000).toFixed(2)} km/s` };
+      state.running = true;
+      return true;
+    }
+
+    function fireBurn2() {
+      if (state.mode !== "transfer" || state.phase !== "apogee" || !state.tr) return false;
+      state.phase = "settled";
+      state.th0 = state.tr.thetaP + Math.PI;
+      state.simT = 0; state.lastTrailT = 0; state.trail = [];
+      state.trDone = true;
+      state.burnFlash = { id: (flashSeq += 1), label: `点火② Δv₂ +${(state.tr.dv2 / 1000).toFixed(2)} km/s` };
+      state.running = true;
+      return true;
+    }
+
+    /* ================= Lifecycle ================= */
+    function init() {
+      if (!hasDOM) return;
+      buildStars();
+      bindControls();
+      setMode("circular");
+      render();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      if (state.mode === "transfer" && state.phase === "apogee") return; // burn 2 required first
+      state.running = true;
+      render();
+    }
+    function pause() { state.running = false; render(); }
+    function reset() {
+      setMode(state.mode);
+      render();
+    }
+
+    function setParameters(values) {
+      const v = values || {};
+      if (v.height !== undefined) {
+        const hMin = state.mode === "circular" ? CIRC_H_MIN : TRANS_H_MIN;
+        const h = clamp(finite(Number(v.height), NaN), hMin, CIRC_H_MAX);
+        if (Number.isFinite(h)) {
+          if (state.mode === "circular") {
+            const s = orbitalState();
+            state.circAltKm = h;
+            state.rCirc = R_EARTH + h * 1000;
+            state.th0 = s.theta; state.simT = 0; state.lastTrailT = 0; state.trail = [];
+          } else if (state.phase === "ready" || state.phase === "settled") {
+            state.targetAltKm = h;
+            const wasRunning = state.running;
+            setMode("transfer");
+            state.running = wasRunning;
+          }
+        }
+      }
+      if (v.timeScale !== undefined) {
+        state.timeScale = clamp(finite(Number(v.timeScale), 300), 50, 3000);
+      }
+      if (hasDOM) { buildCharts(); syncControls(); render(); }
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const dts = clamp(finite(dt, 0), 0, 0.05) * state.timeScale;
+      if (!(dts > 0)) return;
+      state.simT += dts;
+      if (state.mode === "transfer" && state.phase === "coast" && state.simT >= state.tr.tTransfer) {
+        state.simT = state.tr.tTransfer;   // exact apogee clamp (closed form, no numeric crossing)
+        state.phase = "apogee";
+        state.running = false;             // staged demo: auto-pause, wait for burn 2
+      }
+      pushTrail();
+    }
+
+    function getState() {
+      const s = orbitalState();
+      return {
+        running: state.running, mode: state.mode, phase: state.phase,
+        r: s.r, theta: s.theta % TWO_PI, v: s.v, simT: state.simT,
+        timeScale: state.timeScale, trailLength: state.trail.length
+      };
+    }
+    function getReadouts() {
+      const s = orbitalState();
+      const inCoast = state.mode === "transfer" && state.phase === "coast";
+      return { r: s.r, h: s.r - R_EARTH, v: s.v, T: inCoast ? 2 * state.tr.tTransfer : period(s.r), g: gAt(s.r) };
+    }
+
+    /* ================= Rendering (all visuals derive from orbitalState) ================= */
+    let lastFlashRendered = -1;
+
+    function render() {
+      if (!hasDOM) return;
+      document.body.setAttribute("data-paused", state.running ? "false" : "true");
+      const S = orbitalState();
+      const rd = getReadouts();
+      renderScene(S, rd);
+      renderMetrics(S, rd);
+      renderCharts(S, rd);
+      renderText(S, rd);
+      renderWeightless(rd);
+    }
+
+    function setVis(el, visible) { el.setAttribute("visibility", visible ? "visible" : "hidden"); }
+
+    function renderScene(S, rd) {
+      const sx = toX(S.r, S.theta), sy = toY(S.r, S.theta);
+      elements.satellite.setAttribute("transform",
+        `translate(${sx.toFixed(2)} ${sy.toFixed(2)}) rotate(${(-S.vAngle * 180 / Math.PI).toFixed(2)})`);
+
+      const isCirc = state.mode === "circular";
+      const tr = state.tr;
+      // orbit paths
+      elements.orbitCurrent.setAttribute("cx", CX); elements.orbitCurrent.setAttribute("cy", CY);
+      elements.orbitTarget.setAttribute("cx", CX); elements.orbitTarget.setAttribute("cy", CY);
+      elements.orbitStart.setAttribute("cx", CX); elements.orbitStart.setAttribute("cy", CY);
+      if (isCirc) {
+        elements.orbitCurrent.setAttribute("r", rToPx(state.rCirc).toFixed(2));
+        setVis(elements.orbitCurrent, true);
+        setVis(elements.orbitTarget, false); setVis(elements.orbitStart, false);
+        setVis(elements.transferEllipse, false); setVis(elements.apogeeGroup, false);
+      } else {
+        if (state.phase === "ready") {
+          elements.orbitCurrent.setAttribute("r", rToPx(tr.r1).toFixed(2));
+          setVis(elements.orbitCurrent, true);
+          elements.orbitTarget.setAttribute("r", rToPx(tr.r2).toFixed(2));
+          setVis(elements.orbitTarget, true);
+          setVis(elements.orbitStart, false);
+          setVis(elements.transferEllipse, false); setVis(elements.apogeeGroup, false);
+        } else {
+          setVis(elements.orbitCurrent, state.phase === "settled");
+          if (state.phase === "settled") elements.orbitCurrent.setAttribute("r", rToPx(tr.r2).toFixed(2));
+          setVis(elements.orbitTarget, state.phase !== "settled");
+          elements.orbitTarget.setAttribute("r", rToPx(tr.r2).toFixed(2));
+          elements.orbitStart.setAttribute("r", rToPx(tr.r1).toFixed(2));
+          setVis(elements.orbitStart, true);
+          const ePx = rToPx(tr.a * tr.e), degP = -tr.thetaP * 180 / Math.PI;
+          const ex = CX + ePx * Math.cos(tr.thetaP), ey = CY - ePx * Math.sin(tr.thetaP);
+          elements.transferEllipse.setAttribute("cx", ex.toFixed(2));
+          elements.transferEllipse.setAttribute("cy", ey.toFixed(2));
+          elements.transferEllipse.setAttribute("rx", rToPx(tr.a).toFixed(2));
+          elements.transferEllipse.setAttribute("ry", rToPx(tr.a * Math.sqrt(1 - tr.e * tr.e)).toFixed(2));
+          elements.transferEllipse.setAttribute("transform", `rotate(${degP.toFixed(2)} ${ex.toFixed(2)} ${ey.toFixed(2)})`);
+          setVis(elements.transferEllipse, true);
+          const showApsides = state.phase === "coast" || state.phase === "apogee";
+          setVis(elements.apogeeGroup, showApsides);
+          if (showApsides) {
+            const apX = toX(tr.r2, tr.thetaP + Math.PI), apY = toY(tr.r2, tr.thetaP + Math.PI);
+            const apU = { x: Math.cos(tr.thetaP + Math.PI), y: -Math.sin(tr.thetaP + Math.PI) };
+            elements.apTick.setAttribute("x1", (apX - apU.x * 9).toFixed(1)); elements.apTick.setAttribute("y1", (apY - apU.y * 9).toFixed(1));
+            elements.apTick.setAttribute("x2", (apX + apU.x * 9).toFixed(1)); elements.apTick.setAttribute("y2", (apY + apU.y * 9).toFixed(1));
+            elements.apLabel.setAttribute("x", (apX + apU.x * 22).toFixed(1)); elements.apLabel.setAttribute("y", (apY + apU.y * 22 + 4).toFixed(1));
+            const peX = toX(tr.r1, tr.thetaP), peY = toY(tr.r1, tr.thetaP);
+            const peU = { x: Math.cos(tr.thetaP), y: -Math.sin(tr.thetaP) };
+            elements.peTick.setAttribute("x1", (peX - peU.x * 9).toFixed(1)); elements.peTick.setAttribute("y1", (peY - peU.y * 9).toFixed(1));
+            elements.peTick.setAttribute("x2", (peX + peU.x * 9).toFixed(1)); elements.peTick.setAttribute("y2", (peY + peU.y * 9).toFixed(1));
+            elements.peLabel.setAttribute("x", (peX + peU.x * 22).toFixed(1)); elements.peLabel.setAttribute("y", (peY + peU.y * 22 + 4).toFixed(1));
+          }
+        }
+      }
+
+      // trail
+      const pts = state.trail.map((p) => `${toX(p.r, p.theta).toFixed(1)},${toY(p.r, p.theta).toFixed(1)}`).join(" ");
+      elements.trail.setAttribute("points", pts);
+
+      // radius guide + label
+      elements.radiusGuide.setAttribute("x1", CX); elements.radiusGuide.setAttribute("y1", CY);
+      elements.radiusGuide.setAttribute("x2", sx.toFixed(1)); elements.radiusGuide.setAttribute("y2", sy.toFixed(1));
+      const lx = CX + (sx - CX) * 0.58, ly = CY + (sy - CY) * 0.58 - 8;
+      elements.radiusLabel.setAttribute("x", lx.toFixed(1)); elements.radiusLabel.setAttribute("y", ly.toFixed(1));
+      elements.radiusLabel.textContent = `r = ${fmtInt(S.r / 1000)} km`;
+
+      // velocity arrow (tangential, prograde)
+      const vdx = Math.cos(S.vAngle), vdy = -Math.sin(S.vAngle);
+      const Lv = clamp(28 + 58 * (S.v / 8000), 24, 100);
+      elements.vArrowLine.setAttribute("x1", (sx + vdx * 20).toFixed(1)); elements.vArrowLine.setAttribute("y1", (sy + vdy * 20).toFixed(1));
+      elements.vArrowLine.setAttribute("x2", (sx + vdx * (20 + Lv)).toFixed(1)); elements.vArrowLine.setAttribute("y2", (sy + vdy * (20 + Lv)).toFixed(1));
+      elements.vArrowText.setAttribute("x", (sx + vdx * (34 + Lv)).toFixed(1)); elements.vArrowText.setAttribute("y", (sy + vdy * (34 + Lv) + 4).toFixed(1));
+      elements.vArrowText.textContent = "v";
+
+      // gravity arrow (toward Earth center; length compressed for visibility)
+      const glen = Math.hypot(CX - sx, CY - sy) || 1;
+      const gdx = (CX - sx) / glen, gdy = (CY - sy) / glen;
+      const Lg = 8 + 30 * Math.pow(rd.g / G0, 0.35);
+      elements.gArrowLine.setAttribute("x1", (sx + gdx * 30).toFixed(1)); elements.gArrowLine.setAttribute("y1", (sy + gdy * 30).toFixed(1));
+      elements.gArrowLine.setAttribute("x2", (sx + gdx * (30 + Lg)).toFixed(1)); elements.gArrowLine.setAttribute("y2", (sy + gdy * (30 + Lg)).toFixed(1));
+      elements.gArrowText.setAttribute("x", (sx + gdx * (38 + Lg)).toFixed(1)); elements.gArrowText.setAttribute("y", (sy + gdy * (38 + Lg) + 4).toFixed(1));
+      elements.gArrowText.textContent = "g";
+
+      // burn flash (one-shot UI feedback, frozen on pause via CSS)
+      if (state.burnFlash && state.burnFlash.id !== lastFlashRendered) {
+        lastFlashRendered = state.burnFlash.id;
+        elements.burnRing.setAttribute("cx", sx.toFixed(1)); elements.burnRing.setAttribute("cy", sy.toFixed(1));
+        elements.burnLabel.setAttribute("x", sx.toFixed(1)); elements.burnLabel.setAttribute("y", (sy - 34).toFixed(1));
+        elements.burnLabel.textContent = state.burnFlash.label;
+        [elements.burnRing, elements.burnLabel, elements.plume].forEach((el) => el.classList.remove("flash"));
+        void elements.burnRing.getBoundingClientRect(); // force reflow so the animation restarts
+        [elements.burnRing, elements.burnLabel, elements.plume].forEach((el) => el.classList.add("flash"));
+      }
+    }
+
+    function renderMetrics(S, rd) {
+      elements.mR.textContent = fmtInt(rd.r / 1000) + " km";
+      elements.mH.textContent = "距地面 " + fmtInt(rd.h / 1000) + " km";
+      elements.mV.textContent = fmtV(rd.v);
+      elements.mT.textContent = fmtT(rd.T);
+      elements.mG.textContent = rd.g.toFixed(2) + " m/s²";
+      elements.mGsub.textContent = `地表 g₀ 的 ${(rd.g / G0 * 100).toFixed(1)}%`;
+      if (state.mode === "circular") {
+        elements.mVsub.textContent = "v = √(μ/r)";
+        elements.mTlabel.textContent = "周期 T";
+        elements.mTsub.textContent = "T²/r³ = 恒量";
+      } else if (state.phase === "ready") {
+        elements.mVsub.textContent = "v₁ = √(μ/r₁)";
+        elements.mTlabel.textContent = "周期 T₁";
+        elements.mTsub.textContent = "低轨周期最短";
+      } else if (state.phase === "coast") {
+        elements.mVsub.textContent = "活力公式 v² = μ(2/r−1/a)";
+        elements.mTlabel.textContent = "椭圆周期";
+        elements.mTsub.textContent = "转移耗时 = 半周期";
+      } else if (state.phase === "apogee") {
+        elements.mVsub.textContent = "远地点速度最小";
+        elements.mTlabel.textContent = "椭圆周期";
+        elements.mTsub.textContent = "等待点火②圆化";
+      } else {
+        elements.mVsub.textContent = "稳定 v₂ < v₁ ✓";
+        elements.mTlabel.textContent = "周期 T₂";
+        elements.mTsub.textContent = "高轨周期更长";
+      }
+    }
+
+    /* ---- charts ---- */
+    const VRG = { x0: 36, x1: 292, y0: 140, y1: 16, rMin: R_EARTH + 200e3, rMax: R_EARTH + 36000e3, vMax: 8500 };
+    const KPG = { x0: 40, x1: 290, y0: 140, y1: 18, xMax: 1, yMax: 1 };
+    let VTG = { x0: 36, x1: 292, y0: 160, y1: 18, tMax: 1, vMax: 1 };
+    const vrX = (r) => VRG.x0 + (r - VRG.rMin) / (VRG.rMax - VRG.rMin) * (VRG.x1 - VRG.x0);
+    const vrY = (v) => VRG.y0 - v / VRG.vMax * (VRG.y0 - VRG.y1);
+    const kpX = (r) => KPG.x0 + (Math.pow(r, 3) / 1e21) / KPG.xMax * (KPG.x1 - KPG.x0);
+    const kpY = (T) => KPG.y0 - (T * T / 1e6) / KPG.yMax * (KPG.y0 - KPG.y1);
+    const vtX = (t) => VTG.x0 + t / VTG.tMax * (VTG.x1 - VTG.x0);
+    const vtY = (v) => VTG.y0 - v / VTG.vMax * (VTG.y0 - VTG.y1);
+
+    function buildVRStatic() {
+      let g = "";
+      for (let v = 0; v <= 8000; v += 2000) {
+        const y = vrY(v).toFixed(1);
+        g += `<line class="grid-line" x1="${VRG.x0}" y1="${y}" x2="${VRG.x1}" y2="${y}"></line>`;
+        g += `<text class="axis-text" x="${VRG.x0 - 5}" y="${(+y + 3).toFixed(1)}" text-anchor="end">${v / 1000}</text>`;
+      }
+      for (let k = 2; k <= 6; k += 1) {
+        const x = vrX(R_EARTH * k).toFixed(1);
+        g += `<line class="grid-line" x1="${x}" y1="${VRG.y1}" x2="${x}" y2="${VRG.y0}"></line>`;
+        g += `<text class="axis-text" x="${x}" y="${VRG.y0 + 11}" text-anchor="middle">${k}R⊕</text>`;
+      }
+      g += `<line class="axis-line" x1="${VRG.x0}" y1="${VRG.y0}" x2="${VRG.x1}" y2="${VRG.y0}"></line>`;
+      g += `<text class="axis-text" x="${VRG.x1}" y="${VRG.y0 + 22}" text-anchor="end">r（地球半径倍数）</text>`;
+      g += `<text class="axis-text" x="${VRG.x0 - 5}" y="${VRG.y1 - 4}" text-anchor="end">km/s</text>`;
+      elements.vrGrid.innerHTML = g;
+      let pts = "";
+      for (let i = 0; i <= 80; i += 1) {
+        const r = VRG.rMin + (VRG.rMax - VRG.rMin) * i / 80;
+        pts += `${vrX(r).toFixed(1)},${vrY(vCirc(r)).toFixed(1)} `;
+      }
+      elements.vrCurve.setAttribute("points", pts);
+      const issX = vrX(R_EARTH + 400e3).toFixed(1), issY = vrY(vCirc(R_EARTH + 400e3)).toFixed(1);
+      const geoX = vrX(R_EARTH + 35786e3).toFixed(1), geoY = vrY(vCirc(R_EARTH + 35786e3)).toFixed(1);
+      elements.vrAnchors.innerHTML =
+        `<circle class="chart-anchor" cx="${issX}" cy="${issY}" r="3"></circle>` +
+        `<text class="chart-anchor-text" x="${+issX + 6}" y="${+issY + 3}">空间站</text>` +
+        `<circle class="chart-anchor" cx="${geoX}" cy="${geoY}" r="3"></circle>` +
+        `<text class="chart-anchor-text" x="${+geoX - 6}" y="${+geoY + 3}" text-anchor="end">同步轨道</text>`;
+    }
+
+    function buildKeplerStatic() {
+      const rMaxK = R_EARTH + 36000e3;
+      KPG.xMax = Math.pow(rMaxK, 3) / 1e21;
+      KPG.yMax = Math.pow(period(rMaxK), 2) / 1e6;
+      let g = "";
+      for (const yv of [0, 2500, 5000, 7500]) {
+        const y = kpY(Math.sqrt(yv * 1e6)).toFixed(1);
+        g += `<line class="grid-line" x1="${KPG.x0}" y1="${y}" x2="${KPG.x1}" y2="${y}"></line>`;
+        g += `<text class="axis-text" x="${KPG.x0 - 5}" y="${(+y + 3).toFixed(1)}" text-anchor="end">${yv === 0 ? "0" : (yv / 1000) + "k"}</text>`;
+      }
+      for (const xv of [0, 25, 50, 75]) {
+        const x = (KPG.x0 + xv / KPG.xMax * (KPG.x1 - KPG.x0)).toFixed(1);
+        g += `<line class="grid-line" x1="${x}" y1="${KPG.y1}" x2="${x}" y2="${KPG.y0}"></line>`;
+        g += `<text class="axis-text" x="${x}" y="${KPG.y0 + 11}" text-anchor="middle">${xv}</text>`;
+      }
+      g += `<line class="axis-line" x1="${KPG.x0}" y1="${KPG.y0}" x2="${KPG.x1}" y2="${KPG.y0}"></line>`;
+      g += `<text class="axis-text" x="${KPG.x1}" y="${KPG.y0 + 22}" text-anchor="end">r³（10²¹ m³）</text>`;
+      g += `<text class="axis-text" x="${KPG.x0 - 5}" y="${KPG.y1 - 4}" text-anchor="end">T²（10⁶ s²）</text>`;
+      elements.kepGrid.innerHTML = g;
+      elements.kepLine.setAttribute("points", `${KPG.x0},${KPG.y0} ${kpX(rMaxK).toFixed(1)},${kpY(period(rMaxK)).toFixed(1)}`);
+      let dots = "";
+      for (const hkm of [200, 2000, 6000, 12000, 20000, 30000, 35786]) {
+        const r = R_EARTH + hkm * 1000;
+        dots += `<circle cx="${kpX(r).toFixed(1)}" cy="${kpY(period(r)).toFixed(1)}" r="2.6" fill="rgba(56,200,232,0.75)"></circle>`;
+      }
+      elements.kepDots.innerHTML = dots;
+    }
+
+    function buildVTStatic() {
+      const tr = state.tr;
+      if (!tr) return;
+      VTG.tMax = tr.tTransfer * 1.12;
+      VTG.vMax = Math.max(tr.vp, tr.v1) * 1.15;
+      let g = "";
+      for (let v = 0; v * 1000 <= VTG.vMax; v += 2) {
+        const y = vtY(v * 1000).toFixed(1);
+        g += `<line class="grid-line" x1="${VTG.x0}" y1="${y}" x2="${VTG.x1}" y2="${y}"></line>`;
+        g += `<text class="axis-text" x="${VTG.x0 - 5}" y="${(+y + 3).toFixed(1)}" text-anchor="end">${v}</text>`;
+      }
+      for (const t of [0, tr.tTransfer / 2, tr.tTransfer]) {
+        const x = vtX(t).toFixed(1);
+        g += `<line class="grid-line" x1="${x}" y1="${VTG.y1}" x2="${x}" y2="${VTG.y0}"></line>`;
+        g += `<text class="axis-text" x="${x}" y="${VTG.y0 + 11}" text-anchor="middle">${t === 0 ? "0" : fmtHours(t)}</text>`;
+      }
+      g += `<line class="axis-line" x1="${VTG.x0}" y1="${VTG.y0}" x2="${VTG.x1}" y2="${VTG.y0}"></line>`;
+      g += `<text class="axis-text" x="${VTG.x1}" y="${VTG.y0 + 22}" text-anchor="end">转移时间</text>`;
+      g += `<text class="axis-text" x="${VTG.x0 - 5}" y="${VTG.y1 - 4}" text-anchor="end">km/s</text>`;
+      elements.vtGrid.innerHTML = g;
+      elements.vtPlan.setAttribute("points", state.vtCurve.map((p) => `${vtX(p.t).toFixed(1)},${vtY(p.v).toFixed(1)}`).join(" "));
+      const y1 = vtY(tr.v1).toFixed(1), y2 = vtY(tr.v2).toFixed(1);
+      elements.vtRefV1.setAttribute("x1", VTG.x0); elements.vtRefV1.setAttribute("y1", y1);
+      elements.vtRefV1.setAttribute("x2", VTG.x1); elements.vtRefV1.setAttribute("y2", y1);
+      elements.vtRefV1Text.setAttribute("x", VTG.x1); elements.vtRefV1Text.setAttribute("y", (+y1 - 4).toFixed(1));
+      elements.vtRefV1Text.textContent = `v₁ 低轨 ${fmtV(tr.v1)}`;
+      elements.vtRefV2.setAttribute("x1", VTG.x0); elements.vtRefV2.setAttribute("y1", y2);
+      elements.vtRefV2.setAttribute("x2", VTG.x1); elements.vtRefV2.setAttribute("y2", y2);
+      elements.vtRefV2Text.setAttribute("x", VTG.x1); elements.vtRefV2Text.setAttribute("y", (+y2 - 4).toFixed(1));
+      elements.vtRefV2Text.textContent = `v₂ 高轨 ${fmtV(tr.v2)}`;
+      const xb1 = vtX(tr.tTransfer * 0.006).toFixed(1), xb2 = vtX(tr.tTransfer).toFixed(1);
+      elements.vtBurn1.setAttribute("x1", xb1); elements.vtBurn1.setAttribute("y1", VTG.y1);
+      elements.vtBurn1.setAttribute("x2", xb1); elements.vtBurn1.setAttribute("y2", VTG.y0);
+      elements.vtBurn1Text.setAttribute("x", (+xb1 + 3).toFixed(1)); elements.vtBurn1Text.setAttribute("y", (VTG.y1 + 10).toFixed(1));
+      elements.vtBurn2.setAttribute("x1", xb2); elements.vtBurn2.setAttribute("y1", VTG.y1);
+      elements.vtBurn2.setAttribute("x2", xb2); elements.vtBurn2.setAttribute("y2", VTG.y0);
+      elements.vtBurn2Text.setAttribute("x", (+xb2 - 3).toFixed(1)); elements.vtBurn2Text.setAttribute("y", (VTG.y1 + 10).toFixed(1));
+    }
+
+    function buildCharts() {
+      if (!hasDOM) return;
+      buildVRStatic();
+      buildKeplerStatic();
+      if (state.tr) buildVTStatic();
+    }
+
+    function renderCharts(S, rd) {
+      if (state.mode === "circular") {
+        const x = vrX(S.r), y = vrY(S.v);
+        elements.vrDot.setAttribute("cx", x.toFixed(1)); elements.vrDot.setAttribute("cy", y.toFixed(1));
+        elements.vrGuideX.setAttribute("x1", x.toFixed(1)); elements.vrGuideX.setAttribute("y1", VRG.y0);
+        elements.vrGuideX.setAttribute("x2", x.toFixed(1)); elements.vrGuideX.setAttribute("y2", y.toFixed(1));
+        elements.vrGuideY.setAttribute("x1", VRG.x0); elements.vrGuideY.setAttribute("y1", y.toFixed(1));
+        elements.vrGuideY.setAttribute("x2", x.toFixed(1)); elements.vrGuideY.setAttribute("y2", y.toFixed(1));
+        elements.kepDot.setAttribute("cx", kpX(S.r).toFixed(1)); elements.kepDot.setAttribute("cy", kpY(period(S.r)).toFixed(1));
+      } else if (state.tr) {
+        const tr = state.tr;
+        let curT = tr.tTransfer, curV = tr.va;
+        if (state.phase === "ready") { curT = 0; curV = tr.v1; }
+        else if (state.phase === "coast") { curT = state.simT; curV = S.v; }
+        else if (state.phase === "settled") { curT = tr.tTransfer * 1.05; curV = tr.v2; }
+        elements.vtDot.setAttribute("cx", vtX(curT).toFixed(1)); elements.vtDot.setAttribute("cy", vtY(curV).toFixed(1));
+        const cut = state.phase === "ready" ? -1 : (state.trDone ? Infinity : curT);
+        const pts = state.vtCurve.filter((p) => p.t <= cut).map((p) => `${vtX(p.t).toFixed(1)},${vtY(p.v).toFixed(1)}`).join(" ");
+        elements.vtLive.setAttribute("points", pts);
+      }
+    }
+
+    function renderText(S, rd) {
+      const tr = state.tr;
+      let statusText, statusCls = "";
+      let badgeText, badgeCls = "";
+      let insightText;
+      if (state.mode === "circular") {
+        const hkm = rd.h / 1000;
+        statusText = state.running ? `圆轨道运行 · ${state.timeScale}×` : "已暂停";
+        badgeText = `圆轨道 · h = ${fmtInt(hkm)} km`;
+        insightText = hkm < 700
+          ? `近地轨道：速度接近第一宇宙速度 7.9 km/s，周期不到 1.5 小时——国际空间站就在这一带。`
+          : hkm < 12000
+            ? `半径增大 → 引力减弱 → 所需环绕速度变小、周期变长。速度大小与卫星质量无关。`
+            : `接近同步轨道：周期逼近 24 小时。无论半径多少，T²/r³ 始终恒定——这就是开普勒第三定律。`;
+      } else {
+        const pct = Math.round(clamp(state.simT / tr.tTransfer, 0, 1) * 100);
+        if (state.phase === "ready") {
+          statusText = state.running ? "低轨运行 · 待点火" : "已暂停";
+          badgeText = `① 低圆轨道 ${H1_FIXED} km · 待点火`;
+          insightText = `当前在 ${H1_FIXED} km 低圆轨道（v₁ = ${fmtV(tr.v1)}）。点击「点火①」沿运动方向加速，把远地点抬到 ${fmtInt(state.targetAltKm)} km。`;
+        } else if (state.phase === "coast") {
+          statusText = state.running ? `转移椭圆爬升中 ${pct}%` : "已暂停";
+          badgeText = `② 转移椭圆 · 爬升 ${pct}%`;
+          insightText = `沿椭圆爬升：动能转化为引力势能，速度持续减小（v² = μ(2/r − 1/a)）。已爬升 ${pct}%。`;
+        } else if (state.phase === "apogee") {
+          statusText = "已到远地点 · 等待点火②"; statusCls = "warn";
+          badgeText = `③ 已到远地点 · 等待点火②`; badgeCls = "burn";
+          insightText = `到达远地点（${fmtInt(tr.r2 / 1000 - R_EARTH / 1000)} km，速度最小 ${fmtV(tr.va)}）！但这里还"太高太慢"，需再次点火加速 Δv₂ = +${(tr.dv2 / 1000).toFixed(2)} km/s 才能圆化为高轨道。`;
+        } else {
+          statusText = state.running ? "高轨稳定运行" : "已暂停";
+          badgeText = `④ 高圆轨道 ${fmtInt(tr.r2 / 1000 - R_EARTH / 1000)} km · 稳定`;
+          insightText = `稳定了！两次点火都在加速（+${(tr.dv1 / 1000).toFixed(2)}、+${(tr.dv2 / 1000).toFixed(2)} km/s），最终速度 ${fmtV(tr.v2)} 反而低于初始 ${fmtV(tr.v1)}——多出的能量变成了引力势能，卫星"爬出了"引力井。`;
+        }
+      }
+      elements.status.textContent = statusText;
+      elements.status.className = "status" + (statusCls ? " " + statusCls : "");
+      elements.phaseBadge.textContent = badgeText;
+      elements.phaseBadge.className = "phase-badge" + (badgeCls ? " " + badgeCls : "");
+      elements.insight.textContent = insightText;
+    }
+
+    function renderWeightless(rd) {
+      const float = Math.sin(visClock * 1.4) * 4;
+      elements.cabAstronaut.setAttribute("transform", `translate(0 ${float.toFixed(2)})`);
+      elements.wLive.textContent = `当前轨道 g = ${rd.g.toFixed(2)} m/s² —— 地表 g₀（${G0.toFixed(2)}）的 ${(rd.g / G0 * 100).toFixed(1)}%，引力并没有消失`;
+    }
+
+    /* ================= Stars (deterministic seeded field) ================= */
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function buildStars() {
+      const rnd = mulberry32(20260929);
+      let s = "";
+      for (let i = 0; i < 110; i += 1) {
+        s += `<circle cx="${(rnd() * 760).toFixed(1)}" cy="${(rnd() * 720).toFixed(1)}" r="${(0.4 + rnd()).toFixed(2)}" fill="#dbe7ff" opacity="${(0.18 + rnd() * 0.6).toFixed(2)}"></circle>`;
+      }
+      elements.stars.innerHTML = s;
+    }
+
+    /* ================= Controls & interaction ================= */
+    let dragging = false;
+    function syncControls() {
+      if (!hasDOM) return;
+      const isCirc = state.mode === "circular";
+      elements.modeOrbitBtn.setAttribute("aria-pressed", String(isCirc));
+      elements.modeTransferBtn.setAttribute("aria-pressed", String(!isCirc));
+      const canBurn = !isCirc && (state.phase === "ready" || state.phase === "apogee");
+      elements.burnBtn.hidden = !canBurn;
+      elements.burnBtn.disabled = !canBurn;
+      if (!isCirc && state.tr) {
+        elements.burnBtn.textContent = state.phase === "ready"
+          ? `点火① Δv₁ +${(state.tr.dv1 / 1000).toFixed(2)} km/s`
+          : `点火② Δv₂ +${(state.tr.dv2 / 1000).toFixed(2)} km/s`;
+      }
+      const startBlocked = !isCirc && state.phase === "apogee";
+      elements.startBtn.disabled = startBlocked;
+      elements.startBtn.title = startBlocked ? "请先点击「点火②」完成圆化" : "";
+      elements.pauseBtn.disabled = !state.running;
+      const hMin = isCirc ? CIRC_H_MIN : TRANS_H_MIN;
+      const h = isCirc ? state.circAltKm : state.targetAltKm;
+      elements.heightLabelText.textContent = isCirc ? "轨道高度 h" : "目标轨道高度 h₂";
+      elements.heightInput.value = String(hToSlider(h, hMin, CIRC_H_MAX));
+      elements.heightInput.disabled = !isCirc && (state.phase === "coast" || state.phase === "apogee");
+      elements.heightOutput.textContent = fmtInt(h) + " km";
+      elements.timeInput.value = String(state.timeScale);
+      elements.timeOutput.textContent = `${state.timeScale}× · 1s≈${Math.max(1, Math.round(state.timeScale / 60))}分钟`;
+      elements.compareBox.hidden = isCirc;
+      if (!isCirc && state.tr) elements.compareOutput.textContent = `v₁ ${fmtV(state.tr.v1)} → v₂ ${fmtV(state.tr.v2)}`;
+      elements.dragHint.hidden = !isCirc;
+      elements.scene.classList.toggle("no-drag", !isCirc);
+      elements.chartCircularWrap.hidden = !isCirc;
+      elements.chartTransferWrap.hidden = isCirc;
+    }
+
+    function applyDrag(ev) {
+      const ctm = elements.scene.getScreenCTM();
+      if (!ctm) return;
+      const pt = elements.scene.createSVGPoint();
+      pt.x = ev.clientX; pt.y = ev.clientY;
+      const p = pt.matrixTransform(ctm.inverse());
+      const rPx = Math.hypot(p.x - CX, p.y - CY);
+      const r = clamp(rPx / PX_PER_M, R_EARTH + CIRC_H_MIN * 1000, R_EARTH + CIRC_H_MAX * 1000);
+      setParameters({ height: (r - R_EARTH) / 1000 });
+    }
+
+    function bindControls() {
+      elements.modeOrbitBtn.addEventListener("click", () => { setMode("circular"); render(); });
+      elements.modeTransferBtn.addEventListener("click", () => { state.timeScale = Math.max(state.timeScale, 600); setMode("transfer"); render(); });
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.burnBtn.addEventListener("click", () => {
+        if (state.phase === "ready") fireBurn1();
+        else if (state.phase === "apogee") fireBurn2();
+        render();
+      });
+      elements.heightInput.addEventListener("input", () => {
+        const hMin = state.mode === "circular" ? CIRC_H_MIN : TRANS_H_MIN;
+        setParameters({ height: sliderToH(Number(elements.heightInput.value), hMin, CIRC_H_MAX) });
+      });
+      elements.timeInput.addEventListener("input", () => setParameters({ timeScale: Number(elements.timeInput.value) }));
+      elements.scene.addEventListener("pointerdown", (ev) => {
+        if (state.mode !== "circular") return;
+        dragging = true;
+        elements.scene.classList.add("dragging");
+        try { elements.scene.setPointerCapture(ev.pointerId); } catch (err) { /* capture unavailable */ }
+        applyDrag(ev);
+        ev.preventDefault();
+      });
+      elements.scene.addEventListener("pointermove", (ev) => { if (dragging) applyDrag(ev); });
+      const endDrag = () => { dragging = false; elements.scene.classList.remove("dragging"); };
+      elements.scene.addEventListener("pointerup", endDrag);
+      elements.scene.addEventListener("pointercancel", endDrag);
+    }
+
+    /* ================= Frame loop ================= */
+    let lastTs = null;
+    let visClock = 0;
+    function frame(ts) {
+      if (lastTs === null) lastTs = ts;
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      if (state.running) visClock += clamp(finite(dt, 0), 0, 0.05);
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    /* ================= Oracle model checks (pure; runnable headless via Node) ================= */
+    function runModelChecks() {
+      const results = [];
+      const add = (name, pass, expected, actual, tolerance) =>
+        results.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      // 1. Two independent circular-orbit formulas must agree: v=sqrt(mu/r) and v=2*PI*r/T
+      {
+        const r = R_EARTH + 400e3;
+        const a1 = vCirc(r), a2 = TWO_PI * r / period(r);
+        const dev = Math.abs(a1 - a2) / a2;
+        add("圆轨道双公式一致 v=√(μ/r) = 2πr/T（h=400 km）", dev < 1e-12, "相对偏差 < 1e-12", dev.toExponential(3), "rel 1e-12");
+      }
+      // 2. ISS period anchor (literature ~92.5 min at ~400 km)
+      {
+        const T = period(R_EARTH + 400e3);
+        add("国际空间站周期锚点（h=400 km）", Math.abs(T - 5550) / 5550 < 0.02, "≈5550 s（≈92.5 分钟）", `${T.toFixed(1)} s`, "±2% 文献");
+      }
+      // 3. Geostationary anchor (r=42164 km, sidereal day 86164 s)
+      {
+        const T = period(42164e3), v = vCirc(42164e3);
+        const ok = Math.abs(T - 86164) / 86164 < 0.005 && Math.abs(v - 3075) / 3075 < 0.005;
+        add("地球同步轨道锚点（r=42164 km）", ok, "T≈86164 s（恒星日），v≈3.075 km/s", `T=${T.toFixed(0)} s, v=${(v / 1000).toFixed(3)} km/s`, "±0.5%");
+      }
+      // 4. Kepler-3 constancy across the whole slider range
+      {
+        let worst = 0;
+        const k = 4 * Math.PI * Math.PI / MU;
+        for (let i = 0; i <= 8; i += 1) {
+          const r = R_EARTH + 200e3 + i * 4475e3;
+          const ratio = Math.pow(period(r), 2) / Math.pow(r, 3);
+          worst = Math.max(worst, Math.abs(ratio - k) / k);
+        }
+        add("开普勒第三定律 T²/r³ = 4π²/μ 全滑程恒定", worst < 1e-12, "最大相对偏差 < 1e-12", worst.toExponential(3), "rel 1e-12");
+      }
+      // 5. Monotonicity: larger radius -> smaller speed, longer period
+      {
+        let mono = true, where = "";
+        for (let i = 1; i <= 10 && mono; i += 1) {
+          const rA = R_EARTH + 200e3 + (i - 1) * 3978e3, rB = rA + 3978e3;
+          if (!(vCirc(rB) < vCirc(rA) && period(rB) > period(rA))) { mono = false; where = `r≈${(rA / 1000).toFixed(0)} km`; }
+        }
+        add("单调性：r↑ ⇒ v↓ 且 T↑（全程）", mono, "严格成立", mono ? "成立" : `失败于 ${where}`, "严格");
+      }
+      // 6. Hohmann paradox: both burns accelerate, yet final speed is lower
+      {
+        let ok = true, detail = "";
+        for (const pair of [[400, 35786], [400, 2000], [1000, 20000], [2000, 36000]]) {
+          const tr = hohmann(R_EARTH + pair[0] * 1000, R_EARTH + pair[1] * 1000);
+          if (!tr || !(tr.dv1 > 0 && tr.dv2 > 0 && tr.v2 < tr.v1)) { ok = false; detail = `${pair[0]}→${pair[1]} km`; }
+        }
+        add("霍曼悖论：Δv₁>0 且 Δv₂>0，但 v₂<v₁（4 组）", ok, "两次点火均为加速、末速更低", ok ? "全部成立" : `失败于 ${detail}`, "严格");
+      }
+      // 7. Hohmann literature anchors 400 km -> GEO
+      {
+        const tr = hohmann(R_EARTH + 400e3, R_EARTH + 35786e3);
+        const ok = Math.abs(tr.dv1 - 2400) / 2400 < 0.05 && Math.abs(tr.dv2 - 1465) / 1465 < 0.05 && Math.abs(tr.tTransfer - 19050) / 19050 < 0.03;
+        add("霍曼文献锚点 400 km→同步轨道", ok, "Δv₁≈2.40 km/s，Δv₂≈1.46 km/s，t≈5.3 h",
+          `Δv₁=${(tr.dv1 / 1000).toFixed(3)}，Δv₂=${(tr.dv2 / 1000).toFixed(3)}，t=${(tr.tTransfer / 3600).toFixed(2)} h`, "±5% / ±3%");
+      }
+      // 8. Conservation along the transfer ellipse (vis-viva vs polar decomposition, energy, angular momentum)
+      {
+        const tr = Object.assign(hohmann(R_EARTH + 400e3, R_EARTH + 35786e3), { thetaP: 0.3 });
+        const eps0 = -MU / (2 * tr.a), h0 = Math.sqrt(MU * tr.a * (1 - tr.e * tr.e));
+        let worstV = 0, worstE = 0, worstH = 0;
+        for (let i = 0; i <= 60; i += 1) {
+          const s = coastState(tr, tr.tTransfer * i / 60);
+          worstV = Math.max(worstV, Math.abs(Math.hypot(s.vr, s.vt) - s.v) / s.v);
+          worstE = Math.max(worstE, Math.abs(s.v * s.v / 2 - MU / s.r - eps0) / Math.abs(eps0));
+          worstH = Math.max(worstH, Math.abs(s.r * s.vt - h0) / h0);
+        }
+        add("转移椭圆守恒：ε=−μ/2a 与 h=r·v_t 恒定", worstE < 1e-9 && worstH < 1e-9, "相对偏差 < 1e-9", `ε 偏差 ${worstE.toExponential(2)}，h 偏差 ${worstH.toExponential(2)}`, "rel 1e-9");
+        add("活力公式与极坐标速度分解一致", worstV < 1e-9, "相对偏差 < 1e-9", worstV.toExponential(2), "rel 1e-9");
+      }
+      // 9. Kepler solver residual at high eccentricity (GEO transfer e≈0.723)
+      {
+        let worst = 0;
+        for (let i = 0; i <= 40; i += 1) {
+          const M = Math.PI * i / 40, e = 0.7232;
+          const E = solveKepler(M, e);
+          worst = Math.max(worst, Math.abs(E - e * Math.sin(E) - M));
+        }
+        add("开普勒方程牛顿迭代残差（e≈0.723）", worst < 1e-12, "|M−(E−e·sinE)| < 1e-12", worst.toExponential(3), "abs 1e-12");
+      }
+      // 10. Runtime path equals closed form; time accumulation exact; time-scale invariance
+      {
+        const saved = JSON.stringify(state);
+        state.mode = "circular"; state.phase = "orbit"; state.rCirc = R_EARTH + 400e3;
+        state.th0 = 0.7; state.simT = 0; state.running = true; state.timeScale = 300;
+        state.tr = null; state.trail = []; state.lastTrailT = 0; state.burnFlash = null;
+        for (let i = 0; i < 600; i += 1) update(1 / 60);
+        const T = period(state.rCirc);
+        const expectedTheta = 0.7 + TWO_PI * state.simT / T;
+        const drift = Math.abs(orbitalState().theta - expectedTheta);
+        const accErr = Math.abs(state.simT - 3000);
+        pause();
+        const tFrozen = state.simT;
+        update(0.5);
+        const frozenOk = state.simT === tFrozen;
+        // same total simulated time via a different sampling path
+        state.running = true; state.simT = 0; state.timeScale = 3000;
+        for (let i = 0; i < 2; i += 1) update(1 / 60);
+        const scaleInv = Math.abs(orbitalState().theta - (0.7 + TWO_PI * 100 / T));
+        add("运行时路径与闭式解一致（600 帧圆轨道推进）", drift < 1e-9 && accErr < 1e-9, "θ 与 simT 累积偏差 < 1e-9", `θ 偏差 ${drift.toExponential(2)} rad，simT 偏差 ${accErr.toExponential(2)} s`, "abs 1e-9");
+        add("暂停冻结与时间倍率无关性", frozenOk && scaleInv < 1e-9, "暂停后 simT 不变；不同倍率同仿真时刻 θ 相同", `冻结=${frozenOk}，倍率偏差 ${scaleInv.toExponential(2)}`, "abs 1e-9");
+        Object.assign(state, JSON.parse(saved));
+      }
+      // 11. Full transfer runtime pipeline: burn1 -> coast -> apogee clamp -> burn2 -> settled
+      {
+        const saved = JSON.stringify(state);
+        setMode("transfer");
+        const okBurn1 = fireBurn1();
+        let guard = 0;
+        while (state.phase === "coast" && guard < 500000) { update(1 / 30); guard += 1; }
+        const apogeeOk = state.phase === "apogee" && !state.running;
+        const rErr = Math.abs(orbitalState().r - state.tr.r2) / state.tr.r2;
+        const vErr = Math.abs(orbitalState().v - state.tr.va) / state.tr.va;
+        const tErr = Math.abs(state.simT - state.tr.tTransfer);
+        const okBurn2 = fireBurn2();
+        const settledOk = state.phase === "settled" && Math.abs(orbitalState().v - vCirc(state.tr.r2)) < 1e-9;
+        add("完整变轨运行链：点火①→爬升→远地点→点火②→稳定", okBurn1 && apogeeOk && okBurn2 && settledOk && tErr < 1e-6 && rErr < 1e-12 && vErr < 1e-9,
+          "远地点 r=r₂、v=v_a、自动暂停；稳定后 v=√(μ/r₂)",
+          `相位=${state.phase}，r 偏差=${rErr.toExponential(2)}，v 偏差=${vErr.toExponential(2)}，t 偏差=${tErr.toExponential(2)}`, "rel 1e-9");
+        Object.assign(state, JSON.parse(saved));
+      }
+      // 12. Boundary: illegal transfer rejected; near-degenerate transfer tiny
+      {
+        const bad = hohmann(R_EARTH + 400e3, R_EARTH + 300e3);
+        const tiny = hohmann(R_EARTH + 400e3, R_EARTH + 400.001e3);
+        add("边界：r₂≤r₁ 拒绝；r₂≈r₁ 退化为微小 Δv", bad === null && tiny !== null && tiny.dv1 > 0 && tiny.dv1 < 1,
+          "非法返回 null；退化 Δv₁∈(0,1) m/s", `bad=${bad}，tiny.dv₁=${tiny ? tiny.dv1.toFixed(4) : "—"} m/s`, "严格");
+      }
+      // 13. Weightlessness data: gravity at 400 km is ~88.6% of surface value
+      {
+        const r = R_EARTH + 400e3, g = gAt(r);
+        add("失重数据：h=400 km 处 g=μ/r²", Math.abs(g - 8.696) / 8.696 < 0.005 && g / G0 > 0.88,
+          "g≈8.70 m/s²（>88% 地表值）", `g=${g.toFixed(3)} m/s² = ${(g / G0 * 100).toFixed(1)}% g₀`, "±0.5%");
+      }
+      // 14. Finiteness across extreme parameter values
+      {
+        let ok = true;
+        for (const hkm of [200, 36000, 1000, 35786]) {
+          const r = R_EARTH + hkm * 1000;
+          if (![vCirc(r), period(r), gAt(r)].every(Number.isFinite)) ok = false;
+        }
+        const s = orbitalState();
+        if (![s.r, s.theta, s.v, s.vAngle].every(Number.isFinite)) ok = false;
+        add("有限性：极端参数与当前状态全部有限", ok, "全部 finite", ok ? "finite" : "存在非有限值", "严格");
+      }
+      return results;
+    }
+
+    /* ================= Runtime contract exposure ================= */
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (hasDOM) init();
+  })();
+  </script>
+</body>
+</html>

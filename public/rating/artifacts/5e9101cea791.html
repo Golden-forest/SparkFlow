@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>绳上横波脉冲传播仿真（波动方程数值解）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:#eef2f7;color:#1e293b;padding:18px}
+  .wrap{max-width:1020px;margin:0 auto}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{font-size:12px;color:#64748b;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:290px 1fr;gap:14px}
+  .card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+  .card h2{font-size:13px;color:#2563eb;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:8px;margin:9px 0;font-size:13px}
+  .row label{width:88px;flex:none;color:#334155}
+  .row .val{width:76px;flex:none;text-align:right;font-variant-numeric:tabular-nums;color:#0f172a;font-weight:600}
+  input[type=range]{flex:1;accent-color:#2563eb;height:4px}
+  select,button{font-family:inherit;font-size:13px}
+  select{padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  button{padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;cursor:pointer;transition:.15s}
+  button:hover{background:#e0e9ff;border-color:#93c5fd}
+  button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+  button.primary:hover{background:#1d4ed8}
+  .radios{display:flex;gap:14px;margin:8px 0;font-size:13px}
+  .radios label{display:flex;align-items:center;gap:4px;cursor:pointer}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .chip{background:#fff;border-radius:10px;padding:7px 12px;font-size:13px;box-shadow:0 1px 4px rgba(15,23,42,.08)}
+  .chip b{color:#2563eb;font-variant-numeric:tabular-nums}
+  canvas{width:100%;display:block;border-radius:8px;background:#fbfcfe}
+  .note{font-size:12px;color:#64748b;margin-top:8px;line-height:1.6}
+  .teach{margin-top:14px;font-size:13px;line-height:1.9}
+  .teach li{margin-left:18px}
+  .teach b{color:#0f172a}
+  .kbd{font-size:11px;color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>绳上横波脉冲传播 —— 波动方程 ∂²y/∂t² = (T/μ)·∂²y/∂x² 数值解</h1>
+  <div class="sub">每个画面均由差分格式逐时间步求解偏微分方程实时算出，非预设动画。空间 257 点网格，Leapfrog 时间推进，CFL 数 0.8。</div>
+
+  <div class="grid">
+    <!-- 左侧控制栏 -->
+    <div>
+      <div class="card">
+        <h2>绳参数</h2>
+        <div class="row"><label>张力 T</label><input type="range" id="rT" min="0.25" max="4" step="0.05" value="1"><span class="val" id="vT"></span></div>
+        <div class="row"><label>线密度 μ</label><input type="range" id="rMu" min="0.01" max="0.04" step="0.001" value="0.02"><span class="val" id="vMu"></span></div>
+        <div class="row"><label>波速 v=√(T/μ)</label><span class="val" id="vV" style="color:#2563eb"></span></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>脉冲设置与发射</h2>
+        <div class="row"><label>形状</label>
+          <select id="selShape">
+            <option value="sine" selected>半正弦</option>
+            <option value="triangle">三角波</option>
+            <option value="square">方波</option>
+          </select>
+        </div>
+        <div class="row"><label>幅度</label><input type="range" id="rAmp" min="0.02" max="0.12" step="0.005" value="0.06"><span class="val" id="vAmp"></span></div>
+        <div class="row"><label>宽度</label><input type="range" id="rWid" min="0.2" max="1" step="0.05" value="0.5"><span class="val" id="vWid"></span></div>
+        <div class="btns">
+          <button class="primary" id="btnLeft">◀ 从左端发射</button>
+          <button class="primary" id="btnRight">从右端发射 ▶</button>
+          <button id="btnBoth">双端对发（对穿）</button>
+        </div>
+        <div class="note">双端对发时可在重叠区看到瞬时叠加（同相相长 / 反相相消），分开后各自形状复原。</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>右端边界</h2>
+        <div class="radios">
+          <label><input type="radio" name="rmode" value="fixed" checked>固定端（墙）</label>
+          <label><input type="radio" name="rmode" value="free">自由端（滑环）</label>
+        </div>
+        <div class="note">固定端反射<b>反相</b>（半波损失）；自由端反射<b>同相</b>。可在传播中随时切换对比。</div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>观察质点</h2>
+        <div class="row"><label>位置 x</label><input type="range" id="rProbe" min="0" max="256" step="1" value="128"><span class="val" id="vProbe"></span></div>
+        <div class="note">也可以直接点击上方绳子画面选择质点。质点只做横向振动，不随波迁移。</div>
+        <div class="row" style="margin-top:10px"><label><input type="checkbox" id="chkTrail" checked style="accent-color:#2563eb"> 轨迹重影</label></div>
+      </div>
+    </div>
+
+    <!-- 右侧画面 -->
+    <div>
+      <div class="chips">
+        <div class="chip">波速 v = <b id="outV">—</b></div>
+        <div class="chip">仿真时间 t = <b id="outT">0.00</b> s</div>
+        <div class="chip">脉冲位置 <b id="outPos">—</b></div>
+        <div class="chip">质点位移 y = <b id="outY">—</b></div>
+      </div>
+
+      <div class="card" style="padding:10px">
+        <canvas id="scene" width="940" height="300"></canvas>
+      </div>
+
+      <div class="card" style="padding:10px;margin-top:14px">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px">高亮质点的 y–t 振动图像（近 8 s）：</div>
+        <canvas id="graph" width="940" height="180"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h2>播放控制</h2>
+        <div class="row">
+          <label>播放速度</label>
+          <input type="range" id="rSpeed" min="0.02" max="2" step="0.02" value="0.5">
+          <span class="val" id="vSpeed"></span>
+        </div>
+        <div class="btns">
+          <button class="primary" id="btnPlay">⏸ 暂停</button>
+          <button id="btnStep">单步 ▸</button>
+          <button id="btnReset">重置</button>
+          <span class="kbd" style="align-self:center;margin-left:6px">快捷键：空格 播放/暂停 · → 单步 · R 重置</span>
+        </div>
+      </div>
+
+      <div class="card teach" style="margin-top:14px">
+        <h2>教学要点</h2>
+        <ul>
+          <li><b>v = √(T/μ)</b>：调大张力或调小线密度，波速立刻变快（见左上实时读数），与脉冲形状、幅度无关。</li>
+          <li><b>理想绳无色散</b>：所有频率分量同速，脉冲形状在传播中保持不变（方波锐边处的轻微毛刺为网格数值色散）。</li>
+          <li><b>固定端反射反相</b>（半波损失），<b>自由端反射同相</b>：切换右端边界对比反射后的上下翻转。</li>
+          <li><b>对穿叠加</b>：两脉冲相遇区域位移按代数和瞬时叠加，分开后互不影响、形状复原。</li>
+          <li><b>质点不迁移</b>：波向右传播，但高亮质点只在竖直方向振动（看 y–t 图）。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============ 物理与数值参数 ============ */
+const L=5, N=257, dx=L/(N-1);          // 绳长 5 m，257 个网格点
+const VMAX=20, dt=0.8*dx/VMAX;         // dt 按 v 上限 √(4/0.01)=20 取，保证任意参数下 CFL≤0.8
+let y0=new Float64Array(N), y1=new Float64Array(N), y2=new Float64Array(N); // t-dt, t, t+dt
+let T=1, mu=0.02, amp=0.06, wid=0.5, shape='sine';
+let rightMode='fixed';
+let playing=true, speed=0.5, t=0;
+let probeIdx=128;
+let hist=[];                            // 质点 y–t 记录
+let trails=[], lastTrail=-1;            // 轨迹重影
+
+const vNow=()=>Math.sqrt(T/mu);
+
+/* ============ 波动方程一步 Leapfrog 推进 ============ */
+function stepSim(){
+  const c2=(vNow()*dt/dx)**2;
+  for(let i=1;i<N-1;i++)
+    y2[i]=2*y1[i]-y0[i]+c2*(y1[i+1]-2*y1[i]+y1[i-1]);
+  y2[0]=0;                                            // 左端固定（墙）
+  y2[N-1]=(rightMode==='fixed')?0:y2[N-2];            // 右端：固定 y=0 / 自由 ∂y/∂x=0
+  const tmp=y0; y0=y1; y1=y2; y2=tmp;
+  t+=dt;
+}
+function advance(target){
+  let n=0;
+  while(t<target && n++<800) stepSim();
+}
+function afterAdvance(){
+  hist.push({t, y:y1[probeIdx]});
+  while(hist.length && hist[0].t<t-8.2) hist.shift();
+  if(lastTrail<0 || t-lastTrail>0.055){
+    trails.push(Float32Array.from(y1));
+    if(trails.length>14) trails.shift();
+    lastTrail=t;
+  }
+}
+
+/* ============ 脉冲注入：给定单向行波初值 y=F(x∓vt) ============ */
+function inject(fromLeft){
+  const v=vNow(), dir=fromLeft?1:-1;
+  const x0=fromLeft? 0.25+wid/2 : L-0.25-wid/2;
+  const f=new Float64Array(N);
+  for(let i=0;i<N;i++){
+    const s=(i*dx-x0)/(wid/2);
+    if(Math.abs(s)<1){
+      if(shape==='square') f[i]=Math.abs(s)<0.5?1:0;
+      else if(shape==='triangle') f[i]=1-Math.abs(s);
+      else f[i]=Math.cos(Math.PI*s/2);
+    }
+  }
+  if(shape==='square')   // 方波边缘轻度平滑，抑制网格数值振荡
+    for(let k=0;k<2;k++){
+      const g=Float64Array.from(f);
+      for(let i=1;i<N-1;i++) f[i]=(g[i-1]+2*g[i]+g[i+1])/4;
+    }
+  const d=new Float64Array(N);
+  for(let i=1;i<N-1;i++) d[i]=(f[i+1]-f[i-1])/(2*dx);
+  for(let i=0;i<N;i++){                 // y(x,−dt)=F(x±v·dt)≈y±v·dt·∂y/∂x
+    const val=amp*f[i];
+    y1[i]+=val;
+    y0[i]+=val+dir*v*dt*amp*d[i];
+  }
+}
+
+/* ============ 脉冲峰检测（用于位置读数与标记） ============ */
+function peaks(){
+  const raw=[], th=0.006;
+  for(let i=2;i<N-2;i++){
+    const a=Math.abs(y1[i]);
+    if(a>th&&a>=Math.abs(y1[i-1])&&a>Math.abs(y1[i+1])&&a>=Math.abs(y1[i-2])&&a>Math.abs(y1[i+2]))
+      raw.push({x:i*dx,h:a});
+  }
+  raw.sort((p,q)=>q.h-p.h);
+  const res=[];
+  for(const p of raw){
+    if(!res.some(r=>Math.abs(r.x-p.x)<0.25)) res.push(p);
+    if(res.length>=3) break;
+  }
+  return res.sort((p,q)=>p.x-q.x);
+}
+
+/* ============ 场景绘制 ============ */
+const cv=document.getElementById('scene'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height, MX=36, MR=52;
+const ys=(H/2-18)/0.13;
+const X=x=>MX+(x/L)*(W-MX-MR), Y=y=>H/2-y*ys;
+
+function drawScene(){
+  ctx.clearRect(0,0,W,H);
+  // 平衡位置
+  ctx.strokeStyle='#cbd5e1'; ctx.setLineDash([5,5]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(X(0),Y(0)); ctx.lineTo(X(L),Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  // 刻度
+  ctx.fillStyle='#94a3b8'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  for(let m=0;m<=5;m++) ctx.fillText(m+' m',X(m),H-6);
+  // 左墙（固定）
+  drawWall(X(0),-1);
+  // 右端
+  if(rightMode==='fixed') drawWall(X(L),1);
+  else{
+    ctx.strokeStyle='#94a3b8'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(X(L)+14,16); ctx.lineTo(X(L)+14,H-16); ctx.stroke();
+    ctx.strokeStyle='#64748b'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(X(L),Y(y1[N-1])); ctx.lineTo(X(L)+14,Y(y1[N-1])); ctx.stroke();
+    ctx.strokeStyle='#2563eb'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(X(L)+14,Y(y1[N-1]),7,0,7); ctx.stroke();
+    ctx.fillStyle='#94a3b8'; ctx.font='11px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('自由端(滑环)',X(L)-8,20);
+  }
+  // 轨迹重影
+  if(document.getElementById('chkTrail').checked){
+    trails.forEach((tr,k)=>{
+      ctx.strokeStyle=`rgba(96,165,250,${0.05+0.3*k/trails.length})`;
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      for(let i=0;i<N;i+=2) i?ctx.lineTo(X(i*dx),Y(tr[i])):ctx.moveTo(X(0),Y(tr[0]));
+      ctx.stroke();
+    });
+  }
+  // 绳
+  ctx.strokeStyle='#0f172a'; ctx.lineWidth=2.6; ctx.lineJoin='round';
+  ctx.beginPath();
+  for(let i=0;i<N;i++) i?ctx.lineTo(X(i*dx),Y(y1[i])):ctx.moveTo(X(0),Y(y1[0]));
+  ctx.stroke();
+  // 高亮质点
+  const px=X(probeIdx*dx), py=Y(y1[probeIdx]);
+  ctx.strokeStyle='rgba(37,99,235,.35)'; ctx.setLineDash([3,4]); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(px,14); ctx.lineTo(px,H-14); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#2563eb';
+  ctx.beginPath(); ctx.arc(px,py,6,0,7); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  // 脉冲位置标记
+  ctx.fillStyle='#dc2626'; ctx.font='bold 11px sans-serif';
+  for(const p of peaks()){
+    const mx=X(p.x);
+    ctx.beginPath(); ctx.moveTo(mx,H-26); ctx.lineTo(mx-5,H-17); ctx.lineTo(mx+5,H-17); ctx.closePath(); ctx.fill();
+    ctx.textAlign='center'; ctx.fillText(p.x.toFixed(2)+' m',mx,H-30);
+  }
+}
+function drawWall(x,side){
+  ctx.fillStyle='#475569'; ctx.fillRect(side<0?x-8:x-3,12,11,H-24);
+  ctx.strokeStyle='#94a3b8'; ctx.lineWidth=1;
+  for(let yy=18;yy<H-14;yy+=11){
+    ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+side*10,yy+8); ctx.stroke();
+  }
+}
+
+/* ============ y–t 图绘制 ============ */
+const gv=document.getElementById('graph'), g=gv.getContext('2d');
+const GW=gv.width, GH=gv.height, GL=52, GR=12, GT=10, GB=24;
+function drawGraph(){
+  g.clearRect(0,0,GW,GH);
+  const win=8, t1=Math.max(t,win), t0=t1-win;
+  let m=0.02;
+  for(const p of hist) m=Math.max(m,Math.abs(p.y));
+  m*=1.25;
+  const gx=tt=>GL+(tt-t0)/win*(GW-GL-GR), gy=yy=>GT+(0.5-yy/(2*m))*(GH-GT-GB);
+  g.strokeStyle='#e2e8f0'; g.lineWidth=1;
+  for(let k=1;k<4;k++){ g.beginPath(); g.moveTo(GL,GT+k*(GH-GT-GB)/4); g.lineTo(GW-GR,GT+k*(GH-GT-GB)/4); g.stroke(); }
+  g.strokeStyle='#94a3b8';
+  g.beginPath(); g.moveTo(GL,gy(0)); g.lineTo(GW-GR,gy(0)); g.stroke();
+  g.fillStyle='#94a3b8'; g.font='10px sans-serif';
+  g.textAlign='right';
+  g.fillText((+m.toFixed(2))+' m',GL-4,GT+8);
+  g.fillText('0',GL-4,gy(0)+3);
+  g.fillText((-m).toFixed(2)+' m',GL-4,GH-GB-2);
+  g.textAlign='center';
+  g.fillText('t = '+t0.toFixed(1)+' s',GL,GH-8); g.fillText('t = '+t1.toFixed(1)+' s',GW-GR-30,GH-8);
+  if(hist.length>1){
+    g.strokeStyle='#2563eb'; g.lineWidth=2; g.beginPath();
+    let first=true;
+    for(const p of hist){
+      const x=gx(p.t), y=gy(Math.max(-m,Math.min(m,p.y)));
+      first?g.moveTo(x,y):g.lineTo(x,y); first=false;
+    }
+    g.stroke();
+    const last=hist[hist.length-1];
+    g.fillStyle='#2563eb';
+    g.beginPath(); g.arc(gx(last.t),gy(last.y),4,0,7); g.fill();
+  }
+}
+
+/* ============ 读数与 UI ============ */
+const $=id=>document.getElementById(id);
+function fmt(n,d=2){return n.toFixed(d)}
+function refreshReadouts(){
+  const v=vNow();
+  $('vT').textContent=fmt(T)+' N';
+  $('vMu').textContent=(mu*1000).toFixed(0)+' g/m';
+  $('vV').textContent=$('outV').textContent=fmt(v)+' m/s';
+  $('vAmp').textContent=fmt(amp*100)+' cm';
+  $('vWid').textContent=fmt(wid)+' m';
+  $('vSpeed').textContent='×'+fmt(speed);
+  $('vProbe').textContent=fmt(probeIdx*dx)+' m';
+}
+function refreshLive(){
+  $('outT').textContent=fmt(t);
+  $('outY').textContent=(y1[probeIdx]*1000).toFixed(1)+' mm';
+  const ps=peaks();
+  $('outPos').textContent=ps.length?ps.map(p=>fmt(p.x)+' m').join('、'):'—';
+}
+
+/* ============ 事件绑定 ============ */
+$('rT').oninput=e=>{T=+e.target.value;refreshReadouts();};
+$('rMu').oninput=e=>{mu=+e.target.value;refreshReadouts();};
+$('rAmp').oninput=e=>{amp=+e.target.value;refreshReadouts();};
+$('rWid').oninput=e=>{wid=+e.target.value;refreshReadouts();};
+$('rSpeed').oninput=e=>{speed=+e.target.value;refreshReadouts();};
+$('selShape').onchange=e=>shape=e.target.value;
+document.querySelectorAll('input[name=rmode]').forEach(r=>r.onchange=e=>rightMode=e.target.value);
+$('rProbe').oninput=e=>{probeIdx=+e.target.value;refreshReadouts();};
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect(), sx=(e.clientX-r.left)*(W/r.width);
+  probeIdx=Math.max(0,Math.min(N-1,Math.round((sx-MX)/(W-MX-MR)*L/dx)));
+  $('rProbe').value=probeIdx; refreshReadouts();
+});
+$('btnLeft').onclick=()=>inject(true);
+$('btnRight').onclick=()=>inject(false);
+$('btnBoth').onclick=()=>{inject(true);inject(false);};
+function setPlay(p){playing=p;$('btnPlay').textContent=p?'⏸ 暂停':'▶ 播放';}
+$('btnPlay').onclick=()=>setPlay(!playing);
+$('btnStep').onclick=()=>{setPlay(false);advance(t+0.02);afterAdvance();};
+$('btnReset').onclick=()=>{
+  y0.fill(0);y1.fill(0);y2.fill(0);t=0;hist=[];trails=[];lastTrail=-1;
+};
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.code==='Space'){e.preventDefault();setPlay(!playing);}
+  if(e.code==='ArrowRight'){setPlay(false);advance(t+0.02);afterAdvance();}
+  if(e.key==='r'||e.key==='R')$('btnReset').onclick();
+});
+
+/* ============ 主循环 ============ */
+let lastNow=performance.now();
+function frame(now){
+  const del=Math.min(0.05,(now-lastNow)/1000); lastNow=now;
+  if(playing){ advance(t+speed*del); afterAdvance(); }
+  drawScene(); drawGraph(); refreshLive();
+  requestAnimationFrame(frame);
+}
+refreshReadouts();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一维热传导棒 · 弛豫到稳态</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a111e;color:#e8eef7;font-family:system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;padding:16px 14px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:21px;letter-spacing:.5px}
+h1 .em{color:#ff9f43}
+.sub{color:#93a7c4;font-size:13px;margin-top:4px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#121e30;border:1px solid #233650;border-radius:12px;padding:10px 12px;margin-top:14px}
+.btn{background:#1d3050;border:1px solid #33507c;color:#e8eef7;border-radius:8px;padding:7px 14px;font-size:14px;cursor:pointer;transition:.15s}
+.btn:hover{background:#27406b}
+.btn.primary{background:#ff9f43;border-color:#ffb46b;color:#22160a;font-weight:600}
+.btn.primary:hover{background:#ffb46b}
+.btn.ghost{background:transparent}
+select{background:#1d3050;border:1px solid #33507c;color:#e8eef7;border-radius:8px;padding:6px 8px;font-size:13px}
+.lbl{color:#93a7c4;font-size:13px}
+.hint{font-size:12px;color:#7fd4ff;opacity:0;transition:opacity .3s;margin-left:auto;max-width:420px;text-align:right}
+.hint.on{opacity:1}
+.layout{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;align-items:flex-start}
+.main{flex:1 1 620px;min-width:480px;display:flex;flex-direction:column;gap:10px}
+canvas{width:100%;height:auto;display:block;background:#0e1929;border:1px solid #233650;border-radius:12px;touch-action:none;cursor:crosshair}
+.side{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column;gap:10px}
+.card{background:#121e30;border:1px solid #233650;border-radius:12px;padding:12px 14px}
+.card h3{font-size:14px;color:#ffcf5c;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.row label{flex:0 0 64px;font-size:13px;color:#b9c8de}
+.row select{flex:1}
+input[type=range]{flex:1;accent-color:#ff9f43}
+.val{flex:0 0 58px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:#ffd9a0}
+dl.grid2{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13px}
+dl.grid2 dt{color:#8fa5c2}
+dl.grid2 dd{text-align:right;font-variant-numeric:tabular-nums;color:#e8eef7}
+.flux{background:#121e30;border:1px solid #233650;border-radius:12px;padding:10px 12px}
+.flux .ft{font-size:12px;color:#8fa5c2;margin-bottom:8px;line-height:1.5}
+.flux .ft b{color:#ffd9a0}
+.fluxCells{display:flex;gap:8px}
+.fc{flex:1;text-align:center;background:#0e1929;border:1px solid #233650;border-radius:8px;padding:6px 2px}
+.fc .x{font-size:11px;color:#8fa5c2}
+.fc .q{font-size:14px;font-variant-numeric:tabular-nums;margin-top:2px;color:#e8eef7}
+.fc.eq{border-color:#3ddc84}.fc.eq .q{color:#3ddc84}
+ul.tips{list-style:none;font-size:12.5px;color:#c3d2e8;display:flex;flex-direction:column;gap:7px;line-height:1.55}
+ul.tips li::before{content:"✦ ";color:#ff9f43}
+ul.tips b{color:#ffd9a0}
+#ssBadge{display:none;background:#123524;border:1px solid #3ddc84;color:#3ddc84;font-size:12px;border-radius:20px;padding:3px 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔥 一维热传导棒 · 弛豫到稳态</h1>
+  <div class="sub">长 L = 0.5 m 的导热棒，两端浸入恒温槽（温度被"钉住"），棒内温度场 T(x,t) 按一维热传导方程演化直至稳态线性分布。空格键 = 播放/暂停，←/→ = 移动探针。</div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="btnPlay">▶ 开始</button>
+    <button class="btn" id="btnStep">⏭ 单步</button>
+    <button class="btn" id="btnFF">⏩ 快进到稳态</button>
+    <button class="btn ghost" id="btnReset">⟲ 重置</button>
+    <span class="lbl">时间倍速</span>
+    <select id="speedSel">
+      <option value="1">1×</option><option value="10" selected>10×</option>
+      <option value="50">50×</option><option value="200">200×</option><option value="1000">1000×</option>
+    </select>
+    <span id="ssBadge">✔ 稳态达成</span>
+    <span class="hint" id="hint"></span>
+  </div>
+
+  <div class="layout">
+    <div class="main">
+      <canvas id="rodC"></canvas>
+      <canvas id="plotC"></canvas>
+      <div class="flux">
+        <div class="ft">各截面热流 q = −k·dT/dx（单位 kW/m²，箭头方向 = 热流方向）。<b>稳态时五个截面完全相等</b> —— 热持续从热端流向冷端，只是温度不再变化。</div>
+        <div class="fluxCells" id="fluxCells"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card">
+        <h3>🌡 恒温槽（两端钉扎温度，0–100°C 可调）</h3>
+        <div class="row"><label>热端</label><input type="range" id="thS" min="0" max="100" step="1" value="100"><span class="val" id="thV">100°C</span></div>
+        <div class="row"><label>冷端</label><input type="range" id="tcS" min="0" max="100" step="1" value="20"><span class="val" id="tcV">20°C</span></div>
+      </div>
+      <div class="card">
+        <h3>⚙ 初始条件 / 材料（改动即重置）</h3>
+        <div class="row"><label>初始温度</label><select id="initSel"></select></div>
+        <div class="row"><label>棒材料</label><select id="matSel"></select></div>
+        <dl class="grid2" style="margin-top:8px">
+          <dt>α 热扩散率</dt><dd id="stAlpha"></dd>
+          <dt>k 导热系数</dt><dd id="stK"></dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h3>📊 状态读数</h3>
+        <dl class="grid2">
+          <dt>仿真时间 t</dt><dd id="stTime">0 s</dd>
+          <dt>max|dT/dt|（全棒）</dt><dd id="stRate">—</dd>
+          <dt>探针位置 x</dt><dd id="stPx">—</dd>
+          <dt>探针温度 T</dt><dd id="stPt">—</dd>
+          <dt>探针 dT/dt</dt><dd id="stPd">—</dd>
+          <dt>探针热流 q</dt><dd id="stPq">—</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h3>💡 教学要点</h3>
+        <ul class="tips">
+          <li><b>稳态 = 线性分布</b>：T(x) 恒为连接两端恒温槽温度的直线（图中蓝色虚线）。</li>
+          <li><b>稳态 ≠ 没有热流</b>：各截面热流相等（看上方五个读数同时变绿），热持续从热端流向冷端。</li>
+          <li><b>弛豫从热端开始</b>：用「单步」观察，靠近热端的点先变化，扰动以扩散方式逐渐传向冷端。</li>
+          <li><b>两端始终钉住</b>：无论初值如何，x=0 与 x=L 处温度恒等于恒温槽温度，不参与弛豫。</li>
+          <li>低倍速弛豫很慢，建议用 <b>⏩ 快进到稳态</b>；到达稳态后调整恒温槽温度，可再次观察弛豫过程。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+// ---------- 物理与数值参数 ----------
+const L=0.5, N=101, dx=L/(N-1);               // 棒长、网格
+const MATS={cu:{name:'铜',alpha:1.11e-4,k:401},al:{name:'铝',alpha:9.7e-5,k:237},steel:{name:'碳钢',alpha:1.2e-5,k:50}};
+let matKey='cu';
+let Th=100, Tc=20;                             // 恒温槽温度
+let T=new Float64Array(N);                     // 温度场
+let simTime=0, playing=false, steady=false, steadyAt=0, lastRate=Infinity;
+let speed=10, probeF=0.3;
+const $=id=>document.getElementById(id);
+
+const INITS={
+  i20 :{name:'全棒 20°C（室温）',            f:()=>20},
+  i40 :{name:'全棒 40°C',                    f:()=>40},
+  i60 :{name:'全棒 60°C',                    f:()=>60},
+  i80 :{name:'全棒 80°C',                    f:()=>80},
+  i100:{name:'全棒 100°C',                   f:()=>100},
+  mid :{name:'中段热斑（20°C 底 + 峰 100°C）',f:x=>20+80*Math.exp(-Math.pow((x-0.25)/0.07,2))},
+  lin :{name:'线性分布（已是稳态）',          f:x=>Th+(Tc-Th)*x/L}
+};
+let initKey='i20';
+
+function reset(){
+  const f=INITS[initKey].f;
+  for(let i=0;i<N;i++)T[i]=f(i*dx);
+  T[0]=Th; T[N-1]=Tc;
+  simTime=0; steady=false; steadyAt=0; lastRate=Infinity;
+  playing=false; updPlayBtn();
+}
+
+// ---------- 求解器：显式差分（r = α·dt/dx² = 0.4，稳定） ----------
+function dtCur(){return 0.4*dx*dx/MATS[matKey].alpha;}
+function step(n){
+  const r=0.4, dt=dtCur();
+  let maxd=0;
+  for(let s=0;s<n;s++){
+    maxd=0; let t0=T[0];
+    for(let i=1;i<N-1;i++){
+      const ti=T[i];
+      const tn=(1-2*r)*ti + r*t0 + r*T[i+1];   // T[i]+r(T[i+1]-2T[i]+T[i-1])
+      const d=Math.abs(tn-ti); if(d>maxd)maxd=d;
+      T[i]=tn; t0=ti;
+    }
+    T[0]=Th; T[N-1]=Tc; simTime+=dt;           // 两端始终钉扎
+  }
+  lastRate=maxd/dt;                             // 最后一子步的 max|dT/dt|（K/s）
+  if(!steady && simTime>0 && lastRate<1e-3){
+    steady=true; steadyAt=simTime;
+    if(playing){playing=false; updPlayBtn(); hint('✔ 已达稳态：各点 dT/dt → 0，自动暂停（热仍在流动）');}
+  }
+}
+function fastForward(){
+  playing=false; updPlayBtn();
+  if(steady) return;
+  const dt=dtCur(); let done=0; const chunk=Math.max(1,Math.round(10/dt));
+  while(done<60000){ step(chunk); done+=chunk; if(lastRate<2e-4) break; }
+  if(lastRate<1e-3){steady=true; steadyAt=simTime; lastRate=0;}
+}
+
+// ---------- 工具 ----------
+const clamp01=v=>Math.max(0,Math.min(1,v));
+function fmtT(s){ if(s<60)return s.toFixed(1)+' s'; if(s<3600){const m=Math.floor(s/60);return m+' 分 '+Math.round(s-60*m)+' 秒';} const h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h+' 时 '+m+' 分'; }
+function fmtRate(r){ if(!isFinite(r))return '—'; if(r>=1)return r.toFixed(2)+' K/s'; if(r>=0.001)return r.toFixed(4)+' K/s'; if(r>=1e-6)return r.toExponential(1)+' K/s'; return '≈ 0 K/s'; }
+const CST=[[0,[15,28,110]],[15,[28,86,190]],[30,[38,160,222]],[45,[52,198,150]],[60,[168,212,72]],[75,[248,198,52]],[90,[250,128,38]],[100,[224,44,44]]];
+function tCol(t){
+  t=Math.max(0,Math.min(100,t));
+  for(let i=1;i<CST.length;i++) if(t<=CST[i][0]){
+    const a=CST[i-1],b=CST[i],f=(t-a[0])/(b[0]-a[0]);
+    const c=a[1].map((v,j)=>Math.round(v+f*(b[1][j]-v)));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  return 'rgb(224,44,44)';
+}
+function Tat(x){const u=clamp01(x/L)*(N-1),i=Math.floor(u),f=u-i,j=Math.min(N-1,i+1);return T[i]*(1-f)+T[j]*f;}
+function qAt(x){ // 局部热流（中心差分），正 = 向 +x 方向
+  const k=MATS[matKey].k, i=Math.max(1,Math.min(N-2,Math.round(x/L*(N-1))));
+  return -k*(T[i+1]-T[i-1])/(2*dx);
+}
+function qSec(x){ // 截面热流（端点用单侧差分）
+  const k=MATS[matKey].k, i=Math.round(x/L*(N-1)); let s;
+  if(i<=0)s=(T[1]-T[0])/dx; else if(i>=N-1)s=(T[N-1]-T[N-2])/dx; else s=(T[i+1]-T[i-1])/(2*dx);
+  return -k*s;
+}
+let hintTimer=null;
+function hint(msg){const h=$('hint');h.textContent=msg;h.classList.add('on');clearTimeout(hintTimer);hintTimer=setTimeout(()=>h.classList.remove('on'),4000);}
+function updPlayBtn(){$('btnPlay').textContent=playing?'⏸ 暂停':'▶ 开始';}
+
+// ---------- 画布 ----------
+const RW=960,RH=210,PW=960,PH=330;
+function mk(c,w,h){const dpr=Math.min(2,window.devicePixelRatio||1);c.width=w*dpr;c.height=h*dpr;c.style.aspectRatio=w+'/'+h;const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return g;}
+const rodG=mk($('rodC'),RW,RH), plotG=mk($('plotC'),PW,PH);
+const tankW=58, rodX0=92, rodX1=868, rodW=rodX1-rodX0, rodY=90, rodH=36;
+const px=x=>rodX0+x/L*rodW;
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function drawArrow(g,x,y,half,w,color){
+  const dir=half>=0?1:-1,h=Math.abs(half);
+  g.strokeStyle=color;g.fillStyle=color;g.lineWidth=w;g.lineCap='round';
+  g.beginPath();g.moveTo(x-dir*h,y);g.lineTo(x+dir*(h-7),y);g.stroke();
+  g.beginPath();g.moveTo(x+dir*h,y);
+  g.lineTo(x+dir*(h-9),y-4.5-w);g.lineTo(x+dir*(h-9),y+4.5+w);g.closePath();g.fill();
+}
+function cbar(g,x0,y0,w,h){
+  for(let i=0;i<w;i++){g.fillStyle=tCol(i/w*100);g.fillRect(x0+i,y0,1.2,h);}
+  g.strokeStyle='#3b5a86';g.lineWidth=1;g.strokeRect(x0,y0,w,h);
+  g.fillStyle='#7f93b0';g.font='10px system-ui';g.textAlign='left';g.fillText('0°C',x0,y0+h+11);
+  g.textAlign='right';g.fillText('100°C',x0+w,y0+h+11);
+}
+function textOutline(g,txt,x,y,fill){g.textAlign='center';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.55)';g.strokeText(txt,x,y);g.fillStyle=fill;g.fillText(txt,x,y);}
+
+function drawRod(){
+  const g=rodG; g.clearRect(0,0,RW,RH);
+  g.font='11px system-ui'; g.fillStyle='#7f93b0'; g.textAlign='left';
+  g.fillText('热流箭头（粗细/密度 ∝ |q|，方向 = 热流方向）',rodX0,16);
+  cbar(g,790,8,140,8);
+  g.textAlign='right'; g.fillText('◈ 金色菱形 = 可拖动探针',770,16);
+  // 热流箭头
+  const slots=12, qs=[]; let qm=1e-9;
+  for(let s=0;s<slots;s++){const q=qAt((s+0.5)/slots*L);qs.push(q);qm=Math.max(qm,Math.abs(q));}
+  for(let s=0;s<slots;s++){
+    const ratio=Math.abs(qs[s])/qm; if(ratio<0.12)continue;
+    const x=rodX0+(s+0.5)/slots*rodW, dir=qs[s]>=0?1:-1;
+    drawArrow(g,x,44,dir*(11+11*ratio),1+6*Math.pow(ratio,0.8),`rgba(255,159,67,${0.3+0.7*ratio})`);
+  }
+  // 恒温槽
+  const tank=(x0,label,t)=>{
+    rr(g,x0,62,tankW,90,10); g.fillStyle=tCol(t); g.globalAlpha=.9; g.fill(); g.globalAlpha=1;
+    g.strokeStyle='#3b5a86'; g.lineWidth=1.5; g.stroke();
+    g.font='600 12px system-ui'; g.fillStyle='#e8eef7'; g.textAlign='center'; g.fillText(label,x0+tankW/2,54);
+    g.font='700 15px system-ui'; textOutline(g,Math.round(t)+'°C',x0+tankW/2,108,'#fff');
+    g.font='10px system-ui'; g.fillStyle='rgba(255,255,255,.85)'; g.fillText('恒温槽 · 钉扎',x0+tankW/2,128);
+  };
+  tank(16,'热端',Th); tank(RW-16-tankW,'冷端',Tc);
+  // 棒身（温度图着色）
+  g.save(); rr(g,rodX0,rodY,rodW,rodH,9); g.clip();
+  for(let i=0;i<N-1;i++){ g.fillStyle=tCol((T[i]+T[i+1])/2); g.fillRect(px(i*dx)-0.5,rodY,rodW/(N-1)+1,rodH); }
+  const gr=g.createLinearGradient(0,rodY,0,rodY+rodH);
+  gr.addColorStop(0,'rgba(255,255,255,.22)');gr.addColorStop(.5,'rgba(255,255,255,0)');gr.addColorStop(1,'rgba(0,0,0,.28)');
+  g.fillStyle=gr; g.fillRect(rodX0,rodY,rodW,rodH); g.restore();
+  rr(g,rodX0,rodY,rodW,rodH,9); g.strokeStyle='#3b5a86'; g.lineWidth=1.5; g.stroke();
+  // 刻度
+  g.fillStyle='#7f93b0'; g.font='10.5px system-ui'; g.textAlign='center';
+  for(let i=0;i<=5;i++) g.fillText((0.1*i).toFixed(1),rodX0+rodW*i/5,146);
+  g.textAlign='left'; g.fillText('位置 x (m)',14,146);
+  // 探针
+  const ppx=rodX0+probeF*rodW, pt=Tat(probeF*L);
+  g.strokeStyle='#9fb4d0'; g.lineWidth=1.5;
+  g.beginPath(); g.moveTo(ppx,rodY+rodH); g.lineTo(ppx,162); g.stroke();
+  g.save(); g.translate(ppx,168); g.rotate(Math.PI/4);
+  g.fillStyle='#ffcf5c'; g.strokeStyle='#22160a'; g.lineWidth=1.5;
+  g.fillRect(-6,-6,12,12); g.strokeRect(-6,-6,12,12); g.restore();
+  const txt=`x = ${(probeF*L).toFixed(3)} m   T = ${pt.toFixed(1)} °C`;
+  g.font='12px system-ui'; const tw=g.measureText(txt).width+16;
+  const bx=Math.max(6,Math.min(RW-6-tw,ppx-tw/2));
+  rr(g,bx,178,tw,22,6); g.fillStyle='rgba(10,17,30,.92)'; g.fill(); g.strokeStyle='#3b5a86'; g.lineWidth=1; g.stroke();
+  g.fillStyle='#ffd9a0'; g.textAlign='center'; g.fillText(txt,bx+tw/2,193);
+}
+
+function drawPlot(){
+  const g=plotG; g.clearRect(0,0,PW,PH);
+  const ml=52,mr=16,mt=30,mb=42,pw=PW-ml-mr,ph=PH-mt-mb, ymin=0,ymax=110;
+  const X=x=>ml+pw*x/L, Y=t=>mt+ph*(1-(t-ymin)/(ymax-ymin));
+  g.fillStyle='rgba(255,255,255,.02)'; g.fillRect(ml,mt,pw,ph);
+  g.strokeStyle='#1c2b44'; g.lineWidth=1; g.setLineDash([4,4]); g.font='10.5px system-ui';
+  g.fillStyle='#7f93b0'; g.textAlign='right';
+  for(let t=0;t<=100;t+=20){ g.beginPath();g.moveTo(ml,Y(t));g.lineTo(ml+pw,Y(t));g.stroke(); g.fillText(t+'°',ml-6,Y(t)+3.5); }
+  g.textAlign='center';
+  for(let i=0;i<=5;i++){const x=L*i/5;g.beginPath();g.moveTo(X(x),mt);g.lineTo(X(x),mt+ph);g.stroke();g.fillText(x.toFixed(1),X(x),mt+ph+16);}
+  g.fillText('位置 x (m)',ml+pw/2,mt+ph+32);
+  g.save();g.translate(13,mt+ph/2);g.rotate(-Math.PI/2);g.textAlign='center';g.fillText('温度 T (°C)',0,0);g.restore();
+  g.setLineDash([]);
+  // 稳态目标（线性）
+  g.strokeStyle='#7fd4ff'; g.setLineDash([7,5]); g.lineWidth=1.6;
+  g.beginPath(); g.moveTo(X(0),Y(Th)); g.lineTo(X(L),Y(Tc)); g.stroke(); g.setLineDash([]);
+  g.fillStyle='#7fd4ff'; g.font='11px system-ui'; g.textAlign='left';
+  g.fillText('稳态目标（线性）',X(L*0.3),Y(Th+(Tc-Th)*0.3)-9);
+  // 探针竖线
+  const pX=X(probeF*L);
+  g.strokeStyle='rgba(159,180,208,.5)'; g.setLineDash([3,4]);
+  g.beginPath(); g.moveTo(pX,mt); g.lineTo(pX,mt+ph); g.stroke(); g.setLineDash([]);
+  // 当前温度曲线
+  g.beginPath();
+  for(let i=0;i<N;i++){const xx=X(i*dx),yy=Y(T[i]); i?g.lineTo(xx,yy):g.moveTo(xx,yy);}
+  g.strokeStyle='#ffcf5c'; g.lineWidth=2.6; g.lineJoin='round';
+  g.shadowColor='rgba(255,207,92,.5)'; g.shadowBlur=8; g.stroke(); g.shadowBlur=0;
+  g.lineTo(X(L),mt+ph); g.lineTo(X(0),mt+ph); g.closePath();
+  g.fillStyle='rgba(255,207,92,.08)'; g.fill();
+  // 探针点
+  const pt=Tat(probeF*L);
+  g.beginPath(); g.arc(pX,Y(pt),5,0,7); g.fillStyle='#fff'; g.fill();
+  g.strokeStyle='#ff9f43'; g.lineWidth=2; g.stroke();
+  // 图例 / 状态标注
+  g.textAlign='left'; g.fillStyle='#ffcf5c'; g.font='11px system-ui';
+  g.fillText('— 当前 T(x,t)',ml+8,mt+14);
+  if(steady){
+    const txt=`✔ 稳态达成（t = ${fmtT(steadyAt)}，max|dT/dt| → 0，热流仍持续）`;
+    g.font='600 13px system-ui'; const tw=g.measureText(txt).width+24, bx=PW/2-tw/2;
+    rr(g,bx,6,tw,24,12); g.fillStyle='rgba(20,60,38,.95)'; g.fill();
+    g.strokeStyle='#3ddc84'; g.lineWidth=1.2; g.stroke();
+    g.fillStyle='#3ddc84'; g.textAlign='center'; g.fillText(txt,PW/2,22);
+  }else{
+    g.font='11px system-ui'; g.fillStyle='#7f93b0'; g.textAlign='right';
+    g.fillText(`演化中… max|dT/dt| = ${fmtRate(lastRate)}`,PW-mr-4,18);
+  }
+}
+
+// ---------- 状态读数 / 截面热流 ----------
+const fluxEls=[]; const SECS=[0,.25,.5,.75,1];
+function buildFlux(){
+  const host=$('fluxCells');
+  SECS.forEach(f=>{const d=document.createElement('div');d.className='fc';
+    d.innerHTML=`<div class="x">x = ${(f*L).toFixed(2)} m</div><div class="q">—</div>`;
+    host.appendChild(d); fluxEls.push(d);});
+}
+function updateUI(){
+  $('stTime').textContent=fmtT(simTime);
+  $('stRate').textContent=steady?'≈ 0（稳态）':fmtRate(lastRate);
+  const pL=probeF*L;
+  $('stPx').textContent=pL.toFixed(3)+' m';
+  $('stPt').textContent=Tat(pL).toFixed(2)+' °C';
+  const i=Math.max(1,Math.min(N-2,Math.round(probeF*(N-1))));
+  $('stPd').textContent=fmtRate(MATS[matKey].alpha*(T[i+1]-2*T[i]+T[i-1])/(dx*dx));
+  $('stPq').textContent=(qAt(pL)/1000).toFixed(2)+' kW/m²';
+  $('stAlpha').textContent=MATS[matKey].alpha.toExponential(1)+' m²/s';
+  $('stK').textContent=MATS[matKey].k+' W/(m·K)';
+  $('ssBadge').style.display=steady?'inline-block':'none';
+  const qs=SECS.map(f=>qSec(f*L));
+  const qm=Math.max(...qs.map(q=>Math.abs(q)),1e-9);
+  const eq=(Math.max(...qs)-Math.min(...qs))<0.02*qm+100;
+  SECS.forEach((f,s)=>{
+    fluxEls[s].classList.toggle('eq',eq&&simTime>0);
+    fluxEls[s].querySelector('.q').innerHTML=(qs[s]>=0?'→':'←')+' '+(Math.abs(qs[s])/1000).toFixed(2)+(eq&&simTime>0?' <span style="font-size:10px">✔</span>':'');
+  });
+}
+
+// ---------- 交互 ----------
+$('btnPlay').onclick=()=>{
+  if(steady){hint('已达稳态：温度不再变化。可调整恒温槽温度或初始条件后重置，再观察一次弛豫。');return;}
+  playing=!playing; updPlayBtn();
+};
+$('btnStep').onclick=()=>{
+  if(steady){hint('已达稳态，单步不再变化。');return;}
+  playing=false; updPlayBtn();
+  const tau=L*L/(Math.PI*Math.PI*MATS[matKey].alpha);
+  step(Math.max(1,Math.round(Math.min(30,Math.max(1,tau/50))/dtCur())));
+};
+$('btnFF').onclick=()=>{ if(steady){hint('已是稳态。');return;} fastForward(); hint('已快进到稳态 ✔ 注意五个截面热流相等、温度线性分布'); };
+$('btnReset').onclick=()=>{reset();hint('已重置');};
+$('speedSel').onchange=e=>speed=+e.target.value;
+$('thS').oninput=e=>{Th=+e.target.value;$('thV').textContent=Th+'°C';steady=false;steadyAt=0;lastRate=Infinity;};
+$('tcS').oninput=e=>{Tc=+e.target.value;$('tcV').textContent=Tc+'°C';steady=false;steadyAt=0;lastRate=Infinity;};
+$('initSel').onchange=e=>{initKey=e.target.value;reset();};
+$('matSel').onchange=e=>{matKey=e.target.value;};
+
+function bindDrag(c,map){
+  let on=false;
+  c.addEventListener('pointerdown',e=>{on=true;c.setPointerCapture(e.pointerId);map(e);});
+  c.addEventListener('pointermove',e=>{if(on)map(e);});
+  c.addEventListener('pointerup',()=>on=false);
+  c.addEventListener('pointercancel',()=>on=false);
+}
+const cx=(e,c)=>(e.clientX-c.getBoundingClientRect().left)*960/c.getBoundingClientRect().width;
+bindDrag($('rodC'),e=>{probeF=clamp01((cx(e,$('rodC'))-rodX0)/rodW);});
+bindDrag($('plotC'),e=>{probeF=clamp01((cx(e,$('plotC'))-52)/(960-52-16));});
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.code==='Space'){e.preventDefault();$('btnPlay').click();}
+  if(e.key==='ArrowLeft') probeF=clamp01(probeF-0.01);
+  if(e.key==='ArrowRight')probeF=clamp01(probeF+0.01);
+});
+
+// ---------- 主循环 ----------
+let lastTs=performance.now();
+function loop(ts){
+  const dtR=Math.min((ts-lastTs)/1000,0.06); lastTs=ts;
+  if(playing&&!steady){
+    const n=Math.min(60000,Math.round(speed*dtR/dtCur()));
+    if(n>0)step(n);
+  }
+  drawRod(); drawPlot(); updateUI();
+  requestAnimationFrame(loop);
+}
+
+// ---------- 启动 ----------
+{ const is=$('initSel'); for(const k in INITS){const o=document.createElement('option');o.value=k;o.textContent=INITS[k].name;is.appendChild(o);} is.value=initKey;
+  const ms=$('matSel'); for(const k in MATS){const o=document.createElement('option');o.value=k;o.textContent=MATS[k].name;ms.appendChild(o);} ms.value=matKey; }
+buildFlux(); reset(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

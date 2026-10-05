@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>圆周运动：断绳 · 转盘打滑 · 砂轮火星</title>
+<style>
+:root{--bg:#0b111e;--panel:#131c2e;--panel2:#0f1626;--line:#26324a;
+--txt:#dbe6f5;--dim:#8fa3c0;--acc:#4da3ff;--warn:#ffb84d;--bad:#ff6b6b;--ok:#3ddc84}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);
+font:15px/1.6 "PingFang SC","Microsoft YaHei",system-ui,sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel2);flex-wrap:wrap}
+h1{font-size:17px;margin:0 10px 0 0;font-weight:600}
+.tabs{display:flex;gap:6px}
+.tab{padding:7px 14px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--dim);cursor:pointer;font-size:14px}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#06121f;font-weight:600}
+#pauseBtn{margin-left:auto;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--txt);cursor:pointer}
+main{flex:1;display:flex;min-height:0}
+#stage{flex:1;position:relative;min-width:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+aside{width:330px;border-left:1px solid var(--line);background:var(--panel);padding:14px;overflow-y:auto}
+.mode-panel{display:none}.mode-panel.on{display:block}
+.row{display:flex;align-items:center;gap:8px;margin:10px 0}
+.row label{flex:0 0 100px;color:var(--dim);font-size:13px}
+.row input[type=range]{flex:1;accent-color:var(--acc)}
+.row .val{flex:0 0 78px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px;color:var(--acc)}
+.btns{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+button.act{padding:8px 14px;border-radius:8px;border:1px solid var(--acc);background:var(--acc);color:#06121f;font-weight:600;cursor:pointer;font-size:14px}
+button.act.red{background:var(--bad);border-color:var(--bad);color:#1a0808}
+button.act.ghost{background:transparent;color:var(--acc)}
+button.act.on{background:var(--warn);border-color:var(--warn);color:#241300}
+.chk{display:flex;align-items:center;gap:6px;margin:6px 0;color:var(--dim);font-size:13px;cursor:pointer}
+.readout{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0;font-size:13px;line-height:1.9}
+.readout b{color:var(--acc);font-weight:600}
+.gauge{height:10px;background:#0a0f1a;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:6px 0}
+.gauge>div{height:100%;width:0%;background:var(--ok)}
+.note{color:var(--dim);font-size:12.5px;border-left:3px solid var(--acc);padding:6px 10px;margin:10px 0;background:var(--panel2);border-radius:0 6px 6px 0}
+.hint{color:var(--dim);font-size:12px;margin-top:14px}
+kbd{background:#0a0f1a;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
+@media (max-width:880px){main{flex-direction:column}aside{width:100%;border-left:none;border-top:1px solid var(--line)}#stage{min-height:60vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>圆周运动演示</h1>
+  <div class="tabs">
+    <button class="tab on" data-mode="cut">🧵 断绳实验</button>
+    <button class="tab" data-mode="disc">💿 转盘打滑</button>
+    <button class="tab" data-mode="wheel">✨ 砂轮火星</button>
+  </div>
+  <button id="pauseBtn">⏸ 暂停 (P)</button>
+</header>
+<main>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <aside>
+
+  <section class="mode-panel on" id="p-cut">
+    <div class="btns">
+      <button class="act red" id="cutBtn">✂ 一键剪断</button>
+      <button class="act ghost" id="cutReset">↺ 重置</button>
+    </div>
+    <div class="row"><label>半径 R</label><input type="range" id="cutR" min="60" max="220" step="5" value="150"><span class="val" id="v-cutR"></span></div>
+    <div class="row"><label>角速度 ω</label><input type="range" id="cutOm" min="0.5" max="4" step="0.1" value="1.6"><span class="val" id="v-cutOm"></span></div>
+    <div class="row"><label>慢放倍率</label><input type="range" id="cutTs" min="0.05" max="1" step="0.05" value="1"><span class="val" id="v-cutTs"></span></div>
+    <label class="chk"><input type="checkbox" id="cutV" checked> 显示速度箭头 v</label>
+    <label class="chk"><input type="checkbox" id="cutA" checked> 显示向心加速度 a<sub>n</sub>（剪断前）</label>
+    <label class="chk"><input type="checkbox" id="cutG" checked> 等时闪光点（每 0.09 s 一个）</label>
+    <div class="readout" id="v-cutV"></div>
+    <div class="note">剪断瞬间，小球沿<b>该点的切线方向</b>（即瞬时速度方向）匀速直线飞出——这是惯性的表现。
+    注意观察：小球<b>不是沿半径飞出</b>，也不存在把它"甩出去"的离心力。
+    白点为剪断前等时位置（圆周上等弧长），绿点为剪断后等时位置（直线上等间距）⇒ 速率不变。</div>
+    <div class="hint">快捷键：<kbd>空格</kbd> 剪断 · <kbd>R</kbd> 重置</div>
+  </section>
+
+  <section class="mode-panel" id="p-disc">
+    <div class="btns">
+      <button class="act ghost" id="discReset">↺ 重置</button>
+      <button class="act ghost" id="discRamp">▶ 自动缓慢加速找临界转速</button>
+    </div>
+    <div class="row"><label>转速 n</label><input type="range" id="dRpm" min="0" max="45" step="0.5" value="8"><span class="val" id="v-dRpm"></span></div>
+    <div class="row"><label>物块半径 r</label><input type="range" id="dR" min="0.5" max="1.75" step="0.05" value="1.2"><span class="val" id="v-dR"></span></div>
+    <div class="row"><label>摩擦系数 μ<sub>s</sub></label><input type="range" id="dMu" min="0.1" max="0.8" step="0.01" value="0.4"><span class="val" id="v-dMu"></span></div>
+    <div class="row"><label>慢放倍率</label><input type="range" id="dTs" min="0.05" max="1" step="0.05" value="1"><span class="val" id="v-dTs"></span></div>
+    <div class="readout" id="d-read"></div>
+    <div>静摩擦需求 / 最大静摩擦：</div>
+    <div class="gauge"><div id="d-gauge"></div></div>
+    <div class="note">物块随盘转动所需的向心力由<b>静摩擦</b>提供：f = mω²r ≤ μ<sub>s</sub>mg。
+    当 ω²r &gt; μ<sub>s</sub>g 时静摩擦"不够用"，物块开始打滑——注意它沿<b>切线方向</b>滑出，而不是沿半径向外爬。</div>
+    <div class="hint">提示：调大转速或把物块移向外侧，都会让打滑更早发生。</div>
+  </section>
+
+  <section class="mode-panel" id="p-wheel">
+    <div class="btns"><button class="act ghost" id="wReset">✦ 清空火星</button></div>
+    <label class="chk"><input type="checkbox" id="wGrind" checked> 持续打磨（产生火星）</label>
+    <div class="row"><label>砂轮角速度 ω</label><input type="range" id="wOm" min="5" max="60" step="1" value="20"><span class="val" id="v-wOm"></span></div>
+    <div class="row"><label>慢放倍率</label><input type="range" id="wTs" min="0.02" max="1" step="0.01" value="0.12"><span class="val" id="v-wTs"></span></div>
+    <div class="readout" id="w-read"></div>
+    <div class="note">火星是被磨下的炽热微粒：脱离砂轮的瞬间，它<b>保持该点的线速度方向——沿切线飞出</b>，
+    随后受重力微微下弯。调慢倍率可以看清每颗火星的出射方向都贴着轮缘切线。</div>
+    <div class="hint">快捷键：<kbd>空格</kbd> 开关打磨 · <kbd>R</kbd> 清空</div>
+  </section>
+
+  </aside>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+let W=0,H=0;
+function resize(){const r=$('#stage').getBoundingClientRect();
+const d=Math.min(2,devicePixelRatio||1);cv.width=r.width*d;cv.height=r.height*d;
+W=r.width;H=r.height;ctx.setTransform(d,0,0,d,0,0);}
+addEventListener('resize',resize);resize();
+
+let mode='cut',paused=false;
+const G9=9.8,PX=100;
+
+/* ---------- 通用绘图 ---------- */
+function grid(){ctx.save();ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=1;
+ctx.beginPath();for(let x=0;x<W;x+=48){ctx.moveTo(x,0);ctx.lineTo(x,H);}
+for(let y=0;y<H;y+=48){ctx.moveTo(0,y);ctx.lineTo(W,y);}ctx.stroke();ctx.restore();}
+function arrow(x1,y1,x2,y2,color,w=2.5,head=9){const dx=x2-x1,dy=y2-y1,l=Math.hypot(dx,dy);
+if(l<2)return;const a=Math.atan2(dy,dx);ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;
+ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+ctx.translate(x2,y2);ctx.rotate(a);ctx.beginPath();ctx.moveTo(0,0);
+ctx.lineTo(-head,-head*.55);ctx.lineTo(-head,head*.55);ctx.closePath();ctx.fill();ctx.restore();}
+function pill(x,y,text,color){ctx.save();ctx.font='12.5px system-ui';ctx.textBaseline='middle';
+const w=ctx.measureText(text).width;ctx.fillStyle='rgba(8,13,24,.8)';ctx.fillRect(x-5,y-9,w+10,18);
+ctx.fillStyle=color;ctx.fillText(text,x,y);ctx.restore();}
+function hud(lines){ctx.save();ctx.font='13px system-ui';ctx.textBaseline='top';
+let y=12;for(const[t,c]of lines){const w=ctx.measureText(t).width;
+ctx.fillStyle='rgba(8,13,24,.72)';ctx.fillRect(8,y-3,w+12,20);
+ctx.fillStyle=c||'#dbe6f5';ctx.fillText(t,14,y);y+=24;}ctx.restore();}
+function banner(text,color){ctx.save();ctx.font='700 22px system-ui';ctx.textAlign='center';
+ctx.textBaseline='middle';const w=ctx.measureText(text).width;
+ctx.fillStyle='rgba(8,13,24,.85)';ctx.fillRect(W/2-w/2-16,H-64,w+32,42);
+ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.strokeRect(W/2-w/2-16,H-64,w+32,42);
+ctx.fillStyle=color;ctx.fillText(text,W/2,H-43);ctx.restore();}
+function dash(x1,y1,x2,y2,color,w=1.5){ctx.save();ctx.setLineDash([7,7]);ctx.strokeStyle=color;
+ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();}
+function ball(x,y,r,c1,c2){const g=ctx.createRadialGradient(x-r*.35,y-r*.35,r*.15,x,y,r);
+g.addColorStop(0,c1);g.addColorStop(1,c2);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+
+/* ---------- 模式一：断绳 ---------- */
+const cut={R:150,om:1.6,th:-0.6,ts:1,fly:false,bx:0,by:0,vx:0,vy:0,gT:0,ghosts:[],
+cutPt:null,cutTh:0,showV:true,showA:true,showG:true};
+function cutReset(){cut.fly=false;cut.th=-0.6;cut.ghosts=[];cut.gT=0;cut.cutPt=null;}
+function doCut(){if(cut.fly)return;cut.fly=true;cut.cutPt={x:cut.bx,y:cut.by};cut.cutTh=cut.th;
+cut.vx=-cut.om*cut.R*Math.sin(cut.th);cut.vy=cut.om*cut.R*Math.cos(cut.th);}
+function cutUpdate(dt){const cx=W/2,cy=H/2;
+if(!cut.fly){cut.th+=cut.om*dt;
+cut.bx=cx+cut.R*Math.cos(cut.th);cut.by=cy+cut.R*Math.sin(cut.th);
+if(cut.showG){cut.gT+=dt;if(cut.gT>=.09){cut.gT=0;cut.ghosts.push({x:cut.bx,y:cut.by,f:0});}}}
+else{cut.bx+=cut.vx*dt;cut.by+=cut.vy*dt;
+if(cut.showG){cut.gT+=dt;if(cut.gT>=.09){cut.gT=0;cut.ghosts.push({x:cut.bx,y:cut.by,f:1});}}
+if(cut.ghosts.length>500)cut.ghosts.shift();}}
+function cutDraw(){const cx=W/2,cy=H/2;grid();
+ctx.save();ctx.setLineDash([7,7]);ctx.strokeStyle='rgba(143,163,192,.35)';ctx.lineWidth=1.2;
+ctx.beginPath();ctx.arc(cx,cy,cut.R,0,7);ctx.stroke();ctx.restore();
+if(cut.fly){const l=Math.hypot(cut.vx,cut.vy)||1,ux=cut.vx/l,uy=cut.vy/l,p=cut.cutPt;
+dash(p.x-ux*2500,p.y-uy*2500,p.x+ux*2500,p.y+uy*2500,'rgba(77,163,255,.75)',1.5);
+pill(p.x+ux*70+10,p.y+uy*70-12,'切线方向 = 实际飞出方向','#4da3ff');
+const rx=Math.cos(cut.cutTh),ry=Math.sin(cut.cutTh);
+dash(cx,cy,cx+rx*cut.R*1.9,cy+ry*cut.R*1.9,'rgba(255,122,217,.7)',1.5);
+pill(cx+rx*cut.R*1.9-60,cy+ry*cut.R*1.9+14,'半径方向 ✗（并非飞出方向）','#ff7ad9');
+ctx.save();ctx.strokeStyle='rgba(61,220,132,.75)';ctx.lineWidth=2.5;
+ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(cut.bx,cut.by);ctx.stroke();ctx.restore();}
+if(cut.showG)for(const g of cut.ghosts){ctx.beginPath();ctx.arc(g.x,g.y,3,0,7);
+ctx.fillStyle=g.f?'rgba(61,220,132,.9)':'rgba(255,255,255,.4)';ctx.fill();}
+if(!cut.fly){ctx.strokeStyle='#cbd5e1';ctx.lineWidth=2;ctx.beginPath();
+ctx.moveTo(cx,cy);ctx.lineTo(cut.bx,cut.by);ctx.stroke();}
+else{const rx=Math.cos(cut.cutTh),ry=Math.sin(cut.cutTh);
+ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;ctx.beginPath();
+ctx.moveTo(cx,cy);ctx.lineTo(cx+rx*16,cy+ry*16);ctx.stroke();
+const l=Math.hypot(cut.vx,cut.vy)||1;
+ctx.beginPath();ctx.moveTo(cut.bx,cut.by);
+ctx.lineTo(cut.bx-cut.vx/l*11,cut.by-cut.vy/l*11);ctx.stroke();}
+ctx.fillStyle='#64748b';ctx.beginPath();ctx.arc(cx,cy,7,0,7);ctx.fill();
+ctx.fillStyle='#cbd5e1';ctx.beginPath();ctx.arc(cx,cy,2.5,0,7);ctx.fill();
+ball(cut.bx,cut.by,12,'#ffd9a0','#f59e0b');
+const v=Math.hypot(cut.vx,cut.vy)||cut.om*cut.R,ux=cut.vx/v,uy=cut.vy/v;
+if(cut.showV){const L=Math.min(90,22+v*.08);
+arrow(cut.bx+ux*15,cut.by+uy*15,cut.bx+ux*(15+L),cut.by+uy*(15+L),'#ff6b6b');
+pill(cut.bx+ux*(30+L),cut.by+uy*(30+L),'v（切线方向）','#ff6b6b');}
+if(!cut.fly&&cut.showA){const a=cut.om*cut.om*cut.R,L=Math.min(80,16+a*.05);
+const dx=(cx-cut.bx)/cut.R,dy=(cy-cut.by)/cut.R;
+arrow(cut.bx+dx*15,cut.by+dy*15,cut.bx+dx*(15+L),cut.by+dy*(15+L),'#4da3ff');
+pill(cut.bx+dx*(30+L)-10,cut.by+dy*(30+L),'a_n（指向圆心）','#4da3ff');}
+const off=cut.bx<-40||cut.bx>W+40||cut.by<-40||cut.by>H+40;
+hud([['【俯视】光滑水平桌面，小球绕中心做匀速圆周运动','#8fa3c0'],
+['ω = '+cut.om.toFixed(1)+' rad/s    R = '+(cut.R/100).toFixed(2)+' m'],
+['线速度 v = ωR = '+(cut.om*cut.R/100).toFixed(2)+' m/s','#4da3ff'],
+[cut.fly?'● 绳已剪断：沿切线匀速直线飞出（惯性）':'● 匀速绕行中… 点「一键剪断」看效果',
+cut.fly?'#3ddc84':'#dbe6f5']].concat(off?[['小球已飞出视野 —— 按 R 重置','#ffb84d']]:[]));
+$('#v-cutV').innerHTML='v = ωR = <b>'+(cut.om*cut.R/100).toFixed(2)+' m/s</b>';}
+
+/* ---------- 模式二：转盘 ---------- */
+const disc={Rd:1.9,r:1.2,mu:.4,om:0,th:0,ts:1,phase:'stick',bx:0,by:0,vx:0,vy:0,
+ghosts:[],gT:0,slipPt:null,slipTh:0,ramp:false,rpmSlip:null};
+function discReset(){disc.phase='stick';disc.th=0;disc.ghosts=[];disc.gT=0;
+disc.slipPt=null;disc.rpmSlip=null;disc.trail=[];}
+function startSlip(){disc.phase='slip';disc.slipPt={x:disc.bx,y:disc.by};disc.slipTh=disc.th;
+const v=disc.om*disc.r*PX;
+disc.vx=-v*Math.sin(disc.th);disc.vy=v*Math.cos(disc.th);
+disc.rpmSlip=disc.om*30/Math.PI;disc.ramp=false;setRampBtn();}
+function setRampBtn(){const b=$('#discRamp');b.textContent=disc.ramp?'⏹ 停止自动加速':'▶ 自动缓慢加速找临界转速';
+b.classList.toggle('on',disc.ramp);}
+function discUpdate(dt){const cx=W/2,cy=H/2;disc.th+=disc.om*dt;
+if(disc.ramp&&disc.phase==='stick'){const el=$('#dRpm');
+el.value=Math.min(parseFloat(el.max),parseFloat(el.value)+5*dt);
+el.dispatchEvent(new Event('input'));
+if(parseFloat(el.value)>=parseFloat(el.max)){disc.ramp=false;setRampBtn();}}
+if(disc.phase==='stick'){disc.bx=cx+disc.r*PX*Math.cos(disc.th);
+disc.by=cy+disc.r*PX*Math.sin(disc.th);
+disc.gT+=dt;if(disc.gT>=.09){disc.gT=0;disc.ghosts.push({x:disc.bx,y:disc.by,f:0});}
+if(disc.om*disc.om*disc.r>disc.mu*G9+1e-9)startSlip();}
+else{const sp=Math.hypot(disc.vx,disc.vy);
+if(sp>1){const d=Math.hypot(disc.bx-cx,disc.by-cy);
+let a=0;if(d<=disc.Rd*PX)a=disc.mu*.7*G9*PX;
+disc.vx-=a*dt*disc.vx/sp;disc.vy-=a*dt*disc.vy/sp;}
+disc.bx+=disc.vx*dt;disc.by+=disc.vy*dt;
+disc.gT+=dt;if(disc.gT>=.09){disc.gT=0;disc.ghosts.push({x:disc.bx,y:disc.by,f:1});}
+if(disc.ghosts.length>500)disc.ghosts.shift();}}
+function discDraw(){const cx=W/2,cy=H/2,Rp=disc.Rd*PX;grid();
+const g=ctx.createRadialGradient(cx,cy,10,cx,cy,Rp);
+g.addColorStop(0,'#1d2c48');g.addColorStop(1,'#111a2e');
+ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,Rp,0,7);ctx.fill();
+ctx.strokeStyle='#3b4f75';ctx.lineWidth=3;ctx.stroke();
+for(let k=0;k<8;k++){const a=disc.th+k*Math.PI/4;
+ctx.strokeStyle='rgba(143,163,192,.22)';ctx.lineWidth=1.5;ctx.beginPath();
+ctx.moveTo(cx,cy);ctx.lineTo(cx+Rp*Math.cos(a),cy+Rp*Math.sin(a));ctx.stroke();
+ctx.fillStyle='#5f7aa8';ctx.beginPath();
+ctx.arc(cx+Rp*Math.cos(a),cy+Rp*Math.sin(a),3,0,7);ctx.fill();}
+ctx.save();ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=1;
+ctx.beginPath();ctx.arc(cx,cy,disc.r*PX,0,7);ctx.stroke();ctx.restore();
+for(const gh of disc.ghosts){ctx.beginPath();ctx.arc(gh.x,gh.y,3,0,7);
+ctx.fillStyle=gh.f?'rgba(61,220,132,.9)':'rgba(255,255,255,.35)';ctx.fill();}
+if(disc.phase==='slip'&&disc.slipPt){const l=Math.hypot(disc.vx,disc.vy)||1,
+ux=disc.vx/l,uy=disc.vy/l,p=disc.slipPt;
+dash(p.x-ux*2500,p.y-uy*2500,p.x+ux*2500,p.y+uy*2500,'rgba(77,163,255,.7)',1.5);
+pill(p.x+ux*80+8,p.y+uy*80-12,'切线方向（打滑后沿此滑出）','#4da3ff');
+arrow(disc.bx,disc.by,disc.bx+ux*60,disc.by+uy*60,'#ff6b6b');
+pill(disc.bx+ux*75,disc.by+uy*75,'v','#ff6b6b');}
+ctx.save();ctx.translate(disc.bx,disc.by);ctx.rotate(disc.th);
+const slip=disc.phase==='slip';
+if(slip&&Math.sin(performance.now()/90)>0)ctx.globalAlpha=.55;
+ctx.fillStyle=slip?'#ff6b6b':'#ffd166';ctx.strokeStyle=slip?'#7a2c2c':'#8a6d1a';
+ctx.lineWidth=2;ctx.beginPath();ctx.roundRect?ctx.roundRect(-13,-13,26,26,5):
+ctx.rect(-13,-13,26,26);ctx.fill();ctx.stroke();
+ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.arc(0,0,3,0,7);ctx.fill();ctx.restore();
+if(disc.phase==='stick'){const ratio=disc.om*disc.om*disc.r/(disc.mu*G9);
+const dx=(cx-disc.bx),dy=(cy-disc.by),d=Math.hypot(dx,dy)||1;
+const L=16+34*Math.min(1,ratio);
+arrow(disc.bx+dx/d*16,disc.by+dy/d*16,disc.bx+dx/d*(16+L),disc.by+dy/d*(16+L),'#3ddc84');
+pill(disc.bx+dx/d*(30+L)-24,disc.by+dy/d*(30+L),'f 静摩擦','#3ddc84');}
+ctx.fillStyle='#64748b';ctx.beginPath();ctx.arc(cx,cy,6,0,7);ctx.fill();
+const aN=disc.om*disc.om*disc.r,aMax=disc.mu*G9,ratio=aN/aMax,
+rpm=disc.om*30/Math.PI,nc=Math.sqrt(disc.mu*G9/disc.r)*30/Math.PI;
+const gc=$('#d-gauge');gc.style.width=Math.min(100,ratio*100)+'%';
+gc.style.background=ratio>=1?'var(--bad)':ratio>.85?'var(--warn)':'var(--ok)';
+$('#d-read').innerHTML=
+'ω = <b>'+disc.om.toFixed(2)+' rad/s</b>（'+rpm.toFixed(1)+' rpm）<br>'+
+'线速度 v = ωr = <b>'+(disc.om*disc.r).toFixed(2)+' m/s</b><br>'+
+'需要的向心加速度 ω²r = <b>'+aN.toFixed(2)+' m/s²</b><br>'+
+'最大静摩擦加速度 μ<sub>s</sub>g = <b>'+aMax.toFixed(2)+' m/s²</b><br>'+
+'理论临界转速 n<sub>c</sub> = <b>'+nc.toFixed(1)+' rpm</b>　'+
+'实测打滑 = <b>'+(disc.rpmSlip?disc.rpmSlip.toFixed(1)+' rpm':'—')+'</b>';
+const off=disc.bx<-40||disc.bx>W+40||disc.by<-40||disc.by>H+40;
+hud([['转盘（俯视）：物块靠静摩擦提供向心力','#8fa3c0'],
+[disc.phase==='stick'?(ratio>.85?'⚠ 接近临界转速，静摩擦快到极限了…'
+:'● 未打滑：静摩擦足以提供向心力 f = mω²r')
+:'● 已打滑！静摩擦不足，物块沿切线滑出',
+disc.phase==='stick'?(ratio>.85?'#ffb84d':'#3ddc84'):'#ff6b6b']]
+.concat(off?[['物块已滑出画面 —— 按 R 重置','#ffb84d']]:[]));
+if(disc.phase==='slip'&&!off)banner('打滑！物块沿切线方向滑出，不是沿半径','#ff6b6b');}
+
+/* ---------- 模式三：砂轮 ---------- */
+const wheel={om:20,ts:.12,th:0,grind:true,parts:[],emit:0,Rwpx:130,Rw:.25,G:1400};
+function wheelReset(){wheel.parts=[];}
+function spawn(){const cx=W*.42,cy=H/2,x0=cx+wheel.Rwpx,y0=cy;
+const jit=(Math.random()-.5)*.9,a=-Math.PI/2+jit;
+const sp=wheel.om*wheel.Rwpx*(.55+Math.random()*.5);
+wheel.parts.push({x:x0+(Math.random()-.5)*6,y:y0+(Math.random()-.5)*6,
+px:x0,py:y0,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,age:0,
+life:.35+Math.random()*.55,size:1+Math.random()*1.8});}
+function wheelUpdate(dt){wheel.th-=wheel.om*dt;
+if(wheel.grind){wheel.emit+=Math.min(500,Math.max(60,wheel.om*18))*dt;
+while(wheel.emit>=1){wheel.emit--;spawn();}
+if(wheel.parts.length>700)wheel.parts.splice(0,wheel.parts.length-700);}
+for(let i=wheel.parts.length-1;i>=0;i--){const p=wheel.parts[i];
+p.px=p.x;p.py=p.y;p.vy+=wheel.G*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.age+=dt;
+if(p.age>p.life||p.y>H+20||p.x>W+20||p.x<-20)wheel.parts.splice(i,1);}}
+function wheelDraw(){const cx=W*.42,cy=H/2,R=wheel.Rwpx;grid();
+const g=ctx.createRadialGradient(cx-R*.3,cy-R*.3,R*.1,cx,cy,R);
+g.addColorStop(0,'#5b6b84');g.addColorStop(1,'#2a3550');
+ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.fill();
+ctx.strokeStyle='#7c8db0';ctx.lineWidth=3;ctx.stroke();
+ctx.strokeStyle='rgba(15,22,38,.6)';ctx.lineWidth=2;
+for(let k=0;k<6;k++){const a=wheel.th+k*Math.PI/3;ctx.beginPath();
+ctx.moveTo(cx+R*.18*Math.cos(a),cy+R*.18*Math.sin(a));
+ctx.lineTo(cx+R*.92*Math.cos(a),cy+R*.92*Math.sin(a));ctx.stroke();}
+ctx.fillStyle='#33415c';ctx.beginPath();ctx.arc(cx,cy,R*.14,0,7);ctx.fill();
+ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;ctx.stroke();
+const rr=R*.62,s0=.6,e0=s0-1.1;
+ctx.strokeStyle='#8fa3c0';ctx.lineWidth=2;ctx.beginPath();
+ctx.arc(cx,cy,rr,s0,e0,true);ctx.stroke();
+const ex=cx+rr*Math.cos(e0),ey=cy+rr*Math.sin(e0),tx=Math.sin(e0),ty=-Math.cos(e0);
+arrow(ex-tx*3,ey-ty*3,ex+tx*12,ey+ty*12,'#8fa3c0',2,8);
+pill(cx+rr*Math.cos(s0)-16,cy+rr*Math.sin(s0)-14,'ω','#8fa3c0');
+const cxp=cx+R,cyp=cy;
+if(wheel.grind){ctx.save();ctx.globalCompositeOperation='lighter';
+const gg=ctx.createRadialGradient(cxp,cyp,2,cxp,cyp,30);
+gg.addColorStop(0,'rgba(255,220,140,.9)');gg.addColorStop(1,'rgba(255,120,40,0)');
+ctx.fillStyle=gg;ctx.beginPath();ctx.arc(cxp,cyp,30,0,7);ctx.fill();ctx.restore();}
+ctx.save();ctx.translate(cxp+(wheel.grind?6:10),cyp);
+ctx.fillStyle='#64748b';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;
+ctx.beginPath();ctx.rect(0,-27,58,54);ctx.fill();ctx.stroke();
+ctx.fillStyle='#475569';ctx.beginPath();ctx.rect(58,-8,120,16);ctx.fill();ctx.stroke();
+ctx.restore();
+arrow(cxp,cyp-20,cxp,cyp-84,'#4da3ff',2.5,10);
+pill(cxp+12,cyp-88,'切线方向 = 火星飞出方向','#4da3ff');
+ctx.save();ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+for(const p of wheel.parts){const t=p.age/p.life;
+ctx.strokeStyle='hsla('+(48-30*t)+',100%,62%,'+(1-t)*.95+')';
+ctx.lineWidth=p.size;ctx.beginPath();ctx.moveTo(p.px,p.py);
+ctx.lineTo(p.x,p.y);ctx.stroke();}
+ctx.restore();
+hud([['砂轮（侧视）：打磨工件产生的火星','#8fa3c0'],
+['ω = '+wheel.om.toFixed(0)+' rad/s（≈ '+(wheel.om/6.283).toFixed(1)+' 圈/秒）'],
+['轮缘线速度 v = ωR = <b>'+(wheel.om*wheel.Rw).toFixed(1)+' m/s</b> — 每颗火星脱离时都沿此切线方向','#4da3ff'],
+[wheel.grind?'● 打磨中… （可调慢倍率看清出射方向）':'● 已停止打磨（勾选"持续打磨"或按空格）',
+wheel.grind?'#ffb84d':'#8fa3c0']]);}
+
+/* ---------- 主循环与交互 ---------- */
+const update={cut:cutUpdate,disc:discUpdate,wheel:wheelUpdate};
+const draw={cut:cutDraw,disc:discDraw,wheel:wheelDraw};
+let last=performance.now();
+function loop(t){const dt=Math.min(.033,(t-last)/1000);last=t;
+if(!paused){const ts={cut:cut.ts,disc:disc.ts,wheel:wheel.ts}[mode];
+update[mode](dt*ts);}
+draw[mode]();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+
+function bind(id,valId,fmt,cb){const el=$('#'+id),v=$('#'+valId);
+const f=()=>{const x=parseFloat(el.value);v.textContent=fmt(x);cb(x);};
+el.addEventListener('input',f);f();}
+bind('cutR','v-cutR',x=>(x/100).toFixed(2)+' m',x=>cut.R=x);
+bind('cutOm','v-cutOm',x=>x.toFixed(1)+' rad/s',x=>cut.om=x);
+bind('cutTs','v-cutTs',x=>x.toFixed(2)+'×',x=>cut.ts=x);
+bind('dRpm','v-dRpm',x=>x.toFixed(1)+' rpm',x=>disc.om=x*Math.PI/30);
+bind('dR','v-dR',x=>x.toFixed(2)+' m',x=>disc.r=x);
+bind('dMu','v-dMu',x=>x.toFixed(2),x=>disc.mu=x);
+bind('dTs','v-dTs',x=>x.toFixed(2)+'×',x=>disc.ts=x);
+bind('wOm','v-wOm',x=>x.toFixed(0)+' rad/s',x=>wheel.om=x);
+bind('wTs','v-wTs',x=>x.toFixed(2)+'×',x=>wheel.ts=x);
+$('#cutV').onchange=e=>cut.showV=e.target.checked;
+$('#cutA').onchange=e=>cut.showA=e.target.checked;
+$('#cutG').onchange=e=>cut.showG=e.target.checked;
+$('#wGrind').onchange=e=>wheel.grind=e.target.checked;
+$('#cutBtn').onclick=doCut;
+$('#cutReset').onclick=cutReset;
+$('#discReset').onclick=discReset;
+$('#discRamp').onclick=()=>{disc.ramp=!disc.ramp;setRampBtn();};
+$('#wReset').onclick=wheelReset;
+$('#pauseBtn').onclick=togglePause;
+function togglePause(){paused=!paused;$('#pauseBtn').textContent=paused?'▶ 继续 (P)':'⏸ 暂停 (P)';}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+mode=b.dataset.mode;
+document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+document.querySelectorAll('.mode-panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+mode));});
+function resetMode(){({cut:cutReset,disc:discReset,wheel:wheelReset})[mode]();}
+addEventListener('keydown',e=>{
+if(e.code==='Space'){e.preventDefault();
+if(mode==='cut')doCut();else if(mode==='wheel'){wheel.grind=!wheel.grind;
+$('#wGrind').checked=wheel.grind;}}
+else if(e.key==='r'||e.key==='R')resetMode();
+else if(e.key==='p'||e.key==='P')togglePause();});
+</script>
+</body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>牛顿第二定律 · 控制变量法虚拟实验</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1c2333; --sub:#5a6478;
+    --line:#dfe4ee; --acc:#2f6fed; --ok:#1a9c6b; --warn:#d97706; --bad:#dc2626;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:var(--ink); padding:18px;}
+  header{max-width:1180px; margin:0 auto 14px;}
+  h1{font-size:20px; margin-bottom:4px;}
+  header p{color:var(--sub); font-size:13px;}
+  .wrap{max-width:1180px; margin:0 auto; display:grid; grid-template-columns:minmax(380px,460px) 1fr; gap:14px;}
+  @media (max-width:900px){ .wrap{grid-template-columns:1fr;} }
+  .card{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:14px;}
+  .card h2{font-size:15px; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .tag{font-size:11px; background:#e8effd; color:var(--acc); border-radius:99px; padding:2px 9px;}
+  canvas.scene{width:100%; height:auto; background:linear-gradient(#eef3fb,#e3ebf7); border:1px solid var(--line); border-radius:8px; display:block;}
+  .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:8px 0;}
+  label{font-size:13px; color:var(--sub);}
+  input[type=range]{flex:1; min-width:120px; accent-color:var(--acc);}
+  input[type=number]{width:88px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:13px;}
+  .val{font-variant-numeric:tabular-nums; font-weight:600; color:var(--ink); font-size:13px; min-width:74px;}
+  button{border:none; border-radius:8px; padding:8px 16px; font-size:14px; cursor:pointer; background:var(--acc); color:#fff;}
+  button.ghost{background:#eef1f7; color:var(--ink);}
+  button.small{padding:3px 10px; font-size:12px; background:#fdecec; color:var(--bad);}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .status{font-size:13px; padding:6px 10px; border-radius:6px; display:inline-block;}
+  .status.ok{background:#e5f6ef; color:var(--ok);}
+  .status.warn{background:#fdf1e0; color:var(--warn);}
+  .readout{display:flex; gap:14px; font-variant-numeric:tabular-nums;}
+  .readout .big{font-size:22px; font-weight:700;}
+  .readout .lab{font-size:12px; color:var(--sub);}
+  .modes{display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;}
+  .modes label{cursor:pointer; border:1px solid var(--line); border-radius:8px; padding:7px 12px; font-size:13px; color:var(--ink);}
+  .modes input{margin-right:6px; accent-color:var(--acc);}
+  .modes label.on{border-color:var(--acc); background:#e8effd;}
+  table{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums;}
+  th,td{border:1px solid var(--line); padding:5px 7px; text-align:center;}
+  th{background:#f0f3f9; font-weight:600;}
+  tr.new td{background:#fff7e0;}
+  .charts{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:640px){ .charts{grid-template-columns:1fr;} }
+  canvas.chart{width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px;}
+  .hint{font-size:12px; color:var(--sub); line-height:1.7; margin-top:6px;}
+  .slope{font-size:13px; margin-top:6px; color:var(--ink);}
+  .slope b{color:var(--acc);}
+  .cardhead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .cardhead h2{margin:0;}
+</style>
+</head>
+<body>
+<header>
+  <h1>牛顿第二定律 · 控制变量法虚拟实验</h1>
+  <p>步骤：① 调节轨道倾角补偿摩擦 → ② 保持质量不变，改变拉力 F → ③ 保持拉力不变，改变质量 m → ④ 拟合 a–F 与 a–1/m 图像（均过原点）。</p>
+</header>
+
+<div class="wrap">
+<!-- 左列：装置与操作 -->
+<div>
+  <div class="card">
+    <h2>① 摩擦平衡 <span class="tag">垫高轨道补偿摩擦</span></h2>
+    <div class="row">
+      <label>轨道倾角</label>
+      <input type="range" id="angleSlider" min="0" max="6" step="0.01" value="0">
+      <span class="val" id="angleVal">0.00°</span>
+      <button class="ghost" id="autoBalance">一键补偿</button>
+    </div>
+    <div class="row"><span class="status warn" id="fricStatus">未平衡：不加拉力时小车会减速</span></div>
+  </div>
+
+  <div class="card">
+    <h2>② 实验装置</h2>
+    <canvas id="scene" class="scene" width="720" height="300"></canvas>
+    <div class="row" style="margin-top:10px">
+      <div class="readout">
+        <div><div class="lab">计时 t</div><div class="big" id="tDisp">—</div></div>
+        <div><div class="lab">位移 s</div><div class="big">0.800 m</div></div>
+        <div><div class="lab">测得 a = 2s/t²</div><div class="big" id="aDisp">—</div></div>
+      </div>
+    </div>
+    <div class="row">
+      <button id="btnRun">释放小车</button>
+      <button id="btnReset" class="ghost">复位</button>
+      <button id="btnRecord" disabled>记录数据</button>
+    </div>
+    <p class="hint" id="runHint">光电门测小车由静止通过 0.800 m 所用时间 t，由 a = 2s/t² 求加速度。</p>
+  </div>
+
+  <div class="card">
+    <h2>③ 控制变量</h2>
+    <div class="modes">
+      <label class="on"><input type="radio" name="mode" value="F" checked>A组：m 不变，改 F</label>
+      <label><input type="radio" name="mode" value="m">B组：F 不变，改 m</label>
+    </div>
+    <div class="row" id="fixedMRow">
+      <label>保持质量 m =</label>
+      <input type="number" id="fixedM" min="0.20" max="2.00" step="0.05" value="0.50">
+      <label>kg</label>
+    </div>
+    <div class="row" id="fixedFRow" style="display:none">
+      <label>保持拉力 F =</label>
+      <input type="number" id="fixedF" min="0.10" max="2.00" step="0.05" value="1.00">
+      <label>N</label>
+    </div>
+    <div class="row" id="varFRow">
+      <label>拉力 F</label>
+      <input type="range" id="varF" min="0.10" max="2.00" step="0.05" value="1.00">
+      <span class="val" id="varFVal">1.00 N</span>
+    </div>
+    <div class="row" id="varMRow" style="display:none">
+      <label>质量 m</label>
+      <input type="range" id="varM" min="0.20" max="2.00" step="0.05" value="0.50">
+      <span class="val" id="varMVal">0.50 kg</span>
+    </div>
+    <p class="hint">提示：摩擦未平衡时数据将偏离过原点直线，请先完成①。</p>
+  </div>
+</div>
+
+<!-- 右列：数据与图像 -->
+<div>
+  <div class="card">
+    <div class="cardhead"><h2>④ A组数据（质量不变）</h2><button class="ghost small" style="background:#eef1f7;color:#5a6478" id="clearA">清空</button></div>
+    <table id="tableA"><thead><tr><th>次</th><th>F /N</th><th>m /kg</th><th>t /s</th><th>a /(m·s⁻²)</th><th></th></tr></thead><tbody></tbody></table>
+    <div class="slope" id="slopeA"></div>
+  </div>
+  <div class="card">
+    <div class="cardhead"><h2>⑤ B组数据（拉力不变）</h2><button class="ghost small" style="background:#eef1f7;color:#5a6478" id="clearB">清空</button></div>
+    <table id="tableB"><thead><tr><th>次</th><th>F /N</th><th>m /kg</th><th>1/m /kg⁻¹</th><th>t /s</th><th>a /(m·s⁻²)</th><th></th></tr></thead><tbody></tbody></table>
+    <div class="slope" id="slopeB"></div>
+  </div>
+  <div class="charts">
+    <div class="card"><h2>a–F 图像 <span class="tag">m 恒定</span></h2><canvas id="chartF" class="chart" width="440" height="330"></canvas></div>
+    <div class="card"><h2>a–1/m 图像 <span class="tag">F 恒定</span></h2><canvas id="chartM" class="chart" width="440" height="330"></canvas></div>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const G=9.80, MU=0.050, S=0.800;           // 重力加速度 / 摩擦因数 / 光电门间距
+const $=id=>document.getElementById(id);
+const state={ angle:0, mode:"F", running:false, x:0, v:0, t:0,
+              last:null, dataA:[], dataB:[] };
+
+/* ---------- 基础物理 ---------- */
+const rad=d=>d*Math.PI/180;
+function accel(F,m){                        // 沿轨道方向加速度（含摩擦与倾角）
+  return G*Math.sin(rad(state.angle)) + F/m - MU*G*Math.cos(rad(state.angle));
+}
+function coastAccel(){ return accel(0,1); } // 不施力时的残余加速度
+
+/* ---------- 摩擦平衡面板 ---------- */
+const angleSlider=$("angleSlider");
+function updateFric(){
+  state.angle=parseFloat(angleSlider.value);
+  $("angleVal").textContent=state.angle.toFixed(2)+"°";
+  const a0=coastAccel(), st=$("fricStatus");
+  if(Math.abs(a0)<=0.02){ st.className="status ok"; st.textContent="已平衡：不加拉力时小车匀速滑动（或静止）"; }
+  else if(a0<0){ st.className="status warn"; st.textContent="欠补偿：倾角偏小，摩擦未被完全平衡"; }
+  else{ st.className="status warn"; st.textContent="过补偿：倾角偏大，不加拉力小车也加速"; }
+  drawScene();
+}
+angleSlider.addEventListener("input",updateFric);
+$("autoBalance").onclick=()=>{ angleSlider.value=(Math.atan(MU)*180/Math.PI).toFixed(2); updateFric(); };
+
+/* ---------- 控制变量面板 ---------- */
+const fixedM=$("fixedM"), fixedF=$("fixedF"), varF=$("varF"), varM=$("varM");
+function curF(){ return state.mode==="F" ? parseFloat(varF.value) : clamp(parseFloat(fixedF.value)||1,0.10,2.00); }
+function curM(){ return state.mode==="m" ? parseFloat(varM.value) : clamp(parseFloat(fixedM.value)||0.5,0.20,2.00); }
+function clamp(v,a,b){ return Math.min(b,Math.max(a,v)); }
+function syncModeUI(){
+  const isF=state.mode==="F";
+  $("fixedMRow").style.display=isF?"flex":"none";
+  $("fixedFRow").style.display=isF?"none":"flex";
+  $("varFRow").style.display=isF?"flex":"none";
+  $("varMRow").style.display=isF?"none":"flex";
+  document.querySelectorAll(".modes label").forEach(l=>l.classList.toggle("on",(l.querySelector("input").value==="F")===isF));
+  drawScene();
+}
+document.querySelectorAll("input[name=mode]").forEach(r=>r.addEventListener("change",e=>{state.mode=e.target.value; syncModeUI();}));
+fixedM.addEventListener("change",()=>{fixedM.value=clamp(parseFloat(fixedM.value)||0.5,0.20,2.00); drawScene();});
+fixedF.addEventListener("change",()=>{fixedF.value=clamp(parseFloat(fixedF.value)||1,0.10,2.00); drawScene();});
+varF.addEventListener("input",()=>{$("varFVal").textContent=parseFloat(varF.value).toFixed(2)+" N"; drawScene();});
+varM.addEventListener("input",()=>{$("varMVal").textContent=parseFloat(varM.value).toFixed(2)+" kg"; drawScene();});
+
+/* ---------- 运动与计时 ---------- */
+let raf=null, lastTs=0;
+function release(){
+  if(state.running) return;
+  const a=accel(curF(),curM());
+  if(a<=0.001){
+    let h="小车不动或无法加速到底端：";
+    h+= Math.abs(coastAccel())>0.02 ? "请先完成摩擦平衡（步骤①）。" : "请增大拉力 F。";
+    $("runHint").textContent=h; return;
+  }
+  state.running=true; state.x=0; state.v=0; state.t=0; state.last=null;
+  $("tDisp").textContent="0.000 s"; $("aDisp").textContent="—"; $("btnRecord").disabled=true;
+  $("runHint").textContent="小车正在加速……";
+  lastTs=0; raf=requestAnimationFrame(tick);
+}
+function tick(ts){
+  if(!state.running) return;
+  if(!lastTs) lastTs=ts;
+  const dt=Math.min((ts-lastTs)/1000,0.05); lastTs=ts;
+  const a=accel(curF(),curM());
+  state.v+=a*dt; state.x+=state.v*dt; state.t+=dt;
+  if(state.x>=S){ state.x=S; finish(); }
+  else { $("tDisp").textContent=state.t.toFixed(3)+" s"; drawScene(); raf=requestAnimationFrame(tick); }
+}
+function finish(){
+  state.running=false; cancelAnimationFrame(raf);
+  const tTrue=state.t, F=curF(), m=curM();
+  const t=(tTrue*(1+(Math.random()-0.5)*0.008));            // 计时器 ±0.4% 随机误差
+  const a=2*S/(t*t);
+  state.last={F,m,invM:1/m,t:+t.toFixed(3),a:+a.toFixed(3)};
+  $("tDisp").textContent=t.toFixed(3)+" s";
+  $("aDisp").textContent=a.toFixed(3)+" m/s²";
+  $("btnRecord").disabled=false;
+  const bal=Math.abs(coastAccel())<=0.02;
+  $("runHint").textContent= bal ? "测量完成，可点击「记录数据」。"
+    : "⚠ 摩擦未平衡，本组数据将偏离过原点直线，建议先回到步骤①。";
+  drawScene();
+}
+$("btnRun").onclick=release;
+$("btnReset").onclick=()=>{ state.running=false; cancelAnimationFrame(raf); state.x=0; state.v=0; state.t=0; state.last=null;
+  $("tDisp").textContent="—"; $("aDisp").textContent="—"; $("btnRecord").disabled=true; drawScene(); };
+$("btnRecord").onclick=()=>{
+  if(!state.last) return;
+  const d=state.last;
+  (state.mode==="F"?state.dataA:state.dataB).push(d);
+  state.last=null; $("btnRecord").disabled=true;
+  renderAll(); setTimeout(()=>{document.querySelectorAll("tr.new").forEach(r=>r.classList.remove("new"));},900);
+};
+$("clearA").onclick=()=>{state.dataA=[]; renderAll();};
+$("clearB").onclick=()=>{state.dataB=[]; renderAll();};
+
+/* ---------- 数据表 ---------- */
+function renderTable(id,data,withInv,group){
+  const tb=document.querySelector("#"+id+" tbody"); let h="";
+  data.forEach((d,i)=>{
+    h+=`<tr${i===data.length-1?' class="new"':''}><td>${i+1}</td><td>${d.F.toFixed(2)}</td><td>${d.m.toFixed(2)}</td>`+
+       (withInv?`<td>${d.invM.toFixed(2)}</td>`:"")+
+       `<td>${d.t.toFixed(3)}</td><td>${d.a.toFixed(3)}</td>`+
+       `<td><button class="small" data-g="${group}" data-i="${i}">删</button></td></tr>`;
+  });
+  tb.innerHTML=h||`<tr><td colspan="${withInv?6:5}" style="color:#98a1b3">暂无数据，请到左侧做实验并记录</td></tr>`;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button.small[data-g]"); if(!b) return;
+  (b.dataset.g==="A"?state.dataA:state.dataB).splice(+b.dataset.i,1); renderAll();
+});
+
+/* ---------- 过原点最小二乘拟合 ---------- */
+function fitOrigin(pts,xk,yk){
+  let sxy=0,sxx=0;
+  pts.forEach(p=>{sxy+=p[xk]*p[yk]; sxx+=p[xk]*p[xk];});
+  return sxx>0? sxy/sxx : 0;
+}
+
+/* ---------- 绘图 ---------- */
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(raw)));
+  for(const m of [1,2,2.5,5,10]) if(m*p>=raw) return m*p;
+  return 10*p;
+}
+function drawChart(id,pts,xk,yk,xl,yl){
+  const cv=$(id),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const pad={l:56,r:14,t:16,b:42};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+  const xs=pts.map(p=>p[xk]), ys=pts.map(p=>p[yk]);
+  const xmax=Math.max(0.001,...xs)*1.15, ymax=Math.max(0.001,...ys)*1.15;
+  const X=v=>pad.l+v/xmax*pw, Y=v=>H-pad.b-v/ymax*ph;
+  ctx.strokeStyle="#c8d0de"; ctx.fillStyle="#5a6478"; ctx.font="11px sans-serif"; ctx.lineWidth=1;
+  const sx=niceStep(xmax/5), sy=niceStep(ymax/5);
+  for(let v=0;v<=xmax+1e-9;v+=sx){ ctx.beginPath(); ctx.moveTo(X(v),pad.t); ctx.lineTo(X(v),H-pad.b); ctx.stroke(); ctx.textAlign="center"; ctx.fillText(fmt(v),X(v),H-pad.b+14); }
+  for(let v=0;v<=ymax+1e-9;v+=sy){ ctx.beginPath(); ctx.moveTo(pad.l,Y(v)); ctx.lineTo(W-pad.r,Y(v)); ctx.stroke(); ctx.textAlign="right"; ctx.fillText(fmt(v),pad.l-6,Y(v)+4); }
+  ctx.strokeStyle="#1c2333"; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+  // y 轴箭头
+  ctx.beginPath(); ctx.moveTo(pad.l-4,pad.t+7); ctx.lineTo(pad.l,pad.t); ctx.lineTo(pad.l+4,pad.t+7); ctx.strokeStyle="#1c2333"; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W-pad.r-7,H-pad.b-4); ctx.lineTo(W-pad.r,H-pad.b); ctx.lineTo(W-pad.r-7,H-pad.b+4); ctx.stroke();
+  ctx.fillStyle="#1c2333"; ctx.textAlign="center"; ctx.font="12px sans-serif";
+  ctx.fillText(xl,(pad.l+W-pad.r)/2,H-8);
+  ctx.save(); ctx.translate(14,(pad.t+H-pad.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(yl,0,0); ctx.restore();
+  if(pts.length){
+    const k=fitOrigin(pts,xk,yk);
+    ctx.strokeStyle="#2f6fed"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(X(0),Y(0)); ctx.lineTo(X(xmax),Y(k*xmax)); ctx.stroke();
+    ctx.fillStyle="#dc2626";
+    pts.forEach(p=>{ ctx.beginPath(); ctx.arc(X(p[xk]),Y(p[yk]),4,0,7); ctx.fill(); });
+  }
+}
+function fmt(v){ return Math.abs(v)>=10? v.toFixed(0) : Math.abs(v)>=1? v.toFixed(1) : v.toFixed(2); }
+
+function renderAll(){
+  renderTable("tableA",state.dataA,false,"A");
+  renderTable("tableB",state.dataB,true,"B");
+  drawChart("chartF",state.dataA,"F","a","F /N","a /(m·s⁻²)");
+  drawChart("chartM",state.dataB,"invM","a","1/m /kg⁻¹","a /(m·s⁻²)");
+  const sA=$("slopeA"), sB=$("slopeB");
+  if(state.dataA.length>=2){
+    const k=fitOrigin(state.dataA,"F","a"), m0=state.dataA[0].m;
+    sA.innerHTML=`过原点拟合斜率 k = <b>${k.toFixed(3)}</b> （理论 1/m = ${(1/m0).toFixed(3)}，m 恒为 ${m0.toFixed(2)} kg）→ a ∝ F`;
+  } else sA.textContent="至少记录 2 组数据即可拟合。";
+  if(state.dataB.length>=2){
+    const k=fitOrigin(state.dataB,"invM","a"), F0=state.dataB[0].F;
+    sB.innerHTML=`过原点拟合斜率 k = <b>${k.toFixed(3)}</b> （理论 F = ${F0.toFixed(2)} N）→ a ∝ 1/m`;
+  } else sB.textContent="至少记录 2 组数据即可拟合。";
+}
+
+/* ---------- 装置动画 ---------- */
+const sc=$("scene"), sctx=sc.getContext("2d");
+function drawScene(){
+  const W=sc.width,H=sc.height, EX=6;                 // 倾角视觉放大倍数
+  const x0=60, y0=H-52, px=560;                       // 轨道起点与像素长度
+  const th=rad(state.angle), vy=Math.tan(th)*EX;
+  const fx=x=>x0+x/S*px, fy=x=>y0-(x/S)*px*vy;
+  sctx.clearRect(0,0,W,H);
+  // 轨道
+  sctx.strokeStyle="#33415c"; sctx.lineWidth=7; sctx.lineCap="round";
+  sctx.beginPath(); sctx.moveTo(x0-14,fy(0)); sctx.lineTo(fx(S)+10,fy(S)); sctx.stroke();
+  sctx.strokeStyle="#8fa3c4"; sctx.lineWidth=2;
+  sctx.beginPath(); sctx.moveTo(x0-14,fy(0)-4); sctx.lineTo(fx(S)+10,fy(S)-4); sctx.stroke();
+  // 垫块
+  sctx.fillStyle="#c3cde0";
+  sctx.beginPath(); sctx.moveTo(fx(S)+10,fy(S)); sctx.lineTo(fx(S)+10,y0+8); sctx.lineTo(fx(S)-30,y0+8); sctx.closePath(); sctx.fill();
+  // 光电门
+  [[0,"G1"],[S,"G2"]].forEach(([x,lb])=>{
+    const gx=fx(x), gy=fy(x);
+    sctx.strokeStyle="#1a9c6b"; sctx.lineWidth=3;
+    sctx.beginPath(); sctx.moveTo(gx,gy-52); sctx.lineTo(gx,gy-6); sctx.stroke();
+    sctx.beginPath(); sctx.moveTo(gx-9,gy-52); sctx.lineTo(gx+9,gy-52); sctx.stroke();
+    sctx.fillStyle="#1a9c6b"; sctx.font="11px sans-serif"; sctx.textAlign="center"; sctx.fillText(lb,gx,gy-58);
+  });
+  // 小车
+  const m=curM(), F=curF(), ang=Math.atan(vy);
+  const cx=fx(state.x), cy=fy(state.x);
+  sctx.save(); sctx.translate(cx,cy); sctx.rotate(-ang);
+  const w=54, h=18+Math.min(14,(m-0.2)*12);
+  sctx.fillStyle="#2f6fed"; sctx.strokeStyle="#1c4fc0";
+  sctx.beginPath(); sctx.roundRect(-w/2,-h-7,w,h,4); sctx.fill(); sctx.stroke();
+  sctx.fillStyle="#dbe7ff";
+  for(let i=-1;i<=1;i++){ sctx.beginPath(); sctx.arc(i*16,-4,5.5,0,7); sctx.fill(); sctx.strokeStyle="#1c4fc0"; sctx.stroke(); }
+  sctx.fillStyle="#fff"; sctx.font="10px sans-serif"; sctx.textAlign="center";
+  sctx.fillText(m.toFixed(2)+" kg",0,-h/2-8);
+  // 拉力箭头
+  const fl=26+F*28;
+  sctx.strokeStyle="#dc2626"; sctx.fillStyle="#dc2626"; sctx.lineWidth=3;
+  sctx.beginPath(); sctx.moveTo(w/2+4,-h/2-7); sctx.lineTo(w/2+fl,-h/2-7); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(w/2+fl,-h/2-13); sctx.lineTo(w/2+fl+9,-h/2-7); sctx.lineTo(w/2+fl,-h/2-1); sctx.closePath(); sctx.fill();
+  sctx.font="bold 12px sans-serif"; sctx.fillText("F="+F.toFixed(2)+"N",w/2+fl/2+8,-h/2-17);
+  sctx.restore();
+  // 倾角标注
+  sctx.fillStyle="#5a6478"; sctx.font="11px sans-serif"; sctx.textAlign="left";
+  sctx.fillText("倾角 θ = "+state.angle.toFixed(2)+"°（显示放大"+EX+"倍）",12,18);
+  sctx.fillText("s = 0.800 m",x0+px/2, Math.min(fy(0),fy(S))-14);
+}
+/* roundRect 兜底 */
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+    this.moveTo(x+r,y); this.arcTo(x+w,y,x+w,y+h,r); this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); return this;};
+}
+
+/* ---------- 启动 ---------- */
+updateFric(); syncModeUI(); renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>卫星圆轨道与变轨 · 交互式仿真</title>
+<style>
+:root{--bg:#070c1c;--panel:#101a33;--panel2:#0c1528;--line:#26355e;--txt:#e9eeff;--dim:#93a5d0;--cyan:#4dd2ff;--gold:#ffd166;--red:#ff7b6b;--green:#7be3a2}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:radial-gradient(1200px 600px at 70% -10%,#12224a 0%,var(--bg) 60%);color:var(--txt);font:14px/1.65 "PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;padding-bottom:30px}
+header{padding:14px 24px;border-bottom:1px solid var(--line);background:rgba(10,16,35,.75)}
+h1{margin:0;font-size:20px;letter-spacing:1px}
+h1 span{color:var(--cyan);font-size:13px;font-weight:normal;margin-left:10px}
+main{max-width:1380px;margin:14px auto;padding:0 14px;display:grid;grid-template-columns:minmax(0,1fr) 408px;gap:14px}
+@media(max-width:1020px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:14px}
+.panel h2{margin:0 0 10px;font-size:14.5px;color:var(--cyan);letter-spacing:.5px;border-left:3px solid var(--cyan);padding-left:8px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:7px 0}
+label{color:var(--dim);font-size:13px}
+input[type=range]{flex:1;accent-color:var(--cyan)}
+select,button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--cyan)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.btn-p{background:#174a77;border-color:#2a7cc0}
+.btn-g{background:#155c40;border-color:#2b9a6e}
+.btn-w{background:#6b3a2f;border-color:#c26a4f}
+canvas{display:block;width:100%;background:#060a18;border-radius:8px}
+#cvOrbit{aspect-ratio:1/1}
+#cvChart{height:232px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.kbox{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.kbox small{color:var(--dim);font-size:12px}
+.kbox b{display:block;font-size:16.5px;color:var(--cyan);font-family:Consolas,monospace}
+.kbox b em{font-style:normal;font-size:11.5px;color:var(--dim)}
+ol.steps{list-style:none;margin:6px 0;padding:0;font-size:13px}
+ol.steps li{padding:5px 8px 5px 30px;border-radius:7px;position:relative;color:var(--dim);margin:3px 0;border:1px solid transparent}
+ol.steps li::before{content:attr(data-n);position:absolute;left:7px;top:6px;width:17px;height:17px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);font-size:11px;text-align:center;line-height:16px}
+ol.steps li.on{color:var(--txt);border-color:var(--gold);background:rgba(255,209,102,.08)}
+ol.steps li.on::before{background:var(--gold);color:#3a2c00;border-color:var(--gold)}
+ol.steps li.done{color:var(--green)}
+ol.steps li.done::before{background:#14532d;border-color:var(--green);color:var(--green)}
+#stageText{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;min-height:58px;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+td,th{border:1px solid var(--line);padding:4px 6px;text-align:center}
+th{color:var(--dim);font-weight:normal;background:var(--panel2)}
+tr.hot td{background:rgba(255,209,102,.14);color:var(--gold)}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+.tab{flex:1;text-align:center;padding:5px 4px;font-size:12.5px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);cursor:pointer}
+.tab.on{color:var(--txt);border-color:var(--cyan);background:#123a5c}
+.note{font-size:13px;color:var(--dim)}
+.note b{color:var(--gold);font-weight:600}
+.formula{font-family:"Times New Roman",serif;font-size:15px;color:var(--gold);background:var(--panel2);border:1px dashed var(--line);border-radius:7px;padding:2px 10px;display:inline-block;margin:2px 4px}
+ul.teach{margin:4px 0;padding-left:20px;font-size:13px}
+ul.teach li{margin:5px 0}
+#simClock{font-family:Consolas,monospace;color:var(--green)}
+.hint{font-size:12px;color:var(--dim);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰 卫星圆轨道与变轨 · 交互式仿真<span>v=√(GM/r) · T²∝r³ · 霍曼转移</span></h1>
+</header>
+<main>
+  <!-- 左:轨道视图 -->
+  <div>
+    <div class="panel">
+      <canvas id="cvOrbit"></canvas>
+      <div class="row" style="margin-top:10px">
+        <button id="btnPlay" class="btn-p">⏸ 暂停</button>
+        <button id="btnReset" class="btn-w">↺ 重置</button>
+        <label>时间加速</label>
+        <select id="tsSel"><option>1</option><option>10</option><option>50</option><option selected>100</option><option>300</option><option>1000</option><option>3000</option></select>
+        <label>×</label>
+        <span style="flex:1"></span>
+        <label>仿真时间</label><span id="simClock">00:00:00</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>失重说明(完全失重的本质)</h2>
+      <div class="note">
+        宇航员所受<b>地球引力(重力)并没有消失</b>:F<sub>引</sub> = GMm/r² 。
+        在圆轨道上 v² = GM/r,于是引力<b>恰好全部充当向心力</b>:
+        <span class="formula">GMm/r² = mv²/r</span>
+        座舱与宇航员“一起自由下落”,座舱不再需要支持宇航员 ⇒ <b>N = 0,视重为零</b>,即完全失重。
+        <br>★ 注意:失重失去的是<b>视重(支持力)</b>,而<b>重力本身不变</b>。
+      </div>
+    </div>
+    <div class="panel">
+      <h2>教学要点</h2>
+      <ul class="teach">
+        <li>圆轨道速度 <b>v=√(GM/r)</b>:轨道半径 r 越大,线速度 v 越<b>小</b>(近地约 7.9 km/s 量级)。</li>
+        <li>周期 <b>T=2π√(r³/GM)</b> ⇒ <b>T²=(4π²/GM)·r³</b>,即开普勒第三定律:T²–r³ 图为过原点的直线。</li>
+        <li>变轨(近地→2R 霍曼转移):<b>两次点火都沿速度方向加速</b>,但末轨(高轨道)的圆速度 v₂=√(GM/2R) < v₁——<b>加速反而进入更慢的高轨道</b>。</li>
+        <li>椭圆转移轨道上机械能守恒:近地点最快,远地点最慢。</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 右:控制与数据 -->
+  <div>
+    <div class="panel">
+      <h2>参数调节</h2>
+      <div class="row">
+        <label>轨道半径 r</label><input type="range" id="rSlider" min="1" max="10" step="0.01" value="2">
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <span id="rLabel" style="font-family:Consolas,monospace;color:var(--gold)">2.00 R = 12,800 km</span>
+      </div>
+      <div class="row">
+        <label>视图缩放(视场半径)</label><input type="range" id="zoomSlider" min="1.3" max="11" step="0.05" value="2.6">
+        <span id="zoomLabel" style="font-family:Consolas,monospace;font-size:12px">2.6R</span>
+        <button id="btnFit">适配</button>
+        <label><input type="checkbox" id="fitChk" checked> 自动适配</label>
+      </div>
+      <div class="row">
+        <label>地表重力 g</label>
+        <select id="gSel"><option value="10" selected>10 m/s²(简便)</option><option value="9.8">9.8 m/s²(精确)</option></select>
+        <span class="note">GM = gR²,R = 6400 km</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>实时数据</h2>
+      <div class="kv">
+        <div class="kbox"><small>轨道半径 r</small><b id="roR">—</b></div>
+        <div class="kbox"><small>轨道高度 h = r − R</small><b id="roH">—</b></div>
+        <div class="kbox"><small>轨道速度 v</small><b id="roV">—</b></div>
+        <div class="kbox"><small>周期 T</small><b id="roT">—</b></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>变轨演示(近地圆轨 → 2R 圆轨)</h2>
+      <div id="demoIntro">
+        <div class="note">分步演示:①近地圆轨 → ②切向点火加速 → ③椭圆转移轨 → ④远地点再次点火 → ⑤2R 圆轨。每步显示速度变化与点火方向。</div>
+        <div class="row" style="margin-top:8px">
+          <button id="btnDemo" class="btn-g">▶ 开始变轨演示</button>
+          <label><input type="checkbox" id="autoChk" checked> 自动播放</label>
+        </div>
+      </div>
+      <div id="demoBody" style="display:none">
+        <ol class="steps">
+          <li data-n="1" id="st1">近地圆轨道 r = R,匀速圆周运动</li>
+          <li data-n="2" id="st2">点火①:切向加速,进入转移椭圆</li>
+          <li data-n="3" id="st3">椭圆转移:近地点 R → 远地点 2R</li>
+          <li data-n="4" id="st4">点火②:远地点切向加速</li>
+          <li data-n="5" id="st5">末轨 r = 2R 圆轨道(速度更小!)</li>
+        </ol>
+        <div id="stageText">—</div>
+        <div class="row" style="margin-top:8px">
+          <button id="btnStep" class="btn-p">下一步:点火①</button>
+          <label><input type="checkbox" id="autoChk2" checked> 自动播放</label>
+        </div>
+        <table id="spdTable">
+          <tr><th>关键点</th><th>r</th><th>v (km/s)</th></tr>
+          <tr id="sp1"><td>v₁ 近地圆轨</td><td>1R</td><td id="c1">—</td></tr>
+          <tr id="sp2"><td>点火①后 · 转移近地点</td><td>1R</td><td id="c2">—</td></tr>
+          <tr id="sp3"><td>转移椭圆 · 远地点</td><td>2R</td><td id="c3">—</td></tr>
+          <tr id="sp4"><td>v₂ 末轨圆速度</td><td>2R</td><td id="c4">—</td></tr>
+        </table>
+        <div class="hint">提示:点火期间箭头指示点火方向(沿速度方向=切向);黄色椭圆为转移轨道。</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>关系曲线</h2>
+      <div class="tabs">
+        <div class="tab on" data-m="v">v – r 曲线</div>
+        <div class="tab" data-m="T">T – r 曲线</div>
+        <div class="tab" data-m="K">开普勒检验 T²–r³</div>
+      </div>
+      <canvas id="cvChart"></canvas>
+      <div class="hint" id="chartHint">结论:r 越大 v 越小,v∝1/√r。</div>
+    </div>
+  </div>
+</main>
+
+<script>
+(()=>{
+"use strict";
+/* ================= 基本常量与状态 ================= */
+const R=6.4e6;                       // 地球半径 6400 km
+const $=id=>document.getElementById(id);
+const cvO=$('cvOrbit'),ctxO=cvO.getContext('2d');
+const cvC=$('cvChart'),ctxC=cvC.getContext('2d');
+let g=10,GM=g*R*R;                   // 引力参数 GM=gR²
+let mode='circ';                     // circ 自由圆轨 | demo 变轨演示
+let ri=2,theta=0,simT=0;             // 轨道半径倍数、极角、仿真时间
+let playing=true,tscale=100;
+let viewRi=2.6;
+let stage=0,auto=true;               // demo 阶段 0/2/4
+let ell=null,burnFx=null,demoWall0=0;
+let chartMode='v';
+const stars=[];for(let i=0;i<90;i++)stars.push([Math.random(),Math.random(),.2+Math.random()*.7]);
+
+/* ================= 物理公式 ================= */
+const vCirc=r=>Math.sqrt(GM/r);                    // 圆轨道速度
+const tCirc=r=>2*Math.PI*Math.sqrt(r*r*r/GM);      // 圆轨道周期
+function transParams(){                            // 霍曼转移 R→2R
+  const r1=R,r2=2*R,a=1.5*R;
+  return{r1,r2,a,e:(r2-r1)/(r2+r1),
+    v1:vCirc(r1),v2:vCirc(r2),
+    vp:Math.sqrt(GM*(2/r1-1/a)),va:Math.sqrt(GM*(2/r2-1/a)),
+    n:Math.sqrt(GM/(a*a*a))};
+}
+function solveE(M,e){let E=M;for(let i=0;i<40;i++){const d=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));E-=d;if(Math.abs(d)<1e-12)break;}return E;}
+function kin(){                                    // 当前运动学量
+  if(mode==='circ'){const r=ri*R;return{r,v:vCirc(r),T:tCirc(r),ang:theta,ux:Math.cos(theta+Math.PI/2),uy:Math.sin(theta+Math.PI/2)};}
+  const p=transParams();
+  if(stage===0)return{r:R,v:p.v1,T:tCirc(R),ang:theta,ux:Math.cos(theta+Math.PI/2),uy:Math.sin(theta+Math.PI/2)};
+  if(stage===2){
+    const M=Math.min(p.n*ell.el,Math.PI),E=solveE(M,ell.e);
+    const nu=2*Math.atan2(Math.sqrt(1+ell.e)*Math.sin(E/2),Math.sqrt(1-ell.e)*Math.cos(E/2));
+    const r=ell.a*(1-ell.e*Math.cos(E)),ang=ell.th0+nu;
+    const ps=ell.a*(1-ell.e*ell.e),k=Math.sqrt(GM/ps);       // 椭圆速度分量(径向/横向)
+    const vr=k*ell.e*Math.sin(nu),vt=k*(1+ell.e*Math.cos(nu));
+    const v=Math.hypot(vr,vt);
+    const ex=Math.cos(ang),ey=Math.sin(ang);
+    return{r,v,T:tCirc(ell.a),ang,ux:(vr*ex-vt*ey)/v,uy:(vr*ey+vt*ex)/v,M};
+  }
+  return{r:2*R,v:p.v2,T:tCirc(2*R),ang:theta,ux:Math.cos(theta+Math.PI/2),uy:Math.sin(theta+Math.PI/2)};
+}
+
+/* ================= 演示动作 ================= */
+function doBurn1(){
+  const p=transParams();
+  ell={a:p.a,e:p.e,th0:theta,el:0};
+  burnFx={until:performance.now()+1800,txt:`点火①  切向加速  v:${(p.v1/1000).toFixed(2)} → ${(p.vp/1000).toFixed(2)} km/s  (Δv=+${((p.vp-p.v1)/1000).toFixed(2)})`};
+  stage=2;syncDemoUI();
+}
+function doBurn2(){
+  const p=transParams();
+  theta=ell.th0+Math.PI;   // 远地点
+  burnFx={until:performance.now()+1800,txt:`点火②  远地点切向加速  v:${(p.va/1000).toFixed(2)} → ${(p.v2/1000).toFixed(2)} km/s  (Δv=+${((p.v2-p.va)/1000).toFixed(2)})`};
+  stage=4;syncDemoUI();
+}
+function startDemo(){
+  mode='demo';stage=0;theta=0;simT=0;ell=null;burnFx=null;playing=true;
+  demoWall0=performance.now();viewRi=2.9;$('zoomSlider').value=2.9;$('zoomLabel').textContent='2.9R';
+  $('rSlider').disabled=true;$('demoIntro').style.display='none';$('demoBody').style.display='';
+  syncDemoUI();
+}
+function resetAll(){
+  mode='circ';stage=0;ell=null;burnFx=null;simT=0;theta=0;playing=true;
+  $('rSlider').disabled=false;$('demoIntro').style.display='';$('demoBody').style.display='none';
+  $('btnPlay').textContent='⏸ 暂停';applyFit();
+}
+
+/* ================= 推进 ================= */
+function advance(dt){
+  simT+=dt;
+  if(mode==='circ'){theta+=Math.sqrt(GM/(ri*ri*ri))*dt;return;}
+  const p=transParams();
+  if(stage===0){
+    theta+=Math.sqrt(GM/(R*R*R))*dt;
+    if(auto&&performance.now()-demoWall0>5000)doBurn1();
+  }else if(stage===2){
+    ell.el+=dt;
+    if(p.n*ell.el>=Math.PI){
+      ell.el=Math.PI/p.n;
+      if(auto)doBurn2();else{playing=false;$('btnPlay').textContent='▶ 播放';}
+    }
+  }else if(stage===4){theta+=Math.sqrt(GM/(8*R*R*R))*dt;}
+}
+
+/* ================= 轨道视图绘制 ================= */
+function sizeCanvas(cv){
+  const w=cv.clientWidth,h=cv.clientHeight,dpr=window.devicePixelRatio||1;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return{w,h};
+}
+function arrow(c,x1,y1,x2,y2,col,w){
+  const a=Math.atan2(y2-y1,x2-x1);
+  c.strokeStyle=col;c.fillStyle=col;c.lineWidth=w;
+  c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();
+  c.beginPath();c.moveTo(x2,y2);
+  c.lineTo(x2-9*Math.cos(a-.4),y2-9*Math.sin(a-.4));
+  c.lineTo(x2-9*Math.cos(a+.4),y2-9*Math.sin(a+.4));c.closePath();c.fill();
+}
+function render(){
+  const{w,h}=sizeCanvas(cvO),cx0=w/2,cy0=h/2;
+  const s=(Math.min(w,h)/2-14)/(viewRi*R);
+  ctxO.clearRect(0,0,w,h);
+  ctxO.fillStyle='#060a18';ctxO.fillRect(0,0,w,h);
+  for(const st of stars){ctxO.fillStyle=`rgba(255,255,255,${st[2]*.6})`;ctxO.fillRect(st[0]*w,st[1]*h,1.6,1.6);}
+  // 地球
+  const Re=R*s;
+  let grd=ctxO.createRadialGradient(cx0-Re*.35,cy0-Re*.35,Re*.1,cx0,cy0,Re);
+  grd.addColorStop(0,'#63b0ff');grd.addColorStop(.55,'#1e63d0');grd.addColorStop(1,'#0a2f6e');
+  ctxO.fillStyle=grd;ctxO.beginPath();ctxO.arc(cx0,cy0,Re,0,7);ctxO.fill();
+  ctxO.save();ctxO.beginPath();ctxO.arc(cx0,cy0,Re,0,7);ctxO.clip();      // 大陆斑块
+  ctxO.fillStyle='rgba(96,225,160,.4)';
+  [[.25,-.3,.55,.28],[-.35,.15,.5,.34],[.05,.5,.4,.2],[-.15,-.55,.45,.2]].forEach(b=>{
+    ctxO.beginPath();ctxO.ellipse(cx0+b[0]*Re,cy0+b[1]*Re,b[2]*Re,b[3]*Re,b[0],0,7);ctxO.fill();});
+  ctxO.restore();
+  if(Re>26){ctxO.fillStyle='rgba(233,238,255,.85)';ctxO.font='12px sans-serif';
+    ctxO.fillText('地球 R = 6400 km',cx0+Re+4,cy0+4);}
+  // 轨道
+  const circle=(rM,col,dash)=>{ctxO.save();ctxO.strokeStyle=col;ctxO.setLineDash(dash||[]);ctxO.lineWidth=1.3;
+    ctxO.beginPath();ctxO.arc(cx0,cy0,rM*s,0,7);ctxO.stroke();ctxO.restore();};
+  if(mode==='circ'){circle(ri*R,'#4dd2ff');}
+  else{
+    circle(R,'rgba(77,210,255,.55)',[5,5]);
+    circle(2*R,'rgba(123,227,162,.55)',[5,5]);
+    if(ell){ctxO.save();ctxO.strokeStyle='#ffd166';ctxO.lineWidth=1.8;
+      if(stage===4)ctxO.setLineDash([4,4]),ctxO.strokeStyle='rgba(255,209,102,.55)';
+      const ps=ell.a*(1-ell.e*ell.e);ctxO.beginPath();
+      for(let i=0;i<=240;i++){const nu=i/240*2*Math.PI,rr=ps/(1+ell.e*Math.cos(nu));
+        const x=cx0+rr*Math.cos(ell.th0+nu)*s,y=cy0-rr*Math.sin(ell.th0+nu)*s;
+        i?ctxO.lineTo(x,y):ctxO.moveTo(x,y);}
+      ctxO.stroke();ctxO.restore();
+      ctxO.fillStyle='rgba(255,209,102,.8)';ctxO.font='12px sans-serif';
+      const ax=cx0+ell.a*(1+ell.e)*Math.cos(ell.th0)*s,ay=cy0-ell.a*(1+ell.e)*Math.sin(ell.th0)*s;
+      ctxO.fillText('转移椭圆',ax+8,ay-8);}
+  }
+  // 卫星
+  const k=kin();
+  const px=cx0+k.r*Math.cos(k.ang)*s,py=cy0-k.r*Math.sin(k.ang)*s;
+  const sx=k.ux,sy=-k.uy;                       // 屏幕坐标速度方向
+  const L=Math.min(14+k.v/130,72);
+  arrow(ctxO,px+sx*15,py+sy*15,px+sx*(15+L),py+sy*(15+L),'#ff7b6b',2);
+  ctxO.save();ctxO.translate(px,py);ctxO.rotate(Math.atan2(sy,sx));
+  ctxO.fillStyle='#fff';ctxO.beginPath();ctxO.moveTo(9,0);ctxO.lineTo(-6,5.5);ctxO.lineTo(-3,0);ctxO.lineTo(-6,-5.5);ctxO.closePath();ctxO.fill();
+  if(burnFx&&performance.now()<burnFx.until){    // 点火火焰
+    const fl=18+Math.random()*16;
+    const fg=ctxO.createLinearGradient(px-sx*8,py-sy*8,px-sx*(8+fl),py-sy*(8+fl));
+    fg.addColorStop(0,'rgba(255,230,120,.95)');fg.addColorStop(.5,'rgba(255,130,40,.8)');fg.addColorStop(1,'rgba(255,60,0,0)');
+    ctxO.strokeStyle=fg;ctxO.lineWidth=7;ctxO.lineCap='round';
+    ctxO.beginPath();ctxO.moveTo(px-sx*8,py-sy*8);ctxO.lineTo(px-sx*(8+fl),py-sy*(8+fl));ctxO.stroke();
+    ctxO.lineCap='butt';
+    arrow(ctxO,px+sx*22,py+sy*22,px+sx*88,py+sy*88,'#ffd166',3.5);   // 点火方向
+    ctxO.fillStyle='#ffd166';ctxO.font='bold 12px sans-serif';
+    ctxO.fillText('点火方向(切向)',px+sx*60-46,py+sy*60-10);
+  }
+  ctxO.restore();
+  ctxO.fillStyle='#fff';ctxO.font='12px Consolas,monospace';
+  ctxO.fillText((k.v/1000).toFixed(2)+' km/s',px+12,py-12);
+  // 点火横幅
+  if(burnFx&&performance.now()<burnFx.until){
+    ctxO.fillStyle='rgba(255,209,102,.12)';ctxO.fillRect(0,0,w,30);
+    ctxO.fillStyle='#ffd166';ctxO.font='bold 13px sans-serif';ctxO.textAlign='center';
+    ctxO.fillText('🔥 '+burnFx.txt,w/2,20);ctxO.textAlign='left';
+  }
+  // 比例尺
+  let unit=R;while(unit*s<42)unit*=2;while(unit*s>175)unit/=2;
+  ctxO.strokeStyle='rgba(233,238,255,.6)';ctxO.lineWidth=1.5;
+  ctxO.beginPath();ctxO.moveTo(16,h-18);ctxO.lineTo(16+unit*s,h-18);ctxO.stroke();
+  ctxO.fillStyle='rgba(233,238,255,.6)';ctxO.font='11px sans-serif';
+  ctxO.fillText((unit/R)+'R = '+(unit/1000).toLocaleString()+' km',16,h-24);
+  // 左上角信息
+  ctxO.fillStyle='rgba(147,165,208,.9)';ctxO.font='12px Consolas,monospace';
+  ctxO.fillText(`t = ${fmtClock(simT)}   ×${tscale}`,12,20);
+}
+function fmtClock(t){const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s2=Math.floor(t%60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s2).padStart(2,'0')}`;}
+function fmtDur(sec){const m=sec/60;return m<120?m.toFixed(1)+' 分钟':(m/60).toFixed(2)+' 小时';}
+
+/* ================= 曲线图绘制 ================= */
+function drawChart(){
+  const{w,h}=sizeCanvas(cvC);ctxC.clearRect(0,0,w,h);
+  const pl=46,pr=10,pt=14,pb=30,iw=w-pl-pr,ih=h-pt-pb;
+  const X=x=>pl+x*iw,Y=y=>h-pb-y*ih;
+  const k=kin(),p=transParams();
+  // 网格/轴
+  ctxC.strokeStyle='rgba(38,53,94,.8)';ctxC.lineWidth=1;ctxC.font='10px Consolas,monospace';
+  for(let i=0;i<=4;i++){const yy=i/4;ctxC.beginPath();ctxC.moveTo(pl,Y(yy));ctxC.lineTo(w-pr,Y(yy));ctxC.stroke();}
+  for(let i=0;i<=6;i++){const xx=i/6;ctxC.beginPath();ctxC.moveTo(X(xx),pt);ctxC.lineTo(X(xx),h-pb);ctxC.stroke();}
+  ctxC.strokeStyle='#4a5d95';ctxC.beginPath();ctxC.moveTo(pl,pt);ctxC.lineTo(pl,h-pb);ctxC.lineTo(w-pr,h-pb);ctxC.stroke();
+  const dot=(x,y,col,lab)=>{
+    ctxC.fillStyle=col;ctxC.beginPath();ctxC.arc(x,y,4,0,7);ctxC.fill();
+    if(lab){ctxC.font='11px sans-serif';ctxC.fillText(lab,x+7,y-5);}
+  };
+  if(chartMode==='v'){
+    const ymax=9.5;
+    ctxC.fillStyle='#93a5d0';
+    for(let i=0;i<=4;i++)ctxC.fillText((ymax*i/4).toFixed(1),8,Y(i/4)+3);
+    for(let i=0;i<=6;i++)ctxC.fillText((1+9*i/6).toFixed(0),X(i/6)-4,h-pb+14);
+    ctxC.fillText('v (km/s)',4,pt-2);ctxC.fillText('r / R',w-pr-26,h-6);
+    ctxC.strokeStyle='#4dd2ff';ctxC.lineWidth=2;ctxC.beginPath();
+    for(let x=1;x<=10.001;x+=.05){const y=Math.sqrt(GM/(x*R))/1000/ymax;x<=1.001?ctxC.moveTo(X((x-1)/9),Y(y)):ctxC.lineTo(X((x-1)/9),Y(y));}
+    ctxC.stroke();
+    if(mode==='demo'){                            // 椭圆转移的 v(r) 弧
+      ctxC.save();ctxC.setLineDash([5,4]);ctxC.strokeStyle='#ffd166';ctxC.lineWidth=1.6;ctxC.beginPath();
+      for(let x=1;x<=2.0001;x+=.01){const y=Math.sqrt(GM*(2/(x*R)-1/(1.5*R)))/1000/ymax;
+        x<=1.001?ctxC.moveTo(X((x-1)/9),Y(y)):ctxC.lineTo(X((x-1)/9),Y(y));}
+      ctxC.stroke();ctxC.restore();
+      dot(X(0),Y(p.v1/1000/ymax),'#7be3a2','v₁');
+      dot(X(0),Y(p.vp/1000/ymax),'#ff7b6b','点火①后');
+      dot(X(1/9),Y(p.va/1000/ymax),'#ff7b6b','远地点');
+      dot(X(1/9),Y(p.v2/1000/ymax),'#7be3a2','v₂末轨');
+    }
+    dot(X((k.r/R-1)/9),Y(k.v/1000/ymax),'#fff');
+  }else if(chartMode==='T'){
+    const ymax=tCirc(10*R)/60*1.05;
+    ctxC.fillStyle='#93a5d0';
+    for(let i=0;i<=4;i++)ctxC.fillText(Math.round(ymax*i/4),8,Y(i/4)+3);
+    for(let i=0;i<=6;i++)ctxC.fillText((1+9*i/6).toFixed(0),X(i/6)-4,h-pb+14);
+    ctxC.fillText('T (min)',4,pt-2);ctxC.fillText('r / R',w-pr-26,h-6);
+    ctxC.strokeStyle='#7be3a2';ctxC.lineWidth=2;ctxC.beginPath();
+    for(let x=1;x<=10.001;x+=.05){const y=tCirc(x*R)/60/ymax;x<=1.001?ctxC.moveTo(X((x-1)/9),Y(y)):ctxC.lineTo(X((x-1)/9),Y(y));}
+    ctxC.stroke();
+    if(mode==='demo'){
+      dot(X(0),Y(tCirc(R)/60/ymax),'#7be3a2','T₁');
+      dot(X(1/9),Y(tCirc(2*R)/60/ymax),'#7be3a2','T₂');
+      dot(X(.5/9),Y(tCirc(1.5*R)/60/ymax),'#ffd166','转移椭圆周期');
+    }
+    dot(X((k.r/R-1)/9),Y((k.T/60)/ymax),'#fff');
+  }else{
+    const T1=tCirc(R)/60,ymax=T1*T1*1000*1.06;
+    ctxC.fillStyle='#93a5d0';
+    for(let i=0;i<=4;i++)ctxC.fillText(((ymax*i/4)/1e6).toFixed(1)+'M',4,Y(i/4)+3);
+    for(let i=0;i<=6;i++)ctxC.fillText(Math.round(1000*i/6),X(i/6)-8,h-pb+14);
+    ctxC.fillText('T²(10⁶ min²)',4,pt-2);ctxC.fillText('r³ / R³',w-pr-38,h-6);
+    ctxC.strokeStyle='#4dd2ff';ctxC.lineWidth=2;ctxC.beginPath();      // 理论直线
+    ctxC.moveTo(X(0),Y(0));ctxC.lineTo(X(1),Y(T1*T1*1000/ymax));ctxC.stroke();
+    for(let rI=1;rI<=10;rI++)dot(X(rI*rI*rI/1000),Y(T1*T1*rI*rI*rI/ymax),'#ffd166',rI===10?'r=10R':(rI===1?'r=1R':''));
+    const rr=k.r/R;
+    dot(X(Math.min(rr*rr*rr,1000)/1000),Y(Math.min(T1*T1*rr*rr*rr,ymax*.99)/ymax),'#fff','当前');
+    ctxC.fillStyle='#4dd2ff';ctxC.font='11px sans-serif';
+    ctxC.fillText('数据点落在过原点的直线上 ⇒ T² ∝ r³',pl+8,pt+14);
+  }
+}
+
+/* ================= 数据面板刷新 ================= */
+function updateReadout(){
+  const k=kin();
+  $('roR').innerHTML=`${(k.r/R).toFixed(2)} R <em>= ${(k.r/1000).toLocaleString()} km</em>`;
+  $('roH').innerHTML=`${((k.r-R)/1000).toLocaleString()} km <em>= ${(k.r/R-1).toFixed(2)} R</em>`;
+  $('roV').innerHTML=`${(k.v/1000).toFixed(2)} km/s <em>= ${Math.round(k.v)} m/s</em>`;
+  $('roT').textContent=fmtDur(k.T);
+  $('rLabel').textContent=`${ri.toFixed(2)} R = ${Math.round(ri*R/1000).toLocaleString()} km`;
+  $('simClock').textContent=fmtClock(simT);
+  $('zoomLabel').textContent=viewRi.toFixed(1)+'R';
+  $('c1').textContent=(transParams().v1/1000).toFixed(2);
+  $('c2').textContent=(transParams().vp/1000).toFixed(2);
+  $('c3').textContent=(transParams().va/1000).toFixed(2);
+  $('c4').textContent=(transParams().v2/1000).toFixed(2);
+}
+function syncDemoUI(){
+  if(mode!=='demo')return;
+  const p=transParams(),f=x=>(x/1000).toFixed(2);
+  [1,2,3,4,5].forEach(i=>{const li=$('st'+i);li.classList.remove('on','done');});
+  const doneUpto=stage===0?0:stage===2?2:4;
+  for(let i=1;i<=doneUpto;i++)$('st'+i).classList.add('done');
+  $('st'+(stage===0?1:stage===2?3:5)).classList.add('on');
+  let txt;
+  if(stage===0)txt=`第1步 · 近地圆轨道(r=R=6400 km):v₁ = ${f(p.v1)} km/s,T₁ ≈ ${fmtDur(tCirc(R))},匀速圆周运动。`+(auto?'(自动模式,即将点火…)':'(点击「下一步」执行点火①)');
+  else if(stage===2){
+    const pct=Math.min(100,Math.min(p.n*ell.el,Math.PI)/Math.PI*100);
+    txt=`第2–3步 · 椭圆转移轨道:点火①使速度 ${f(p.v1)}→${f(p.vp)} km/s(近地点最快);卫星正从近地点 R 飞向远地点 2R,速度逐渐减小,远地点将减至 ${f(p.va)} km/s(机械能守恒)。转移进度 ${pct.toFixed(0)}%`;
+  }else txt=`第4–5步 · 完成:远地点(r=2R)点火②,速度 ${f(p.va)}→${f(p.v2)} km/s,进入 2R 圆轨道。对比:v₂ = ${f(p.v2)} < v₁ = ${f(p.v1)} km/s —— 两次点火均为<b style="color:var(--gold)">加速</b>,但末轨速度反而<b style="color:var(--gold)">更小</b>!`;
+  $('stageText').innerHTML=txt;
+  ['sp1','sp2','sp3','sp4'].forEach(id=>$(id).classList.remove('hot'));
+  const row=stage===0?'sp1':stage===2?(p.n*ell.el<Math.PI/2?'sp2':'sp3'):'sp4';
+  $(row).classList.add('hot');
+  const bs=$('btnStep');
+  if(stage===0){bs.disabled=false;bs.textContent='下一步:点火①(切向加速)';}
+  else if(stage===2){
+    if(playing){bs.disabled=false;bs.textContent='快进到远地点并点火②';}
+    else{bs.disabled=false;bs.classList.add('btn-g');bs.textContent='⚡ 点火②(已到远地点)';return;}
+  }else{bs.disabled=true;bs.textContent='演示完成 · 请重置';}
+  bs.classList.remove('btn-g');
+}
+
+/* ================= 主循环 ================= */
+let last=performance.now();
+function frame(now){
+  const rdt=Math.min((now-last)/1000,.05);last=now;
+  if(playing)advance(rdt*tscale);
+  render();drawChart();updateReadout();
+  if(mode==='demo'&&(stage===2||stage===4))syncDemoUI._n||(syncDemoUI(),syncDemoUI._n=1);
+  if(mode==='demo'&&stage===2)syncDemoUI();     // 转移中持续刷新进度
+  requestAnimationFrame(frame);
+}
+
+/* ================= 事件绑定 ================= */
+$('rSlider').addEventListener('input',e=>{ri=parseFloat(e.target.value);if(mode==='circ')applyFit();});
+$('zoomSlider').addEventListener('input',e=>{viewRi=parseFloat(e.target.value);$('fitChk').checked=false;});
+$('btnFit').addEventListener('click',()=>{$('fitChk').checked=true;applyFit();});
+$('gSel').addEventListener('change',e=>{g=parseFloat(e.target.value);GM=g*R*R;});
+$('tsSel').addEventListener('change',e=>{tscale=parseInt(e.target.value);});
+$('btnPlay').addEventListener('click',()=>{playing=!playing;$('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放';});
+$('btnReset').addEventListener('click',resetAll);
+$('btnDemo').addEventListener('click',startDemo);
+$('btnStep').addEventListener('click',()=>{
+  if(stage===0)doBurn1();
+  else if(stage===2){const p=transParams();ell.el=Math.PI/p.n;doBurn2();playing=true;$('btnPlay').textContent='⏸ 暂停';}
+});
+$('autoChk').addEventListener('change',e=>{auto=e.target.checked;$('autoChk2').checked=auto;demoWall0=performance.now();});
+$('autoChk2').addEventListener('change',e=>{auto=e.target.checked;$('autoChk').checked=auto;demoWall0=performance.now();});
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+  chartMode=t.dataset.m;
+  $('chartHint').textContent=chartMode==='v'?'结论:r 越大 v 越小,v∝1/√r。'
+    :chartMode==='T'?'结论:r 越大 T 越大,T∝r^(3/2)。'
+    :'开普勒第三定律:T²–r³ 图为过原点直线,斜率 4π²/GM(仅由中心天体决定)。';
+}));
+function applyFit(){
+  if($('fitChk').checked){viewRi=Math.min(Math.max(ri+.6,1.7),11);$('zoomSlider').value=viewRi;}
+}
+applyFit();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

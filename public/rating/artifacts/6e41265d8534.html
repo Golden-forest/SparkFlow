@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>热水降温 · T–t 曲线</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-hot: #d64524;
+      --sim-cool: #3f7fae;
+      --sim-steam: #8fb3c9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(214, 69, 36, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(15, 159, 186, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Inter, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(300px, 0.62fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 440px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 8px; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f4f9fa 58%, #fdfaf3 100%); }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 2px 6px 0; font-size: 12.5px; color: var(--sim-muted); }
+    .lg { display: inline-flex; align-items: center; gap: 6px; }
+    .sw { display: inline-block; width: 24px; height: 0; border-top: 4px solid var(--sim-accent); border-radius: 2px; }
+    .sw-grad { border: none; height: 4px; background: linear-gradient(90deg, var(--sim-hot), var(--sim-cool)); border-radius: 2px; }
+    .sw-danger { border-top: 3px dashed var(--sim-danger); }
+    .sw-room { border-top: 3px dashed var(--sim-warning); }
+    .sw-ghost { border-top: 3px dotted var(--sim-muted); }
+    .mini { border: 1px solid var(--sim-border); border-radius: 8px; padding: 3px 10px; font-size: 12px; font-weight: 700; color: var(--sim-muted); background: var(--sim-surface-soft); cursor: pointer; }
+    .mini:hover:not(:disabled) { border-color: #c7d2e2; background: #eef3f9; }
+    .mini:disabled { opacity: .45; cursor: default; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .sample-panel, .model-note { padding: 16px; }
+    .sample-row { display: flex; gap: 12px; align-items: center; }
+    #cup { width: 112px; flex: 0 0 auto; display: block; }
+    .big-metrics { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 11.5px; }
+    .metric strong { font-size: 1.05rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metric.main-metric { grid-column: 1 / -1; }
+    .metric.main-metric strong { font-size: 1.7rem; }
+    .model-note { display: grid; align-content: start; gap: 12px; }
+    .model-note .panel-head { margin-bottom: 0; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.86rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; font-size: 0.95rem !important; line-height: 1.6 !important; }
+    .note-warn { color: #a02c22 !important; }
+    .controls { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .48; cursor: default; transform: none; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control { flex: 1 1 200px; min-width: 170px; max-width: 320px; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .scale-marks { display: flex; justify-content: space-between; margin-top: 2px; font-size: 11.5px; color: var(--sim-muted); }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speedbox { flex: 0 1 250px; display: grid; gap: 8px; justify-items: start; }
+    .speed-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+    .speed-btn { padding: 6px 4px; font-size: 12.5px; border-radius: 9px; }
+    .speed-btn.active { background: var(--sim-accent-soft); color: var(--sim-accent-deep); border-color: rgba(15,159,186,.45); outline: 2px solid rgba(15,159,186,.28); }
+    .toggle { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 650; color: var(--sim-text); cursor: pointer; }
+    .toggle input { accent-color: var(--sim-danger); width: 15px; height: 15px; }
+    .controls-hint { flex-basis: 100%; margin-top: -4px; font-size: 12px; color: var(--sim-muted); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .tick-label { fill: var(--sim-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+    .axis-label { fill: var(--sim-muted); font-size: 12.5px; font-weight: 650; }
+    #trace { fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 4px rgba(15,159,186,.16)); }
+    #bandPath { stroke: none; fill-opacity: 0.13; }
+    #markerHalo { fill: rgba(15,159,186,.14); }
+    #marker { stroke: white; stroke-width: 3; }
+    #roomLine { stroke: var(--sim-warning); stroke-width: 2.5; stroke-dasharray: 7 7; }
+    #roomText { fill: #a35d00; font-size: 12.5px; font-weight: 750; }
+    #ghostTrace { fill: none; stroke: var(--sim-muted); stroke-width: 2.5; stroke-dasharray: 2 7; stroke-linecap: round; }
+    #ghostLabel { fill: var(--sim-muted); font-size: 12px; font-weight: 650; }
+    #tangentLine { stroke: var(--sim-danger); stroke-width: 2; stroke-dasharray: 9 6; }
+    #warnDot { fill: var(--sim-danger); stroke: #fff; stroke-width: 2; }
+    #warnText { fill: var(--sim-danger); font-size: 12.5px; font-weight: 750; }
+    #gapGroup line { stroke: var(--sim-accent-deep); stroke-width: 1.8; }
+    #gapGroup path { fill: var(--sim-accent-deep); }
+    #gapText { fill: var(--sim-accent-deep); font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .cup-body { fill: var(--sim-surface); stroke: #55657d; stroke-width: 3; }
+    .cup-handle { fill: none; stroke: #55657d; stroke-width: 4.5; stroke-linecap: round; }
+    .cup-rim { fill: #eaf1f6; stroke: #55657d; stroke-width: 3; }
+    #waterTop { fill: #ffffff; opacity: 0.28; }
+    .wisp { fill: none; stroke: var(--sim-steam); stroke-width: 3.5; stroke-linecap: round; }
+    @keyframes steamRise { 0% { transform: translateY(0); opacity: 0; } 25% { opacity: .85; } 100% { transform: translateY(-11px); opacity: 0; } }
+    .steam .w1 { animation: steamRise 2.4s ease-in-out infinite; }
+    .steam .w2 { animation: steamRise 2.4s ease-in-out infinite .8s; }
+    .steam .w3 { animation: steamRise 2.4s ease-in-out infinite 1.6s; }
+    @keyframes haloPulse { 0%, 100% { opacity: .55; } 50% { opacity: .12; } }
+    #markerHalo { animation: haloPulse 1.7s ease-in-out infinite; }
+    .app:not(.is-running) .steam .wisp { animation-play-state: paused; }
+    .app:not(.is-running) #markerHalo { animation-play-state: paused; opacity: .35; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+      .sample-row { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+      .steam .wisp, #markerHalo { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>热水降温 · T–t 曲线</h1>
+        <p>调节初温、室温与保温性能：温差越大降得越快，越接近室温降得越慢。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">未开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">水温记录仪（T–t 图）</h2>
+          <span>横轴 0–40 分 · 纵轴 0–100 °C · 1 秒 ≈ 1 分（可调倍速）</span>
+        </div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">水温随时间变化的曲线图：曲线从初温出发，先陡后缓，无限接近水平的室温虚线但不会穿过；红色虚线表示匀速下降的错误猜想，它会穿到室温以下。</desc>
+          <defs>
+            <linearGradient id="traceGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop id="traceStop1" stop-color="#d64524"></stop>
+              <stop id="traceStop2" offset="1" stop-color="#3f7fae"></stop>
+            </linearGradient>
+            <clipPath id="plotClip"><rect x="58" y="26" width="666" height="334"></rect></clipPath>
+          </defs>
+          <g id="grid"></g>
+          <g id="ticks"></g>
+          <line class="axis" x1="58" y1="360" x2="724" y2="360"></line>
+          <line class="axis" x1="58" y1="26" x2="58" y2="360"></line>
+          <text class="axis-label" x="724" y="400" text-anchor="end">时间 t / 分</text>
+          <text class="axis-label" x="16" y="18">温度 T / °C</text>
+          <g clip-path="url(#plotClip)">
+            <path id="bandPath" d="" fill="#d64524"></path>
+            <polyline id="ghostTrace" points=""></polyline>
+            <g id="tangentGroup">
+              <line id="tangentLine" x1="58" y1="41.7" x2="724" y2="360"></line>
+              <circle id="warnDot" cx="0" cy="0" r="4.5"></circle>
+              <text id="warnText" x="0" y="0"></text>
+            </g>
+            <polyline id="trace" points="" stroke="url(#traceGrad)"></polyline>
+          </g>
+          <line id="roomLine" x1="58" y1="276.5" x2="724" y2="276.5"></line>
+          <text id="roomText" x="716" y="268" text-anchor="end">室温 25 °C</text>
+          <text id="ghostLabel" x="0" y="0" text-anchor="end"></text>
+          <g id="gapGroup">
+            <line x1="0" y1="0" x2="0" y2="0"></line>
+            <path d=""></path>
+            <path d=""></path>
+            <text id="gapText" x="0" y="0"></text>
+          </g>
+          <circle id="markerHalo" cx="58" cy="41.7" r="15"></circle>
+          <circle id="marker" cx="58" cy="41.7" r="7" fill="#d64524"></circle>
+        </svg>
+        <div class="legend">
+          <span class="lg"><i class="sw sw-grad"></i>实际水温曲线</span>
+          <span class="lg"><i class="sw sw-danger"></i>"匀速下降"错误猜想</span>
+          <span class="lg"><i class="sw sw-room"></i>室温线（渐近线）</span>
+          <span class="lg" id="ghostLegend" style="display:none"><i class="sw sw-ghost"></i><span id="ghostLegendText">对比曲线</span></span>
+          <button id="clearGhostBtn" class="mini" type="button" disabled>清除对比曲线</button>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel sample-panel" aria-label="样品杯与实时读数">
+          <div class="panel-head" style="margin-bottom:10px"><h2>样品杯 · 实时读数</h2></div>
+          <div class="sample-row">
+            <svg id="cup" viewBox="0 0 120 150" role="img" aria-label="样品杯示意图：水色与蒸汽随水温变化">
+              <g class="steam" id="steamG" opacity="0">
+                <path class="wisp w1" d="M46 54 q4 -8 0 -15 q-4 -7 0 -13"></path>
+                <path class="wisp w2" d="M60 52 q5 -9 0 -17 q-4 -8 0 -14"></path>
+                <path class="wisp w3" d="M74 54 q4 -8 0 -15 q-4 -7 0 -13"></path>
+              </g>
+              <path class="cup-handle" d="M92.5 78 q21 3 17.5 21 q-3.5 18 -21.5 14.5"></path>
+              <path class="cup-body" d="M32 62 L38.5 130 q1 7 8.5 7 h30 q7.5 0 8.5 -7 L92 62 Z"></path>
+              <ellipse class="cup-rim" cx="62" cy="62" rx="30" ry="6.5"></ellipse>
+              <path id="water" d="M36.5 74 L41.8 128.5 q0.8 5.5 6.5 5.5 h27.4 q5.7 0 6.5 -5.5 L87.5 74 Z" fill="#d64524"></path>
+              <ellipse id="waterTop" cx="62" cy="74" rx="25.5" ry="5"></ellipse>
+            </svg>
+            <div class="big-metrics">
+              <div class="metric main-metric"><small>当前水温</small><strong id="tempReadout">95.0 °C</strong></div>
+              <div class="metric"><small>温差 T − T<span style="font-size:10px">室</span></small><strong id="gapReadout">70.0 °C</strong></div>
+              <div class="metric"><small>速率 dT/dt（负=降温）</small><strong id="rateReadout">−4.13 °C/分</strong></div>
+              <div class="metric"><small>散热常数 k</small><strong id="kReadout">0.059 分⁻¹</strong></div>
+              <div class="metric"><small>记录时间</small><strong id="timeReadout">0.0 分</strong></div>
+            </div>
+          </div>
+        </section>
+        <section class="panel model-note" data-zone="insight" aria-label="观察结论与模型说明">
+          <div class="panel-head"><h2>现在看到什么</h2></div>
+          <p id="insight" class="insight">按「开始」：先看曲线开头有多陡——它由初始温差决定。</p>
+          <p>教学模型（牛顿冷却）：dT/dt = −k(T − T<sub>室</sub>)，曲线为 T(t) = T<sub>室</sub> + (T<sub>0</sub> − T<sub>室</sub>)e<sup>−kt</sup>。时间做了压缩显示（1 秒 ≈ 1 分），物理关系保持精确。</p>
+          <p class="note-warn">红色虚线 = 把"开头的降温速度"一直保持下去的匀速猜想：它很快穿到室温以下。真实曲线（蓝色）只会无限接近室温虚线，永远不会穿过。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="t0Input">初温（水温）<output id="t0Output">95 °C</output></label>
+        <input id="t0Input" type="range" min="5" max="100" step="1" value="95">
+      </div>
+      <div class="control">
+        <label for="troomInput">室温 <output id="troomOutput">25 °C</output></label>
+        <input id="troomInput" type="range" min="0" max="35" step="1" value="25">
+      </div>
+      <div class="control">
+        <label for="insInput">保温性能 <output id="insOutput">一般 · k≈0.059 分⁻¹</output></label>
+        <input id="insInput" type="range" min="0" max="100" step="1" value="70">
+        <div class="scale-marks"><span>散热快 ←</span><span>→ 保温好</span></div>
+      </div>
+      <div class="speedbox">
+        <div class="speed-row" role="group" aria-label="时间倍速">
+          <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+          <button class="speed-btn active" data-speed="1" type="button" aria-pressed="true">1×</button>
+          <button class="speed-btn" data-speed="2" type="button">2×</button>
+          <button class="speed-btn" data-speed="4" type="button">4×</button>
+        </div>
+        <label class="toggle"><input id="tangentToggle" type="checkbox" checked><span>显示"匀速下降"错误猜想线</span></label>
+      </div>
+      <p class="controls-hint">提示：拖动参数会重新开始记录，上一条曲线自动保留为灰色对比曲线（「重置」也是如此），用「清除对比曲线」可移除。</p>
+    </section>
+  </div>
+
+  <script id="sim-kernel">
+  // Pure physics kernel: no DOM access, executable in Node for headless model checks.
+  (() => {
+    "use strict";
+    const API = {};
+    // Newton's law of cooling, analytic solution. p = { t0, troom, k } in degC, degC, min^-1.
+    API.temperatureAt = (t, p) => p.troom + (p.t0 - p.troom) * Math.exp(-p.k * t);
+    API.gapAt = (t, p) => (p.t0 - p.troom) * Math.exp(-p.k * t);
+    API.rateAt = (t, p) => -p.k * (API.temperatureAt(t, p) - p.troom);
+    API.integrateRK4 = (p, tEnd, dt) => {
+      let t = 0, T = p.t0;
+      const f = (x) => -p.k * (x - p.troom);
+      while (t < tEnd - 1e-12) {
+        const h = Math.min(dt, tEnd - t);
+        const k1 = f(T), k2 = f(T + h / 2 * k1), k3 = f(T + h / 2 * k2), k4 = f(T + h * k3);
+        T += h / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+        t += h;
+      }
+      return T;
+    };
+    API.integrateEuler = (p, tEnd, dt) => {
+      let t = 0, T = p.t0;
+      while (t < tEnd - 1e-12) {
+        const h = Math.min(dt, tEnd - t);
+        T += -p.k * (T - p.troom) * h;
+        t += h;
+      }
+      return T;
+    };
+    API.runModelChecks = () => {
+      const results = [];
+      // 1. Ordinary case: analytic solution vs independent RK4 oracle.
+      {
+        const p = { t0: 95, troom: 25, k: 0.06 }, t = 10;
+        const expected = API.temperatureAt(t, p);
+        const actual = API.integrateRK4(p, t, 0.001);
+        results.push({ name: "解析解与高精度 RK4 数值解一致（普通工况 t=10 分）", pass: Math.abs(actual - expected) < 1e-6, expected: expected.toFixed(6) + " °C", actual: actual.toFixed(6) + " °C", tolerance: "1e-6 °C" });
+      }
+      // 2. Long-time no-crossing invariant (misconception 2: never below room temperature).
+      {
+        let minMargin = Infinity;
+        for (const k of [0.02, 0.06, 0.15]) {
+          const p = { t0: 95, troom: 25, k };
+          for (let t = 0; t <= 2000; t += 50) minMargin = Math.min(minMargin, API.temperatureAt(t, p) - p.troom);
+        }
+        results.push({ name: "长时间不穿越室温（t≤2000 分，k=0.02/0.06/0.15）", pass: minMargin >= -1e-9, expected: "T − T室 ≥ 0（下限余量）", actual: "最小余量 " + minMargin.toExponential(3) + " °C", tolerance: "−1e-9 °C" });
+      }
+      // 3. Monotone cooling with strictly decreasing rate magnitude (misconception 1: not uniform).
+      {
+        const p = { t0: 95, troom: 25, k: 0.06 };
+        let riseViolation = 0, slowViolation = 0, prevT = p.t0, prevRate = Math.abs(API.rateAt(0, p));
+        for (let t = 0.25; t <= 40.0001; t += 0.25) {
+          const T = API.temperatureAt(t, p);
+          if (T >= prevT) riseViolation += 1;
+          prevT = T;
+          const r = Math.abs(API.rateAt(t, p));
+          if (r > prevRate + 1e-12) slowViolation += 1;
+          prevRate = r;
+        }
+        results.push({ name: "温度单调下降且降温速率越来越小（0–40 分）", pass: riseViolation === 0 && slowViolation === 0, expected: "违反次数 = 0", actual: "上升违反 " + riseViolation + " 次 · 变快违反 " + slowViolation + " 次", tolerance: "0 次" });
+      }
+      // 4. Gap halves in a fixed time ln2/k (temperature-difference driver).
+      {
+        let worst = 0;
+        for (const k of [0.02, 0.06, 0.15]) {
+          const p = { t0: 80, troom: 20, k }, t = 4;
+          const g1 = API.gapAt(t, p), g2 = API.gapAt(t + Math.LN2 / k, p);
+          worst = Math.max(worst, Math.abs(2 * g2 - g1) / g1);
+        }
+        results.push({ name: "温差减半时间恒为 ln2/k（三个 k 值）", pass: worst < 1e-9, expected: "gap(t+ln2/k) = gap(t)/2", actual: "最大相对偏差 " + worst.toExponential(3), tolerance: "1e-9（相对）" });
+      }
+      // 5. Boundary case: t0 equals room temperature -> flat curve, zero rate.
+      {
+        const p = { t0: 25, troom: 25, k: 0.06 };
+        let maxDev = 0, maxRate = 0;
+        for (let t = 0; t <= 40; t += 0.5) {
+          maxDev = Math.max(maxDev, Math.abs(API.temperatureAt(t, p) - p.troom));
+          maxRate = Math.max(maxRate, Math.abs(API.rateAt(t, p)));
+        }
+        results.push({ name: "边界：初温等于室温 → 曲线水平、速率为零", pass: maxDev <= 1e-12 && maxRate <= 1e-12, expected: "最大偏差 ≤ 1e-12", actual: "偏差 " + maxDev.toExponential(3) + " °C · 速率 " + maxRate.toExponential(3) + " °C/分", tolerance: "1e-12" });
+      }
+      // 6. Opposite direction: cold water warming (symmetry, never exceeds room temperature).
+      {
+        const p = { t0: 5, troom: 25, k: 0.08 }, t = 12;
+        const expected = API.temperatureAt(t, p);
+        const actual = API.integrateRK4(p, t, 0.001);
+        let maxOver = 0;
+        for (let s = 0; s <= 40; s += 0.5) maxOver = Math.max(maxOver, API.temperatureAt(s, p) - p.troom);
+        results.push({ name: "反方向：冷水升温同样先快后慢、不超室温", pass: Math.abs(actual - expected) < 1e-6 && maxOver <= 1e-9, expected: expected.toFixed(6) + " °C（解析）", actual: actual.toFixed(6) + " °C（RK4）· 超出室温 " + maxOver.toExponential(3) + " °C", tolerance: "1e-6 / 1e-9" });
+      }
+      // 7. Euler step-halving convergence toward the analytic value.
+      {
+        const p = { t0: 95, troom: 25, k: 0.06 }, t = 10;
+        const exact = API.temperatureAt(t, p);
+        const coarse = Math.abs(API.integrateEuler(p, t, 0.5) - exact);
+        const fine = Math.abs(API.integrateEuler(p, t, 0.25) - exact);
+        results.push({ name: "步长减半误差收敛（欧拉 0.5 分 → 0.25 分）", pass: fine < coarse && fine < 0.5, expected: "误差(0.25) < 误差(0.5) 且 < 0.5 °C", actual: "误差 " + coarse.toFixed(4) + " → " + fine.toFixed(4) + " °C", tolerance: "严格减小" });
+      }
+      // 8. Readout consistency: reported rate equals central difference of the plotted curve.
+      {
+        let worst = 0;
+        const p = { t0: 95, troom: 25, k: 0.06 }, h = 1e-3;
+        for (const t of [2, 10, 25]) {
+          const fd = (API.temperatureAt(t + h, p) - API.temperatureAt(t - h, p)) / (2 * h);
+          worst = Math.max(worst, Math.abs(fd - API.rateAt(t, p)));
+        }
+        results.push({ name: "速率读数与曲线中心差分一致", pass: worst < 1e-6, expected: "|dT/dt − 中心差分| < 1e-6", actual: "最大偏差 " + worst.toExponential(3) + " °C/分", tolerance: "1e-6" });
+      }
+      return results;
+    };
+    const root = typeof window !== "undefined" ? window : globalThis;
+    root.SimKernel = API;
+  })();
+  </script>
+
+  <script>
+  (() => {
+    "use strict";
+    const K = window.SimKernel;
+
+    // ---- chart geometry (fixed scales keep runs comparable) ----
+    const X0 = 58, X1 = 724, Y0 = 26, Y1 = 360, TMAX = 40, TSCALE = 100;
+    const px = (t) => X0 + (t / TMAX) * (X1 - X0);
+    const py = (T) => Y1 - (T / TSCALE) * (Y1 - Y0);
+
+    // ---- parameter schema ----
+    const parameterSchema = [
+      { key: "t0", label: "初温", type: "slider", min: 5, max: 100, step: 1, default: 95, unit: "°C" },
+      { key: "troom", label: "室温", type: "slider", min: 0, max: 35, step: 1, default: 25, unit: "°C" },
+      { key: "insulation", label: "保温性能", type: "slider", min: 0, max: 100, step: 1, default: 70, unit: "" }
+    ];
+    const K_MIN = 0.02, K_MAX = 0.15; // min^-1, mapped from insulation slider
+    const kFromIns = (x) => K_MAX - (K_MAX - K_MIN) * (x / 100);
+    const insLabel = (x) => (x < 20 ? "很差" : x < 45 ? "较差" : x < 70 ? "一般" : x < 90 ? "较好" : "很好");
+
+    const state = {
+      running: false, finished: false, t: 0,
+      params: { t0: 95, troom: 25, insulation: 70 },
+      speed: 1, showTangent: true, ghost: null,
+      lastTs: null, history: []
+    };
+
+    const elements = {
+      app: document.querySelector(".app"), status: document.querySelector("#status"),
+      grid: document.querySelector("#grid"), ticks: document.querySelector("#ticks"),
+      trace: document.querySelector("#trace"), bandPath: document.querySelector("#bandPath"),
+      marker: document.querySelector("#marker"), markerHalo: document.querySelector("#markerHalo"),
+      roomLine: document.querySelector("#roomLine"), roomText: document.querySelector("#roomText"),
+      ghostTrace: document.querySelector("#ghostTrace"), ghostLabel: document.querySelector("#ghostLabel"),
+      ghostLegend: document.querySelector("#ghostLegend"), ghostLegendText: document.querySelector("#ghostLegendText"),
+      tangentGroup: document.querySelector("#tangentGroup"), tangentLine: document.querySelector("#tangentLine"),
+      warnDot: document.querySelector("#warnDot"), warnText: document.querySelector("#warnText"),
+      gapGroup: document.querySelector("#gapGroup"), gapText: document.querySelector("#gapText"),
+      traceStop1: document.querySelector("#traceStop1"), traceStop2: document.querySelector("#traceStop2"),
+      water: document.querySelector("#water"), steamG: document.querySelector("#steamG"),
+      insight: document.querySelector("#insight"),
+      tempReadout: document.querySelector("#tempReadout"), gapReadout: document.querySelector("#gapReadout"),
+      rateReadout: document.querySelector("#rateReadout"), kReadout: document.querySelector("#kReadout"),
+      timeReadout: document.querySelector("#timeReadout"),
+      t0Input: document.querySelector("#t0Input"), t0Output: document.querySelector("#t0Output"),
+      troomInput: document.querySelector("#troomInput"), troomOutput: document.querySelector("#troomOutput"),
+      insInput: document.querySelector("#insInput"), insOutput: document.querySelector("#insOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"), clearGhostBtn: document.querySelector("#clearGhostBtn"),
+      tangentToggle: document.querySelector("#tangentToggle")
+    };
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    // ---- temperature -> color (hot red -> cool blue), shared by curve/cup/marker ----
+    const COOL = { r: 63, g: 127, b: 174 }, HOT = { r: 214, g: 69, b: 36 };
+    function tempColor(T) {
+      const u = clamp((T - 25) / 75, 0, 1);
+      const c = { r: Math.round(COOL.r + (HOT.r - COOL.r) * u), g: Math.round(COOL.g + (HOT.g - COOL.g) * u), b: Math.round(COOL.b + (HOT.b - COOL.b) * u) };
+      const h = (n) => n.toString(16).padStart(2, "0");
+      return "#" + h(c.r) + h(c.g) + h(c.b);
+    }
+
+    function paramsPhys() { return { t0: state.params.t0, troom: state.params.troom, k: kFromIns(state.params.insulation) }; }
+
+    function initGrid() {
+      const lines = [], labels = [];
+      for (let t = 0; t <= TMAX; t += 5) {
+        const x = px(t);
+        lines.push('<line class="grid-line" x1="' + x + '" y1="' + Y0 + '" x2="' + x + '" y2="' + Y1 + '"></line>');
+        if (t % 10 === 0) labels.push('<text class="tick-label" x="' + x + '" y="' + (Y1 + 18) + '" text-anchor="middle">' + t + '</text>');
+      }
+      for (let T = 20; T <= TSCALE; T += 20) {
+        const y = py(T);
+        lines.push('<line class="grid-line" x1="' + X0 + '" y1="' + y + '" x2="' + X1 + '" y2="' + y + '"></line>');
+        labels.push('<text class="tick-label" x="' + (X0 - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + T + '</text>');
+      }
+      elements.grid.innerHTML = lines.join("");
+      elements.ticks.innerHTML = labels.join("");
+    }
+
+    function freshHistory() {
+      state.history = [{ t: 0, T: state.params.t0 }];
+    }
+
+    function applyRunCosmetics() {
+      const p = paramsPhys();
+      elements.traceStop1.setAttribute("stop-color", tempColor(p.t0));
+      elements.traceStop2.setAttribute("stop-color", tempColor(p.troom));
+      elements.bandPath.setAttribute("fill", tempColor((p.t0 + p.troom) / 2));
+    }
+
+    function setStatus(text) { elements.status.textContent = text; }
+
+    function maybeStashGhost() {
+      if (state.t >= 0.5 && state.history.length > 3) {
+        const p = paramsPhys();
+        state.ghost = { points: state.history.map((s) => ({ t: s.t, T: s.T })), t0: p.t0, troom: p.troom, k: p.k };
+      }
+    }
+
+    function clearGhost() { state.ghost = null; render(); }
+
+    function restartRun() {
+      maybeStashGhost();
+      state.t = 0; state.finished = false; state.running = true;
+      freshHistory(); applyRunCosmetics();
+      setStatus("记录中…");
+    }
+
+    function init() {
+      initGrid(); bindControls(); syncInputs(); freshHistory(); applyRunCosmetics(); render();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      if (state.finished || state.t === 0) {
+        if (state.finished) { maybeStashGhost(); state.t = 0; state.finished = false; freshHistory(); applyRunCosmetics(); }
+        else if (state.history.length === 0 || state.history[0].T !== state.params.t0) freshHistory();
+        state.running = true;
+        setStatus("记录中…");
+      } else {
+        state.running = true;
+        setStatus("记录中…");
+      }
+      render();
+    }
+    function pause() {
+      if (!state.running) return;
+      state.running = false;
+      setStatus("已暂停");
+      render();
+    }
+    function reset() {
+      maybeStashGhost();
+      state.running = false; state.finished = false; state.t = 0; state.lastTs = null;
+      freshHistory(); applyRunCosmetics();
+      setStatus("未开始");
+      render();
+    }
+    function finish() {
+      state.running = false; state.finished = true;
+      setStatus("已到 40 分 · 记录完成");
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const realDt = clamp(finite(dt, 0), 0, 0.1); // clamp tab-suspension backlog
+      state.t += realDt * state.speed; // 1 s real = 1 min simulated at 1x
+      if (state.t >= TMAX) {
+        state.t = TMAX;
+        state.history.push({ t: TMAX, T: K.temperatureAt(TMAX, paramsPhys()) });
+        finish();
+        return;
+      }
+      const last = state.history[state.history.length - 1];
+      if (state.t - last.t >= 0.05) state.history.push({ t: state.t, T: K.temperatureAt(state.t, paramsPhys()) });
+    }
+
+    function insightText(p, T, gap) {
+      const agap = Math.abs(gap);
+      const cooling = gap > 0;
+      if (p.t0 === p.troom) return "初温等于室温：没有温差，水既不降温也不升温——曲线是一条水平线。";
+      if (state.finished) {
+        return cooling
+          ? "40 分时水温仍比室温高 " + agap.toFixed(1) + " °C：降温越来越慢，温度只会无限接近室温，绝不会低于室温。"
+          : "40 分时水温仍比室温低 " + agap.toFixed(1) + " °C：升温同样越来越慢，只会无限接近室温，绝不会超过室温。";
+      }
+      if (state.t === 0) return "按「开始」：先看曲线开头有多陡——它由初始温差决定。";
+      if (agap > 45) return cooling
+        ? "温差还很大（" + agap.toFixed(1) + " °C）：降得快，曲线很陡。"
+        : "温差还很大（" + agap.toFixed(1) + " °C）：升得快，曲线很陡。";
+      if (agap > 18) return cooling
+        ? "温差缩小到 " + agap.toFixed(1) + " °C：降温明显变慢，曲线变缓——不是匀速下降。"
+        : "温差缩小到 " + agap.toFixed(1) + " °C：升温明显变慢，曲线变缓——不是匀速上升。";
+      if (agap > 6) return "越来越接近室温：降温越来越慢，曲线几乎水平，但没有变平到零。";
+      return cooling
+        ? "几乎到达室温：温差趋于零，降温趋于停止，曲线只会贴着室温线走。"
+        : "几乎到达室温：温差趋于零，升温趋于停止，曲线只会贴着室温线走。";
+    }
+
+    function render() {
+      const p = paramsPhys();
+      const T = K.temperatureAt(state.t, p);
+      const gap = T - p.troom;
+      const rate = -p.k * gap;
+
+      // samples + current point
+      const pts = state.history.slice();
+      const lastS = pts[pts.length - 1];
+      if (!lastS || lastS.t < state.t - 1e-9) pts.push({ t: state.t, T });
+      const toXY = (s) => px(s.t).toFixed(2) + "," + py(s.T).toFixed(2);
+      elements.trace.setAttribute("points", pts.map(toXY).join(" "));
+
+      // shaded gap band between curve and room line (the cooling driver)
+      const roomY = py(p.troom);
+      if (pts.length > 1) {
+        let d = "M" + pts.map((s) => px(s.t).toFixed(2) + " " + py(s.T).toFixed(2)).join(" L");
+        d += " L" + px(state.t).toFixed(2) + " " + roomY.toFixed(2) + " L" + X0 + " " + roomY.toFixed(2) + " Z";
+        elements.bandPath.setAttribute("d", d);
+      } else {
+        elements.bandPath.setAttribute("d", "");
+      }
+
+      // room asymptote line + label
+      elements.roomLine.setAttribute("y1", roomY); elements.roomLine.setAttribute("y2", roomY);
+      elements.roomText.setAttribute("y", Math.max(Y0 + 8, roomY - 9));
+      elements.roomText.textContent = "室温 " + p.troom + " °C";
+
+      // marker
+      const mx = px(state.t), my = py(T);
+      elements.marker.setAttribute("cx", mx); elements.marker.setAttribute("cy", my);
+      elements.marker.setAttribute("fill", tempColor(T));
+      elements.markerHalo.setAttribute("cx", mx); elements.markerHalo.setAttribute("cy", my);
+
+      // live temperature-difference arrow at the current point
+      const yTop = Math.min(my, roomY), yBot = Math.max(my, roomY);
+      const arrowH = yBot - yTop;
+      const showGap = arrowH >= 34 && state.t > 0;
+      elements.gapGroup.setAttribute("display", showGap ? "" : "none");
+      if (showGap) {
+        const line = elements.gapGroup.querySelector("line");
+        line.setAttribute("x1", mx); line.setAttribute("x2", mx);
+        line.setAttribute("y1", yTop + 7); line.setAttribute("y2", yBot - 7);
+        const paths = elements.gapGroup.querySelectorAll("path");
+        paths[0].setAttribute("d", "M" + (mx - 4.5) + " " + (yTop + 8) + " L" + (mx + 4.5) + " " + (yTop + 8) + " L" + mx + " " + yTop + " Z");
+        paths[1].setAttribute("d", "M" + (mx - 4.5) + " " + (yBot - 8) + " L" + (mx + 4.5) + " " + (yBot - 8) + " L" + mx + " " + yBot + " Z");
+        elements.gapText.setAttribute("x", Math.min(mx + 9, X1 - 64));
+        elements.gapText.setAttribute("y", (yTop + yBot) / 2 + 4);
+        elements.gapText.textContent = "ΔT " + Math.abs(gap).toFixed(1) + " °C";
+      }
+
+      // "uniform rate" misconception tangent: constant slope = initial rate
+      const dT0 = p.t0 - p.troom;
+      const showTangent = state.showTangent && Math.abs(dT0) > 1e-9;
+      elements.tangentGroup.setAttribute("display", showTangent ? "" : "none");
+      if (showTangent) {
+        const rate0 = -p.k * dT0;
+        const tEnd = TMAX;
+        elements.tangentLine.setAttribute("x1", px(0)); elements.tangentLine.setAttribute("y1", py(p.t0));
+        elements.tangentLine.setAttribute("x2", px(tEnd)); elements.tangentLine.setAttribute("y2", py(p.t0 + rate0 * tEnd));
+        const tCross = 1 / p.k;
+        if (tCross <= 38) {
+          const cx = px(tCross);
+          elements.warnDot.setAttribute("cx", cx); elements.warnDot.setAttribute("cy", roomY);
+          const anchorEnd = cx > 560;
+          elements.warnText.setAttribute("x", anchorEnd ? cx - 10 : cx + 10);
+          elements.warnText.setAttribute("y", clamp(roomY + 22, Y0 + 12, Y1 - 8));
+          elements.warnText.setAttribute("text-anchor", anchorEnd ? "end" : "start");
+          elements.warnText.textContent = dT0 > 0 ? "匀速猜想：已降到室温以下" : "匀速猜想：已升到室温以上";
+          elements.warnDot.setAttribute("display", "");
+          elements.warnText.setAttribute("display", "");
+        } else {
+          elements.warnDot.setAttribute("display", "none");
+          elements.warnText.setAttribute("display", "none");
+        }
+      }
+
+      // comparison ghost curve from the previous run
+      const g = state.ghost;
+      const hasGhost = !!g && g.points.length > 1;
+      elements.ghostTrace.setAttribute("points", hasGhost ? g.points.map((s) => px(Math.min(s.t, TMAX)).toFixed(2) + "," + py(clamp(s.T, 0, TSCALE)).toFixed(2)).join(" ") : "");
+      const gEnd = hasGhost ? g.points[g.points.length - 1] : null;
+      if (gEnd) {
+        elements.ghostLabel.setAttribute("x", clamp(px(gEnd.t) - 8, 200, X1 - 4));
+        elements.ghostLabel.setAttribute("y", clamp(py(clamp(gEnd.T, 0, TSCALE)) - 10, Y0 + 12, Y1 - 6));
+        elements.ghostLabel.textContent = "对比 初温" + g.t0 + "°·k=" + g.k.toFixed(3);
+      } else {
+        elements.ghostLabel.textContent = "";
+      }
+      elements.ghostLegend.style.display = hasGhost ? "" : "none";
+      if (hasGhost) elements.ghostLegendText.textContent = "对比：初温 " + g.t0 + " °C";
+      elements.clearGhostBtn.disabled = !hasGhost;
+
+      // cup: water color + steam intensity encode absolute temperature
+      elements.water.setAttribute("fill", tempColor(T));
+      const steam = clamp((T - 45) / 50, 0, 0.9);
+      elements.steamG.setAttribute("opacity", steam.toFixed(3));
+
+      // readouts
+      elements.tempReadout.textContent = T.toFixed(1) + " °C";
+      elements.gapReadout.textContent = (gap >= 0 ? "+" : "−") + Math.abs(gap).toFixed(1) + " °C";
+      elements.rateReadout.textContent = (rate >= 0 ? "+" : "−") + Math.abs(rate).toFixed(2) + " °C/分";
+      elements.kReadout.textContent = p.k.toFixed(3) + " 分⁻¹";
+      elements.timeReadout.textContent = state.t.toFixed(1) + " 分";
+
+      // state-aware insight + control states
+      elements.insight.textContent = insightText(p, T, gap);
+      elements.startBtn.textContent = state.finished ? "重新开始" : (state.t === 0 ? "开始" : "继续");
+      elements.pauseBtn.disabled = !state.running;
+      elements.app.classList.toggle("is-running", state.running);
+    }
+
+    function syncInputs() {
+      elements.t0Input.value = String(state.params.t0);
+      elements.troomInput.value = String(state.params.troom);
+      elements.insInput.value = String(state.params.insulation);
+      elements.t0Output.textContent = state.params.t0 + " °C";
+      elements.troomOutput.textContent = state.params.troom + " °C";
+      const k = kFromIns(state.params.insulation);
+      elements.insOutput.textContent = insLabel(state.params.insulation) + " · k≈" + k.toFixed(3) + " 分⁻¹";
+    }
+
+    function setParameters(values) {
+      let changed = false;
+      for (const def of parameterSchema) {
+        if (!(def.key in values)) continue;
+        const v = clamp(finite(Number(values[def.key]), def.default), def.min, def.max);
+        if (v !== state.params[def.key]) { state.params[def.key] = v; changed = true; }
+      }
+      syncInputs();
+      if (changed && state.t > 0) restartRun();
+      else if (changed) { freshHistory(); applyRunCosmetics(); }
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running, finished: state.finished, t: state.t, speed: state.speed,
+        showTangent: state.showTangent, params: { ...state.params },
+        samples: state.history.length,
+        ghost: state.ghost ? { t0: state.ghost.t0, troom: state.ghost.troom, k: state.ghost.k, duration: state.ghost.points.length ? state.ghost.points[state.ghost.points.length - 1].t : 0 } : null
+      };
+    }
+    function getReadouts() {
+      const p = paramsPhys();
+      const T = K.temperatureAt(state.t, p);
+      return { T: T, gap: T - p.troom, rate: -p.k * (T - p.troom), t: state.t, k: p.k };
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.clearGhostBtn.addEventListener("click", clearGhost);
+      elements.t0Input.addEventListener("input", () => setParameters({ t0: elements.t0Input.value }));
+      elements.troomInput.addEventListener("input", () => setParameters({ troom: elements.troomInput.value }));
+      elements.insInput.addEventListener("input", () => setParameters({ insulation: elements.insInput.value }));
+      elements.tangentToggle.addEventListener("change", () => { state.showTangent = elements.tangentToggle.checked; render(); });
+      document.querySelectorAll(".speed-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.speed = finite(Number(btn.dataset.speed), 1);
+          document.querySelectorAll(".speed-btn").forEach((b) => {
+            const on = b === btn;
+            b.classList.toggle("active", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+        });
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: K.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>简谐运动交互仿真 · 弹簧振子 x-t / v-t / a-t</title>
+<style>
+  :root{
+    --bg:#eef2f7; --card:#ffffff; --ink:#0f172a; --sub:#475569; --line:#e2e8f0;
+    --cx:#2563eb; --cv:#059669; --ca:#e11d48; --ghost:#94a3b8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1340px;margin:0 auto;padding:14px}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin:4px 2px 12px}
+  h1{font-size:20px;margin:0}
+  .formula{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--sub);
+           background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+  .formula b{color:var(--cx)} .formula i{color:var(--cv);font-style:normal}
+  .formula u{color:var(--ca);text-decoration:none}
+  .grid{display:grid;grid-template-columns:400px 1fr;gap:14px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:12px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+  .card h2{font-size:13px;margin:0 0 8px;color:var(--sub);font-weight:600;
+           letter-spacing:.05em}
+  canvas{display:block;width:100%}
+  #scene{height:212px;cursor:default;touch-action:none}
+  #refcircle{height:252px}
+  #chart{height:565px;touch-action:none;cursor:crosshair}
+  .nums{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+  .num{border:1px solid var(--line);border-radius:10px;padding:6px 8px;text-align:center}
+  .num small{display:block;font-size:11px;color:var(--sub)}
+  .num b{display:block;font:600 17px/1.3 ui-monospace,Menlo,Consolas,monospace}
+  .num.x b{color:var(--cx)} .num.v b{color:var(--cv)} .num.a b{color:var(--ca)}
+  .nums2{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .nums2 .num b{font-size:14px}
+  /* 控制区 */
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+  button{font:inherit;border:1px solid var(--line);background:#f8fafc;color:var(--ink);
+         border-radius:8px;padding:6px 12px;cursor:pointer}
+  button:hover{background:#eef2f7}
+  button.primary{background:var(--cx);border-color:var(--cx);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:5px 6px;background:#fff}
+  .sliders{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px}
+  .sl label{display:flex;justify-content:space-between;font-size:12px;color:var(--sub)}
+  .sl output{font-family:ui-monospace,Menlo,monospace;color:var(--ink)}
+  input[type=range]{width:100%;accent-color:var(--cx)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+        border-radius:999px;padding:4px 12px;cursor:pointer;user-select:none;background:#fff}
+  .chip .dot{width:10px;height:10px;border-radius:50%}
+  .chip.off{opacity:.38;text-decoration:line-through}
+  .radio{display:inline-flex;align-items:center;gap:4px;font-size:13px}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px}
+  .Tnote{font-size:12.5px;color:var(--sub);background:#f8fafc;border:1px dashed var(--line);
+         border-radius:8px;padding:5px 10px;margin-top:2px}
+  .Tnote b{color:var(--ink)}
+  /* 教学要点 */
+  .teach ul{margin:0;padding-left:18px;font-size:13px;color:#334155}
+  .teach li{margin:6px 0;padding:3px 6px;border-radius:6px;transition:background .25s}
+  .teach li.on{background:#fef9c3;box-shadow:0 0 0 1px #fde047 inset}
+  .teach li em{font-style:normal;font-weight:600}
+  .lx{color:var(--cx);font-weight:600}.lv{color:var(--cv);font-weight:600}
+  .la{color:var(--ca);font-weight:600}
+  @media (max-width:1020px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>简谐运动：弹簧振子仿真</h1>
+    <span class="formula">
+      x = A·cos(ωt+φ)&nbsp;&nbsp;
+      <i>v = −ωA·sin(ωt+φ)</i>&nbsp;&nbsp;
+      <u>a = −ω²A·cos(ωt+φ)</u>&nbsp;&nbsp;
+      ω=√(k/m), T=2π/ω
+    </span>
+  </header>
+
+  <div class="grid">
+    <!--左列-->
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h2>场景：光滑水平面弹簧振子（可拖动振子设定 A）</h2>
+        <canvas id="scene"></canvas>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <h2>参考圆（旋转矢量法）</h2>
+        <canvas id="refcircle"></canvas>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <h2>实时数值</h2>
+        <div class="nums">
+          <div class="num"><small>t / s</small><b id="nT">0.00</b></div>
+          <div class="num x"><small>x / cm</small><b id="nX">0.00</b></div>
+          <div class="num v"><small>v / cm·s⁻¹</small><b id="nV">0.00</b></div>
+          <div class="num a"><small>a / cm·s⁻²</small><b id="nA">0.00</b></div>
+        </div>
+        <div class="nums2">
+          <div class="num"><small>A / cm</small><b id="nAmp">5.0</b></div>
+          <div class="num"><small>ω / rad·s⁻¹</small><b id="nW">3.14</b></div>
+          <div class="num"><small>T / s</small><b id="nPer">2.00</b></div>
+          <div class="num v"><small>v_max</small><b id="nVm">15.7</b></div>
+          <div class="num a"><small>a_max</small><b id="nAm">49.3</b></div>
+        </div>
+      </div>
+
+      <div class="card teach">
+        <h2>教学要点（黄色高亮 = 当前正在发生）</h2>
+        <ul>
+          <li id="tp1"><span class="lv">v</span> 与 <span class="lx">x</span> 相位差 π/2：
+              v 超前 x 四分之一周期（x 最大时 v=0，x=0 时 v 最大）。</li>
+          <li id="tp2"><span class="la">a</span> 与 <span class="lx">x</span> 反相（a = −ω²x），
+              加速度始终指向平衡位置。</li>
+          <li id="tp3">经过<b>平衡位置</b>时 <span class="lv">速度最大</span>；
+              到达<b>端点</b>时 v=0、<span class="la">加速度/回复力最大</span>。</li>
+          <li><b>等时性</b>：T = 2π√(m/k) 只由 m、k 决定，<b>与振幅 A 无关</b>。
+              改变 A 看虚线与实线周期完全相同。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!--右列-->
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="row">
+          <button id="btnPlay" class="primary">⏸ 暂停</button>
+          <button id="btnReset">⟲ 重置</button>
+          <button id="btnStep">⏭ 单步 (T/20)</button>
+          <button id="btnSnap">📸 快照当前曲线</button>
+          <button id="btnClear">✕ 清除对比</button>
+          <label class="radio">速度
+            <select id="selSpeed">
+              <option value="0.25">0.25×</option>
+              <option value="0.5">0.5×</option>
+              <option value="1" selected>1×</option>
+              <option value="2">2×</option>
+            </select>
+          </label>
+        </div>
+        <div class="sliders">
+          <div class="sl">
+            <label>振幅 A <output id="oA">5.0 cm</output></label>
+            <input type="range" id="rA" min="1" max="10" step="0.1" value="5">
+          </div>
+          <div class="sl">
+            <label>劲度系数 k <output id="oK">9.87 N/m</output></label>
+            <input type="range" id="rK" min="5" max="20" step="0.01" value="9.8696">
+          </div>
+          <div class="sl">
+            <label>质量 m <output id="oM">1.00 kg</output></label>
+            <input type="range" id="rM" min="0.5" max="2" step="0.05" value="1">
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <span style="font-size:13px;color:var(--sub)">初始相位 φ：</span>
+          <label class="radio"><input type="radio" name="phi" value="0" checked> 0（最大位移处由静止释放）</label>
+          <label class="radio"><input type="radio" name="phi" value="1.5707963"> π/2（经平衡位置，v&lt;0）</label>
+        </div>
+        <div class="row" style="margin-bottom:0">
+          <span style="font-size:13px;color:var(--sub)">曲线显示：</span>
+          <div class="chips">
+            <span class="chip" data-k="x"><span class="dot" style="background:var(--cx)"></span>x-t</span>
+            <span class="chip" data-k="v"><span class="dot" style="background:var(--cv)"></span>v-t</span>
+            <span class="chip" data-k="a"><span class="dot" style="background:var(--ca)"></span>a-t</span>
+          </div>
+        </div>
+        <div class="Tnote">T = <b id="noteT">2.00 s</b>（只由 m、k 决定，与 A 无关）；
+          改变 A / k / m / φ 会自动把上一条曲线留成<b>灰色虚线</b>作叠加对比。
+          在右图上<b>按住拖动</b>可移动时间游标，振子与三图联动。</div>
+      </div>
+
+      <div class="card">
+        <h2>x-t · v-t · a-t 同步曲线（拖动 = 时间游标）</h2>
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- 状态 ---------- */
+const S = {
+  A:5, k:Math.PI*Math.PI, m:1, phi:0,      // 参数（A:cm）
+  t:0, playing:true, speed:1,
+  show:{x:true,v:true,a:true},
+  data:[], nextT:0,                        // 采样 {t,x,v,a}
+  ghost:null,                              // {data,max:{x,v,a},label}
+  dragging:false, dragX:5, scrub:false,
+  WIN:12, MAXT:600, DT:1/120
+};
+const om =()=>Math.sqrt(S.k/S.m);
+const per=()=>2*Math.PI/om();
+const phys=t=>{const w=om(),th=w*t+S.phi;
+  return {x:S.A*Math.cos(th), v:-S.A*w*Math.sin(th), a:-S.A*w*w*Math.cos(th)};};
+
+/* ---------- 画布 ---------- */
+const sceneCv=document.getElementById('scene');
+const refCv=document.getElementById('refcircle');
+const chCv=document.getElementById('chart');
+const gS=sceneCv.getContext('2d'), gR=refCv.getContext('2d'), gC=chCv.getContext('2d');
+function fit(cv,g){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  cv.width=Math.round(r.width*d); cv.height=Math.round(r.height*d);
+  g.setTransform(d,0,0,d,0,0);}
+function fitAll(){fit(sceneCv,gS);fit(refCv,gR);fit(chCv,gC);}
+window.addEventListener('resize',fitAll); fitAll();
+
+/* ---------- 采样与控制 ---------- */
+function push(t){const p=phys(t); S.data.push(Object.assign({t},p));
+  if(S.data.length>7200) S.data.splice(0,S.data.length-7200);}
+function resetSim(keepPlay=true){
+  S.t=0; S.data=[]; S.nextT=0; push(0);
+  if(!keepPlay) S.playing=false;
+}
+function snapGhost(label){
+  if(S.data.length<6) return;
+  const mx={x:0,v:0,a:0};
+  for(const d of S.data){mx.x=Math.max(mx.x,Math.abs(d.x));
+    mx.v=Math.max(mx.v,Math.abs(d.v)); mx.a=Math.max(mx.a,Math.abs(d.a));}
+  S.ghost={data:S.data.slice(),max:mx,label:label||''};
+}
+function paramChanged(what){
+  const lb=`A=${S.A.toFixed(1)}cm, k=${S.k.toFixed(2)}, m=${S.m.toFixed(2)}, φ=${S.phi===0?'0':'π/2'}`;
+  snapGhost(lb+'（'+what+'修改前）');
+  resetSim(true);
+}
+
+/* ---------- 控件事件 ---------- */
+const $=id=>document.getElementById(id);
+$('btnPlay').onclick=()=>{S.playing=!S.playing;};
+$('btnReset').onclick=()=>{resetSim(true);};
+$('btnStep').onclick=()=>{S.playing=false;
+  const nt=S.t+per()/20;
+  while(S.nextT<=nt+1e-9){push(S.nextT);S.nextT+=S.DT;}
+  S.t=nt;};
+$('btnSnap').onclick=()=>snapGhost(`手动快照 A=${S.A.toFixed(1)}cm, k=${S.k.toFixed(2)}, m=${S.m.toFixed(2)}`);
+$('btnClear').onclick=()=>{S.ghost=null;};
+$('selSpeed').onchange=e=>S.speed=+e.target.value;
+
+$('rA').addEventListener('input',e=>{const old=S.A;S.A=+e.target.value;
+  $('oA').textContent=S.A.toFixed(1)+' cm'; if(old!==S.A) paramChanged('A');});
+$('rK').addEventListener('input',e=>{const old=S.k;S.k=+e.target.value;
+  $('oK').textContent=S.k.toFixed(2)+' N/m'; if(Math.abs(old-S.k)>1e-9) paramChanged('k');});
+$('rM').addEventListener('input',e=>{const old=S.m;S.m=+e.target.value;
+  $('oM').textContent=S.m.toFixed(2)+' kg'; if(Math.abs(old-S.m)>1e-9) paramChanged('m');});
+document.querySelectorAll('input[name=phi]').forEach(r=>r.addEventListener('change',e=>{
+  const old=S.phi; S.phi=+e.target.value; if(Math.abs(old-S.phi)>1e-9) paramChanged('φ');}));
+
+document.querySelectorAll('.chip').forEach(ch=>ch.addEventListener('click',()=>{
+  const k=ch.dataset.k; S.show[k]=!S.show[k]; ch.classList.toggle('off',!S.show[k]);}));
+
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!/INPUT|SELECT|BUTTON/.test(document.activeElement.tagName)){
+    e.preventDefault(); S.playing=!S.playing;}});
+
+/* ---------- 场景拖拽设定振幅 ---------- */
+let sceneMap=null;
+function scenePos(e){const r=sceneCv.getBoundingClientRect();
+  return {px:e.clientX-r.left, py:e.clientY-r.top};}
+sceneCv.addEventListener('pointerdown',e=>{
+  if(!sceneMap) return;
+  const {px,py}=scenePos(e);
+  const mcx=sceneMap.cx+S.dragging?sceneMap.cx+S.dragX*sceneMap.ppc
+                                  :sceneMap.cx+phys(S.t).x*sceneMap.ppc;
+  const cxNow=sceneMap.cx+(S.dragging?S.dragX:phys(S.t).x)*sceneMap.ppc;
+  if(Math.abs(px-cxNow)<34 && py>sceneMap.my-30 && py<sceneMap.my+34){
+    S.dragging=true; S.playing=false;
+    sceneCv.setPointerCapture(e.pointerId); sceneCv.style.cursor='grabbing';
+    S.dragX=Math.max(-10,Math.min(10,(px-sceneMap.cx)/sceneMap.ppc));}
+});
+sceneCv.addEventListener('pointermove',e=>{
+  if(!sceneMap) return;
+  const {px}=scenePos(e);
+  if(S.dragging){ S.dragX=Math.max(-10,Math.min(10,(px-sceneMap.cx)/sceneMap.ppc)); }
+  else{const cxNow=sceneMap.cx+phys(S.t).x*sceneMap.ppc;
+    sceneCv.style.cursor=(Math.abs(px-cxNow)<34)?'grab':'default';}
+});
+sceneCv.addEventListener('pointerup',e=>{
+  if(!S.dragging) return;
+  S.dragging=false; sceneCv.style.cursor='default';
+  S.A=Math.max(1,Math.min(10,Math.abs(S.dragX)));
+  $('rA').value=S.A; $('oA').textContent=S.A.toFixed(1)+' cm';
+  const hasPi2=document.querySelector('input[name=phi][value="1.5707963"]');
+  if(S.phi!==0){S.phi=0; document.querySelector('input[name=phi][value="0"]').checked=true;}
+  paramChanged('拖拽');
+});
+
+/* ---------- 图表时间游标 ---------- */
+let chartMap=null;
+function chartTime(e){const r=chCv.getBoundingClientRect();
+  const px=e.clientX-r.left;
+  let tt=chartMap.t0+(px-chartMap.padL)/chartMap.pw*S.WIN;
+  const t1=chartMap.t0+S.WIN, maxT=S.data.length?S.data[S.data.length-1].t:0;
+  return Math.max(0,Math.min(tt,Math.min(t1,maxT)));}
+chCv.addEventListener('pointerdown',e=>{ if(!chartMap)return;
+  S.scrub=true; S.playing=false; chCv.setPointerCapture(e.pointerId);
+  S.t=chartTime(e); truncate();});
+chCv.addEventListener('pointermove',e=>{ if(S.scrub){S.t=chartTime(e); truncate();}});
+chCv.addEventListener('pointerup',()=>S.scrub=false);
+function truncate(){S.data=S.data.filter(d=>d.t<=S.t+1e-6);
+  S.nextT=Math.max(S.nextT,S.t+S.DT);}
+
+/* ---------- 绘制：场景 ---------- */
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function arrow(g,x,y,len,color,label){
+  if(Math.abs(len)<2.5) return;
+  const s=Math.sign(len),L=Math.abs(len);
+  g.strokeStyle=color;g.fillStyle=color;g.lineWidth=2.5;
+  g.beginPath();g.moveTo(x,y);g.lineTo(x+s*(L-7),y);g.stroke();
+  g.beginPath();g.moveTo(x+s*L,y);g.lineTo(x+s*(L-8),y-4.5);g.lineTo(x+s*(L-8),y+4.5);
+  g.closePath();g.fill();
+  if(label){g.font='italic 12px Georgia,serif';g.textAlign=s>0?'left':'right';
+    g.fillText(label,x+s*(L+4),y+4);}}
+
+function drawScene(){
+  const W=sceneCv.clientWidth,H=sceneCv.clientHeight,g=gS;
+  g.clearRect(0,0,W,H);
+  const cx=W*0.5, ppc=(W-90)/26, floorY=H*0.72, my=floorY-16;   // 振子中心
+  sceneMap={cx,ppc,my};
+  const xcm=S.dragging?S.dragX:phys(S.t).x;
+  const mcx=cx+xcm*ppc;
+
+  // 地面与刻度
+  g.strokeStyle='#94a3b8';g.lineWidth=2;
+  g.beginPath();g.moveTo(18,floorY+16);g.lineTo(W-18,floorY+16);g.stroke();
+  g.strokeStyle='#cbd5e1';g.lineWidth=1;
+  for(let xx=18;xx<W-18;xx+=14){g.beginPath();g.moveTo(xx,floorY+16);
+    g.lineTo(xx-7,floorY+24);g.stroke();}
+  // 标尺（cm）
+  g.fillStyle='#64748b';g.font='10px ui-monospace,monospace';g.textAlign='center';
+  for(let c=-10;c<=10;c++){const xx=cx+c*ppc;
+    g.strokeStyle='#cbd5e1';g.beginPath();g.moveTo(xx,floorY+16);
+    g.lineTo(xx,floorY+16+(c%5===0?7:4));g.stroke();
+    if(c%5===0) g.fillText(c,xx,floorY+34);}
+  g.fillText('cm',cx+11*ppc-14,floorY+34);
+
+  // 墙壁
+  g.strokeStyle='#475569';g.lineWidth=3;
+  g.beginPath();g.moveTo(26,floorY+16);g.lineTo(26,my-52);g.stroke();
+  g.lineWidth=1;g.strokeStyle='#94a3b8';
+  for(let yy=my-52;yy<floorY+16;yy+=9){g.beginPath();g.moveTo(26,yy);g.lineTo(18,yy+7);g.stroke();}
+
+  // 平衡位置虚线
+  g.setLineDash([4,4]);g.strokeStyle='#f59e0b';g.lineWidth=1.5;
+  g.beginPath();g.moveTo(cx,my-46);g.lineTo(cx,floorY+16);g.stroke();g.setLineDash([]);
+  g.fillStyle='#b45309';g.font='11px sans-serif';g.textAlign='center';
+  g.fillText('O（平衡位置）',cx,my-52);
+
+  // 弹簧
+  const x0=26,x1=mcx-24,y=floorY-2,lead=8,coils=11,amp=9;
+  const a=x0+lead,b=x1-lead,n=coils*2;
+  g.strokeStyle='#0f172a';g.lineWidth=1.6;g.beginPath();g.moveTo(x0,y);g.lineTo(a,y);
+  for(let i=1;i<=n;i++){const xx=a+(b-a)*i/n;
+    const yy=y+(i%2?amp:-amp)*((i===1||i===n)?0.5:1);g.lineTo(xx,yy);}
+  g.lineTo(x1,y);g.stroke();
+
+  // 振子
+  g.fillStyle='rgba(15,23,42,.12)';rr(g,mcx-22,my-14+4,44,32,7);g.fill();
+  g.fillStyle='#3b82f6';g.strokeStyle='#1d4ed8';g.lineWidth=1.5;
+  rr(g,mcx-22,my-14,44,32,7);g.fill();g.stroke();
+  g.fillStyle='#fff';g.font='600 13px sans-serif';g.textAlign='center';
+  g.fillText('m = '+S.m.toFixed(2)+' kg',mcx,my+4);
+
+  // v、a 箭头
+  const p=S.dragging?{x:xcm,v:0,a:0}:phys(S.t),w=om();
+  const vLen=-(0)||p.v/(S.A*w)*46, aLen=-p.a/(S.A*w*w)*46*(w*w/(w*w||1)); // 归一化
+  arrow(g,mcx,my-32,p.v/(S.A*w||1)*46,'#059669','v');
+  arrow(g,mcx,floorY+4,p.a/(S.A*w*w||1)*46,'#e11d48','a');
+
+  // 拖拽提示 / A 读数
+  if(S.dragging){
+    g.fillStyle='#0f172a';g.font='600 12px ui-monospace,monospace';
+    g.fillText('A = '+Math.max(1,Math.abs(S.dragX)).toFixed(1)+' cm',mcx,my-46);
+    g.setLineDash([3,3]);g.strokeStyle='#94a3b8';
+    g.beginPath();g.moveTo(cx,my);g.lineTo(mcx,my);g.stroke();g.setLineDash([]);
+  }else{
+    g.fillStyle='#94a3b8';g.font='11px sans-serif';g.textAlign='left';
+    g.fillText('↔ 按住振子拖动可设定振幅 A',20,18);
+  }
+}
+
+/* ---------- 绘制：参考圆 ---------- */
+function drawRef(){
+  const W=refCv.clientWidth,H=refCv.clientHeight,g=gR;
+  g.clearRect(0,0,W,H);
+  const cx0=W*0.42, cy0=H*0.47, R=Math.min(W*0.42,H*0.5)-26;
+  const th=om()*S.t+S.phi;
+  const px=cx0+Math.cos(th)*R, py=cy0-Math.sin(th)*R;
+
+  // 圆与水平投影轴
+  g.strokeStyle='#e2e8f0';g.lineWidth=1.5;
+  g.beginPath();g.arc(cx0,cy0,R,0,2*Math.PI);g.stroke();
+  g.strokeStyle='#94a3b8';g.setLineDash([4,4]);
+  g.beginPath();g.moveTo(cx0-R-14,cy0);g.lineTo(cx0+R+14,cy0);g.stroke();g.setLineDash([]);
+  g.fillStyle='#64748b';g.font='10px ui-monospace,monospace';g.textAlign='center';
+  g.fillText('−A',cx0-R,cy0+14);g.fillText('+A',cx0+R,cy0+14);g.fillText('O',cx0-9,cy0-6);
+
+  // 角度弧 + 旋转方向
+  g.strokeStyle='#f59e0b';g.lineWidth=1.5;
+  g.beginPath();g.arc(cx0,cy0,24,0,-(th%(2*Math.PI)),true);g.stroke();
+  g.strokeStyle='#94a3b8';
+  g.beginPath();g.arc(cx0,cy0,R+7,-2.45,-1.75);g.stroke();
+  g.fillStyle='#64748b';g.font='italic 11px Georgia,serif';
+  g.fillText('ω',cx0+ (R+20)*Math.cos(-2.1), cy0+(R+20)*Math.sin(-2.1));
+
+  // 旋转矢量
+  g.strokeStyle='#0f172a';g.lineWidth=2.5;
+  g.beginPath();g.moveTo(cx0,cy0);g.lineTo(px,py);g.stroke();
+  // 矢量箭头
+  const ang=Math.atan2(py-cy0,px-cx0);
+  g.fillStyle='#0f172f';g.beginPath();
+  g.moveTo(px+9*Math.cos(ang),py+9*Math.sin(ang));
+  g.lineTo(px+7*Math.cos(ang+2.6),py+7*Math.sin(ang+2.6));
+  g.lineTo(px+7*Math.cos(ang-2.6),py+7*Math.sin(ang-2.6));g.closePath();g.fill();
+  g.beginPath();g.arc(px,py,5,0,2*Math.PI);g.fillStyle='#2563eb';g.fill();
+
+  // 投影到水平直径
+  g.strokeStyle='#2563eb';g.setLineDash([5,4]);g.lineWidth=1.5;
+  g.beginPath();g.moveTo(px,py);g.lineTo(px,cy0);g.stroke();g.setLineDash([]);
+  g.beginPath();g.arc(px,cy0,5,0,2*Math.PI);g.fillStyle='#2563eb';g.fill();
+
+  // 底部 x 轴联动
+  const axY=H-30, xr=phys(S.t).x/S.A;
+  g.strokeStyle='#cbd5e1';g.beginPath();g.moveTo(cx0-R,axY);g.lineTo(cx0+R,axY);g.stroke();
+  g.strokeStyle='#2563eb';g.lineWidth=2;
+  g.beginPath();g.moveTo(cx0,axY);g.lineTo(cx0+xr*R,axY);g.stroke();
+  g.setLineDash([3,3]);g.strokeStyle='#94a3b8';g.lineWidth=1;
+  g.beginPath();g.moveTo(px,cy0+8);g.lineTo(cx0+xr*R,axY);g.stroke();g.setLineDash([]);
+  g.fillStyle='#2563eb';g.beginPath();g.arc(cx0+xr*R,axY,4.5,0,2*Math.PI);g.fill();
+  g.fillStyle='#334155';g.font='11px sans-serif';
+  g.fillText('投影 x = A·cos(ωt+φ)   （与左侧振子同步）',cx0,axY+18);
+  g.fillStyle='#64748b';g.font='11px ui-monospace,monospace';
+  g.fillText('ωt+φ = '+(th%(2*Math.PI)).toFixed(2)+' rad',cx0+R*0.55,cy0-R*0.72);
+  g.fillStyle='#2563eb';g.font='600 11px ui-monospace,monospace';
+  g.fillText('x = '+phys(S.t).x.toFixed(2)+' cm',cx0+R*0.55,cy0-R*0.72+15);
+}
+
+/* ---------- 绘制：三图 ---------- */
+function nice(v){if(v<=0)return 1;const e=Math.pow(10,Math.floor(Math.log10(v)));
+  for(const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if(m*e>=v) return m*e; return 10*e;}
+function drawPoly(g,pts,tx,color,dashed){
+  if(pts.length<2) return;
+  g.strokeStyle=color;g.lineWidth=2;g.setLineDash(dashed?[6,5]:[]);
+  g.beginPath();g.moveTo(tx(pts[0].t),pts[0].y);
+  for(let i=1;i<pts.length;i++) g.lineTo(tx(pts[i].t),pts[i].y);
+  g.stroke();g.setLineDash([]);}
+
+function drawChart(){
+  const W=chCv.clientWidth,H=chCv.clientHeight,g=gC;
+  g.clearRect(0,0,W,H);
+  const padL=70,padR=86,padT=24,padB=30,gap=12;
+  const pw=W-padL-padR, rowH=(H-padT-padB-2*gap)/3;
+  const t1=Math.max(S.t,S.WIN), t0=t1-S.WIN;
+  const tx=tt=>padL+(tt-t0)/S.WIN*pw;
+  chartMap={t0,padL,pw};
+
+  const w=om(), cols={x:['#2563eb','x / cm'],v:['#059669','v / cm·s⁻¹'],a:['#e11d48','a / cm·s⁻²']};
+  const base={x:S.A, v:S.A*w, a:S.A*w*w};
+  const gm=S.ghost?S.ghost.max:{x:0,v:0,a:0};
+  const cur=phys(S.t);
+
+  for(let r=0;r<3;r++){
+    const key=['x','v','a'][r], [col,lab]=cols[key];
+    const top=padT+r*(rowH+gap), cy=top+rowH/2, half=rowH/2-9;
+    const sc=nice(Math.max(base[key],gm[key],1e-6));
+    const vy=val=>cy-val/sc*half;
+
+    // 边框与网格
+    g.strokeStyle='#e2e8f0';g.lineWidth=1;
+    g.strokeRect(padL,top,pw,rowH);
+    for(const f of [-1,0,1]){
+      g.strokeStyle=f===0?'#94a3b8':'#eef2f7';
+      g.beginPath();g.moveTo(padL,vy(f*sc));g.lineTo(padL+pw,vy(f*sc));g.stroke();}
+    for(let tt=Math.ceil(t0);tt<=Math.floor(t1+1e-9);tt++){
+      g.strokeStyle=tt%Math.round(per())===0?'#fde68a':'#f1f5f9';
+      g.beginPath();g.moveTo(tx(tt),top+1);g.lineTo(tx(tt),top+rowH-1);g.stroke();}
+
+    // 标签
+    g.fillStyle=col;g.font='600 12px sans-serif';g.textAlign='right';
+    g.fillText(lab,padL-8,top+16);
+    g.fillStyle='#94a3b8';g.font='10px ui-monospace,monospace';g.textAlign='right';
+    g.fillText('+'+sc,padL-8,vy(sc)+3);g.fillText('−'+sc,padL-8,vy(-sc)+3);
+    g.fillText('0',padL-8,cy+3);
+
+    // 幽灵曲线（修改前）
+    if(S.ghost){
+      const pts=S.ghost.data.filter(d=>d.t>=t0-0.01&&d.t<=t1+0.01)
+        .map(d=>({t:d.t,y:vy(d[key])}));
+      drawPoly(g,pts,tx,'#94a3b8',true);}
+    // 当前曲线
+    if(S.show[key]){
+      const pts=S.data.filter(d=>d.t>=t0-0.01&&d.t<=S.t+0.01)
+        .map(d=>({t:d.t,y:vy(d[key])}));
+      drawPoly(g,pts,tx,col,false);
+      if(S.t>=t0&&S.t<=t1){
+        g.fillStyle=col;g.beginPath();g.arc(tx(S.t),vy(cur[key]),4,0,2*Math.PI);g.fill();}
+      // 右侧当前值
+      g.fillStyle=col;g.font='600 13px ui-monospace,monospace';g.textAlign='left';
+      g.fillText((cur[key]>=0?'+':'')+cur[key].toFixed(2),padL+pw+8,cy+5);
+    }else{
+      g.fillStyle='#cbd5e1';g.font='12px sans-serif';g.textAlign='center';
+      g.fillText('（已隐藏，点击上方 x-t / v-t / a-t 标签恢复）',padL+pw/2,cy+4);
+    }
+  }
+
+  // 时间轴
+  g.fillStyle='#64748b';g.font='10px ui-monospace,monospace';g.textAlign='center';
+  for(let tt=Math.ceil(t0);tt<=Math.floor(t1+1e-9);tt++) g.fillText(tt+'s',tx(tt),H-12);
+  g.textAlign='left';g.fillText('黄色竖线间隔 = 周期 T = '+per().toFixed(2)+' s',padL,14);
+
+  // 时间游标（播放头）
+  if(S.t>=t0&&S.t<=t1){
+    const X=tx(S.t);
+    g.strokeStyle='#0f172a';g.lineWidth=1.5;
+    g.beginPath();g.moveTo(X,padT-6);g.lineTo(X,H-padB+2);g.stroke();
+    g.fillStyle='#0f172a';
+    g.beginPath();g.moveTo(X-5,padT-10);g.lineTo(X+5,padT-10);g.lineTo(X,padT-2);g.closePath();g.fill();
+    g.font='600 11px ui-monospace,monospace';g.textAlign='left';
+    g.fillText('t='+S.t.toFixed(2)+'s',X+6,padT-12);}
+
+  // 幽灵图例
+  if(S.ghost){
+    g.strokeStyle='#94a3b8';g.setLineDash([6,5]);g.lineWidth=2;
+    g.beginPath();g.moveTo(padL+230,10);g.lineTo(padL+258,10);g.stroke();g.setLineDash([]);
+    g.fillStyle='#64748b';g.font='11px sans-serif';g.textAlign='left';
+    g.fillText('对比：'+S.ghost.label,padL+264,14);}
+}
+
+/* ---------- 数值面板 / 要点高亮 ---------- */
+const tp3a=document.getElementById('tp3');
+function updatePanel(){
+  const p=phys(S.t),w=om();
+  $('nT').textContent=S.t.toFixed(2);
+  $('nX').textContent=(p.x>=0?'+':'')+p.x.toFixed(2);
+  $('nV').textContent=(p.v>=0?'+':'')+p.v.toFixed(2);
+  $('nA').textContent=(p.a>=0?'+':'')+p.a.toFixed(2);
+  $('nAmp').textContent=S.A.toFixed(1);
+  $('nW').textContent=w.toFixed(2);
+  $('nPer').textContent=per().toFixed(2);
+  $('noteT').textContent=per().toFixed(2)+' s';
+  $('nVm').textContent=(S.A*w).toFixed(1);
+  $('nAm').textContent=(S.A*w*w).toFixed(1);
+  $('btnPlay').textContent=S.playing?'⏸ 暂停':'▶ 播放';
+  const ax=Math.abs(p.x)/S.A;
+  tp3a.classList.toggle('on', ax<0.12 || ax>0.9);
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(S.playing&&!S.dragging&&!S.scrub){
+    const nt=Math.min(S.t+dt*S.speed,S.MAXT);
+    while(S.nextT<=nt+1e-9){push(S.nextT);S.nextT+=S.DT;}
+    S.t=nt; if(S.t>=S.MAXT) S.playing=false;
+  }
+  drawScene(); drawRef(); drawChart(); updatePanel();
+  requestAnimationFrame(loop);
+}
+resetSim(true);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

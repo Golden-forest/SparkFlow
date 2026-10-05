@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>牛顿第二定律 · 控制变量法实验</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* Additional subject-semantic colors (extend the base set) */
+      --sim-gravity: #64748b;
+      --sim-friction: #d97706;
+      --sim-series-b: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.40); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.45rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; font-size: 0.92rem; }
+    .status.p2 { background: #e3f6ee; border-color: rgba(13,148,90,.22); color: #0c6b46; }
+    .status.p3 { background: #fdf0e0; border-color: rgba(217,119,6,.25); color: #9a5a05; }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.9fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "stage evidence" "insight evidence"; gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+
+    /* STAGE */
+    .scene-panel { grid-area: stage; min-height: 0; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f8fa 55%, #fdf9ee 100%); }
+
+    /* INSIGHT */
+    .insight-strip { grid-area: insight; padding: 12px 16px; border-left: 4px solid var(--sim-warning); border-radius: 0 var(--sim-radius-md) var(--sim-radius-md) 0; background: #fff8e8; display: grid; gap: 6px; }
+    #insight { margin: 0; color: #7a4d06; font-weight: 680; font-size: 0.95rem; line-height: 1.45; }
+    .model-note { margin: 0; color: var(--sim-muted); font-size: 0.78rem; line-height: 1.5; }
+
+    /* EVIDENCE */
+    .side { grid-area: evidence; min-height: 0; display: grid; grid-template-rows: auto auto minmax(110px, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 11px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.18rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.wide { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; border-color: rgba(15,159,186,.30); background: linear-gradient(145deg, #eefafc, #e2f5f8); }
+    .metric.wide strong { font-size: 1.45rem; color: var(--sim-accent-deep); }
+    .charts-panel { padding: 12px 14px; display: grid; grid-template-rows: auto auto; gap: 8px; }
+    .chart-block { border: 1px solid var(--sim-border); border-radius: 14px; background: var(--sim-surface-soft); padding: 8px 8px 4px; }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; padding: 0 6px; }
+    .chart-title h3 { margin: 0 0 2px; font-size: 0.88rem; }
+    .chart-title span { font-size: 0.72rem; color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .chart-svg { width: 100%; height: auto; display: block; }
+    .table-panel { padding: 12px 14px; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+    .table-wrap { min-height: 0; overflow: auto; border: 1px solid var(--sim-border); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+    th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--sim-grid); white-space: nowrap; }
+    th { position: sticky; top: 0; background: var(--sim-surface-soft); color: var(--sim-muted); font-weight: 700; z-index: 1; }
+    td:first-child, th:first-child, td:nth-child(2), th:nth-child(2) { text-align: center; }
+    tbody tr.latest td { background: var(--sim-accent-soft); }
+    .link-btn { border: none; background: none; color: var(--sim-accent-deep); cursor: pointer; padding: 0; font-size: 0.75rem; font-weight: 700; text-decoration: underline; }
+
+    /* CONTROLS */
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr); gap: 14px; align-items: center; border-radius: 17px; }
+    .phase-switch { display: grid; gap: 5px; }
+    .phase-btn { text-align: left; padding: 6px 11px; font-size: 0.8rem; border-radius: 9px; }
+    .phase-btn.active { border-color: var(--sim-accent-deep); background: var(--sim-accent-soft); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(8,117,138,.25); }
+    .phase-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; font-size: 0.9rem; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.primary:disabled { opacity: .5; box-shadow: none; }
+    button#lockBtn:not(:disabled) { border-color: #0c6b46; background: #e3f6ee; color: #0c6b46; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .control.locked { opacity: .55; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    input[type="range"]:disabled { accent-color: #94a3b8; }
+
+    /* SVG scene styling */
+    .bench { fill: #e7edf4; stroke: #c3cedd; stroke-width: 1.5; }
+    .bench-leg { fill: #dbe3ee; stroke: #c3cedd; stroke-width: 1; }
+    .rail { stroke: #334155; stroke-width: 5; stroke-linecap: round; }
+    .rail-body { stroke: #94a3b8; stroke-width: 3; }
+    .wedge { fill: #fde8c8; stroke: #d9a13f; stroke-width: 2; }
+    .stand { stroke: #64748b; stroke-width: 3.5; stroke-linecap: round; }
+    .pulley { fill: #f8fafc; stroke: #334155; stroke-width: 3; }
+    .pulley-hub { fill: #334155; }
+    .string { fill: none; stroke: #475569; stroke-width: 1.6; }
+    .bucket { fill: #e2e8f0; stroke: #475569; stroke-width: 2; }
+    .cart-body { fill: #1e6f88; stroke: #14556a; stroke-width: 2; rx: 5; }
+    .cart-wheel { fill: #172033; }
+    .cart-sensor { fill: #172033; }
+    .flag-mast { stroke: #334155; stroke-width: 3; }
+    .flag-blade { fill: var(--sim-accent); stroke: #0b7c91; stroke-width: 1; }
+    .gate-frame { stroke: #64748b; stroke-width: 3.5; fill: none; stroke-linecap: round; }
+    .gate-led { fill: #cbd5e1; stroke: #94a3b8; stroke-width: 1.5; transition: fill .1s; }
+    .gate-led.hit { fill: var(--sim-danger); stroke: #b91c1c; }
+    .gate-halo { fill: rgba(220,38,38,.22); opacity: 0; }
+    .gate-halo.hit { opacity: 1; }
+    .stop-plate { fill: #b91c1c; stroke: #7f1d1d; stroke-width: 1.5; }
+    .tape-line { stroke: #cbd5e1; stroke-width: 6; stroke-linecap: round; opacity: .8; }
+    .tape-dot { fill: #334155; }
+    .ruler-tick { stroke: #94a3b8; stroke-width: 1; }
+    .ruler-text { fill: #8a95a8; font-size: 11px; }
+    .scene-label { fill: #475569; font-size: 13px; font-weight: 650; }
+    .scene-sub { fill: #7c8798; font-size: 12px; }
+    .scene-note { fill: #93a0b4; font-size: 11.5px; }
+    .arrow-line { stroke-width: 4; stroke-linecap: round; }
+    .arrow-head { stroke: none; }
+    .arrow-text { font-size: 12.5px; font-weight: 750; }
+    .legend-line { stroke-width: 4; stroke-linecap: round; }
+    .chart-grid { stroke: var(--sim-grid); stroke-width: 1; }
+    .chart-axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .chart-tick { fill: var(--sim-muted); font-size: 10.5px; }
+    .chart-axis-label { fill: var(--sim-muted); font-size: 11.5px; font-weight: 650; }
+    .chart-fit { stroke-width: 2.5; stroke-dasharray: none; }
+    .chart-empty { fill: #a5b0c0; font-size: 12px; }
+    .slope-label { font-size: 11.5px; font-weight: 750; }
+
+    @media (max-width: 900px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: "stage" "evidence" "insight" "insight"; }
+      .insight-strip { grid-area: insight; }
+      .side { grid-template-rows: auto auto auto; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 560; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>牛顿第二定律 · 控制变量法实验</h1>
+        <p>先平衡摩擦，再控制变量：保持 M 不变改变拉力 F、保持 F 不变改变质量 M，作 a−F 图与 a−1/m 图。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">① 平衡摩擦 · 静置</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">实验台 · 轨道与小车</h2><span id="sceneHint">调节垫块高度，轻推小车，用纸带点距判断摩擦是否平衡</span></div>
+        <svg id="scene" viewBox="0 0 760 560" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">小车放在一端垫高的轨道上，绳跨过定滑轮连接砝码桶，光电门测量小车通过 0.50 米所用时间。</desc>
+          <!-- bench -->
+          <rect class="bench" x="36" y="480" width="688" height="12" rx="3"></rect>
+          <rect class="bench-leg" x="60" y="492" width="10" height="46"></rect>
+          <rect class="bench-leg" x="690" y="492" width="10" height="46"></rect>
+          <!-- track legs (right end fixed height) -->
+          <line class="stand" x1="490" y1="318" x2="490" y2="480"></line>
+          <line class="stand" x1="516" y1="318" x2="516" y2="480"></line>
+          <!-- wedge + rail (geometry set by JS from h) -->
+          <polygon id="wedge" class="wedge" points=""></polygon>
+          <line id="railBody" class="rail-body" x1="0" y1="0" x2="0" y2="0"></line>
+          <line id="railTop" class="rail" x1="0" y1="0" x2="0" y2="0"></line>
+          <g id="ruler"></g>
+          <!-- paper tape + timing dots -->
+          <line id="tapeLine" class="tape-line" x1="0" y1="0" x2="0" y2="0"></line>
+          <g id="dots"></g>
+          <!-- photogate at s = 0.50 m -->
+          <g id="gateG">
+            <line class="gate-frame" x1="-7" y1="-4" x2="-7" y2="-52"></line>
+            <line class="gate-frame" x1="7" y1="-4" x2="7" y2="-52"></line>
+            <line class="gate-frame" x1="-7" y1="-52" x2="7" y2="-52"></line>
+            <circle id="gateHalo" class="gate-halo" cx="0" cy="-60" r="9"></circle>
+            <circle id="gateLed" class="gate-led" cx="0" cy="-60" r="5"></circle>
+          </g>
+          <!-- end stop -->
+          <rect id="stopPlate" class="stop-plate" x="-3" y="-30" width="6" height="26" rx="2"></rect>
+          <!-- bucket + string (experiment phases only) -->
+          <path id="stringPath" class="string" d=""></path>
+          <g id="bucketG">
+            <rect id="bucketBody" class="bucket" x="-15" y="0" width="30" height="22" rx="3"></rect>
+            <path id="bucketHook" class="string" d=""></path>
+          </g>
+          <!-- pulley drawn above string -->
+          <line class="stand" x1="520" y1="296" x2="537" y2="289"></line>
+          <circle class="pulley" cx="537" cy="289" r="11"></circle>
+          <circle class="pulley-hub" cx="537" cy="289" r="3"></circle>
+          <!-- cart -->
+          <g id="cartG">
+            <line class="flag-mast" x1="0" y1="-8" x2="0" y2="-54"></line>
+            <rect class="flag-blade" x="-2.5" y="-62" width="5" height="16" rx="1"></rect>
+            <rect class="cart-sensor" x="-4" y="-13" width="9" height="9" rx="1.5"></rect>
+            <rect id="cartBody" class="cart-body" x="-60" y="-40" width="54" height="28" rx="5"></rect>
+            <circle class="cart-wheel" cx="-49" cy="-6" r="6"></circle>
+            <circle class="cart-wheel" cx="-17" cy="-6" r="6"></circle>
+            <text id="cartLabel" x="-33" y="-21" text-anchor="middle" fill="#eafafd" font-size="12" font-weight="750">0.40</text>
+          </g>
+          <!-- force arrows -->
+          <g id="arrowG"><line class="arrow-line"></line><polygon class="arrow-head"></polygon></g>
+          <g id="arrowFric"><line class="arrow-line"></line><polygon class="arrow-head"></polygon></g>
+          <g id="arrowTens"><line class="arrow-line"></line><polygon class="arrow-head"></polygon></g>
+          <text id="arrowGText" class="arrow-text"></text>
+          <text id="arrowFricText" class="arrow-text"></text>
+          <text id="arrowTensText" class="arrow-text"></text>
+          <text id="cancelBadge" class="scene-sub" font-weight="750"></text>
+          <!-- static labels -->
+          <text class="scene-label" x="126" y="474" text-anchor="middle">垫块</text>
+          <text class="scene-sub" x="248" y="474">高度 h 可调</text>
+          <text class="scene-label" x="560" y="278">定滑轮</text>
+          <text class="scene-sub" id="gateLabel" x="320" y="0" text-anchor="middle">光电门 · L = 0.50 m</text>
+          <text class="scene-sub" id="stopLabel" x="340" y="0" text-anchor="middle">挡板</text>
+          <text class="scene-sub" id="bucketLabel" x="0" y="0" text-anchor="start"></text>
+          <!-- legend -->
+          <g id="legend" transform="translate(592, 372)">
+            <rect x="-10" y="-18" width="162" height="86" rx="10" fill="#ffffff" stroke="#e2e8f0" opacity="0.94"></rect>
+            <line class="legend-line" x1="0" y1="0" x2="26" y2="0" stroke="#0f9fba"></line>
+            <text class="scene-sub" x="32" y="4">F 绳拉力（传感器）</text>
+            <line class="legend-line" x1="0" y1="24" x2="26" y2="24" stroke="#64748b"></line>
+            <text class="scene-sub" x="32" y="28">mgsinθ 沿轨重力分量</text>
+            <line class="legend-line" x1="0" y1="48" x2="26" y2="48" stroke="#d97706"></line>
+            <text class="scene-sub" x="32" y="52">f 摩擦力</text>
+          </g>
+          <text class="scene-note" x="40" y="528">教学视图：轨道倾角按 3× 放大绘制（平衡时实际 θ ≈ 2.9°）；</text>
+          <text class="scene-note" x="40" y="545">物理量、计时与图像均按真实模型计算。</text>
+        </svg>
+      </section>
+
+      <section class="panel insight-strip" data-zone="insight" aria-label="观察提示">
+        <p id="insight">第一步：把轨道左端垫高一些，点「轻推小车」——纸带上的点距均匀（匀速）才说明摩擦已被平衡。</p>
+        <p class="model-note">教学模型：g = 9.8 m/s²，动摩擦因数 μ = 0.050；以力传感器读数 F 为拉力控制量，平衡锁定后合力 = F，a = F/M。</p>
+      </section>
+
+      <aside class="side" data-zone="evidence" aria-label="测量与记录">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>拉力 F / N</small><strong id="fRead">0.20</strong></div>
+            <div class="metric"><small>质量 M / kg</small><strong id="mRead">0.40</strong></div>
+            <div class="metric"><small>速度 v /(m/s)</small><strong id="vRead">0.00</strong></div>
+            <div class="metric"><small>计时 t / s</small><strong id="tRead">0.000</strong></div>
+            <div class="metric wide"><small>本次测量 a = 2L/t²</small><strong id="aRead">—</strong></div>
+          </div>
+        </section>
+
+        <section class="panel charts-panel" aria-label="图像">
+          <div class="chart-block">
+            <div class="chart-title"><h3>a − F 图（组一 · M = 0.400 kg 不变）</h3><span id="chartACount">0 点</span></div>
+            <svg id="chartA" class="chart-svg" viewBox="0 0 340 200" role="img" aria-label="a-F 关系图"></svg>
+          </div>
+          <div class="chart-block">
+            <div class="chart-title"><h3>a − 1/m 图（组二 · F = 0.300 N 不变）</h3><span id="chartBCount">0 点</span></div>
+            <svg id="chartB" class="chart-svg" viewBox="0 0 340 200" role="img" aria-label="a-1/m 关系图"></svg>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-label="数据记录">
+          <div class="panel-head" style="margin-bottom:0">
+            <h2>数据记录</h2>
+            <button id="clearBtn" class="link-btn" type="button">清空记录</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>组</th><th>M/kg</th><th>F/N</th><th>t/s</th><th>a/(m·s⁻²)</th></tr></thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验控制">
+      <div class="phase-switch" role="group" aria-label="实验阶段">
+        <button id="phaseBtn1" class="phase-btn active" type="button">① 平衡摩擦</button>
+        <button id="phaseBtn2" class="phase-btn" type="button" disabled>② 组一 · 改变拉力 F</button>
+        <button id="phaseBtn3" class="phase-btn" type="button" disabled>③ 组二 · 改变质量 M</button>
+      </div>
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">轻推小车</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">复位小车</button>
+        <button id="lockBtn" type="button" disabled>锁定平衡 ✓</button>
+      </div>
+      <div class="control" id="hControl">
+        <label for="hInput">垫块高度 h <output id="hOutput">0 mm</output></label>
+        <input id="hInput" type="range" min="0" max="80" step="1" value="0">
+      </div>
+      <div class="control locked" id="fControl">
+        <label for="fInput">拉力 F（传感器读数） <output id="fOutput">0.20 N</output></label>
+        <input id="fInput" type="range" min="0.1" max="0.6" step="0.05" value="0.2" disabled>
+      </div>
+      <div class="control locked" id="mControl">
+        <label for="mInput">小车总质量 M <output id="mOutput">0.40 kg</output></label>
+        <input id="mInput" type="range" min="0.2" max="0.6" step="0.05" value="0.4" disabled>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ------------------------------------------------------------------
+       Physics kernel (pure, DOM-free). Model tier: analytic.
+       1-D motion along the track slope, s = 0 at the start line, +s toward
+       the pulley. Constant acceleration -> closed-form kinematics, exact
+       event location for the photogate. All quantitative outputs derive
+       from this kernel only.
+    ------------------------------------------------------------------- */
+    const phys = {
+      g: 9.8, mu: 0.050, L: 1.0,
+      gate: 0.50, stopTrial: 0.55, stopTest: 0.80,
+      pushV0: 0.40, dotInterval: 0.10,
+      balanceTol: 0.006, dvTol: 0.015,
+      M1: 0.400, F2: 0.300,
+      thetaOf(h) { return Math.asin(Math.min(1, Math.max(0, h) / phys.L)); },
+      residAccel(h) { const t = phys.thetaOf(h); return phys.g * (Math.sin(t) - phys.mu * Math.cos(t)); },
+      trialAccel(F, M) { return F / M; },
+      pos(a, t, v0) { return v0 * t + 0.5 * a * t * t; },
+      vel(a, t, v0) { return v0 + a * t; },
+      gateTime(a, L) { return Math.sqrt(2 * L / a); },
+      measureA(t, L) { return (2 * L) / (t * t); },
+      hitTime(a, d, v0) {
+        if (Math.abs(a) < 1e-12) return d / v0;
+        return (-v0 + Math.sqrt(Math.max(0, v0 * v0 + 2 * a * d))) / a;
+      },
+      /* Balance test push: closed-form run summary + verdict. */
+      testRun(h) {
+        const a = phys.residAccel(h);
+        let tEnd, stoppedEarly = false;
+        if (a > 1e-12) { tEnd = phys.hitTime(a, phys.stopTest, phys.pushV0); }
+        else if (a < -1e-12) {
+          const disc = phys.pushV0 * phys.pushV0 + 2 * a * phys.stopTest;
+          const vStop = -phys.pushV0 / a;
+          if (disc < 0) { tEnd = vStop; stoppedEarly = true; }
+          else { const tHit = phys.hitTime(a, phys.stopTest, phys.pushV0); if (vStop <= tHit) { tEnd = vStop; stoppedEarly = true; } else tEnd = tHit; }
+        } else { tEnd = phys.stopTest / phys.pushV0; }
+        const dv = phys.vel(a, tEnd, phys.pushV0) - phys.pushV0;
+        let verdict;
+        if (stoppedEarly) verdict = "decel-stop";
+        else if (Math.abs(dv) <= phys.dvTol) verdict = "balanced";
+        else if (dv > 0) verdict = "accel";
+        else verdict = "decel";
+        return { a, tEnd, stoppedEarly, dv, verdict };
+      },
+      trialRun(F, M) {
+        const a = phys.trialAccel(F, M);
+        return { a, tGate: phys.gateTime(a, phys.gate), tEnd: phys.hitTime(a, phys.stopTrial, 0) };
+      },
+      slopeThroughOrigin(pts) {
+        let xy = 0, xx = 0;
+        for (const p of pts) { xy += p.x * p.y; xx += p.x * p.x; }
+        return xx > 0 ? xy / xx : 0;
+      }
+    };
+
+    const parameterSchema = [
+      { key: "h", label: "Wedge height", type: "slider", min: 0, max: 0.08, step: 0.001, default: 0, unit: "m" },
+      { key: "F", label: "Tension", type: "slider", min: 0.1, max: 0.6, step: 0.05, default: 0.2, unit: "N" },
+      { key: "M", label: "Cart mass", type: "slider", min: 0.2, max: 0.6, step: 0.05, default: 0.4, unit: "kg" }
+    ];
+
+    const state = {
+      phase: "balance", mode: "idle", running: false,
+      h: 0, F: 0.2, M: 0.4,
+      locked: false, balanceVerified: false, verdict: null, pendingVerdict: null,
+      t: 0, v0: 0, a: 0, tEnd: 0, gated: false, tGate: null, flashT: 0,
+      stoppedEarly: false, trialF: 0.2, trialM: 0.4,
+      dots: [], nextDotT: 0,
+      records: [], counts: { F: 0, M: 0 }, aLast: null,
+      lastTimestamp: null
+    };
+
+    const $ = (sel) => document.querySelector(sel);
+    const elements = {
+      status: $("#status"), sceneHint: $("#sceneHint"),
+      wedge: $("#wedge"), railTop: $("#railTop"), railBody: $("#railBody"), ruler: $("#ruler"),
+      tapeLine: $("#tapeLine"), dots: $("#dots"), gateG: $("#gateG"), gateLed: $("#gateLed"), gateHalo: $("#gateHalo"),
+      gateLabel: $("#gateLabel"), stopLabel: $("#stopLabel"), stopPlate: $("#stopPlate"),
+      stringPath: $("#stringPath"), bucketG: $("#bucketG"), bucketBody: $("#bucketBody"), bucketHook: $("#bucketHook"), bucketLabel: $("#bucketLabel"),
+      cartG: $("#cartG"), cartBody: $("#cartBody"), cartLabel: $("#cartLabel"),
+      arrowTens: $("#arrowTens"), arrowG: $("#arrowG"), arrowFric: $("#arrowFric"),
+      arrowTensText: $("#arrowTensText"), arrowGText: $("#arrowGText"), arrowFricText: $("#arrowFricText"), cancelBadge: $("#cancelBadge"),
+      chartA: $("#chartA"), chartB: $("#chartB"), chartACount: $("#chartACount"), chartBCount: $("#chartBCount"),
+      tableBody: $("#tableBody"),
+      fRead: $("#fRead"), mRead: $("#mRead"), vRead: $("#vRead"), tRead: $("#tRead"), aRead: $("#aRead"),
+      insight: $("#insight"),
+      phaseBtn1: $("#phaseBtn1"), phaseBtn2: $("#phaseBtn2"), phaseBtn3: $("#phaseBtn3"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"), lockBtn: $("#lockBtn"), clearBtn: $("#clearBtn"),
+      hInput: $("#hInput"), hOutput: $("#hOutput"), fInput: $("#fInput"), fOutput: $("#fOutput"),
+      mInput: $("#mInput"), mOutput: $("#mOutput"),
+      hControl: $("#hControl"), fControl: $("#fControl"), mControl: $("#mControl")
+    };
+    const lastRender = { recordsLen: -1, countsF: -1, countsM: -1 };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    /* ---------------- scene geometry helpers ---------------- */
+    const GEO = { S: 400, X0: 180, YR: 300, AMP: 3, ARROW_SCALE: 90 };
+    const risePx = () => state.h * GEO.S * GEO.AMP;                       /* drawn rise of left end, px */
+    const yRail = (s) => GEO.YR - risePx() * (0.85 - clamp(s, -0.2, 0.9));
+    const slopeDeg = () => Math.atan2(risePx(), GEO.S) * 180 / Math.PI;
+    function slopeUnit() {
+      const r = risePx(), len = Math.hypot(GEO.S, r);
+      return { ux: GEO.S / len, uy: r / len };                            /* +s = toward pulley (right, down-screen) */
+    }
+    function railPoint(s, perpUp) {
+      const { ux, uy } = slopeUnit();
+      return [GEO.X0 + GEO.S * s + perpUp * uy, yRail(s) - perpUp * ux];
+    }
+    function arrowSvg(g, textEl, x0, y0, dir, len, color, label) {
+      const dx = dir[0] * len, dy = dir[1] * len, x1 = x0 + dx, y1 = y0 + dy;
+      const p = [-dir[1], dir[0]];
+      const hx = x1 - dir[0] * 10, hy = y1 - dir[1] * 10;
+      g.querySelector("line").setAttribute("x1", x0); g.querySelector("line").setAttribute("y1", y0);
+      g.querySelector("line").setAttribute("x2", x1 - dir[0] * 7); g.querySelector("line").setAttribute("y2", y1 - dir[1] * 7);
+      g.querySelector("line").setAttribute("stroke", color);
+      g.querySelector("polygon").setAttribute("points", `${x1},${y1} ${hx + p[0] * 4.5},${hy + p[1] * 4.5} ${hx - p[0] * 4.5},${hy - p[1] * 4.5}`);
+      g.querySelector("polygon").setAttribute("fill", color);
+      g.setAttribute("opacity", len > 0.5 ? "1" : "0");
+      textEl.setAttribute("x", x1 + dir[0] * 16 + 6); textEl.setAttribute("y", y1 + dir[1] * 16 + 4);
+      textEl.setAttribute("fill", color); textEl.textContent = label;
+      textEl.setAttribute("opacity", len > 0.5 ? "1" : "0");
+    }
+
+    /* ---------------- lifecycle ---------------- */
+    function init() { bindControls(); setParameters({ h: 0, F: 0.2, M: 0.4 }); reset(); requestAnimationFrame(frame); }
+
+    function resetCart() {
+      state.running = false; state.mode = "idle";
+      state.t = 0; state.v0 = 0; state.a = 0; state.tEnd = 0;
+      state.gated = false; state.tGate = null; state.flashT = 0;
+      state.dots = []; state.nextDotT = 0;
+    }
+    function reset() { resetCart(); render(); }
+
+    function start() {
+      if (state.running) return;
+      if (state.phase === "balance") {
+        if (state.locked) return;
+        resetCart();
+        const run = phys.testRun(state.h);
+        state.a = run.a; state.v0 = phys.pushV0; state.tEnd = run.tEnd;
+        state.pendingVerdict = run.verdict; state.stoppedEarly = run.stoppedEarly;
+        state.mode = "testing"; state.running = true;
+      } else {
+        if (state.mode === "done") resetCart();
+        const run = phys.trialRun(state.F, state.M);
+        state.trialF = state.F; state.trialM = state.M;   /* snapshot: this run's parameters */
+        state.a = run.a; state.v0 = 0; state.tEnd = run.tEnd; state.aLast = null;
+        state.mode = "trial"; state.running = true;
+      }
+      render();
+    }
+    function pause() {
+      if (state.mode !== "testing" && state.mode !== "trial") return;
+      state.running = !state.running;
+      render();
+    }
+    function update(dt) {
+      const d = clamp(finite(dt, 0), 0, 0.05);
+      if (!state.running) return;
+      if (state.flashT > 0) state.flashT = Math.max(0, state.flashT - d);
+      state.t = Math.min(state.t + d, state.tEnd);
+      if (state.mode === "trial" && !state.gated && phys.pos(state.a, state.t, state.v0) >= phys.gate) {
+        /* exact event location inside the step: photogate time */
+        state.gated = true;
+        state.tGate = phys.gateTime(state.a, phys.gate);
+        state.flashT = 0.4;
+        const aMeas = phys.measureA(state.tGate, phys.gate);
+        const group = state.phase === "groupF" ? "F" : "M";
+        state.records.push({ group, M: state.trialM, F: state.trialF, t: state.tGate, a: aMeas });
+        state.counts[group] += 1;
+        state.aLast = aMeas;
+      }
+      while (state.nextDotT <= state.t + 1e-12 && state.dots.length < 60) {
+        const td = Math.min(state.nextDotT, state.tEnd);
+        state.dots.push(clamp(phys.pos(state.a, td, state.v0), 0, phys.stopTest));
+        state.nextDotT += phys.dotInterval;
+      }
+      if (state.t >= state.tEnd - 1e-12) {
+        state.t = state.tEnd; state.running = false;
+        if (state.phase === "balance") {
+          state.verdict = state.pendingVerdict;
+          state.balanceVerified = state.verdict === "balanced";
+          state.mode = "idle";
+        } else {
+          state.mode = "done";
+        }
+      }
+    }
+
+    function setParameters(values) {
+      const dH = parameterSchema[0], dF = parameterSchema[1], dM = parameterSchema[2];
+      const newH = clamp(finite(Number(values.h), dH.default), dH.min, dH.max);
+      if (Math.abs(newH - state.h) > 1e-12 && state.phase === "balance" && !state.locked) {
+        state.balanceVerified = false; state.verdict = null;
+      }
+      state.h = newH;
+      state.F = clamp(finite(Number(values.F), dF.default), dF.min, dF.max);
+      state.M = clamp(finite(Number(values.M), dM.default), dM.min, dM.max);
+      elements.hInput.value = String(Math.round(state.h * 1000));
+      elements.fInput.value = String(state.F.toFixed(2));
+      elements.mInput.value = String(state.M.toFixed(2));
+      render();
+    }
+    function setPhase(p) {
+      if (p === "balance" || (p !== "groupF" && p !== "groupM")) return;
+      if (!state.locked) return;
+      state.phase = p;
+      resetCart();
+      if (p === "groupF") { state.M = phys.M1; }
+      if (p === "groupM") { state.F = phys.F2; }
+      setParameters({ h: state.h, F: state.F, M: state.M });
+      render();
+    }
+    function lockBalance() {
+      if (!state.balanceVerified || state.locked) return;
+      state.locked = true;                       /* residual track force set to exactly 0 by the balance condition */
+      state.phase = "groupF"; resetCart();
+      state.M = phys.M1;
+      setParameters({ h: state.h, F: state.F, M: state.M });
+      render();
+    }
+    function clearRecords() {
+      state.records = []; state.counts = { F: 0, M: 0 }; state.aLast = null;
+      render();
+    }
+    function getState() {
+      return {
+        phase: state.phase, mode: state.mode, running: state.running, locked: state.locked,
+        balanceVerified: state.balanceVerified, h: state.h, F: state.F, M: state.M,
+        t: state.t, v: phys.vel(state.a, state.t, state.v0), a: state.a,
+        records: state.records.map((r) => ({ ...r })), counts: { ...state.counts }
+      };
+    }
+    function getReadouts() {
+      return {
+        phase: state.phase, F: state.F, M: state.M, h: state.h,
+        v: phys.vel(state.a, state.t, state.v0),
+        t: state.mode === "trial" && state.gated ? state.tGate : state.t,
+        aLast: state.aLast, locked: state.locked,
+        pointsGroupF: state.counts.F, pointsGroupM: state.counts.M
+      };
+    }
+
+    /* ---------------- oracle checks (pure kernel) ---------------- */
+    function runModelChecks() {
+      const out = [];
+      /* 1. ordinary case: a = F/M, photogate measurement round-trip */
+      const a1 = phys.trialAccel(0.30, 0.40);
+      const tg1 = phys.gateTime(a1, phys.gate);
+      const am1 = phys.measureA(tg1, phys.gate);
+      out.push({ name: "ordinary a=F/M (F=0.30, M=0.40)", pass: Math.abs(a1 - 0.75) < 1e-12 && Math.abs(am1 - a1) < 1e-9, expected: "a = 0.750000 m/s²; 2L/t² returns a", actual: `a=${a1}, 2L/t²=${am1}`, tolerance: "1e-9" });
+      /* 2. a-F proportionality at fixed M: through-origin slope = 1/M */
+      const ptsF = []; let propOk = true;
+      for (let F = 0.10; F <= 0.6001; F += 0.05) {
+        const a = phys.trialAccel(F, phys.M1); ptsF.push({ x: F, y: a });
+        if (Math.abs(a / F - 1 / phys.M1) > 1e-12) propOk = false;
+      }
+      const kF = phys.slopeThroughOrigin(ptsF);
+      out.push({ name: "a-F through-origin slope = 1/M", pass: propOk && Math.abs(kF - 2.5) < 1e-9, expected: "k = 2.500000 kg⁻¹, intercept ≡ 0", actual: `k=${kF}`, tolerance: "1e-9" });
+      /* 3. a-1/m linearity at fixed F */
+      const ptsM = []; let recOk = true;
+      for (let M = 0.20; M <= 0.6001; M += 0.05) {
+        const a = phys.trialAccel(phys.F2, M); ptsM.push({ x: 1 / M, y: a });
+        if (Math.abs(a * M - phys.F2) > 1e-12) recOk = false;
+      }
+      const kM = phys.slopeThroughOrigin(ptsM);
+      out.push({ name: "a-1/m through-origin slope = F", pass: recOk && Math.abs(kM - phys.F2) < 1e-9, expected: "k = 0.300000 N, intercept ≡ 0", actual: `k=${kM}`, tolerance: "1e-9" });
+      /* 4. friction-balance threshold band around h = 50 mm */
+      const a50 = phys.residAccel(0.050), a49 = phys.residAccel(0.049), a51 = phys.residAccel(0.051);
+      out.push({
+        name: "balance threshold h = 49 / 50 / 51 mm",
+        pass: Math.abs(a50) <= phys.balanceTol && a49 < 0 && a51 > 0 && Math.abs(a49) > phys.balanceTol && Math.abs(a51) > phys.balanceTol,
+        expected: "|a(50mm)| ≤ 0.006; a(49mm) < −0.006; a(51mm) > +0.006",
+        actual: `a49=${a49.toFixed(6)}, a50=${a50.toFixed(6)}, a51=${a51.toFixed(6)}`,
+        tolerance: "exact signs, band 0.006"
+      });
+      /* 5. opposite direction: decelerating push stops on the track */
+      const run0 = phys.testRun(0);
+      const a0 = -phys.g * phys.mu;
+      out.push({
+        name: "unbalanced deceleration stop (h = 0)",
+        pass: Math.abs(run0.a - a0) < 1e-12 && run0.stoppedEarly && run0.verdict === "decel-stop" && Math.abs(run0.tEnd - (phys.pushV0 / (phys.g * phys.mu))) < 1e-9 && Number.isFinite(run0.tEnd),
+        expected: `a = ${a0.toFixed(4)} m/s², cart stops before gate zone`, actual: `a=${run0.a.toFixed(6)}, tEnd=${run0.tEnd.toFixed(4)}, verdict=${run0.verdict}`, tolerance: "1e-9"
+      });
+      /* 6. closed-form kernel equals fine-step integration (step exactness) */
+      const aT = 0.75, T = 2.0;
+      const stepSim = (dt) => { let x = 0, v = 0; for (let t = 0; t < T - 1e-12; t += dt) { x += v * dt + 0.5 * aT * dt * dt; v += aT * dt; } return x; };
+      const eCoarse = Math.abs(stepSim(1 / 60) - 0.5 * aT * T * T), eFine = Math.abs(stepSim(1 / 240) - 0.5 * aT * T * T);
+      out.push({ name: "step exactness at 1/60 and 1/240 vs closed form", pass: eCoarse < 1e-9 && eFine < 1e-9, expected: "|x(2s) − ½at²| < 1e-9 at dt = 1/60 and 1/240 (machine-precision match expected)", actual: `err(1/60)=${eCoarse.toExponential(3)}, err(1/240)=${eFine.toExponential(3)}`, tolerance: "1e-9" });
+      /* 7. gate event located analytically from a stepped timeline */
+      let tS = 0, hit = false;
+      while (!hit && tS < 10) { tS += 1 / 60; if (phys.pos(a1, tS, 0) >= phys.gate) hit = true; }
+      const tEv = phys.gateTime(a1, phys.gate);
+      out.push({ name: "photogate event split vs analytic time", pass: hit && tS - 1 / 60 <= tEv && tEv <= tS + 1e-12 && Math.abs(phys.measureA(tEv, phys.gate) - a1) < 1e-9, expected: `t_gate = ${tEv.toFixed(9)} s inside the crossing step`, actual: `step span [${(tS - 1 / 60).toFixed(6)}, ${tS.toFixed(6)}], t_gate=${tEv.toFixed(9)}`, tolerance: "1e-9" });
+      /* 8. finite guard at parameter extremes */
+      const hi = phys.trialRun(0.6, 0.2), lo = phys.trialRun(0.1, 0.6);
+      const ok8 = [hi.a, hi.tGate, hi.tEnd, lo.a, lo.tGate, lo.tEnd].every(Number.isFinite) && phys.pos(hi.a, hi.tEnd, 0) <= phys.stopTrial + 1e-9;
+      out.push({ name: "finite bounded state at parameter extremes", pass: ok8, expected: "a, t_gate, t_end finite; x ≤ stop", actual: `a_max=${hi.a}, a_min=${lo.a.toFixed(4)}`, tolerance: "finite" });
+      return out;
+    }
+
+    /* ---------------- rendering ---------------- */
+    function drawChart(svg, pts, xMax, colorFit, colorPt, theory, slopeLabel) {
+      const P = { l: 44, r: 10, t: 12, b: 30 }, W = 340, H = 200;
+      const pw = W - P.l - P.r, ph = H - P.t - P.b, aMax = 1.8;
+      const X = (v) => P.l + (v / xMax) * pw, Y = (a) => (H - P.b) - (a / aMax) * ph;
+      let s = "";
+      for (let k = 0; k <= 6; k += 1) {
+        const x = P.l + (pw * k) / 6;
+        s += `<line class="chart-grid" x1="${x}" y1="${P.t}" x2="${x}" y2="${H - P.b}"></line>`;
+      }
+      for (let a = 0; a <= aMax + 1e-9; a += 0.6) {
+        const y = Y(a);
+        s += `<line class="chart-grid" x1="${P.l}" y1="${y}" x2="${W - P.r}" y2="${y}"></line>`;
+        s += `<text class="chart-tick" x="${P.l - 5}" y="${y + 3.5}" text-anchor="end">${a.toFixed(1)}</text>`;
+      }
+      s += `<line class="chart-axis" x1="${P.l}" y1="${P.t}" x2="${P.l}" y2="${H - P.b}"></line><line class="chart-axis" x1="${P.l}" y1="${H - P.b}" x2="${W - P.r}" y2="${H - P.b}"></line>`;
+      const xTicks = xMax > 2 ? 5 : 7;
+      for (let k = 0; k <= xTicks; k += 1) {
+        const v = (xMax * k) / xTicks, x = X(v);
+        s += `<text class="chart-tick" x="${x}" y="${H - P.b + 14}" text-anchor="middle">${xMax > 2 ? v.toFixed(0) : v.toFixed(1)}</text>`;
+      }
+      s += `<text class="chart-axis-label" x="${W - P.r}" y="${H - 4}" text-anchor="end">${xMax > 2 ? "1/m / kg⁻¹" : "F / N"}</text>`;
+      s += `<text class="chart-axis-label" x="4" y="11">a /(m·s⁻²)</text>`;
+      if (pts.length === 0) {
+        s += `<text class="chart-empty" x="${P.l + pw / 2}" y="${P.t + ph / 2}" text-anchor="middle">记录数据后显示过原点拟合直线</text>`;
+      } else {
+        const k = phys.slopeThroughOrigin(pts);
+        s += `<line class="chart-fit" x1="${X(0)}" y1="${Y(0)}" x2="${X(xMax)}" y2="${Y(Math.min(k * xMax, aMax))}" stroke="${colorFit}"></line>`;
+        for (const p of pts) s += `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="4.2" fill="${colorPt}" stroke="#fff" stroke-width="1.5"></circle>`;
+        s += `<text class="slope-label" x="${P.l + 8}" y="${P.t + 14}" fill="${colorFit}">k = ${k.toFixed(3)} ${slopeLabel}（理论 ${theory}）✓ 过原点</text>`;
+      }
+      svg.innerHTML = s;
+    }
+
+    function renderTable() {
+      const rows = state.records.map((r, i) => {
+        const last = i === state.records.length - 1 ? ' class="latest"' : "";
+        return `<tr${last}><td>${i + 1}</td><td>${r.group === "F" ? "组一" : "组二"}</td><td>${r.M.toFixed(2)}</td><td>${r.F.toFixed(2)}</td><td>${r.t.toFixed(3)}</td><td>${r.a.toFixed(3)}</td></tr>`;
+      });
+      elements.tableBody.innerHTML = rows.join("");
+      const wrap = elements.tableBody.closest ? elements.tableBody.closest(".table-wrap") : null;
+      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    function insightText() {
+      const n = state.phase === "groupF" ? state.counts.F : state.counts.M;
+      if (state.phase === "balance") {
+        if (state.mode === "testing") return "小车正在滑行——盯住纸带：点距均匀才是匀速（摩擦已平衡）。";
+        if (state.verdict === "balanced") return "✓ 匀速！沿轨重力分量 mgsinθ 恰好抵消摩擦力 f。点「锁定平衡」进入正式实验。";
+        if (state.verdict === "decel-stop") return "✗ 小车减速停下了：摩擦仍偏大，把垫块再垫高 1～2 mm 后重推。";
+        if (state.verdict === "decel") return "✗ 仍在减速（点距变密）：垫块偏低，再垫高一点。";
+        if (state.verdict === "accel") return "✗ 仍在加速（点距变疏）：垫块偏高，放低一点。";
+        return "把垫块垫高一些，点「轻推小车」：纸带点距均匀（匀速）才算平衡。每次只调 1 mm。";
+      }
+      if (state.mode === "trial") return "合力 = F：小车匀加速，v = at，x = ½at²。经过光电门时记录 t。";
+      if (state.phase === "groupF") {
+        if (n === 0) return "组一：M 保持 0.400 kg 不变。选一个拉力 F，点「释放小车」；换 5 个不同 F 各记一点。";
+        return `已记 ${n} 点：F 越大 a 越大，a−F 图各点落在过原点直线上，斜率 ≈ 1/M = ${(1 / phys.M1).toFixed(2)} kg⁻¹。`;
+      }
+      if (n === 0) return "组二：F 保持 0.300 N 不变。改变小车质量 M（等效改变配重），释放并记录 a。";
+      return `已记 ${n} 点：M 越大 a 越小，a 与 1/m 成正比，a−1/m 图斜率 ≈ F = ${phys.F2.toFixed(2)} N。`;
+    }
+
+    function render() {
+      const R = risePx(), yL = GEO.YR - R;
+      /* track + wedge */
+      elements.railTop.setAttribute("x1", "120"); elements.railTop.setAttribute("y1", String(yL));
+      elements.railTop.setAttribute("x2", "520"); elements.railTop.setAttribute("y2", "300");
+      elements.railBody.setAttribute("x1", "120"); elements.railBody.setAttribute("y1", String(yL + 9));
+      elements.railBody.setAttribute("x2", "520"); elements.railBody.setAttribute("y2", "309");
+      elements.wedge.setAttribute("points", `120,${yL + 9} 120,480 218,480`);
+      /* ruler */
+      let rs = "";
+      for (let k = 0; k <= 10; k += 1) {
+        const s = k / 10, x = GEO.X0 + GEO.S * s, y = yRail(s) + 34;
+        rs += `<line class="ruler-tick" x1="${x}" y1="${y}" x2="${x}" y2="${y + 5}"></line>`;
+        if (k % 2 === 0) rs += `<text class="ruler-text" x="${x}" y="${y + 17}" text-anchor="middle">${s.toFixed(1)}</text>`;
+      }
+      elements.ruler.innerHTML = rs;
+      /* tape + dots */
+      elements.tapeLine.setAttribute("x1", String(GEO.X0)); elements.tapeLine.setAttribute("y1", String(yRail(0) + 22));
+      elements.tapeLine.setAttribute("x2", String(GEO.X0 + GEO.S * phys.stopTest)); elements.tapeLine.setAttribute("y2", String(yRail(phys.stopTest) + 22));
+      elements.dots.innerHTML = state.dots.map((sd) => `<circle class="tape-dot" cx="${GEO.X0 + GEO.S * sd}" cy="${yRail(sd) + 22}" r="2.6"></circle>`).join("");
+      /* gate + stop */
+      elements.gateG.setAttribute("transform", `translate(${GEO.X0 + GEO.S * phys.gate}, ${yRail(phys.gate)})`);
+      elements.gateLabel.setAttribute("y", String(yRail(phys.gate) - 70));
+      elements.stopPlate.setAttribute("transform", `translate(${GEO.X0 + GEO.S * phys.stopTrial}, ${yRail(phys.stopTrial)})`);
+      elements.stopLabel.setAttribute("y", String(yRail(phys.stopTrial) - 38));
+      const flash = state.flashT > 0;
+      elements.gateLed.setAttribute("class", flash ? "gate-led hit" : "gate-led");
+      elements.gateHalo.setAttribute("class", flash ? "gate-halo hit" : "gate-halo");
+      /* cart */
+      const sNow = clamp(phys.pos(state.a, state.t, state.v0), 0, phys.stopTest);
+      const runActive = state.mode === "trial" || state.mode === "done";
+      const pF = runActive ? state.trialF : state.F;   /* active parameters of the current/last run */
+      const pM = runActive ? state.trialM : state.M;
+      elements.cartG.setAttribute("transform", `translate(${GEO.X0 + GEO.S * sNow}, ${yRail(sNow)}) rotate(${slopeDeg().toFixed(3)})`);
+      const bodyH = 18 + (pM - 0.2) * 35;
+      elements.cartBody.setAttribute("y", String(-8 - bodyH));
+      elements.cartBody.setAttribute("height", String(bodyH));
+      elements.cartLabel.setAttribute("y", String(-8 - bodyH / 2 + 4));
+      elements.cartLabel.textContent = `M=${pM.toFixed(2)}`;
+      /* string + bucket (experiment phases only) */
+      const showRig = state.phase !== "balance";
+      elements.stringPath.style.display = showRig ? "" : "none";
+      elements.bucketG.style.display = showRig ? "" : "none";
+      elements.bucketLabel.style.display = showRig ? "" : "none";
+      if (showRig) {
+        const nx = GEO.X0 + GEO.S * sNow + 4, ny = yRail(sNow) - 9, hookY = 302 + GEO.S * sNow;
+        elements.stringPath.setAttribute("d", `M ${nx} ${ny} L 526 289 L 537 300 L 537 ${hookY}`);
+        elements.bucketG.setAttribute("transform", `translate(537, ${hookY})`);
+        elements.bucketHook.setAttribute("d", "M 0 0 L 0 6");
+        elements.bucketBody.setAttribute("y", "6");
+        elements.bucketBody.setAttribute("height", String(16 + pF * 14));
+        elements.bucketLabel.setAttribute("x", "560"); elements.bucketLabel.setAttribute("y", String(hookY + 24));
+        elements.bucketLabel.textContent = `砝码桶 · F = ${pF.toFixed(2)} N`;
+      }
+      /* force arrows */
+      const th = phys.thetaOf(state.h);
+      const gComp = pM * phys.g * Math.sin(th);
+      const fric = phys.mu * pM * phys.g * Math.cos(th);
+      const { ux, uy } = slopeUnit();
+      const sMid = Math.max(0.1, sNow);
+      if (state.phase === "balance") {
+        const [gx, gy] = railPoint(sMid, 40), [fx, fy] = railPoint(sMid, 54);
+        arrowSvg(elements.arrowG, elements.arrowGText, gx, gy, [ux, uy], gComp * GEO.ARROW_SCALE, "var(--sim-gravity)", "mgsinθ");
+        arrowSvg(elements.arrowFric, elements.arrowFricText, fx, fy, [-ux, -uy], fric * GEO.ARROW_SCALE, "var(--sim-friction)", "f");
+        arrowSvg(elements.arrowTens, elements.arrowTensText, 0, 0, [ux, uy], 0, "var(--sim-accent)", "");
+        elements.cancelBadge.textContent = ""; elements.cancelBadge.setAttribute("opacity", "0");
+      } else {
+        const [tx, ty] = railPoint(sNow + 0.02, 26), [gx, gy] = railPoint(sMid, 46), [fx, fy] = railPoint(sMid, 60);
+        arrowSvg(elements.arrowTens, elements.arrowTensText, tx, ty, [ux, uy], pF * GEO.ARROW_SCALE, "var(--sim-accent)", "F");
+        arrowSvg(elements.arrowG, elements.arrowGText, gx, gy, [ux, uy], gComp * GEO.ARROW_SCALE, "var(--sim-gravity)", "mgsinθ");
+        arrowSvg(elements.arrowFric, elements.arrowFricText, fx, fy, [-ux, -uy], fric * GEO.ARROW_SCALE, "var(--sim-friction)", "f");
+        const [cx, cy] = railPoint(sMid, 74);
+        elements.cancelBadge.setAttribute("x", String(cx)); elements.cancelBadge.setAttribute("y", String(cy));
+        elements.cancelBadge.setAttribute("fill", "#0c6b46");
+        elements.cancelBadge.textContent = "mgsinθ 与 f 相互抵消 → 合力 = F";
+        elements.cancelBadge.setAttribute("opacity", "1");
+      }
+      /* readouts */
+      const tShow = state.mode === "trial" && state.gated ? state.tGate : state.t;
+      const vShow = state.mode === "idle" && state.t === 0 ? 0 : phys.vel(state.a, state.t, state.v0);
+      elements.fRead.textContent = pF.toFixed(2);
+      elements.mRead.textContent = pM.toFixed(2);
+      elements.vRead.textContent = vShow.toFixed(2);
+      elements.tRead.textContent = tShow.toFixed(3);
+      elements.aRead.textContent = state.aLast === null ? "—" : `${state.aLast.toFixed(3)} m/s²`;
+      /* charts + table (rebuild only when data changes) */
+      if (lastRender.recordsLen !== state.records.length) {
+        drawChart(elements.chartA, state.records.filter((r) => r.group === "F").map((r) => ({ x: r.F, y: r.a })), 0.7, "#08758a", "#0f9fba", "1/M = 2.500", "kg⁻¹");
+        drawChart(elements.chartB, state.records.filter((r) => r.group === "M").map((r) => ({ x: 1 / r.M, y: r.a })), 5.5, "#92400e", "#b45309", "F = 0.300", "N");
+        renderTable();
+        elements.chartACount.textContent = `${state.counts.F} 点`;
+        elements.chartBCount.textContent = `${state.counts.M} 点`;
+        lastRender.recordsLen = state.records.length;
+      }
+      /* insight + status */
+      elements.insight.textContent = insightText();
+      elements.sceneHint.textContent = state.phase === "balance"
+        ? "调节垫块高度 → 轻推小车 → 看纸带点距是否均匀"
+        : state.phase === "groupF" ? "改变 F · 释放小车 · 光电门自动计时记点" : "改变 M · 释放小车 · 光电门自动计时记点";
+      const phaseName = state.phase === "balance" ? "① 平衡摩擦" : state.phase === "groupF" ? "② 组一 · 改变拉力 F" : "③ 组二 · 改变质量 M";
+      let sub = state.mode === "testing" ? "测试中" : state.mode === "trial" ? "释放中" : state.mode === "done" ? `第 ${state.records.length} 次完成` : "静置";
+      if (state.phase === "balance" && state.verdict === "balanced") sub = "已平衡 · 待锁定";
+      elements.status.textContent = `${phaseName} · ${sub}`;
+      elements.status.setAttribute("class", `status ${state.phase === "groupF" ? "p2" : state.phase === "groupM" ? "p3" : ""}`);
+      /* controls */
+      elements.startBtn.textContent = state.phase === "balance" ? "轻推小车" : "释放小车";
+      elements.startBtn.disabled = state.running || (state.phase === "balance" && state.locked);
+      const resumable = (state.mode === "testing" || state.mode === "trial") && !state.running;
+      elements.pauseBtn.disabled = !(state.running || resumable);
+      elements.pauseBtn.textContent = state.running ? "暂停" : "继续";
+      elements.lockBtn.disabled = !(state.phase === "balance" && state.balanceVerified && !state.locked);
+      elements.lockBtn.style.display = state.phase === "balance" && !state.locked ? "" : "none";
+      elements.phaseBtn1.disabled = state.locked;
+      elements.phaseBtn1.textContent = state.locked ? "① 已平衡 ✓" : "① 平衡摩擦";
+      elements.phaseBtn2.disabled = !state.locked; elements.phaseBtn3.disabled = !state.locked;
+      elements.phaseBtn1.classList.toggle("active", state.phase === "balance");
+      elements.phaseBtn2.classList.toggle("active", state.phase === "groupF");
+      elements.phaseBtn3.classList.toggle("active", state.phase === "groupM");
+      /* slider enable states */
+      const hEnabled = state.phase === "balance" && !state.locked;
+      const fEnabled = state.phase === "groupF";
+      const mEnabled = state.phase === "groupM";
+      elements.hInput.disabled = !hEnabled; elements.hControl.classList.toggle("locked", !hEnabled);
+      elements.fInput.disabled = !fEnabled; elements.fControl.classList.toggle("locked", !fEnabled);
+      elements.mInput.disabled = !mEnabled; elements.mControl.classList.toggle("locked", !mEnabled);
+      elements.hOutput.textContent = `${Math.round(state.h * 1000)} mm${state.locked ? "（已锁定）" : ""}`;
+      elements.fOutput.textContent = `${state.F.toFixed(2)} N${state.phase === "groupM" ? "（本组固定）" : ""}`;
+      elements.mOutput.textContent = `${state.M.toFixed(2)} kg${state.phase === "groupF" ? "（本组固定）" : ""}`;
+    }
+
+    /* ---------------- wiring ---------------- */
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", () => { reset(); });
+      elements.lockBtn.addEventListener("click", lockBalance);
+      elements.clearBtn.addEventListener("click", clearRecords);
+      elements.phaseBtn2.addEventListener("click", () => setPhase("groupF"));
+      elements.phaseBtn3.addEventListener("click", () => setPhase("groupM"));
+      elements.hInput.addEventListener("input", () => setParameters({ h: Number(elements.hInput.value) / 1000, F: state.F, M: state.M }));
+      elements.fInput.addEventListener("input", () => setParameters({ h: state.h, F: Number(elements.fInput.value), M: state.M }));
+      elements.mInput.addEventListener("input", () => setParameters({ h: state.h, F: state.F, M: Number(elements.mInput.value) }));
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt); render(); requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks, setPhase, lockBalance, clearRecords };
+    init();
+  })();
+  </script>
+</body>
+</html>

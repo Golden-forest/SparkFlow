@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>卢瑟福散射：α 粒子轰击金箔</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #070c1a;
+      --sim-surface: #101a30;
+      --sim-surface-soft: #0c1426;
+      --sim-text: #e9effb;
+      --sim-muted: #8fa0bd;
+      --sim-border: #22304d;
+      --sim-grid: #1a2740;
+      --sim-accent: #2dd4bf;
+      --sim-accent-deep: #0d9488;
+      --sim-accent-soft: rgba(45, 212, 191, 0.14);
+      --sim-positive: #34d399;
+      --sim-warning: #fbbf24;
+      --sim-danger: #f87171;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-alpha: #5eead4;    /* incident / forward alpha */
+      --sim-mid: #fbbf24;      /* moderate deflection */
+      --sim-back: #fb7185;     /* backscatter */
+      --sim-plum: #a78bfa;     /* plum-pudding positive sphere */
+      --sim-gold: #fcd34d;     /* nucleus / gold foil / nuclear curve */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(45, 212, 191, 0.07), transparent 30%),
+        radial-gradient(circle at 94% 6%, rgba(251, 191, 36, 0.05), transparent 26%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(45, 212, 191, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--sim-space-3); overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(45, 212, 191, 0.35); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 700; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.72fr); gap: var(--sim-space-3); }
+    .panel { min-width: 0; background: linear-gradient(180deg, rgba(16, 26, 48, 0.96), rgba(12, 20, 38, 0.96)); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 380px; padding: var(--sim-space-3); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; height: 100%; min-height: 320px; display: block; border: 1px solid rgba(45, 212, 191, 0.14); border-radius: var(--sim-radius-md); background: radial-gradient(circle at 50% 46%, #111c36 0%, #0a1122 55%, #05080f 100%); touch-action: none; }
+    .side { min-height: 0; display: flex; flex-direction: column; gap: var(--sim-space-3); }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 10px 12px; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); background: rgba(10, 17, 34, 0.8); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .chart-panel { padding: 12px 14px 10px; }
+    #chartSvg { width: 100%; height: auto; display: block; }
+    .stats-panel { padding: 12px 16px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .stat-chip { padding: 8px 10px; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); background: rgba(10, 17, 34, 0.8); text-align: center; }
+    .stat-chip small { display: block; color: var(--sim-muted); font-size: 0.7rem; margin-bottom: 2px; }
+    .stat-chip strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+    .stat-chip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+    .compare { margin-top: 10px; border-top: 1px dashed var(--sim-border); padding-top: 8px; }
+    .compare h3 { margin: 0 0 6px; font-size: 0.78rem; color: var(--sim-muted); font-weight: 700; }
+    .compare-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; padding: 3px 0; font-variant-numeric: tabular-nums; }
+    .compare-row .name { color: var(--sim-text); }
+    .model-note { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: grid; align-content: start; gap: 10px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0; background: rgba(251, 191, 36, 0.09); color: #f5d383; font-weight: 650; line-height: 1.6; font-size: 0.86rem; }
+    .controls { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; border-radius: var(--sim-radius-md); }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #38486b; background: #131f3a; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #04211d; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 20px rgba(45, 212, 191, 0.22); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    button[aria-pressed="true"] { border-color: var(--sim-accent); background: var(--sim-accent-soft); color: var(--sim-accent); box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.4); }
+    .seg { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); background: rgba(10, 17, 34, 0.7); }
+    .seg button { border: none; background: transparent; padding: 7px 12px; border-radius: 8px; }
+    .seg button[aria-pressed="true"] { background: var(--sim-accent-soft); box-shadow: none; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; min-width: 200px; flex: 1; }
+    .control-group > label { display: flex; justify-content: space-between; gap: 10px; font-size: 0.76rem; font-weight: 700; color: var(--sim-muted); }
+    .control-group output { color: var(--sim-text); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    input[type="range"]:disabled { opacity: .35; }
+    .ctl-caption { font-size: 0.7rem; color: var(--sim-muted); font-weight: 700; margin-right: 6px; }
+    .axis { stroke: #55658a; stroke-width: 1.2; }
+    .axis-label { fill: var(--sim-muted); font-size: 11px; }
+    .stage-note { fill: #6d7f9f; font-size: 11px; }
+    .stage-label { fill: #93a5c4; font-size: 12px; font-weight: 700; }
+    .stage-label-dim { fill: #6d7f9f; font-size: 11px; }
+    @media (max-width: 960px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 460; }
+      .controls { flex-direction: column; align-items: stretch; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="continuous-ode">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>卢瑟福散射：α 粒子轰击金箔</h1>
+        <p>调节瞄准距离、切换原子模型——为什么 α 粒子几乎全部直穿，却又偶尔被弹回？枣糕模型为何必须被放弃？</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">散射腔</h2><span id="viewLabel">近焦视野 · 1 像素 = 1 fm</span></div>
+        <svg id="scene" viewBox="0 0 760 460" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">暗色散射腔：α 粒子从左侧射向金箔处的原子，轨迹与荧光屏上的闪光显示偏转情况。</desc>
+          <g id="bgLayer"></g>
+          <g id="trailLayer"></g>
+          <g id="ghostLayer"></g>
+          <g id="flashLayer"></g>
+          <g id="activeLayer"></g>
+          <g id="rulerLayer"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>瞄准距离 b</small><strong id="bReadout">30.0 fm</strong></div>
+            <div class="metric"><small>偏转角 θ</small><strong id="thetaReadout">—</strong></div>
+            <div class="metric"><small>最近距离 r<sub>min</sub></small><strong id="rminReadout">—</strong></div>
+            <div class="metric"><small id="firedLabel">已发射</small><strong id="firedReadout">0</strong></div>
+          </div>
+        </section>
+        <section class="panel chart-panel">
+          <div class="panel-head" style="margin-bottom:6px"><h2 style="font-size:.92rem">偏转角 – 瞄准距离</h2><span id="chartDomain">b：0–200 fm</span></div>
+          <svg id="chartSvg" viewBox="0 0 340 196" role="img" aria-label="偏转角随瞄准距离变化的曲线图"></svg>
+        </section>
+        <section class="panel stats-panel" aria-label="散射统计">
+          <div class="stats-grid">
+            <div class="stat-chip"><small><span class="dot" style="background:var(--sim-alpha)"></span>直穿 &lt;10°</small><strong id="straightCount">0</strong></div>
+            <div class="stat-chip"><small><span class="dot" style="background:var(--sim-mid)"></span>偏转 10–90°</small><strong id="midCount">0</strong></div>
+            <div class="stat-chip"><small><span class="dot" style="background:var(--sim-back)"></span>反弹 ≥90°</small><strong id="backCount">0</strong></div>
+          </div>
+          <div class="compare">
+            <h3>整束对比（60 发 · 各模型最近一次）</h3>
+            <div class="compare-row"><span class="name">核式（卢瑟福）</span><span id="compareNuclear" style="color:var(--sim-gold)">未运行</span></div>
+            <div class="compare-row"><span class="name">枣糕（汤姆孙）</span><span id="comparePlum" style="color:var(--sim-plum)">未运行</span></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">拖动左侧标尺或滑块选择瞄准距离 b，按「发射」射出一颗 α 粒子；再切换「一束粒子」与枣糕模型做对比。</p>
+          <p>教学视角说明：金箔按单层原子（单次散射）简化；α 动能固定 5.0 MeV；原子半径压缩为 500 fm（真实约 1.4×10⁵ fm），原子核放大显示（真实约 7 fm）——即便如此偏向枣糕模型，它的最大偏转也不到 10°，真实情况下更小至 0.03° 量级。统计模式中瞄准距离在 0–1300 fm 内均匀取样，以提高大角度事件的出现频率——真实实验中 θ&gt;90° 的概率约为 1/8000（盖革–马斯登实验）。偏转角与轨迹由库仑斥力的 RK4 数值积分给出，核式解析预言采用有限发射窗口修正。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="fireBtn" class="primary" type="button">发射 α 粒子</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="seg" role="group" aria-label="原子模型">
+        <span class="ctl-caption" style="align-self:center">原子模型</span>
+        <button id="modelNuclearBtn" type="button" aria-pressed="true">核式（卢瑟福）</button>
+        <button id="modelPlumBtn" type="button" aria-pressed="false">枣糕（汤姆孙）</button>
+      </div>
+      <div class="seg" role="group" aria-label="实验方式">
+        <span class="ctl-caption" style="align-self:center">实验方式</span>
+        <button id="modeSingleBtn" type="button" aria-pressed="true">单粒子</button>
+        <button id="modeBeamBtn" type="button" aria-pressed="false">一束粒子</button>
+      </div>
+      <div class="control-group">
+        <label for="bInput">瞄准距离 b <output id="bOutput">30.0 fm</output></label>
+        <input id="bInput" type="range" min="0" max="200" step="0.5" value="30" aria-describedby="bHelp">
+        <span id="bHelp" style="font-size:.68rem;color:var(--sim-muted)">核式·单粒子模式下，也可在散射腔左侧标尺上上下拖动</span>
+      </div>
+      <div class="control-group" style="min-width:120px;max-width:150px;flex:none">
+        <label for="speedInput">回放速度 <output id="speedOutput">1×</output></label>
+        <select id="speedInput">
+          <option value="0.5">0.5×（慢）</option>
+          <option value="1" selected>1×（常速）</option>
+          <option value="2">2×（快）</option>
+        </select>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  // __KERNEL_BEGIN__
+  // DOM-free physics kernel. Runs in the browser and under Node for validation.
+  // Units: energy MeV, length fm, velocity in units of c, time in fm/c.
+  const AlphaKernel = (() => {
+    "use strict";
+    const K_COUL = 227.514;  // q1*q2*e^2/(4*pi*eps0) in MeV*fm  (alpha 2e on gold 79e)
+    const MASS = 3727.38;    // alpha rest energy m*c^2 in MeV
+    const E_KIN = 5.0;       // initial kinetic energy in MeV (fixed parameter)
+    const V0 = Math.sqrt(2 * E_KIN / MASS); // launch speed in units of c
+    const LAUNCH_X = -3000;  // launch abscissa, fm
+    const R_PLUM = 500;      // plum-pudding positive sphere radius, fm (teaching-compressed
+                             // from ~1.4e5 fm; keeps max deflection < 10 deg so the model
+                             // never backscatters, its essential property)
+    const R_FLOOR = 25;      // step-grading radius floor, fm
+    const MAX_STEPS = 30000;
+    const DEG = 180 / Math.PI;
+
+    function potential(r, model) {
+      if (model === "plum" && r < R_PLUM) {
+        return K_COUL * (3 * R_PLUM * R_PLUM - r * r) / (2 * R_PLUM * R_PLUM * R_PLUM);
+      }
+      return K_COUL / r;
+    }
+
+    // Analytic oracle corrected for the finite launch window: the asymptotic
+    // energy and impact parameter are derived from conserved E and L at launch.
+    function windowPrediction(b, model) {
+      const bb = Math.abs(b);
+      const r0 = Math.hypot(LAUNCH_X, bb);
+      const vInf = Math.sqrt(V0 * V0 + 2 * K_COUL / (MASS * r0));
+      const eInf = 0.5 * MASS * vInf * vInf;
+      const bInf = (V0 * bb) / vInf;
+      let theta = Math.PI;
+      if (bInf > 1e-9) theta = 2 * Math.atan(K_COUL / (2 * eInf * bInf));
+      return { r0: r0, vInf: vInf, eInf: eInf, bInf: bInf, theta: theta, thetaDeg: theta * DEG };
+    }
+
+    // Impact parameter that scatters by exactly 90 degrees (finite window).
+    function solveB90() {
+      let b = 22.6;
+      for (let i = 0; i < 8; i += 1) {
+        const p = windowPrediction(b, "nuclear");
+        b = (K_COUL / (2 * p.eInf)) * (p.vInf / V0);
+      }
+      return b;
+    }
+
+    // Textbook infinite-launch Rutherford formula, for the chart curve.
+    function nuclearThetaDeg(b) {
+      const bb = Math.abs(b);
+      if (bb < 1e-9) return 180;
+      return 2 * Math.atan(K_COUL / (2 * E_KIN * bb)) * DEG;
+    }
+
+    // Deterministic beam sampling: uniform in b over (0, bMax].
+    function beamPlan(count, bMax) {
+      const n = count || 60;
+      const m = bMax || 1300;
+      const list = [];
+      for (let i = 0; i < n; i += 1) list.push(m * (i + 0.5) / n);
+      return list;
+    }
+
+    // RK4 integration of one alpha trajectory under the selected atomic model.
+    // Nuclear: repulsive Coulomb from a point nucleus at the origin.
+    // Plum: uniform positive sphere of radius R_PLUM (linear force inside).
+    // Time step is graded by radius: dt = hScale * max(r, R_FLOOR) / vRef,
+    // which stays finite through the head-on turning point.
+    function integratePath(b, model, opts) {
+      const o = opts || {};
+      const hScale = o.hScale || 0.01;
+      const ringR = o.ringR || 0;       // detector ring radius (record outgoing crossing)
+      const spacing = o.spacing || 6;   // min arc spacing between stored samples, fm
+      const p0 = windowPrediction(b, model);
+      const vRef = p0.vInf || V0;
+      const rLaunch = Math.hypot(LAUNCH_X, b);
+      const exitR = rLaunch * 1.02;
+      const eTot0 = 0.5 * MASS * V0 * V0 + potential(rLaunch, model);
+
+      let x = LAUNCH_X, y = b, vx = V0, vy = 0;
+      let steps = 0, rMin = Infinity, drift = 0;
+      let truncated = true;
+      let sRaw = 0, keptX = x, keptY = y;
+      let ring = null, prevR = rLaunch, prevX = x, prevY = y;
+      const samples = [{ x: x, y: y, s: 0 }];
+      const A1 = [0, 0], A2 = [0, 0], A3 = [0, 0], A4 = [0, 0];
+      const plumC = K_COUL / (MASS * R_PLUM * R_PLUM * R_PLUM);
+      const isPlum = model === "plum";
+
+      function force(px, py, out) {
+        const r2 = px * px + py * py;
+        const r = Math.sqrt(r2);
+        const c = (isPlum && r < R_PLUM) ? plumC : K_COUL / (MASS * r2 * r);
+        out[0] = c * px;
+        out[1] = c * py;
+      }
+
+      while (steps < MAX_STEPS) {
+        const r2 = x * x + y * y;
+        const r = Math.sqrt(r2);
+        if (r < rMin) rMin = r;
+        const eNow = 0.5 * MASS * (vx * vx + vy * vy) + potential(r, model);
+        const dd = Math.abs(eNow - eTot0) / eTot0;
+        if (dd > drift) drift = dd;
+        const rDot = r > 1e-9 ? (x * vx + y * vy) / r : 0;
+        if ((r > exitR && rDot > 0) || x > 3260) { truncated = false; break; }
+
+        const dt = hScale * (r > R_FLOOR ? r : R_FLOOR) / vRef;
+        force(x, y, A1);
+        force(x + 0.5 * dt * vx, y + 0.5 * dt * vy, A2);
+        const vx2h = vx + 0.5 * dt * A1[0], vy2h = vy + 0.5 * dt * A1[1];
+        force(x + 0.5 * dt * vx2h, y + 0.5 * dt * vy2h, A3);
+        const vx3h = vx + 0.5 * dt * A2[0], vy3h = vy + 0.5 * dt * A2[1];
+        force(x + dt * vx3h, y + dt * vy3h, A4);
+        const vx4 = vx + dt * A3[0], vy4 = vy + dt * A3[1];
+        const newX = x + (dt / 6) * (vx + 2 * vx2h + 2 * vx3h + vx4);
+        const newY = y + (dt / 6) * (vy + 2 * vy2h + 2 * vy3h + vy4);
+        const newVx = vx + (dt / 6) * (A1[0] + 2 * A2[0] + 2 * A3[0] + A4[0]);
+        const newVy = vy + (dt / 6) * (A1[1] + 2 * A2[1] + 2 * A3[1] + A4[1]);
+        sRaw += Math.hypot(newX - x, newY - y);
+        x = newX; y = newY; vx = newVx; vy = newVy;
+        steps += 1;
+
+        const rNew = Math.sqrt(x * x + y * y);
+        if (ringR > 0 && prevR < ringR && rNew >= ringR && (x * vx + y * vy) > 0) {
+          const f = (ringR - prevR) / (rNew - prevR);
+          const rx = prevX + (x - prevX) * f;
+          const ry = prevY + (y - prevY) * f;
+          ring = { x: rx, y: ry, angle: Math.atan2(ry, rx) };
+        }
+        prevR = rNew; prevX = x; prevY = y;
+        if (Math.hypot(x - keptX, y - keptY) >= spacing) {
+          samples.push({ x: x, y: y, s: sRaw });
+          keptX = x; keptY = y;
+        }
+      }
+      samples.push({ x: x, y: y, s: sRaw });
+      const theta = Math.atan2(vy, vx); // signed; in [0, pi] for b >= 0
+      return {
+        ok: !truncated, truncated: truncated, steps: steps, samples: samples,
+        theta: theta, thetaDeg: theta * DEG, ring: ring, rMin: rMin,
+        drift: drift, eTot0: eTot0, b: b, model: model
+      };
+    }
+
+    // Numeric theta(b) sweep for the plum curve inside the sphere; outside the
+    // sphere Gauss's law makes it identical to the point-charge (nuclear) case.
+    function plumCurve(domainMax) {
+      const inner = Math.min(domainMax, R_PLUM);
+      const pts = [];
+      const n = 20;
+      for (let i = 0; i <= n; i += 1) {
+        const b = (inner * i) / n;
+        const t = integratePath(b, "plum", { spacing: 30 });
+        pts.push({ b: b, thetaDeg: Math.abs(t.thetaDeg) });
+      }
+      if (domainMax > R_PLUM) {
+        for (let b = R_PLUM + (domainMax - R_PLUM) / 12; b <= domainMax; b += (domainMax - R_PLUM) / 12) {
+          pts.push({ b: b, thetaDeg: nuclearThetaDeg(b) });
+        }
+      }
+      return pts;
+    }
+
+    function classify(thetaDeg) {
+      const t = Math.abs(thetaDeg);
+      if (t >= 90) return "back";
+      if (t >= 10) return "mid";
+      return "straight";
+    }
+
+    function runModelChecks() {
+      const out = [];
+      const add = function (name, pass, expected, actual, tolerance) {
+        out.push({ name: name, pass: !!pass, expected: expected, actual: actual, tolerance: tolerance });
+      };
+      const b90 = solveB90();
+
+      // 1. Energy conservation, ordinary nuclear case.
+      let t = integratePath(30, "nuclear");
+      add("能量守恒（核式，b=30 fm）", t.ok && t.drift < 5e-4,
+        "相对能量漂移 < 0.05%", (t.drift * 100).toFixed(5) + "%", "0.05%");
+
+      // 2. Ordinary case vs finite-window analytic oracle.
+      let p = windowPrediction(30, "nuclear");
+      add("偏转角符合有限窗口解析预言（b=30 fm）", t.ok && Math.abs(t.thetaDeg - p.thetaDeg) < Math.max(0.15, 0.005 * p.thetaDeg),
+        p.thetaDeg.toFixed(3) + "°", t.thetaDeg.toFixed(3) + "°", "max(0.15°, 0.5%)");
+
+      // 3. Small-angle case.
+      t = integratePath(200, "nuclear");
+      p = windowPrediction(200, "nuclear");
+      add("小角散射符合预言（b=200 fm）", t.ok && Math.abs(t.thetaDeg - p.thetaDeg) < 0.15,
+        p.thetaDeg.toFixed(3) + "°", t.thetaDeg.toFixed(3) + "°", "0.15°");
+
+      // 4. Threshold: b = b90 scatters by 90 degrees.
+      t = integratePath(b90, "nuclear");
+      add("临界瞄准距离 θ=90°（b=b₉₀≈" + b90.toFixed(2) + " fm）", t.ok && Math.abs(t.thetaDeg - 90) < 0.4,
+        "90°", t.thetaDeg.toFixed(3) + "°", "0.4°");
+
+      // 5. Head-on collision reflects: theta = 180 degrees.
+      t = integratePath(0, "nuclear");
+      add("正对碰撞反弹 θ=180°（b=0）", t.ok && Math.abs(t.thetaDeg - 180) < 0.3,
+        "180°", t.thetaDeg.toFixed(3) + "°", "0.3°");
+
+      // 6. +/-b mirror symmetry.
+      const tp = integratePath(50, "nuclear");
+      const tm = integratePath(-50, "nuclear");
+      add("±b 镜像对称（b=±50 fm）", tp.ok && tm.ok && Math.abs(tp.thetaDeg + tm.thetaDeg) < 0.02,
+        "|θ(b)+θ(−b)| < 0.02°", Math.abs(tp.thetaDeg + tm.thetaDeg).toFixed(5) + "°", "0.02°");
+
+      // 7. Step-halving convergence.
+      const th1 = integratePath(30, "nuclear", { hScale: 0.01 }).thetaDeg;
+      const th2 = integratePath(30, "nuclear", { hScale: 0.005 }).thetaDeg;
+      add("步长减半收敛（b=30 fm）", Math.abs(th1 - th2) < 0.05,
+        "|Δθ| < 0.05°", Math.abs(th1 - th2).toFixed(5) + "°", "0.05°");
+
+      // 8. Closest approach on head-on hit equals the turning point k/E0(window).
+      t = integratePath(0, "nuclear");
+      const rminExpect = K_COUL / t.eTot0;
+      add("正对碰撞最近距离 r_min = k/E₀", t.ok && Math.abs(t.rMin - rminExpect) < 0.5,
+        rminExpect.toFixed(2) + " fm", t.rMin.toFixed(2) + " fm", "0.5 fm");
+
+      // 9. Plum pudding, head-on: passes straight through.
+      t = integratePath(0, "plum");
+      add("枣糕模型正入射直穿（b=0）", t.ok && Math.abs(t.thetaDeg) < 0.05,
+        "θ ≈ 0°", Math.abs(t.thetaDeg).toFixed(5) + "°", "0.05°");
+
+      // 10. Plum pudding never backscatters; deflection stays small everywhere.
+      let plumMax = 0;
+      const sweep = [50, 150, 250, 350, 450, 480, 550, 700];
+      for (let i = 0; i < sweep.length; i += 1) {
+        const tp2 = integratePath(sweep[i], "plum");
+        if (!tp2.ok) { plumMax = 1e9; break; }
+        const a = Math.abs(tp2.thetaDeg);
+        if (a > plumMax) plumMax = a;
+      }
+      add("枣糕模型全程偏转上限 < 10°", plumMax < 10 && plumMax > 0.1,
+        "0° < θ_max < 10°", plumMax.toFixed(3) + "°", "10°（且 >0.1° 证明确有偏转）");
+
+      // 11. Plum pudding energy conservation.
+      t = integratePath(100, "plum");
+      add("能量守恒（枣糕，b=100 fm）", t.ok && t.drift < 5e-4,
+        "相对能量漂移 < 0.05%", (t.drift * 100).toFixed(5) + "%", "0.05%");
+
+      // 12. Outside the positive sphere the plum model equals a point charge.
+      const tn = integratePath(600, "nuclear");
+      const tq = integratePath(600, "plum");
+      add("高斯等效：枣糕 b=600 fm ≡ 核式（球外点电荷）", tn.ok && tq.ok && Math.abs(tn.thetaDeg - tq.thetaDeg) < 0.05,
+        "Δθ < 0.05°", Math.abs(tn.thetaDeg - tq.thetaDeg).toFixed(6) + "°", "0.05°");
+
+      return out;
+    }
+
+    return {
+      constants: { K_COUL: K_COUL, MASS: MASS, E_KIN: E_KIN, V0: V0, LAUNCH_X: LAUNCH_X, R_PLUM: R_PLUM, R_FLOOR: R_FLOOR, MAX_STEPS: MAX_STEPS },
+      potential: potential, windowPrediction: windowPrediction, solveB90: solveB90,
+      nuclearThetaDeg: nuclearThetaDeg, beamPlan: beamPlan, integratePath: integratePath,
+      plumCurve: plumCurve, classify: classify, runModelChecks: runModelChecks
+    };
+  })();
+  // __KERNEL_END__
+
+  // ============================ UI layer ============================
+  (() => {
+    "use strict";
+    const AK = AlphaKernel;
+    const REDUCED = (typeof window !== "undefined" && window.matchMedia) ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
+
+    const VIEWS = {
+      near: { scale: 1.0, cx: 380, cy: 230, halfX: 380, halfY: 230, ring: 220, label: "近焦视野 · 1 像素 = 1 fm（原子内部）", note: "教学视角：金箔=单层原子简化 · α 动能 5.0 MeV · 原子核放大显示（真实≈7 fm）" },
+      wide: { scale: 0.17, cx: 380, cy: 230, halfX: 2241, halfY: 1353, ring: 1300, label: "广角视野 · 1 像素 ≈ 5.9 fm", note: "教学视角：b 在 0–1300 fm 均匀取样（真实≈1.4×10⁵ fm，大角概率≈1/8000）" }
+    };
+    const BEAM_N = 60, BEAM_BMAX = 1300;
+    const FLIGHT_RATE_SINGLE = 1900; // fm of arc per real second
+    const FLIGHT_RATE_BEAM = 3600;
+    const BEAM_STAGGER = 0.16; // s between launches
+
+    const state = {
+      model: "nuclear", mode: "single", b: 30, speed: 1,
+      running: false, lastTimestamp: null,
+      phase: "ready", // ready | flying | beaming | done
+      active: [],     // in-flight shots: { traj, sNow, cursor }
+      beamTimer: 0, fired: 0,
+      tally: { straight: 0, mid: 0, back: 0 },
+      beamResults: { nuclear: null, plum: null },
+      trails: [],     // completed { traj, kind } capped
+      flashes: [],    // { x, y, angleDeg, kind } world coords
+      ghost: null, measured: [], lastResult: null
+    };
+    let B90 = AK.solveB90();
+
+    const $ = function (id) { return document.getElementById(id); };
+    const el = {
+      status: $("status"), viewLabel: $("viewLabel"),
+      bg: $("bgLayer"), trails: $("trailLayer"), ghost: $("ghostLayer"),
+      flashes: $("flashLayer"), active: $("activeLayer"), ruler: $("rulerLayer"),
+      scene: $("scene"), chart: $("chartSvg"), chartDomain: $("chartDomain"),
+      bReadout: $("bReadout"), thetaReadout: $("thetaReadout"), rminReadout: $("rminReadout"),
+      firedReadout: $("firedReadout"), firedLabel: $("firedLabel"),
+      straightCount: $("straightCount"), midCount: $("midCount"), backCount: $("backCount"),
+      compareNuclear: $("compareNuclear"), comparePlum: $("comparePlum"),
+      insight: $("insight"),
+      fireBtn: $("fireBtn"), pauseBtn: $("pauseBtn"), resetBtn: $("resetBtn"),
+      modelNuclearBtn: $("modelNuclearBtn"), modelPlumBtn: $("modelPlumBtn"),
+      modeSingleBtn: $("modeSingleBtn"), modeBeamBtn: $("modeBeamBtn"),
+      bInput: $("bInput"), bOutput: $("bOutput"), speedInput: $("speedInput"), speedOutput: $("speedOutput")
+    };
+
+    const R_ATOM = AK.constants.R_PLUM; // atom radius shown on stage (both models, fair same-size compare)
+    // Near view only for nuclear single shots; plum single and all beam runs use the wide view
+    // (the 500 fm atom does not fit the near view, and the plum story is "nothing happens").
+    function view() { return (state.mode === "single" && state.model === "nuclear") ? VIEWS.near : VIEWS.wide; }
+    function wx(x, v) { return v.cx + x * v.scale; }
+    function wy(y, v) { return v.cy - y * v.scale; }
+    function kindColor(kind) {
+      if (kind === "back") return "var(--sim-back)";
+      if (kind === "mid") return "var(--sim-mid)";
+      return "var(--sim-alpha)";
+    }
+    function fmt(x, d) { return Number(x).toFixed(d === undefined ? 1 : d); }
+
+    // ---------- static scene ----------
+    function buildStatic() {
+      const v = view();
+      const isNear = v === VIEWS.near;
+      const g = [];
+      const rx = wx(v.ring, v), ry0 = wy(0, v);
+      const rPx = v.ring * v.scale;
+      // detector ring + ticks (angular screen: flashes are marked at polar angle = theta)
+      g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="' + rPx + '" fill="none" stroke="#2c3d5f" stroke-width="1.4" stroke-dasharray="4 5"></circle>');
+      for (let a = 0; a < 360; a += 30) {
+        const rad = a * Math.PI / 180;
+        const c = Math.cos(rad), s = Math.sin(rad);
+        const r2 = rPx + (a % 90 === 0 ? 9 : 5);
+        g.push('<line x1="' + (rx + rPx * c) + '" y1="' + (ry0 - rPx * s) + '" x2="' + (rx + r2 * c) + '" y2="' + (ry0 - r2 * s) + '" stroke="#3b4d73" stroke-width="1"></line>');
+      }
+      g.push('<text class="stage-label-dim" x="' + (rx + rPx + 8) + '" y="' + (ry0 + 4) + '">0°</text>');
+      g.push('<text class="stage-label-dim" x="' + rx + '" y="' + (ry0 - rPx + 18) + '" text-anchor="middle">90°</text>');
+      g.push('<text class="stage-label-dim" x="' + (rx - rPx - 8) + '" y="' + (ry0 + 4) + '" text-anchor="end">180°</text>');
+      g.push('<text class="stage-label-dim" x="' + rx + '" y="' + (ry0 + rPx - 8) + '" text-anchor="middle">270°</text>');
+      g.push('<text class="stage-label-dim" x="' + (rx + rPx * 0.6) + '" y="' + (ry0 - rPx * 0.85) + '">荧光屏（按 θ 标记）</text>');
+      // gold foil line at x = 0
+      g.push('<line x1="' + wx(0, v) + '" y1="' + (v.cy - v.halfY * v.scale + 18) + '" x2="' + wx(0, v) + '" y2="' + (v.cy + v.halfY * v.scale - 18) + '" stroke="var(--sim-gold)" stroke-width="2" opacity="0.4"></line>');
+      g.push('<text class="stage-label-dim" x="' + (wx(0, v) + 8) + '" y="' + (v.cy + v.halfY * v.scale - 24) + '">金箔</text>');
+      // crosshair
+      g.push('<line x1="' + (wx(0, v) - 10) + '" y1="' + wy(0, v) + '" x2="' + (wx(0, v) + 10) + '" y2="' + wy(0, v) + '" stroke="#3b4d73" stroke-width="1"></line>');
+      g.push('<line x1="' + wx(0, v) + '" y1="' + (wy(0, v) - 10) + '" x2="' + wx(0, v) + '" y2="' + (wy(0, v) + 10) + '" stroke="#3b4d73" stroke-width="1"></line>');
+
+      if (isNear) {
+        // near view: we are inside the atom — only the enlarged nucleus is visible
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="13" fill="rgba(252,211,77,0.22)"></circle>');
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="6" fill="var(--sim-gold)"></circle>');
+        g.push('<text class="stage-label" x="' + (rx + 34) + '" y="' + (ry0 + 34) + '" fill="var(--sim-gold)">原子核（真实 r≈7 fm，放大显示）</text>');
+      } else if (state.model === "plum") {
+        // plum pudding: filled uniform positive sphere + embedded electrons
+        const pr = R_ATOM * v.scale;
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="' + pr + '" fill="rgba(167,139,250,0.12)" stroke="rgba(167,139,250,0.55)" stroke-width="1.3" stroke-dasharray="6 4"></circle>');
+        for (let i = 0; i < 8; i += 1) {
+          const ang = (i * 45 + 22) * Math.PI / 180;
+          const rr = (i % 2 === 0 ? 0.45 : 0.72) * R_ATOM;
+          g.push('<circle cx="' + (rx + rr * v.scale * Math.cos(ang)) + '" cy="' + (ry0 - rr * v.scale * Math.sin(ang)) + '" r="2.6" fill="rgba(94,234,212,0.7)"></circle>');
+        }
+        g.push('<text class="stage-label" x="' + (rx - 20) + '" y="' + (ry0 - pr - 10) + '" fill="var(--sim-plum)">均匀正电球 R=500 fm（枣糕 · 压缩视角）</text>');
+      } else {
+        // nuclear model, wide view: same-size atom boundary, essentially empty
+        const pr = R_ATOM * v.scale;
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="' + pr + '" fill="none" stroke="rgba(252,211,77,0.3)" stroke-width="1" stroke-dasharray="3 7"></circle>');
+        g.push('<text class="stage-label-dim" x="' + (rx - 20) + '" y="' + (ry0 - pr - 10) + '">原子边界 500 fm（核式：内部几乎全空）</text>');
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="10" fill="rgba(252,211,77,0.22)"></circle>');
+        g.push('<circle cx="' + rx + '" cy="' + ry0 + '" r="3.5" fill="var(--sim-gold)"></circle>');
+        g.push('<text class="stage-label-dim" x="' + (rx + 14) + '" y="' + (ry0 + 22) + '" fill="var(--sim-gold)">核（放大标记）</text>');
+      }
+
+      // b90 guide + source labels
+      if (isNear) {
+        g.push('<line x1="' + wx(-360, v) + '" y1="' + wy(B90, v) + '" x2="' + wx(330, v) + '" y2="' + wy(B90, v) + '" stroke="rgba(45,212,191,0.45)" stroke-width="1" stroke-dasharray="8 6"></line>');
+        g.push('<text class="stage-label-dim" x="' + wx(150, v) + '" y="' + (wy(B90, v) - 5) + '" fill="rgba(45,212,191,0.8)">b₉₀≈' + B90.toFixed(1) + ' fm（θ=90° 临界）</text>');
+      }
+      if (state.mode === "beam") {
+        g.push('<text class="stage-label" x="52" y="42" fill="var(--sim-alpha)">α 束（60 发 · b: 0–1300 fm 均匀取样）</text>');
+      } else {
+        g.push('<text class="stage-label" x="52" y="42" fill="var(--sim-alpha)">α 源</text>');
+      }
+
+      // legend (top)
+      const lg = [["直穿 <10°", "var(--sim-alpha)"], ["偏转 10–90°", "var(--sim-mid)"], ["反弹 ≥90°", "var(--sim-back)"]];
+      let lx = 52;
+      for (let i = 0; i < lg.length; i += 1) {
+        g.push('<circle cx="' + lx + '" cy="16" r="4" fill="' + lg[i][1] + '"></circle>');
+        g.push('<text class="stage-label-dim" x="' + (lx + 8) + '" y="20">' + lg[i][0] + "</text>");
+        lx += 82;
+      }
+      // notes + scale bar
+      g.push('<text class="stage-note" x="12" y="' + (v.cy + v.halfY * v.scale - 8) + '">' + v.note + "</text>");
+      const sb = isNear ? 100 : 500;
+      const sbx = v.cx + v.halfX * v.scale - (sb * v.scale) - 24;
+      const sby = 40;
+      g.push('<line x1="' + sbx + '" y1="' + sby + '" x2="' + (sbx + sb * v.scale) + '" y2="' + sby + '" stroke="#93a5c4" stroke-width="1.5"></line>');
+      g.push('<line x1="' + sbx + '" y1="' + (sby - 4) + '" x2="' + sbx + '" y2="' + (sby + 4) + '" stroke="#93a5c4" stroke-width="1.5"></line>');
+      g.push('<line x1="' + (sbx + sb * v.scale) + '" y1="' + (sby - 4) + '" x2="' + (sbx + sb * v.scale) + '" y2="' + (sby + 4) + '" stroke="#93a5c4" stroke-width="1.5"></line>');
+      g.push('<text class="stage-label-dim" x="' + (sbx + (sb * v.scale) / 2) + '" y="' + (sby - 8) + '" text-anchor="middle">' + sb + " fm</text>");
+      el.bg.innerHTML = g.join("");
+    }
+
+    // ---------- b ruler + drag band (nuclear single mode only) ----------
+    function buildRuler() {
+      const v = VIEWS.near;
+      if (state.mode !== "single" || state.model !== "nuclear") { el.ruler.innerHTML = ""; return; }
+      const g = [];
+      g.push('<rect id="dragBand" x="0" y="0" width="46" height="460" fill="rgba(45,212,191,0.04)" stroke="none" style="cursor:ns-resize"></rect>');
+      for (let y = 0; y <= 200; y += 50) {
+        g.push('<line x1="6" y1="' + wy(y, v) + '" x2="' + (y % 100 === 0 ? 20 : 14) + '" y2="' + wy(y, v) + '" stroke="#55658a" stroke-width="1"></line>');
+        if (y % 100 === 0 && y > 0) g.push('<text class="stage-label-dim" x="23" y="' + (wy(y, v) + 4) + '">' + y + "</text>");
+      }
+      g.push('<text class="stage-label-dim" x="6" y="16">b/fm</text>');
+      g.push('<g id="launchMarker"><circle cx="' + wx(-366, v) + '" cy="' + wy(state.b, v) + '" r="8" fill="rgba(94,234,212,0.2)"></circle><circle cx="' + wx(-366, v) + '" cy="' + wy(state.b, v) + '" r="4" fill="var(--sim-alpha)"></circle><text class="stage-label" x="' + wx(-356, v) + '" y="' + (wy(state.b, v) + 4) + '" fill="var(--sim-alpha)">b=' + fmt(state.b) + " fm</text></g>");
+      el.ruler.innerHTML = g.join("");
+    }
+    function updateLaunchMarker() {
+      if (state.mode !== "single" || state.model !== "nuclear") return;
+      const v = VIEWS.near;
+      const marker = el.ruler.querySelector("#launchMarker");
+      if (!marker) return;
+      const c = marker.querySelectorAll("circle");
+      const tx = marker.querySelectorAll("text");
+      if (c.length === 2) { c[0].setAttribute("cy", wy(state.b, v)); c[1].setAttribute("cy", wy(state.b, v)); }
+      if (tx.length === 1) { tx[0].setAttribute("y", wy(state.b, v) + 4); tx[0].textContent = "b=" + fmt(state.b) + " fm"; }
+    }
+
+    function svgPointFromEvent(evt) {
+      const rect = el.scene.getBoundingClientRect();
+      const sc = Math.min(rect.width / 760, rect.height / 460);
+      const ox = (rect.width - 760 * sc) / 2, oy = (rect.height - 460 * sc) / 2;
+      return { x: (evt.clientX - rect.left - ox) / sc, y: (evt.clientY - rect.top - oy) / sc };
+    }
+    let dragging = false;
+    el.scene.addEventListener("pointerdown", function (evt) {
+      if (state.mode !== "single" || state.model !== "nuclear" || state.running) return;
+      const pt = svgPointFromEvent(evt);
+      if (pt.x > 52 || pt.y < 8 || pt.y > 452) return;
+      dragging = true;
+      el.scene.setPointerCapture(evt.pointerId);
+      evt.preventDefault();
+    });
+    el.scene.addEventListener("pointermove", function (evt) {
+      if (!dragging) return;
+      const pt = svgPointFromEvent(evt);
+      const v = VIEWS.near;
+      const nb = Math.max(0, Math.min(200, (v.cy - pt.y) / v.scale));
+      setParameters({ b: nb });
+    });
+    function endDrag() { dragging = false; }
+    el.scene.addEventListener("pointerup", endDrag);
+    el.scene.addEventListener("pointercancel", endDrag);
+
+    // ---------- trails / flashes / ghost ----------
+    function trailPolyline(traj, uptoS, v, width, opacity) {
+      let pts = "";
+      const sMax = uptoS === null ? Infinity : uptoS;
+      for (let i = 0; i < traj.samples.length; i += 1) {
+        const sp = traj.samples[i];
+        if (sp.s > sMax) break;
+        pts += wx(sp.x, v).toFixed(1) + "," + wy(sp.y, v).toFixed(1) + " ";
+      }
+      return pts.trim();
+    }
+    function rebuildTrails() {
+      const v = view();
+      const g = [];
+      for (let i = 0; i < state.trails.length; i += 1) {
+        const tr = state.trails[i].traj;
+        const kind = state.trails[i].kind;
+        const w = state.mode === "beam" ? (kind === "back" ? 2 : 1) : (kind === "back" ? 2.6 : 2);
+        const op = state.mode === "beam" ? 0.5 : 0.62;
+        g.push('<polyline points="' + trailPolyline(tr, null, v) + '" fill="none" stroke="' + kindColor(kind) + '" stroke-width="' + w + '" opacity="' + op + '" stroke-linejoin="round"></polyline>');
+      }
+      el.trails.innerHTML = g.join("");
+    }
+    function rebuildFlashes() {
+      const v = view();
+      const g = [];
+      for (let i = 0; i < state.flashes.length; i += 1) {
+        const f = state.flashes[i];
+        const px = wx(f.x, v), py = wy(f.y, v);
+        const r = f.kind === "back" ? 5.5 : 3.6;
+        g.push('<circle cx="' + px + '" cy="' + py + '" r="' + (r * 2.2) + '" fill="' + kindColor(f.kind) + '" opacity="0.18"></circle>');
+        g.push('<circle cx="' + px + '" cy="' + py + '" r="' + r + '" fill="' + kindColor(f.kind) + '"></circle>');
+        if (f.kind === "back" && f.label) g.push('<text class="stage-label" x="' + (px + 10) + '" y="' + (py - 8) + '" fill="var(--sim-back)">' + f.label + "</text>");
+      }
+      el.flashes.innerHTML = g.join("");
+    }
+    function updateGhost() {
+      if (state.mode !== "single" || state.running) { state.ghost = null; el.ghost.innerHTML = ""; return; }
+      const traj = AK.integratePath(state.b, state.model, { spacing: 5 });
+      state.ghost = traj;
+      const v = view();
+      const kind = AK.classify(traj.thetaDeg);
+      const g = [];
+      g.push('<polyline points="' + trailPolyline(traj, null, v) + '" fill="none" stroke="' + kindColor(kind) + '" stroke-width="1.6" opacity="0.4" stroke-dasharray="5 6"></polyline>');
+      const thRad = Math.abs(traj.thetaDeg) * Math.PI / 180;
+      const fr = v.ring;
+      g.push('<circle cx="' + wx(fr * Math.cos(thRad), v) + '" cy="' + wy(fr * Math.sin(thRad), v) + '" r="4" fill="none" stroke="' + kindColor(kind) + '" stroke-width="1.4" opacity="0.7"></circle>');
+      el.ghost.innerHTML = g.join("");
+      state.lastResult = traj;
+    }
+
+    // ---------- chart ----------
+    let chartCache = { domain: -1, nuclear: [], plum: [] };
+    function chartXY(b, tDeg, dom) {
+      const L = 40, R = 8, T = 12, B = 26;
+      const W = 340 - L - R, H = 196 - T - B;
+      const x = L + (b / dom) * W;
+      const y = T + (1 - Math.min(tDeg, 180) / 180) * H;
+      return [x, y];
+    }
+    function buildChart() {
+      const dom = state.mode === "single" ? 200 : BEAM_BMAX;
+      if (chartCache.domain !== dom) {
+        const nu = [];
+        for (let i = 0; i <= 60; i += 1) {
+          const b = (dom * i) / 60;
+          nu.push({ b: b, thetaDeg: AK.nuclearThetaDeg(Math.max(b, 0.5)) });
+        }
+        nu[0].thetaDeg = 180;
+        chartCache = { domain: dom, nuclear: nu, plum: AK.plumCurve(dom) };
+      }
+      const g = [];
+      const L = 40;
+      // grid
+      for (let t = 0; t <= 180; t += 45) {
+        const y = chartXY(0, t, dom)[1];
+        g.push('<line x1="' + L + '" y1="' + y + '" x2="332" y2="' + y + '" stroke="var(--sim-grid)" stroke-width="1"></line>');
+        g.push('<text class="axis-label" x="' + (L - 6) + '" y="' + (y + 4) + '" text-anchor="end">' + t + "°</text>");
+      }
+      const xticks = dom === 200 ? [0, 50, 100, 150, 200] : [0, 325, 650, 975, 1300];
+      for (let i = 0; i < xticks.length; i += 1) {
+        const x = chartXY(xticks[i], 0, dom)[0];
+        g.push('<line x1="' + x + '" y1="12" x2="' + x + '" y2="170" stroke="var(--sim-grid)" stroke-width="1"></line>');
+        g.push('<text class="axis-label" x="' + x + '" y="184" text-anchor="middle">' + xticks[i] + "</text>");
+      }
+      g.push('<line class="axis" x1="' + L + '" y1="170" x2="332" y2="170"></line>');
+      g.push('<line class="axis" x1="' + L + '" y1="12" x2="' + L + '" y2="170"></line>');
+      g.push('<text class="axis-label" x="186" y="195" text-anchor="middle">瞄准距离 b (fm)</text>');
+      g.push('<text class="axis-label" x="12" y="8">θ(°)</text>');
+      // b90 guide
+      const bx = chartXY(B90, 0, dom)[0];
+      g.push('<line x1="' + bx + '" y1="12" x2="' + bx + '" y2="170" stroke="rgba(45,212,191,0.5)" stroke-width="1" stroke-dasharray="4 4"></line>');
+      g.push('<text class="axis-label" x="' + (bx + 3) + '" y="22" fill="rgba(45,212,191,0.85)">b₉₀</text>');
+      // curves
+      function curve(data, color, dash) {
+        let pts = "";
+        for (let i = 0; i < data.length; i += 1) {
+          const q = chartXY(data[i].b, data[i].thetaDeg, dom);
+          pts += q[0].toFixed(1) + "," + q[1].toFixed(1) + " ";
+        }
+        return '<polyline points="' + pts.trim() + '" fill="none" stroke="' + color + '" stroke-width="2" ' + (dash ? 'stroke-dasharray="1 0"' : "") + "></polyline>";
+      }
+      g.push(curve(chartCache.nuclear, "var(--sim-gold)"));
+      g.push(curve(chartCache.plum, "var(--sim-plum)"));
+      // measured dots
+      for (let i = 0; i < state.measured.length; i += 1) {
+        const m = state.measured[i];
+        if (m.b > dom) continue;
+        const q = chartXY(m.b, Math.abs(m.thetaDeg), dom);
+        g.push('<circle cx="' + q[0] + '" cy="' + q[1] + '" r="2.6" fill="' + (m.model === state.model ? "#ffffff" : "#8fa0bd") + '" opacity="' + (m.model === state.model ? 0.95 : 0.45) + '"></circle>');
+      }
+      // current b guide
+      if (state.mode === "single") {
+        const cxp = chartXY(state.b, 0, dom)[0];
+        g.push('<line x1="' + cxp + '" y1="12" x2="' + cxp + '" y2="170" stroke="rgba(233,239,251,0.25)" stroke-width="1"></line>');
+        const thNow = state.ghost ? Math.abs(state.ghost.thetaDeg) : (state.model === "nuclear" ? AK.nuclearThetaDeg(state.b) : 0);
+        const q = chartXY(state.b, thNow, dom);
+        g.push('<circle cx="' + q[0] + '" cy="' + q[1] + '" r="4" fill="none" stroke="#ffffff" stroke-width="1.6"></circle>');
+      }
+      // legend
+      g.push('<text x="196" y="24" font-size="10.5" fill="var(--sim-gold)">— 核式（卢瑟福公式）</text>');
+      g.push('<text x="196" y="38" font-size="10.5" fill="var(--sim-plum)">— 枣糕（数值积分）</text>');
+      g.push('<text x="196" y="52" font-size="10.5" fill="#c9d4e8">◦ 测量值</text>');
+      el.chart.innerHTML = g.join("");
+      el.chartDomain.textContent = "b：0–" + dom + " fm";
+    }
+
+    // ---------- lifecycle ----------
+    function init() {
+      bindControls();
+      buildStatic(); buildRuler(); buildChart(); updateGhost(); render();
+      requestAnimationFrame(frame);
+    }
+    function clearExperiment() {
+      state.active = []; state.beamTimer = 0; state.fired = 0;
+      state.tally = { straight: 0, mid: 0, back: 0 };
+      state.trails = []; state.flashes = []; state.measured = [];
+      state.phase = "ready"; state.running = false; state.lastTimestamp = null;
+      el.pauseBtn.disabled = true; el.pauseBtn.textContent = "暂停";
+      el.fireBtn.disabled = false;
+      el.trails.innerHTML = ""; el.flashes.innerHTML = ""; el.active.innerHTML = "";
+    }
+    function start() {
+      if (state.phase === "flying" || state.phase === "beaming") return;
+      // fresh experiment for this launch
+      state.trails = []; state.flashes = []; state.active = [];
+      state.beamTimer = 0; state.fired = 0;
+      state.tally = { straight: 0, mid: 0, back: 0 };
+      state.measured = [];
+      el.trails.innerHTML = ""; el.flashes.innerHTML = "";
+      state.running = true;
+      el.pauseBtn.disabled = false; el.pauseBtn.textContent = "暂停";
+      if (state.mode === "single") {
+        state.phase = "flying";
+        const traj = AK.integratePath(state.b, state.model, { spacing: 4 });
+        state.active = [{ traj: traj, sNow: REDUCED ? Infinity : 0, cursor: 0 }];
+        if (REDUCED) finishShot(0);
+      } else {
+        state.phase = "beaming";
+        if (REDUCED) {
+          for (let i = 0; i < BEAM_N; i += 1) fireNextBeam();
+          completeBeam();
+        }
+      }
+      render();
+    }
+    function pause() {
+      if (!state.running) return;
+      state.running = false;
+      el.pauseBtn.textContent = "继续";
+      setStatus("已暂停");
+    }
+    function resume() {
+      if (state.running || (state.phase !== "flying" && state.phase !== "beaming")) return;
+      state.running = true;
+      el.pauseBtn.textContent = "暂停";
+      setStatus(state.mode === "single" ? "发射中" : "发射中");
+    }
+    function reset() {
+      clearExperiment();
+      updateGhost(); buildChart();
+      setStatus("就绪");
+      render();
+    }
+    function landShot(shot, idx) {
+      const traj = shot.traj;
+      const kind = AK.classify(traj.thetaDeg);
+      state.tally[kind] += 1;
+      state.trails.push({ traj: traj, kind: kind });
+      if (state.trails.length > (state.mode === "beam" ? BEAM_N : 12)) state.trails.shift();
+      // Angular screen: the flash is placed at polar angle = measured deflection
+      // angle (the far-screen projection), not at the literal ring-crossing point.
+      const thDeg = Math.abs(traj.thetaDeg);
+      const thRad = thDeg * Math.PI / 180;
+      const rr = view().ring;
+      const fl = { x: rr * Math.cos(thRad), y: rr * Math.sin(thRad), angleDeg: thDeg, kind: kind, label: null };
+      if (state.mode === "single") fl.label = (kind === "back" ? "反弹 " : "θ=") + thDeg.toFixed(1) + "°";
+      state.flashes.push(fl);
+      state.measured.push({ b: Math.abs(traj.b), thetaDeg: traj.thetaDeg, model: traj.model });
+      if (state.mode === "single") {
+        state.fired = state.tally.straight + state.tally.mid + state.tally.back;
+        state.phase = "done";
+        state.running = false;
+        state.lastTimestamp = null;
+        el.pauseBtn.disabled = true; el.pauseBtn.textContent = "暂停";
+      }
+    }
+    function finishShot(idx) {
+      const shot = state.active[idx];
+      if (!shot) return;
+      landShot(shot, idx);
+      state.active.splice(idx, 1);
+      rebuildTrails(); rebuildFlashes(); buildChart(); renderReadouts(); renderInsight();
+    }
+    function fireNextBeam() {
+      const plan = AK.beamPlan(BEAM_N, BEAM_BMAX);
+      if (state.fired >= BEAM_N) return;
+      const b = plan[state.fired];
+      const traj = AK.integratePath(b, state.model, { spacing: 22 });
+      state.active.push({ traj: traj, sNow: REDUCED ? Infinity : 0, cursor: 0 });
+      state.fired += 1;
+      if (REDUCED) {
+        for (let i = state.active.length - 1; i >= 0; i -= 1) {
+          if (state.active[i].traj === traj) { finishShot(i); break; }
+        }
+      }
+    }
+    function completeBeam() {
+      state.phase = "done"; state.running = false; state.lastTimestamp = null;
+      el.pauseBtn.disabled = true; el.pauseBtn.textContent = "暂停";
+      state.beamResults[state.model] = {
+        straight: state.tally.straight, mid: state.tally.mid, back: state.tally.back
+      };
+      renderCompare(); renderReadouts(); renderInsight();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = Math.min(Math.max(dt || 0, 0), 0.05) * state.speed;
+      if (state.phase === "beaming") {
+        state.beamTimer += bounded;
+        while (state.beamTimer >= BEAM_STAGGER && state.fired < BEAM_N) {
+          state.beamTimer -= BEAM_STAGGER;
+          fireNextBeam();
+        }
+        if (state.fired >= BEAM_N && state.active.length === 0) {
+          completeBeam();
+        }
+      }
+      const rate = state.mode === "single" ? FLIGHT_RATE_SINGLE : FLIGHT_RATE_BEAM;
+      for (let i = state.active.length - 1; i >= 0; i -= 1) {
+        const shot = state.active[i];
+        shot.sNow += bounded * rate;
+        if (shot.sNow >= shot.traj.samples[shot.traj.samples.length - 1].s) { finishShot(i); }
+      }
+      renderActive();
+    }
+    function renderActive() {
+      const v = view();
+      const g = [];
+      for (let i = 0; i < state.active.length; i += 1) {
+        const shot = state.active[i];
+        const traj = shot.traj;
+        const kind = AK.classify(traj.thetaDeg);
+        const w = state.mode === "beam" ? 1.6 : 2.4;
+        g.push('<polyline points="' + trailPolyline(traj, shot.sNow, v) + '" fill="none" stroke="' + kindColor(kind) + '" stroke-width="' + w + '" opacity="0.95" stroke-linejoin="round"></polyline>');
+        // head
+        let hx = null, hy = null;
+        for (let j = shot.cursor || 0; j < traj.samples.length; j += 1) {
+          if (traj.samples[j].s <= shot.sNow) { hx = traj.samples[j].x; hy = traj.samples[j].y; shot.cursor = j; }
+          else break;
+        }
+        if (hx !== null) {
+          g.push('<circle cx="' + wx(hx, v) + '" cy="' + wy(hy, v) + '" r="7" fill="' + kindColor(kind) + '" opacity="0.25"></circle>');
+          g.push('<circle cx="' + wx(hx, v) + '" cy="' + wy(hy, v) + '" r="3.4" fill="#ffffff"></circle>');
+        }
+      }
+      el.active.innerHTML = g.join("");
+    }
+    function setParameters(values) {
+      if (values && values.b !== undefined) {
+        const nb = Math.round(Math.max(0, Math.min(200, Number(values.b) || 0)) * 2) / 2;
+        if (nb !== state.b) {
+          state.b = nb;
+          el.bInput.value = String(nb);
+          updateLaunchMarker();
+          if (state.phase !== "flying" && state.phase !== "beaming") { updateGhost(); buildChart(); }
+        }
+      }
+      if (values && values.speed !== undefined) {
+        state.speed = Number(values.speed) || 1;
+        el.speedOutput.textContent = state.speed + "×";
+      }
+      renderReadouts();
+    }
+    function getState() {
+      return {
+        model: state.model, mode: state.mode, b: state.b, speed: state.speed,
+        running: state.running, phase: state.phase, fired: state.fired,
+        tally: { straight: state.tally.straight, mid: state.tally.mid, back: state.tally.back },
+        trailCount: state.trails.length, flashCount: state.flashes.length,
+        beamResults: { nuclear: state.beamResults.nuclear, plum: state.beamResults.plum }
+      };
+    }
+    function getReadouts() {
+      return {
+        b: state.b, model: state.model, mode: state.mode,
+        thetaDeg: state.ghost ? state.ghost.thetaDeg : (state.lastResult ? state.lastResult.thetaDeg : null),
+        rMin: state.ghost ? state.ghost.rMin : null,
+        fired: state.fired, tally: state.tally
+      };
+    }
+    function setStatus(txt) { el.status.textContent = txt; }
+    function renderReadouts() {
+      el.bReadout.textContent = fmt(state.b) + " fm";
+      el.bOutput.textContent = fmt(state.b) + " fm";
+      const shot = state.lastResult;
+      if (state.mode === "single" && shot) {
+        el.thetaReadout.textContent = fmt(Math.abs(shot.thetaDeg)) + "°";
+        el.rminReadout.textContent = shot.rMin.toFixed(1) + " fm";
+      } else if (state.mode === "single") {
+        el.thetaReadout.textContent = "—"; el.rminReadout.textContent = "—";
+      }
+      el.firedLabel.textContent = state.mode === "beam" ? "已发射 / 60" : "累计发射";
+      el.firedReadout.textContent = state.mode === "beam" ? state.fired : (state.tally.straight + state.tally.mid + state.tally.back);
+      el.straightCount.textContent = state.tally.straight;
+      el.midCount.textContent = state.tally.mid;
+      el.backCount.textContent = state.tally.back;
+      el.bInput.disabled = state.mode === "beam";
+    }
+    function renderCompare() {
+      const fmtR = function (r) {
+        if (!r) return "未运行";
+        const tot = r.straight + r.mid + r.back;
+        return r.straight + " 直穿 / " + r.mid + " 偏转 / " + r.back + " 反弹（" + tot + " 发）";
+      };
+      el.compareNuclear.textContent = fmtR(state.beamResults.nuclear);
+      el.comparePlum.textContent = fmtR(state.beamResults.plum);
+    }
+    function renderInsight() {
+      const pct = function (n) { return Math.round((n / BEAM_N) * 100); };
+      let txt;
+      if (state.mode === "single") {
+        const shot = state.lastResult;
+        const th = shot ? Math.abs(shot.thetaDeg) : null;
+        if (state.model === "nuclear" && shot) {
+          if (state.b < 1) txt = "正对命中原子核：θ=180°，α 粒子原路弹回——就像“炮弹被一张纸弹回来”。只有正电荷集中到极小的核上才可能如此。";
+          else if (state.b <= B90) txt = "b=" + fmt(state.b) + " fm 已小于临界值 b₉₀≈" + B90.toFixed(1) + " fm → θ=" + fmt(th) + "° ≥ 90°，α 被“弹回”。继续增大 b 观察 θ 如何骤减。";
+          else txt = "b=" + fmt(state.b) + " fm > b₉₀≈" + B90.toFixed(1) + " fm → θ=" + fmt(th) + "° < 90°。θ 随 b 减小急剧增大（tan(θ/2) ∝ 1/b）。";
+        } else if (state.model === "plum" && shot) {
+          txt = state.b < 1
+            ? "正对射入枣糕原子：α 直接穿过（θ≈" + fmt(th, 1) + "°），最多被减速，绝不可能反弹。"
+            : "同样 b=" + fmt(state.b) + " fm，枣糕模型只偏转 θ=" + fmt(th) + "°：正电荷摊薄在整个原子里的斥力太弱，永远弹不回 α 粒子。";
+        } else txt = "拖动左侧标尺或滑块选择瞄准距离 b，按「发射」射出一颗 α 粒子。";
+      } else if (state.phase === "beaming") {
+        txt = "已发射 " + state.fired + "/" + BEAM_N + " 发：" + state.tally.straight + " 直穿 / " + state.tally.mid + " 偏转 / " + state.tally.back + " 反弹……注意荧光屏上闪光的角度分布。";
+      } else if (state.phase === "done") {
+        const t = state.tally;
+        if (state.model === "nuclear") {
+          txt = BEAM_N + " 发统计：" + t.straight + " 直穿（" + pct(t.straight) + "%）、" + t.mid + " 发偏转、" + t.back + " 发反弹（≥90°）。绝大多数直穿 ⇒ 原子内部几乎全空；偶发反弹 ⇒ 正电荷与质量集中在极小的核里——这正是卢瑟福 1911 年提出核式结构的证据。";
+        } else {
+          txt = "枣糕模型同样打 " + BEAM_N + " 发：全部 θ<10°，没有一发反弹。枣糕模型无法解释盖革–马斯登实验中的大角散射——必须放弃，换核式结构。";
+        }
+      } else {
+        txt = "按「发射整束」：60 颗 α 粒子依次射向金箔，观察荧光屏上“绝大多数直穿、偶尔反弹”的统计图景。";
+      }
+      el.insight.textContent = txt;
+    }
+    function render() {
+      el.viewLabel.textContent = view().label;
+      renderReadouts(); renderCompare(); renderInsight(); renderActive();
+      el.fireBtn.textContent = state.mode === "single" ? "发射 α 粒子" : "发射整束（60 发）";
+    }
+    function bindControls() {
+      el.fireBtn.addEventListener("click", start);
+      el.pauseBtn.addEventListener("click", function () { if (state.running) pause(); else resume(); });
+      el.resetBtn.addEventListener("click", reset);
+      el.bInput.addEventListener("input", function () { setParameters({ b: el.bInput.value }); });
+      el.speedInput.addEventListener("change", function () { setParameters({ speed: el.speedInput.value }); });
+      el.modelNuclearBtn.addEventListener("click", function () { setModel("nuclear"); });
+      el.modelPlumBtn.addEventListener("click", function () { setModel("plum"); });
+      el.modeSingleBtn.addEventListener("click", function () { setMode("single"); });
+      el.modeBeamBtn.addEventListener("click", function () { setMode("beam"); });
+    }
+    function setModel(m) {
+      if (state.model === m) return;
+      state.model = m;
+      el.modelNuclearBtn.setAttribute("aria-pressed", m === "nuclear" ? "true" : "false");
+      el.modelPlumBtn.setAttribute("aria-pressed", m === "plum" ? "true" : "false");
+      clearExperiment(); buildStatic(); buildRuler(); updateGhost(); buildChart();
+      setStatus("已切换：" + (m === "nuclear" ? "核式（卢瑟福）" : "枣糕（汤姆孙）"));
+      render();
+    }
+    function setMode(m) {
+      if (state.mode === m) return;
+      state.mode = m;
+      el.modeSingleBtn.setAttribute("aria-pressed", m === "single" ? "true" : "false");
+      el.modeBeamBtn.setAttribute("aria-pressed", m === "beam" ? "true" : "false");
+      clearExperiment(); buildStatic(); buildRuler(); updateGhost(); buildChart();
+      setStatus(m === "single" ? "单粒子实验" : "整束统计实验");
+      render();
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      if (state.running) {
+        update(dt);
+        setStatus(state.phase === "done" ? "已完成" : (state.mode === "single" ? "发射中" : "发射中 " + state.fired + "/" + BEAM_N));
+        if (state.phase === "done") { renderReadouts(); renderInsight(); }
+      }
+      requestAnimationFrame(frame);
+    }
+    window.AlphaKernel = AK;
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: AK.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

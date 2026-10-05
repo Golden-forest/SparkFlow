@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小灯泡（3V）伏安特性曲线 · 分压接法仿真</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#e8edf4;color:#1c2733}
+  header{background:#123152;color:#fff;padding:14px 22px}
+  header h1{margin:0;font-size:19px}
+  header p{margin:4px 0 0;font-size:12.5px;color:#b9cbe2}
+  main{display:grid;grid-template-columns:7fr 5fr;gap:14px;padding:14px;max-width:1300px;margin:0 auto}
+  .col{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .panel{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(20,40,70,.08);padding:14px}
+  .panel h2{margin:0 0 10px;font-size:15px;color:#123152;border-left:4px solid #2f7de1;padding-left:8px}
+  #circuitWrap{background:#0e2033;border-radius:10px;padding:6px}
+  svg{display:block;width:100%;height:auto}
+  /* 仪表 */
+  .meters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+  .lcd{background:#0b1f16;border:2px solid #1e3a2c;border-radius:8px;padding:6px 8px;text-align:center}
+  .lcd .t{font-size:11px;color:#7ecf9d}
+  .lcd .v{font-family:"SF Mono",Consolas,monospace;font-size:20px;color:#5cf2a2;text-align:right;letter-spacing:1px}
+  .lcd .u{font-size:12px;color:#5cf2a2;display:inline}
+  .ptext{font-size:12px;color:#4a5b6e;margin:-6px 0 10px}
+  /* 控件 */
+  .ctl-row{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  label.big{font-size:14px;font-weight:600;white-space:nowrap}
+  input[type=range]{flex:1;min-width:160px;accent-color:#2f7de1;height:26px}
+  #uVal{font-family:Consolas,monospace;font-weight:700;color:#2f7de1;min-width:74px}
+  .btn{border:0;border-radius:8px;padding:8px 14px;font-size:13.5px;cursor:pointer;background:#e3ebf5;color:#123152;transition:.15s}
+  .btn:hover{filter:brightness(.95)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:#2f7de1;color:#fff}
+  .btn.rec{background:#e5484d;color:#fff}
+  .btn.scan{background:#2e9e5b;color:#fff}
+  .btn.scan.stop{background:#c9353a}
+  .btn.ghost{background:#f0f3f8}
+  select{padding:6px 8px;border-radius:6px;border:1px solid #c6d2e0;font-size:13px}
+  .hint{font-size:12px;color:#8a6a00;background:#fff7dc;border:1px solid #f0e0a0;border-radius:6px;padding:6px 8px;margin-top:8px}
+  /* 表格 */
+  .tbl-box{max-height:250px;overflow:auto;border:1px solid #e0e7f0;border-radius:8px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th{position:sticky;top:0;background:#123152;color:#fff;padding:6px;font-weight:600}
+  td{padding:5px 6px;text-align:center;border-bottom:1px solid #eef2f7;font-family:Consolas,monospace}
+  tr.bulb td:nth-child(2){color:#e5484d}
+  tr.res td:nth-child(2){color:#2f7de1}
+  tbody tr:last-child{background:#fff3d6}
+  .legend{display:flex;gap:16px;font-size:12px;color:#42536b;margin-top:8px;flex-wrap:wrap}
+  .chip{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:4px}
+  .notes ul{margin:6px 0;padding-left:20px;font-size:13px;line-height:1.75;color:#33475e}
+  .notes b{color:#123152}
+  canvas{width:100%;display:block}
+  footer{text-align:center;font-size:11.5px;color:#8494a8;padding:6px 0 16px}
+  @media(max-width:980px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔬 小灯泡（额定 3 V）伏安特性曲线测量仿真</h1>
+  <p>电源 + 滑动变阻器（分压接法，输出 0 → 3.5 V 连续可调）+ 小灯泡 / 定值电阻 + 电压表（并联）+ 电流表（串联）</p>
+</header>
+
+<main>
+  <!-- 左列 -->
+  <div class="col">
+    <div class="panel">
+      <h2>电路图（分压接法 · 电流表外接）</h2>
+      <div id="circuitWrap">
+      <svg id="cir" viewBox="0 0 640 400" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="blur8" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="9"/>
+          </filter>
+        </defs>
+        <!-- 电流流动动画层（最先画，位于元件之下） -->
+        <path id="flow" fill="none" stroke="#ffd34d" stroke-width="3.4" stroke-linecap="round"
+              stroke-dasharray="4 17" opacity="0"/>
+        <!-- 静态导线 -->
+        <g fill="none" stroke="#7fa6c9" stroke-width="2.6" stroke-linecap="round">
+          <path d="M 90 300 L 90 355 L 148 355"/>
+          <path d="M 166 355 L 550 355 L 550 300"/>
+          <path d="M 90 300 L 220 300"/>
+          <path d="M 420 300 L 550 300"/>
+          <path d="M 320 178 L 320 120 L 380 120"/>
+          <path d="M 450 120 L 550 120 L 550 300"/>
+          <path d="M 380 120 L 380 52 L 397 52"/>
+          <path d="M 450 120 L 450 52 L 433 52"/>
+        </g>
+        <!-- 电池 -->
+        <g stroke="#dce9f5" stroke-width="3.4" stroke-linecap="round">
+          <line x1="151" y1="338" x2="151" y2="372"/>
+          <line x1="163" y1="348" x2="163" y2="362" stroke-width="5"/>
+        </g>
+        <text x="139" y="334" fill="#ffd34d" font-size="15" font-weight="bold">+</text>
+        <text x="128" y="392" fill="#9fc3e8" font-size="13" text-anchor="middle">电源 E = 3.5 V</text>
+        <!-- 滑动变阻器 -->
+        <rect x="220" y="286" width="200" height="28" rx="4" fill="#132a42" stroke="#9fc3e8" stroke-width="2"/>
+        <path id="zig" fill="none" stroke="#9fc3e8" stroke-width="2.2"/>
+        <g id="sliderG">
+          <line x1="420" y1="246" x2="420" y2="282" stroke="#ffd34d" stroke-width="3.4"/>
+          <path d="M 414 278 L 426 278 L 420 290 Z" fill="#ffd34d"/>
+          <line x1="406" y1="246" x2="434" y2="246" stroke="#ffd34d" stroke-width="4" stroke-linecap="round"/>
+        </g>
+        <path id="tapWire" fill="none" stroke="#7fa6c9" stroke-width="2.6"/>
+        <text x="320" y="337" fill="#9fc3e8" font-size="13" text-anchor="middle">滑动变阻器（分压接法，滑片左移输出增大）</text>
+        <text x="76" y="290" fill="#8fb3d9" font-size="13">a</text>
+        <text x="558" y="290" fill="#8fb3d9" font-size="13">b</text>
+        <!-- 电流表 -->
+        <circle cx="320" cy="196" r="18" fill="#0d1b2a" stroke="#9fc3e8" stroke-width="2.4"/>
+        <text x="320" y="202" fill="#5cf2a2" font-size="17" font-weight="bold" text-anchor="middle">A</text>
+        <text x="292" y="201" fill="#9fc3e8" font-size="12.5" text-anchor="end">电流表</text>
+        <!-- 电压表 -->
+        <circle cx="415" cy="52" r="18" fill="#0d1b2a" stroke="#9fc3e8" stroke-width="2.4"/>
+        <text x="415" y="58" fill="#5cf2a2" font-size="17" font-weight="bold" text-anchor="middle">V</text>
+        <text x="415" y="22" fill="#9fc3e8" font-size="12.5" text-anchor="middle">电压表</text>
+        <!-- 小灯泡（含辉光） -->
+        <g id="bulbG">
+          <circle id="glowOuter" cx="415" cy="120" r="52" fill="#ff9a3d" filter="url(#blur8)" opacity="0"/>
+          <circle id="bulbGlass" cx="415" cy="120" r="26" fill="#132a42" stroke="#b9d4ea" stroke-width="2.2"/>
+          <path id="filament" d="M 400 105 L 430 135 M 430 105 L 400 135" fill="none"
+                stroke="#3a2018" stroke-width="3.4" stroke-linecap="round"/>
+          <text x="415" y="170" fill="#9fc3e8" font-size="13" text-anchor="middle">小灯泡（3 V）</text>
+        </g>
+        <!-- 定值电阻 -->
+        <g id="resG" style="display:none">
+          <path d="M 380 120 L 385 109 L 395 131 L 405 109 L 415 131 L 425 109 L 435 131 L 445 109 L 450 120"
+                fill="none" stroke="#9fc3e8" stroke-width="3"/>
+          <text x="415" y="98" fill="#9fc3e8" font-size="13" text-anchor="middle">定值电阻 R = 10 Ω</text>
+        </g>
+        <!-- 节点 -->
+        <g fill="#dce9f5">
+          <circle cx="550" cy="300" r="4.5"/>
+          <circle cx="380" cy="120" r="4"/>
+          <circle cx="450" cy="120" r="4"/>
+        </g>
+      </svg>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>U–I 特性曲线（同屏对比）</h2>
+      <canvas id="graph"></canvas>
+      <div class="legend">
+        <span><span class="chip" style="background:#e5484d"></span>灯泡数据点（曲线弯曲）</span>
+        <span><span class="chip" style="background:#2f7de1"></span>定值电阻数据点</span>
+        <span><span class="chip" style="background:#2f7de1;opacity:.45;height:0;border-top:2px dashed #2f7de1;background:none"></span>参考直线 R = 10 Ω（过原点）</span>
+        <span><span class="chip" style="background:none;border:2px solid #888;height:8px"></span>当前实时读数</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右列 -->
+  <div class="col">
+    <div class="panel">
+      <h2>控制与读数</h2>
+      <div class="meters">
+        <div class="lcd"><div class="t">电压表 U</div><div class="v"><span id="mU">0.00</span><span class="u"> V</span></div></div>
+        <div class="lcd"><div class="t">电流表 I</div><div class="v"><span id="mI">0.000</span><span class="u"> A</span></div></div>
+        <div class="lcd"><div class="t">R = U/I</div><div class="v"><span id="mR">—</span><span class="u"> Ω</span></div></div>
+        <div class="lcd"><div class="t">灯丝温度</div><div class="v"><span id="mT">25</span><span class="u"> ℃</span></div></div>
+      </div>
+      <p class="ptext">实际功率 P = U·I = <b id="mP">0.00</b> W　｜　当前器件：<b id="mDev" style="color:#e5484d">小灯泡</b></p>
+
+      <div class="ctl-row">
+        <label class="big" for="uSlider">分压输出 U</label>
+        <input type="range" id="uSlider" min="0" max="3.5" step="0.01" value="0">
+        <span id="uVal">0.00 V</span>
+      </div>
+      <div class="ctl-row">
+        <button class="btn rec" id="btnRec">📋 记录数据点</button>
+        <button class="btn ghost" id="btnUndo">↩ 删除上一条</button>
+      </div>
+      <div class="ctl-row">
+        <button class="btn scan" id="btnScan">▶ 自动扫描（0 → 3.5 V）</button>
+        <select id="scanSpeed" title="扫描速度">
+          <option value="0.12">慢速</option>
+          <option value="0.25" selected>中速</option>
+          <option value="0.5">快速</option>
+        </select>
+      </div>
+      <div class="ctl-row">
+        <button class="btn primary" id="btnDev">🔄 换成定值电阻（10 Ω）</button>
+        <button class="btn ghost" id="btnClear">🗑 清空数据</button>
+      </div>
+      <div class="hint" id="hint">💡 调节 U 后请稍等 1~2 秒再记录：灯丝有热惯性，电阻随温度逐渐变化。自动扫描会从 0 V 匀速升到 3.5 V，每 0.25 V 自动记录一点。</div>
+    </div>
+
+    <div class="panel">
+      <h2>数据记录表</h2>
+      <div class="tbl-box">
+        <table id="tbl">
+          <thead><tr><th>序号</th><th>器件</th><th>U / V</th><th>I / A</th><th>R = U/I / Ω</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel notes">
+      <h2>教学要点</h2>
+      <ul>
+        <li><b>分压接法：</b>负载接在滑片与一端之间，与滑变部分并联分压，输出电压可从 <b>0 连续调到电源电压</b>（限流接法无法从零调起）。本电路滑片移到 b 端时 U = 0。</li>
+        <li><b>每一点都满足欧姆定律：</b>任一数据点均有 U = I·R；非线性并非"不满足 U=IR"，而是因为 <b>不同点的 R 本身在变</b>（看 R 列从约 1.5 Ω 增大到约 11 Ω）。</li>
+        <li><b>非线性的来源：</b>低压段 P=UI 很小，灯丝升温不明显，R ≈ 冷阻，曲线起始段较陡；电压升高后功率增大、灯丝温度急剧上升，金属电阻率随温度升高而增大，R 变大，曲线越来越向 U 轴弯曲（斜率 1/R 减小）。</li>
+        <li><b>对照实验：</b>定值电阻温度系数影响可忽略，R 恒为 10 Ω，U–I 图线是<b>过原点的直线</b>；灯泡曲线从直线<strong>下方</strong>逐渐偏离。</li>
+        <li><b>电表接法：</b>灯泡电阻较小，采用<b>电流表外接</b>（电流表串入、电压表并在灯泡两端），电压表分流带来的误差小。</li>
+      </ul>
+    </div>
+  </div>
+</main>
+<footer>仿真模型：R(T) = R₀[1+αΔT]，稳态温升 ΔT ∝ P^0.75，热时间常数约 0.35 s（体现升温惯性）</footer>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+/* ---------- 物理模型 ---------- */
+const E=3.5, T0=25, R0=1.5, ALPHA=0.005, K=1190, GAMMA=0.75, TAU=0.35, RFIX=10;
+const TMAX=T0+1300; // 用于亮度归一
+function bulbSteady(U){ // 自洽求稳态（记录/目标温度用）
+  let R=R0;
+  for(let k=0;k<60;k++){
+    const P=U*U/Math.max(R,.01);
+    const dT=K*Math.pow(Math.max(P,0),GAMMA);
+    R=R+0.5*(R0*(1+ALPHA*dT)-R); // 阻尼迭代保证收敛
+  }
+  const P=U*U/R, dT=K*Math.pow(Math.max(P,0),GAMMA);
+  return {R:I2R(R),I:U/R,P,T:T0+dT};
+  function I2R(r){return r}
+}
+/* ---------- 状态 ---------- */
+const st={mode:'bulb',U:0,T:T0,rows:[],scan:{on:false,next:0}};
+let flowOff=0;
+/* ---------- 画布 ---------- */
+const cv=$('graph'),ctx=cv.getContext('2d');
+function fitCanvas(){const w=cv.clientWidth||560,dpr=window.devicePixelRatio||1;
+  cv.width=w*dpr;cv.height=w*0.72*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+window.addEventListener('resize',fitCanvas);
+/* ---------- 滑变器滑片 ---------- */
+const zig=$('zig');{let d='M 224 300';for(let i=0;i<12;i++){d+=` L ${232+16*i} ${i%2?312:288}`}d+=' L 416 300';zig.setAttribute('d',d);}
+const sliderG=$('sliderG'),tapWire=$('tapWire'),flow=$('flow');
+function sxOf(U){return 420-(U/E)*200} // U=0 滑片在 b 端(右)，U=3.5 在 a 端(左)
+function updateSliderSVG(){
+  const sx=sxOf(st.U), dx=sx-420;
+  sliderG.setAttribute('transform',`translate(${dx},0)`);
+  tapWire.setAttribute('d',`M ${sx} 246 L ${sx} 238 L 320 238 L 320 216`);
+  flow.setAttribute('d',`M 148 355 L 90 355 L 90 300 L ${sx} 300 L ${sx} 246 L 320 246 L 320 120 L 380 120 L 450 120 L 550 120 L 550 300 L 550 355 L 168 355`);
+}
+/* ---------- 灯泡辉光 ---------- */
+const glowOuter=$('glowOuter'),filament=$('filament'),glass=$('bulbGlass');
+const CSTOPS=[[0,[58,32,24]],[0.22,[150,30,18]],[0.5,[255,110,30]],[0.78,[255,190,100]],[1,[255,242,214]]];
+function tempColor(f){
+  f=Math.max(0,Math.min(1,f));
+  for(let i=1;i<CSTOPS.length;i++){
+    if(f<=CSTOPS[i][0]){const [t0,c0]=CSTOPS[i-1],[t1,c1]=CSTOPS[i],k=(f-t0)/(t1-t0);
+      return `rgb(${c0.map((v,j)=>Math.round(v+(c1[j]-v)*k)).join(',')})`;}
+  }
+  return 'rgb(255,242,214)';
+}
+function updateGlow(T){
+  const f=Math.max(0,Math.min(1,(T-T0)/(TMAX-T0)));
+  const c=tempColor(f), b=Math.pow(f,1.15);
+  filament.setAttribute('stroke',c);
+  glowOuter.setAttribute('fill','#ff9a3d');
+  glowOuter.setAttribute('opacity',(0.85*b).toFixed(3));
+  glowOuter.setAttribute('r',(30+44*b).toFixed(1));
+  glass.setAttribute('stroke',f>0.02?c:'#b9d4ea');
+  glass.setAttribute('stroke-opacity',String(0.5+0.5*b));
+}
+/* ---------- 数据与表格 ---------- */
+const tbody=$('tbody'),bulbPts=[],resPts=[];
+function addRow(dev,u,i){
+  const r=(i>1e-4)?u/i:null;
+  st.rows.push({dev,u,i,r});
+  (dev==='灯泡'?bulbPts:resPts).push({u,i});
+  const tr=document.createElement('tr');
+  tr.className=dev==='灯泡'?'bulb':'res';
+  tr.innerHTML=`<td>${st.rows.length}</td><td>${dev}</td><td>${u.toFixed(2)}</td><td>${i.toFixed(3)}</td><td>${r===null?'—':r.toFixed(2)}</td>`;
+  tbody.appendChild(tr);
+  tr.scrollIntoView({block:'nearest'});
+}
+function rebuild(){
+  tbody.innerHTML='';bulbPts.length=0;resPts.length=0;
+  st.rows.forEach((d,ix)=>{
+    (d.dev==='灯泡'?bulbPts:resPts).push({u:d.u,i:d.i});
+    const tr=document.createElement('tr');tr.className=d.dev==='灯泡'?'bulb':'res';
+    tr.innerHTML=`<td>${ix+1}</td><td>${d.dev}</td><td>${d.u.toFixed(2)}</td><td>${d.i.toFixed(3)}</td><td>${d.r===null?'—':d.r.toFixed(2)}</td>`;
+    tbody.appendChild(tr);});
+}
+/* ---------- U-I 图 ---------- */
+function drawGraph(liveU,liveI){
+  const W=cv.width/(window.devicePixelRatio||1),H=cv.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,W,H);
+  const L=52,R=W-16,Tp=16,B=H-42,XM=3.5,IM=0.4;
+  const X=u=>L+u/XM*(R-L), Y=i=>B-i/IM*(B-Tp);
+  ctx.font='11px system-ui';ctx.textAlign='center';
+  for(let u=0;u<=3.5+1e-9;u+=0.5){ // 竖网格
+    ctx.strokeStyle=u===0?'#5b6b80':'#e5ebf3';ctx.lineWidth=u===0?1.6:1;
+    ctx.beginPath();ctx.moveTo(X(u),Tp);ctx.lineTo(X(u),B);ctx.stroke();
+    ctx.fillStyle='#5b6b80';ctx.fillText(u.toFixed(1),X(u),B+15);
+  }
+  ctx.textAlign='right';
+  for(let i=0;i<=0.4+1e-9;i+=0.05){
+    ctx.strokeStyle=Math.abs(i)<1e-9?'#5b6b80':'#e5ebf3';ctx.lineWidth=Math.abs(i)<1e-9?1.6:1;
+    ctx.beginPath();ctx.moveTo(L,Y(i));ctx.lineTo(R,Y(i));ctx.stroke();
+    if(Math.round(i*1000)%100===0){ctx.fillStyle='#5b6b80';ctx.fillText(i.toFixed(2),L-6,Y(i)+4);}
+  }
+  ctx.fillStyle='#33475e';ctx.font='12.5px system-ui';
+  ctx.textAlign='right';ctx.fillText('I / A',L-6,Tp+2);
+  ctx.textAlign='left';ctx.fillText('U / V',R-38,B+32);
+  // 参考直线 R=10Ω
+  ctx.strokeStyle='#2f7de1';ctx.globalAlpha=.45;ctx.setLineDash([7,6]);ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(X(0),Y(0));ctx.lineTo(X(3.5),Y(0.35));ctx.stroke();
+  ctx.setLineDash([]);ctx.globalAlpha=1;
+  ctx.fillStyle='#2f7de1';ctx.font='11.5px system-ui';ctx.textAlign='left';
+  ctx.fillText('R=10Ω 直线',X(2.05),Y(0.28));
+  const plot=(pts,color,mark)=>{
+    if(!pts.length)return;
+    const s=[...pts].sort((a,b)=>a.u-b.u);
+    ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.beginPath();
+    s.forEach((p,k)=>k?ctx.lineTo(X(p.u),Y(p.i)):ctx.moveTo(X(p.u),Y(p.i)));
+    ctx.stroke();
+    s.forEach(p=>{ctx.fillStyle='#fff';ctx.strokeStyle=color;ctx.lineWidth=2;
+      if(mark==='s'){ctx.beginPath();ctx.rect(X(p.u)-3.4,Y(p.i)-3.4,6.8,6.8);ctx.fill();ctx.stroke();}
+      else{ctx.beginPath();ctx.arc(X(p.u),Y(p.i),3.8,0,7);ctx.fill();ctx.stroke();}});
+  };
+  plot(bulbPts,'#e5484d','c');
+  plot(resPts,'#2f7de1','s');
+  if(liveU>0.005||liveI>0.0005){ // 实时点
+    ctx.strokeStyle=st.mode==='bulb'?'#e5484d':'#2f7de1';ctx.lineWidth=2.4;
+    ctx.beginPath();ctx.arc(X(liveU),Y(liveI),7,0,7);ctx.stroke();
+    ctx.fillStyle=st.mode==='bulb'?'#e5484d':'#2f7de1';
+    ctx.beginPath();ctx.arc(X(liveU),Y(liveI),2.2,0,7);ctx.fill();
+  }
+}
+/* ---------- 交互 ---------- */
+const uSlider=$('uSlider'),uVal=$('uVal'),btnRec=$('btnRec'),btnScan=$('btnScan'),
+      btnDev=$('btnDev'),btnClear=$('btnClear'),btnUndo=$('btnUndo'),hint=$('hint');
+uSlider.addEventListener('input',()=>{if(!st.scan.on)st.U=parseFloat(uSlider.value)});
+const steadyI=U=>st.mode==='bulb'?bulbSteady(U).I:U/RFIX;
+btnRec.onclick=()=>{addRow(st.mode==='bulb'?'灯泡':'定值电阻',st.U,live.I)};
+btnUndo.onclick=()=>{if(!st.rows.length)return;st.rows.pop();rebuild();};
+btnClear.onclick=()=>{st.rows.length=0;rebuild();};
+btnDev.onclick=()=>{
+  if(st.scan.on)stopScan();
+  st.mode=st.mode==='bulb'?'res':'bulb';st.T=T0;
+  const bulb=st.mode==='bulb';
+  $('bulbG').style.display=bulb?'':'none';
+  $('resG').style.display=bulb?'none':'';
+  $('mDev').textContent=bulb?'小灯泡':'定值电阻';
+  $('mDev').style.color=bulb?'#e5484d':'#2f7de1';
+  btnDev.textContent=bulb?'🔄 换成定值电阻（10 Ω）':'🔄 换回小灯泡（3 V）';
+  hint.textContent=bulb?'💡 调节 U 后请稍等 1~2 秒再记录：灯丝有热惯性，电阻随温度逐渐变化。自动扫描会从 0 V 匀速升到 3.5 V，每 0.25 V 自动记录一点。'
+                       :'💡 定值电阻几乎不受温度影响，R 恒为 10 Ω——记录几点即可得到过原点的直线，与灯泡曲线形成对照。';
+};
+function startScan(){
+  st.scan.on=true;st.scan.next=0;st.U=0;st.T=T0;uSlider.value=0;
+  uSlider.disabled=true;btnRec.disabled=true;
+  btnScan.textContent='⏹ 停止扫描';btnScan.classList.add('stop');
+  addRow(st.mode==='bulb'?'灯泡':'定值电阻',0,steadyI(0)); // U=0 这一点
+  st.scan.next=0.25;
+}
+function stopScan(msg){
+  st.scan.on=false;uSlider.disabled=false;btnRec.disabled=false;
+  btnScan.textContent='▶ 自动扫描（0 → 3.5 V）';btnScan.classList.remove('stop');
+  if(msg)hint.textContent=msg;
+}
+btnScan.onclick=()=>{st.scan.on?stopScan('⏸ 扫描已手动停止。'):startScan();};
+/* ---------- 主循环 ---------- */
+const live={I:0};
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(st.scan.on){ // 自动扫描：匀速上升 + 每逢 0.25V 记录稳态值
+    st.U=Math.min(E,st.U+parseFloat($('scanSpeed').value)*dt);
+    uSlider.value=st.U;
+    while(st.scan.next<=st.U+1e-6&&st.scan.next<=E+1e-6){
+      const u=Math.min(st.scan.next,E);
+      addRow(st.mode==='bulb'?'灯泡':'定值电阻',u,steadyI(u));
+      st.scan.next+=0.25;
+    }
+    if(st.U>=E-1e-6&&st.scan.next>E)stopScan('✅ 自动扫描完成！观察曲线：灯泡弯曲、定值电阻为直线。');
+  }
+  let R,I;
+  if(st.mode==='bulb'){
+    R=R0*(1+ALPHA*(st.T-T0));I=st.U/R;              // 当前动态值
+    const Tss=bulbSteady(st.U).T;                    // 热平衡目标
+    st.T+=(Tss-st.T)*Math.min(1,dt/TAU);             // 热惯性
+  }else{R=RFIX;I=st.U/RFIX;}
+  live.I=I;
+  /* 仪表 */
+  $('mU').textContent=st.U.toFixed(2);
+  $('mI').textContent=I.toFixed(3);
+  $('mR').textContent=I>1e-4?(st.U/I).toFixed(2):'—';
+  $('mT').textContent=st.mode==='bulb'?Math.round(st.T):'—';
+  $('mP').textContent=(st.U*I).toFixed(2);
+  uVal.textContent=st.U.toFixed(2)+' V';
+  /* 电路动画 */
+  updateSliderSVG();
+  flow.setAttribute('opacity',I>0.002?'0.9':'0');
+  flowOff-=Math.min(130,I*200)*dt;
+  flow.setAttribute('stroke-dashoffset',flowOff.toFixed(1));
+  if(st.mode==='bulb')updateGlow(st.T);else glowOuter.setAttribute('opacity',0);
+  drawGraph(st.U,I);
+  requestAnimationFrame(frame);
+}
+fitCanvas();
+updateGlow(T0);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>简谐运动的图像演示 · 弹簧振子</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-var-x: #0f9fba;
+      --sim-var-v: #d97706;
+      --sim-var-a: #7c3aed;
+      --sim-ghost: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(124, 58, 237, 0.07), transparent 26%),
+        var(--sim-bg);
+      font-family: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.35); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); min-height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.45rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; max-width: 74ch; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; font-size: 0.92rem; }
+    .status.running { background: #dcf7ec; border-color: rgba(13,148,90,.25); color: #0c7a55; }
+    .status.idle { background: #eef2f7; border-color: var(--sim-border); color: var(--sim-muted); }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.06fr) minmax(430px, 0.94fr); gap: 12px; align-items: stretch; }
+    .left { min-width: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    .scene-panel { padding: 12px 14px 8px; }
+    #scene { width: 100%; height: auto; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 16px; background: linear-gradient(160deg, #fbfdff 0%, #f1f8fa 55%, #f9f6fd 100%); }
+
+    .readouts { padding: 10px 12px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    .metric { padding: 9px 12px 10px; border: 1px solid var(--sim-border); border-left-width: 4px; border-radius: 13px; background: linear-gradient(150deg, #fbfdfe, #f6f9fc); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.74rem; font-weight: 700; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric small b { font-weight: 800; }
+    .metric.mx { border-left-color: var(--sim-var-x); } .metric.mx small b { color: var(--sim-var-x); }
+    .metric.mv { border-left-color: var(--sim-var-v); } .metric.mv small b { color: #b45309; }
+    .metric.ma { border-left-color: var(--sim-var-a); } .metric.ma small b { color: #6d28d9; }
+    .metric em { font-style: normal; color: var(--sim-muted); font-size: 0.78rem; font-weight: 600; margin-left: 4px; }
+
+    .phasor-panel { padding: 10px 14px 10px 12px; display: grid; grid-template-columns: 224px minmax(0,1fr); gap: 8px; align-items: center; }
+    #phasor { width: 100%; max-width: 236px; height: auto; display: block; }
+    .phasor-cap { color: var(--sim-muted); font-size: 0.82rem; line-height: 1.6; margin: 0; }
+    .phasor-cap strong { color: var(--sim-text); }
+    .phasor-cap .kx { color: var(--sim-var-x); font-weight: 800; }
+    .phasor-cap .kv { color: #b45309; font-weight: 800; }
+    .phasor-cap .ka { color: #6d28d9; font-weight: 800; }
+
+    .right { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 10px; }
+    .chart-card { min-height: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-md); box-shadow: var(--sim-shadow); padding: 7px 10px 6px; display: grid; grid-template-rows: auto minmax(0,1fr); }
+    .chart-head { display: flex; align-items: center; gap: 8px; margin: 0 2px 4px; }
+    .chart-head h3 { margin: 0; font-size: 0.9rem; }
+    .chart-head .unit { color: var(--sim-muted); font-size: 0.72rem; margin-left: auto; }
+    .chart-head strong { font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+    .chip { width: 13px; height: 13px; border-radius: 4px; flex: none; }
+    .chip.cx { background: var(--sim-var-x); } .chip.cv { background: var(--sim-var-v); } .chip.ca { background: var(--sim-var-a); }
+    .chip-ghost { font-size: 0.7rem; color: #64748b; background: #eef2f7; border: 1px solid var(--sim-border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    .chart-card canvas { width: 100%; height: 100%; min-height: 0; display: block; }
+    .nowrap { white-space: nowrap; }
+    .vstrong { color: #b45309; } .astrstrong { color: #6d28d9; } .xstrong { color: var(--sim-var-x); }
+
+    .insight-card { padding: 11px 14px 11px; display: grid; gap: 7px; align-content: start; border-left: 4px solid var(--sim-warning); }
+    .insight-card .obs { margin: 0; font-size: 0.9rem; line-height: 1.5; font-weight: 650; }
+    .insight-card .cmp { margin: 0; font-size: 0.86rem; line-height: 1.5; color: #0c7a55; font-weight: 700; }
+    .period-line { font-size: 0.8rem; color: var(--sim-muted); font-variant-numeric: tabular-nums; background: var(--sim-surface-soft); border: 1px solid var(--sim-border); border-radius: 10px; padding: 7px 10px; }
+    .conclusion { margin: 0; font-size: 0.86rem; font-weight: 750; color: var(--sim-accent-deep); background: var(--sim-accent-soft); border-radius: 10px; padding: 7px 10px; }
+
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto auto minmax(230px, 1fr); gap: 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; font-size: 0.92rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,.45); }
+    .ctl { display: grid; gap: 6px; align-content: center; }
+    .ctl-name { font-size: 0.78rem; font-weight: 750; color: var(--sim-muted); }
+    .speed-row { display: flex; gap: 6px; }
+    .speed-row button { padding: 7px 11px; font-size: 0.85rem; }
+    .speed-row button[aria-pressed="true"] { background: #e2f4f7; border-color: rgba(15,159,186,.5); color: var(--sim-accent-deep); box-shadow: none; }
+    .amp-ctl label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 0.82rem; font-weight: 750; }
+    .amp-ctl output { color: var(--sim-accent-deep); font-variant-numeric: tabular-nums; font-size: 1.02rem; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .ctl-note { margin: 0; font-size: 0.72rem; color: var(--sim-muted); line-height: 1.45; }
+
+    /* scene svg */
+    .scene-note { font-size: 12.5px; fill: var(--sim-muted); font-weight: 600; }
+    .ruler-label { font-size: 11px; fill: #7c8798; }
+    .block-label { fill: #ffffff; font-size: 15px; font-weight: 800; }
+    .block-sub { fill: #d9f4f7; font-size: 10.5px; font-weight: 600; }
+    .arrow-label { font-size: 15px; font-weight: 800; }
+    #xText { font-size: 12.5px; font-weight: 750; fill: var(--sim-accent-deep); }
+    #vArrowG line { stroke: var(--sim-var-v); stroke-width: 5; stroke-linecap: round; }
+    #vArrowG polygon { fill: var(--sim-var-v); }
+    #vLabel { fill: #b45309; }
+    #aArrowG line { stroke: var(--sim-var-a); stroke-width: 5; stroke-linecap: round; }
+    #aArrowG polygon { fill: var(--sim-var-a); }
+    #aLabel { fill: #6d28d9; }
+    /* phasor svg */
+    .phasor-disc { fill: #f8fafc; stroke: var(--sim-grid); stroke-width: 1.5; }
+    .phasor-axis { stroke: #c3ceda; stroke-width: 1.5; }
+    .phasor-drop { stroke-width: 1.2; stroke-dasharray: 3 4; opacity: .55; }
+    .phasor-label { font-size: 13px; font-weight: 800; }
+    #pDropX, #pDotX { stroke: var(--sim-var-x); } #pDotX { fill: var(--sim-var-x); }
+    #pDropV, #pDotV { stroke: var(--sim-var-v); } #pDotV { fill: var(--sim-var-v); }
+    #pDropA, #pDotA { stroke: var(--sim-var-a); } #pDotA { fill: var(--sim-var-a); }
+    #pVecX line { stroke: var(--sim-var-x); stroke-width: 3; } #pVecX polygon, #pLabX { fill: var(--sim-var-x); } #pLabX { fill: var(--sim-var-x); }
+    #pVecV line { stroke: var(--sim-var-v); stroke-width: 3; } #pVecV polygon { fill: var(--sim-var-v); } #pLabV { fill: #b45309; }
+    #pVecA line { stroke: var(--sim-var-a); stroke-width: 3; } #pVecA polygon { fill: var(--sim-var-a); } #pLabA { fill: #6d28d9; }
+
+    @media (max-width: 1020px) {
+      .app { min-height: 0; }
+      .main { grid-template-columns: 1fr; }
+      .left { grid-template-rows: auto auto auto; }
+      .chart-card canvas { height: 118px; }
+      .controls { grid-template-columns: 1fr; gap: 12px; }
+      .phasor-panel { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: data-zone structure preserved for the confirmed scene-first wireframe. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>简谐运动的图像演示</h1>
+        <p>弹簧振子在光滑水平面上做简谐运动：右侧同步记录 x、v、a 三条曲线，看清相位关系；再改变振幅，验证周期与振幅无关。</p>
+      </div>
+      <div id="status" class="status idle" role="status" aria-live="polite">待开始</div>
+    </header>
+
+    <main class="main">
+      <div class="left">
+        <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+          <div class="panel-head">
+            <h2 id="scene-title">弹簧振子</h2>
+            <span>光滑水平面（无摩擦）· m = 1.0 kg · k = 20 N/m · F = −kx</span>
+          </div>
+          <svg id="scene" viewBox="0 0 880 300" role="img" aria-label="弹簧振子：左侧固定的弹簧连接物块，物块在平衡位置 O 两侧振动，图上标出位移 x、速度 v、加速度 a 的方向箭头">
+            <defs>
+              <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="8" height="8" fill="#dbe4ef"></rect>
+                <line x1="0" y1="0" x2="0" y2="8" stroke="#b7c5d8" stroke-width="2.5"></line>
+              </pattern>
+              <linearGradient id="blockGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#22b8d4"></stop>
+                <stop offset="1" stop-color="#08758a"></stop>
+              </linearGradient>
+            </defs>
+            <rect x="56" y="150" width="14" height="94" fill="url(#hatch)" stroke="#b7c5d8"></rect>
+            <line x1="40" y1="244" x2="846" y2="244" stroke="#9aa7ba" stroke-width="3" stroke-linecap="round"></line>
+            <text x="846" y="234" text-anchor="end" class="scene-note">光滑水平面（无摩擦）</text>
+            <g id="ruler"></g>
+            <line x1="440" y1="96" x2="440" y2="244" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6"></line>
+            <text x="440" y="88" text-anchor="middle" class="scene-note">O 平衡位置</text>
+            <path id="spring" fill="none" stroke="#5b6b81" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            <line id="xBracket" x1="440" y1="164" x2="440" y2="164" stroke="#0f9fba" stroke-width="2.5"></line>
+            <text id="xText" x="440" y="155" text-anchor="middle">x = +10.0 cm</text>
+            <g id="blockG">
+              <rect x="-33" y="178" width="66" height="66" rx="10" fill="url(#blockGrad)" stroke="#ffffff" stroke-width="2.5"></rect>
+              <text x="0" y="209" text-anchor="middle" class="block-label">m</text>
+              <text x="0" y="226" text-anchor="middle" class="block-sub">1.0 kg</text>
+            </g>
+            <g id="vArrowG" opacity="0">
+              <line id="vLine" x1="0" y1="104" x2="0" y2="104"></line>
+              <polygon id="vHead" points=""></polygon>
+              <text id="vLabel" class="arrow-label" x="0" y="96" text-anchor="middle">v</text>
+            </g>
+            <g id="aArrowG" opacity="0">
+              <line id="aLine" x1="0" y1="136" x2="0" y2="136"></line>
+              <polygon id="aHead" points=""></polygon>
+              <text id="aLabel" class="arrow-label" x="0" y="128" text-anchor="middle">a</text>
+            </g>
+            <polygon id="rulerDot" points="435,262 445,262 440,270" fill="#0f9fba"></polygon>
+          </svg>
+        </section>
+
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="metric mx"><small>位移 <b>x</b></small><strong id="xVal">+10.0</strong><em>cm</em></div>
+          <div class="metric mv"><small>速度 <b>v</b></small><strong id="vVal">0.000</strong><em>m/s</em></div>
+          <div class="metric ma"><small>加速度 <b>a</b></small><strong id="aVal">−2.00</strong><em>m/s²</em></div>
+        </section>
+
+        <section class="panel phasor-panel" aria-labelledby="phasor-title">
+          <svg id="phasor" viewBox="0 0 224 172" role="img" aria-label="旋转矢量图：x、v、a 三个矢量以相同角速度旋转，夹角恒定">
+            <circle class="phasor-disc" cx="96" cy="88" r="56"></circle>
+            <line class="phasor-axis" x1="28" y1="88" x2="164" y2="88"></line>
+            <line id="pDropX" class="phasor-drop" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="pDropV" class="phasor-drop" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="pDropA" class="phasor-drop" x1="0" y1="0" x2="0" y2="0"></line>
+            <circle id="pDotX" r="3.5"></circle>
+            <circle id="pDotV" r="3.5"></circle>
+            <circle id="pDotA" r="3.5"></circle>
+            <g id="pVecX"><line x1="96" y1="88" x2="152" y2="88"></line><polygon points=""></polygon></g>
+            <g id="pVecV"><line x1="96" y1="88" x2="152" y2="88"></line><polygon points=""></polygon></g>
+            <g id="pVecA"><line x1="96" y1="88" x2="152" y2="88"></line><polygon points=""></polygon></g>
+            <text id="pLabX" class="phasor-label" x="162" y="92" text-anchor="middle">x</text>
+            <text id="pLabV" class="phasor-label" x="96" y="18" text-anchor="middle">v</text>
+            <text id="pLabA" class="phasor-label" x="30" y="92" text-anchor="middle">a</text>
+            <circle cx="96" cy="88" r="2.5" fill="#5b6b81"></circle>
+          </svg>
+          <p class="phasor-cap"><strong id="phasor-title">相位（旋转矢量）</strong>：三个矢量以相同角速度 ω 旋转，夹角恒定——<span class="kv">v 超前 x π/2（T/4）</span>，<span class="ka">a 与 x 反相（π）</span>。矢量在水平轴上的投影正比于 <span class="kx">x</span>、<span class="kv">v</span>、<span class="ka">a</span> 的瞬时值（长度仅示意角度，不代表大小）。</p>
+        </section>
+      </div>
+
+      <aside class="right" data-zone="evidence" aria-label="三条同步曲线">
+        <section class="chart-card" aria-label="位移时间曲线">
+          <div class="chart-head">
+            <span class="chip cx"></span><h3>位移–时间（x–t）</h3>
+            <strong id="xNow" class="xstrong nowrap">+10.0 cm</strong>
+            <span id="ghostChip" class="chip-ghost" hidden>对比</span>
+            <span class="unit">时间窗口 8 s</span>
+          </div>
+          <canvas id="xChart" aria-label="位移随时间变化的曲线"></canvas>
+        </section>
+        <section class="chart-card" aria-label="速度时间曲线">
+          <div class="chart-head">
+            <span class="chip cv"></span><h3>速度–时间（v–t）</h3>
+            <strong id="vNow" class="vstrong nowrap">0.000 m/s</strong>
+            <span class="unit">与 x–t 共用同一时间轴</span>
+          </div>
+          <canvas id="vChart" aria-label="速度随时间变化的曲线"></canvas>
+        </section>
+        <section class="chart-card" aria-label="加速度时间曲线">
+          <div class="chart-head">
+            <span class="chip ca"></span><h3>加速度–时间（a–t）</h3>
+            <strong id="aNow" class="astrstrong nowrap">−2.00 m/s²</strong>
+            <span class="unit">虚线为各曲线峰值时刻</span>
+          </div>
+          <canvas id="aChart" aria-label="加速度随时间变化的曲线"></canvas>
+        </section>
+
+        <section class="panel insight-card" data-zone="insight" aria-label="观察与结论">
+          <p id="insightMain" class="obs">点击「开始」：振子从正最大位移处释放，三条曲线同步绘制。</p>
+          <p id="insightGhost" class="cmp" hidden></p>
+          <div id="periodLine" class="period-line">理论 T = 2π√(m/k) ≈ 1.405 s</div>
+          <p class="conclusion">结论：周期 T = 2π√(m/k)，只由振子本身（m、k）决定，与振幅 A 无关（等时性）。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button" aria-pressed="false">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="ctl">
+        <span class="ctl-name">播放速度（不改变运动本身）</span>
+        <div class="speed-row" role="group" aria-label="播放速度">
+          <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+          <button type="button" data-speed="1" aria-pressed="true">1×</button>
+          <button type="button" data-speed="2" aria-pressed="false">2×</button>
+        </div>
+      </div>
+      <div class="ctl amp-ctl">
+        <label for="ampInput">振幅 A（拖动改变，验证周期不变）<output id="ampOutput">10 cm</output></label>
+        <input id="ampInput" type="range" min="2" max="22" step="1" value="10" aria-label="振幅，单位厘米">
+        <p class="ctl-note">改变振幅时，上一条 x–t 曲线保留为灰色虚线：两条曲线的峰始终对齐，实测周期相同——周期与振幅无关。</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ---------- configuration (SI units internally, amplitude shown in cm) ----------
+    const CFG = {
+      m: 1.0, k: 20.0,
+      step: 0.02, window: 8,
+      ampMin: 2, ampMax: 22, ampDefault: 10,
+      pxPerCm: 15, sceneOX: 440, blockHalf: 33,
+      speeds: [0.5, 1, 2]
+    };
+    const OMEGA = Math.sqrt(CFG.k / CFG.m);
+    const T_THEORY = (2 * Math.PI) / OMEGA;
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const fmtT = (T) => (T == null ? "—" : T.toFixed(3) + " s");
+
+    // ---------- analytic physics kernel: x = A cos(ωt), v = -ωA sin(ωt), a = -ω²x ----------
+    function kernelAt(t, A) {
+      const c = Math.cos(OMEGA * t), s = Math.sin(OMEGA * t);
+      return { x: A * c, v: -OMEGA * A * s, a: -OMEGA * OMEGA * A * c };
+    }
+
+    // ---------- one authoritative run record (single source of truth) ----------
+    function makeRun(A) {
+      return { t: 0, A, hist: { t: [], x: [], v: [], a: [] }, upCross: [], Tmeas: null, peaksX: [], peaksV: [], peaksA: [] };
+    }
+
+    function pushSampleR(r, t) {
+      const s = kernelAt(t, r.A);
+      r.t = t;
+      r.hist.t.push(t); r.hist.x.push(s.x); r.hist.v.push(s.v); r.hist.a.push(s.a);
+      const n = r.hist.t.length;
+      if (n >= 2) {
+        // upward zero crossing of x with linear interpolation -> period measurement
+        const x0 = r.hist.x[n - 2], x1 = s.x, t0 = r.hist.t[n - 2];
+        if (x0 <= 0 && x1 > 0) {
+          r.upCross.push(t0 + CFG.step * (-x0) / (x1 - x0));
+          if (r.upCross.length >= 2) {
+            r.Tmeas = (r.upCross[r.upCross.length - 1] - r.upCross[0]) / (r.upCross.length - 1);
+          }
+        }
+      }
+      if (n >= 3) {
+        // local extrema on the sampling grid -> peak tick marks for the charts
+        const i = n - 2;
+        const x1 = r.hist.x[i - 1], x2 = r.hist.x[i], x3 = r.hist.x[i + 1];
+        if (x1 < x2 && x2 > x3 && x2 > 0.35 * r.A) r.peaksX.push(r.hist.t[i]);
+        const v1 = r.hist.v[i - 1], v2 = r.hist.v[i], v3 = r.hist.v[i + 1];
+        if (v1 > v2 && v2 < v3 && v2 < -0.35 * OMEGA * r.A) r.peaksV.push(r.hist.t[i]);
+        const a1 = r.hist.a[i - 1], a2 = r.hist.a[i], a3 = r.hist.a[i + 1];
+        if (a1 > a2 && a2 < a3 && a2 < -0.35 * OMEGA * OMEGA * r.A) r.peaksA.push(r.hist.t[i]);
+      }
+      const cutoff = t - CFG.window - 0.75;
+      while (r.hist.t.length > 1 && r.hist.t[0] < cutoff) { r.hist.t.shift(); r.hist.x.shift(); r.hist.v.shift(); r.hist.a.shift(); }
+      while (r.upCross.length > 1 && r.upCross[0] < cutoff) r.upCross.shift();
+      while (r.peaksX.length && r.peaksX[0] < cutoff) r.peaksX.shift();
+      while (r.peaksV.length && r.peaksV[0] < cutoff) r.peaksV.shift();
+      while (r.peaksA.length && r.peaksA[0] < cutoff) r.peaksA.shift();
+    }
+
+    function advanceR(r, seconds) {
+      const n = Math.max(1, Math.round(seconds / CFG.step));
+      for (let i = 0; i < n; i += 1) pushSampleR(r, r.t + CFG.step);
+    }
+
+    // ---------- app state ----------
+    const state = { running: false, speed: 1, acc: 0, lastTs: null, ghost: null, run: makeRun(CFG.ampDefault / 100) };
+    pushSampleR(state.run, 0);
+
+    function restartRun() {
+      state.run = makeRun(state.run.A);
+      pushSampleR(state.run, 0);
+      state.acc = 0;
+    }
+
+    // ---------- DOM bindings ----------
+    const elements = {
+      status: document.querySelector("#status"),
+      xVal: document.querySelector("#xVal"), vVal: document.querySelector("#vVal"), aVal: document.querySelector("#aVal"),
+      xNow: document.querySelector("#xNow"), vNow: document.querySelector("#vNow"), aNow: document.querySelector("#aNow"),
+      ghostChip: document.querySelector("#ghostChip"),
+      insightMain: document.querySelector("#insightMain"), insightGhost: document.querySelector("#insightGhost"),
+      periodLine: document.querySelector("#periodLine"),
+      ruler: document.querySelector("#ruler"), spring: document.querySelector("#spring"), blockG: document.querySelector("#blockG"),
+      vArrowG: document.querySelector("#vArrowG"), vLine: document.querySelector("#vLine"), vHead: document.querySelector("#vHead"), vLabel: document.querySelector("#vLabel"),
+      aArrowG: document.querySelector("#aArrowG"), aLine: document.querySelector("#aLine"), aHead: document.querySelector("#aHead"), aLabel: document.querySelector("#aLabel"),
+      xBracket: document.querySelector("#xBracket"), xText: document.querySelector("#xText"), rulerDot: document.querySelector("#rulerDot"),
+      pVecX: document.querySelector("#pVecX"), pVecV: document.querySelector("#pVecV"), pVecA: document.querySelector("#pVecA"),
+      pLabX: document.querySelector("#pLabX"), pLabV: document.querySelector("#pLabV"), pLabA: document.querySelector("#pLabA"),
+      pDropX: document.querySelector("#pDropX"), pDropV: document.querySelector("#pDropV"), pDropA: document.querySelector("#pDropA"),
+      pDotX: document.querySelector("#pDotX"), pDotV: document.querySelector("#pDotV"), pDotA: document.querySelector("#pDotA"),
+      xChart: document.querySelector("#xChart"), vChart: document.querySelector("#vChart"), aChart: document.querySelector("#aChart"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      ampInput: document.querySelector("#ampInput"), ampOutput: document.querySelector("#ampOutput")
+    };
+    const speedBtns = Array.prototype.slice.call(document.querySelectorAll("[data-speed]"));
+
+    // ---------- lifecycle ----------
+    function init() {
+      buildRuler();
+      bindControls();
+      render();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      render();
+    }
+    function pause() {
+      state.running = false;
+      render();
+    }
+    function reset() {
+      state.running = false;
+      state.ghost = null;
+      state.lastTs = null;
+      restartRun();
+      render();
+    }
+    function setSpeed(v) {
+      const s = finite(Number(v), 1);
+      state.speed = CFG.speeds.reduce((a, b) => (Math.abs(b - s) < Math.abs(a - s) ? b : a), 1);
+      render();
+    }
+    function setParameters(values) {
+      const curCm = state.run.A * 100;
+      const cm = clamp(finite(Number(values && values.amplitude), curCm), CFG.ampMin, CFG.ampMax);
+      if (Math.abs(cm - curCm) > 1e-9) {
+        // archive the trace of the run being replaced, labeled with its OLD amplitude
+        if (state.run.t >= 1.0) {
+          state.ghost = { Acm: Math.round(curCm * 10) / 10, T: state.run.Tmeas, t: state.run.hist.t.slice(), x: state.run.hist.x.slice() };
+        }
+        state.run.A = cm / 100;
+        restartRun(); // new run releases from the new amplitude at t = 0
+      }
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const d = clamp(finite(Number(dt), 0), 0, 0.1) * state.speed;
+      state.acc += d;
+      let guard = 0;
+      while (state.acc >= CFG.step - 1e-12 && guard < 16) {
+        state.acc -= CFG.step;
+        pushSampleR(state.run, state.run.t + CFG.step);
+        guard += 1;
+      }
+      if (guard >= 16) state.acc = 0; // drop backlog after suspension
+      const lastX = state.run.hist.x[state.run.hist.x.length - 1];
+      if (!Number.isFinite(state.run.t) || !Number.isFinite(lastX)) {
+        state.running = false;
+        restartRun();
+      }
+    }
+    function getState() {
+      const r = state.run;
+      return {
+        running: state.running, speed: state.speed, t: r.t, A_cm: r.A * 100,
+        Tmeas: r.Tmeas, sampleCount: r.hist.t.length,
+        ghost: state.ghost ? { A_cm: state.ghost.Acm, T: state.ghost.T, samples: state.ghost.t.length } : null
+      };
+    }
+    function getReadouts() {
+      const r = state.run, s = kernelAt(r.t, r.A);
+      return { t: r.t, x_m: s.x, v: s.v, a: s.a, A_cm: r.A * 100, T_theory: T_THEORY, T_measured: r.Tmeas };
+    }
+
+    // ---------- scene rendering ----------
+    function buildRuler() {
+      const parts = [];
+      for (let c = -20; c <= 20; c += 5) {
+        const x = CFG.sceneOX + c * CFG.pxPerCm;
+        parts.push(`<line x1="${x}" y1="264" x2="${x}" y2="${c % 10 === 0 ? 274 : 270}" stroke="#b7c5d8" stroke-width="${c === 0 ? 2 : 1.2}"></line>`);
+        if (c % 10 === 0) parts.push(`<text x="${x}" y="291" text-anchor="middle" class="ruler-label">${c}</text>`);
+      }
+      parts.push(`<line x1="140" y1="264" x2="740" y2="264" stroke="#c3ceda" stroke-width="1.5"></line>`);
+      parts.push(`<text x="846" y="291" text-anchor="end" class="ruler-label">x/cm</text>`);
+      elements.ruler.innerHTML = parts.join("");
+    }
+
+    function setArrow(g, line, head, label, cx, y, len, name) {
+      if (Math.abs(len) < 6) { g.setAttribute("opacity", "0"); return; }
+      g.setAttribute("opacity", "1");
+      const dir = len >= 0 ? 1 : -1;
+      const tip = cx + len;
+      const base = tip - dir * 12;
+      line.setAttribute("x1", String(cx)); line.setAttribute("y1", String(y));
+      line.setAttribute("x2", String(base)); line.setAttribute("y2", String(y));
+      head.setAttribute("points", `${tip},${y} ${base},${y - 5.5} ${base},${y + 5.5}`);
+      label.setAttribute("x", String(tip + dir * 9)); label.setAttribute("y", String(y - 9));
+      label.textContent = name;
+    }
+
+    function updateScene(s, A) {
+      const cx = CFG.sceneOX + s.x * 100 * CFG.pxPerCm;
+      const bx = clamp(cx, CFG.sceneOX - 20 * CFG.pxPerCm - 36, CFG.sceneOX + 20 * CFG.pxPerCm + 36);
+      elements.blockG.setAttribute("transform", `translate(${cx.toFixed(2)} 0)`);
+      // spring zigzag from wall to the block's left edge
+      const x0 = 70, x1 = cx - CFG.blockHalf, lead = 9, coilA = 14;
+      const cS = x0 + lead, cE = x1 - lead, span = Math.max(4, cE - cS);
+      let d = `M ${x0} 211 L ${cS} 211 `;
+      for (let i = 1; i <= 15; i += 1) {
+        d += `L ${(cS + (i / 16) * span).toFixed(1)} ${(211 + (i % 2 === 1 ? -coilA : coilA)).toFixed(1)} `;
+      }
+      d += `L ${cE.toFixed(1)} 211 L ${x1.toFixed(1)} 211`;
+      elements.spring.setAttribute("d", d);
+      // v and a arrows derived from the same kernel state
+      setArrow(elements.vArrowG, elements.vLine, elements.vHead, elements.vLabel, cx, 104, (s.v / (OMEGA * A)) * 118, "v");
+      setArrow(elements.aArrowG, elements.aLine, elements.aHead, elements.aLabel, cx, 136, (s.a / (OMEGA * OMEGA * A)) * 118, "a");
+      // x bracket from O to the block
+      elements.xBracket.setAttribute("x1", String(CFG.sceneOX));
+      elements.xBracket.setAttribute("x2", String(cx));
+      elements.xText.setAttribute("x", String(clamp((CFG.sceneOX + cx) / 2, 120, 790)));
+      elements.xText.textContent = `x = ${s.x >= 0 ? "+" : "−"}${Math.abs(s.x * 100).toFixed(1)} cm`;
+      elements.rulerDot.setAttribute("points", `${(cx - 5).toFixed(1)},262 ${(cx + 5).toFixed(1)},262 ${cx.toFixed(1)},270`);
+      void bx;
+    }
+
+    function updatePhasor(t) {
+      const theta = OMEGA * t;
+      const C = 96, CY = 88, R = 56;
+      const vecs = [
+        { off: 0, g: elements.pVecX, lab: elements.pLabX, drop: elements.pDropX, dot: elements.pDotX },
+        { off: Math.PI / 2, g: elements.pVecV, lab: elements.pLabV, drop: elements.pDropV, dot: elements.pDotV },
+        { off: Math.PI, g: elements.pVecA, lab: elements.pLabA, drop: elements.pDropA, dot: elements.pDotA }
+      ];
+      for (const v of vecs) {
+        const ang = theta + v.off;
+        const ux = Math.cos(ang), uy = -Math.sin(ang); // svg y is flipped -> ccw visually
+        const tx = C + R * ux, ty = CY + R * uy;
+        const line = v.g.querySelector("line");
+        const head = v.g.querySelector("polygon");
+        line.setAttribute("x1", String(C)); line.setAttribute("y1", String(CY));
+        line.setAttribute("x2", String((tx - ux * 10).toFixed(2))); line.setAttribute("y2", String((ty - uy * 10).toFixed(2)));
+        const bx2 = tx - ux * 12, by2 = ty - uy * 12;
+        head.setAttribute("points", `${tx.toFixed(2)},${ty.toFixed(2)} ${(bx2 - uy * 5).toFixed(2)},${(by2 + ux * 5).toFixed(2)} ${(bx2 + uy * 5).toFixed(2)},${(by2 - ux * 5).toFixed(2)}`);
+        v.lab.setAttribute("x", String((C + (R + 13) * ux).toFixed(1)));
+        v.lab.setAttribute("y", String((CY + (R + 13) * uy + 4).toFixed(1)));
+        v.drop.setAttribute("x1", String(tx.toFixed(2))); v.drop.setAttribute("y1", String(ty.toFixed(2)));
+        v.drop.setAttribute("x2", String(tx.toFixed(2))); v.drop.setAttribute("y2", String(CY));
+        v.dot.setAttribute("cx", String(tx.toFixed(2))); v.dot.setAttribute("cy", String(CY));
+      }
+    }
+
+    // ---------- chart rendering (three canvases share one time axis) ----------
+    function drawChart(canvas, o) {
+      if (!canvas || !canvas.getContext) return;
+      const cssW = (canvas.clientWidth && canvas.clientWidth > 40) ? canvas.clientWidth : 440;
+      const cssH = (canvas.clientHeight && canvas.clientHeight > 30) ? canvas.clientHeight : 112;
+      const dpr = finite(Number(window.devicePixelRatio), 1) || 1;
+      const bw = Math.max(1, Math.round(cssW * dpr)), bh = Math.max(1, Math.round(cssH * dpr));
+      if (canvas.width !== bw || canvas.height !== bh || !canvas.__ctx) {
+        canvas.width = bw; canvas.height = bh;
+        canvas.__ctx = canvas.getContext("2d");
+      }
+      const ctx = canvas.__ctx;
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, cssH);
+      const PL = 46, PR = 10, PT = 8, PB = 16;
+      const pw = cssW - PL - PR, ph = cssH - PT - PB, cyc = PT + ph / 2;
+      const t0 = Math.max(0, o.cursorT - CFG.window), t1 = Math.max(CFG.window, o.cursorT);
+      const px = (t) => PL + ((t - t0) / (t1 - t0)) * pw;
+      const py = (v) => cyc - (v / o.ymax) * (ph / 2);
+      const gridCol = "#e8edf4", labelCol = "#7c8798";
+      const font = "10.5px system-ui, 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.lineWidth = 1;
+      for (const f of [-1, -0.5, 0.5, 1]) {
+        const y = py(f * o.ymax);
+        ctx.strokeStyle = gridCol;
+        ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(cssW - PR, y); ctx.stroke();
+      }
+      for (let tt = Math.ceil(t0); tt <= Math.floor(t1 + 1e-9); tt += 1) {
+        const x = px(tt);
+        ctx.strokeStyle = "#eef2f7";
+        ctx.beginPath(); ctx.moveTo(x, PT); ctx.lineTo(x, PT + ph); ctx.stroke();
+        if (o.xTicks) {
+          ctx.fillStyle = labelCol; ctx.font = font; ctx.textAlign = "center"; ctx.textBaseline = "top";
+          ctx.fillText(String(tt), x, PT + ph + 4);
+        }
+      }
+      ctx.strokeStyle = "#c3ceda"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(PL, cyc); ctx.lineTo(cssW - PR, cyc); ctx.stroke();
+      ctx.fillStyle = labelCol; ctx.font = font; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(o.fmt(o.ymax) + " " + o.unit, PL - 5, py(o.ymax) + 3);
+      ctx.fillText("0", PL - 5, cyc);
+      ctx.fillText("−" + o.fmt(o.ymax), PL - 5, py(-o.ymax) - 3);
+      if (o.ghost) {
+        ctx.strokeStyle = "#9aa7b8"; ctx.lineWidth = 1.8; ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        let started = false, labelX = -1, labelY = -1;
+        for (let i = 0; i < o.ghost.t.length; i += 1) {
+          if (o.ghost.t[i] < t0) continue;
+          const gx = px(o.ghost.t[i]), gy = py(o.ghost.y[i]);
+          if (!started) { ctx.moveTo(gx, gy); started = true; labelX = gx; labelY = gy; }
+          else ctx.lineTo(gx, gy);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+        if (labelX >= 0 && labelY > PT + 8) {
+          ctx.fillStyle = "#8493a7"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+          ctx.fillText(`上次 A = ${o.ghost.Acm} cm`, labelX + 4, labelY - 3);
+        }
+      }
+      ctx.strokeStyle = o.color; ctx.lineWidth = 2.4; ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = 0; i < o.t.length; i += 1) {
+        const gx = px(o.t[i]), gy = py(o.y[i]);
+        if (i === 0) ctx.moveTo(gx, gy); else ctx.lineTo(gx, gy);
+      }
+      ctx.stroke();
+      if (o.peaks) {
+        ctx.save();
+        ctx.setLineDash([4, 5]); ctx.lineWidth = 1.3; ctx.globalAlpha = 0.42; ctx.strokeStyle = o.color;
+        for (const tp of o.peaks) {
+          if (tp < t0 || tp > t1) continue;
+          const x = px(tp);
+          ctx.beginPath(); ctx.moveTo(x, PT); ctx.lineTo(x, PT + ph); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      const cxp = px(o.cursorT);
+      ctx.strokeStyle = "#5b6b81"; ctx.lineWidth = 1.3; ctx.setLineDash([3, 4]);
+      ctx.beginPath(); ctx.moveTo(cxp, PT); ctx.lineTo(cxp, PT + ph); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(cxp, py(o.now), 4.2, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = o.color; ctx.stroke();
+    }
+
+    const chartFmt = (v) => (v < 10 ? v.toFixed(1) : v.toFixed(0));
+
+    // ---------- master render: every visual derives from the authoritative state ----------
+    function render() {
+      const r = state.run, s = kernelAt(r.t, r.A);
+      const Acm = Math.round(r.A * 100);
+      const xcm = s.x * 100;
+      const sg = (v) => (v >= 0 ? "+" : "−");
+      elements.xVal.textContent = sg(s.x) + Math.abs(xcm).toFixed(1);
+      elements.vVal.textContent = sg(s.v) + Math.abs(s.v).toFixed(3);
+      elements.aVal.textContent = sg(s.a) + Math.abs(s.a).toFixed(2);
+      elements.xNow.textContent = `${sg(s.x)}${Math.abs(xcm).toFixed(1)} cm`;
+      elements.vNow.textContent = `${sg(s.v)}${Math.abs(s.v).toFixed(3)} m/s`;
+      elements.aNow.textContent = `${sg(s.a)}${Math.abs(s.a).toFixed(2)} m/s²`;
+      elements.ampOutput.textContent = `${Acm} cm`;
+
+      // status pill
+      let stTxt = "已暂停", stCls = "status";
+      if (!state.running && r.t < 0.01) { stTxt = "待开始"; stCls = "status idle"; }
+      else if (state.running) { stTxt = "运行中"; stCls = "status running"; }
+      elements.status.textContent = stTxt;
+      elements.status.setAttribute("class", stCls);
+      elements.startBtn.setAttribute("aria-pressed", state.running ? "true" : "false");
+      for (const b of speedBtns) {
+        b.setAttribute("aria-pressed", Math.abs(Number(b.getAttribute("data-speed")) - state.speed) < 1e-9 ? "true" : "false");
+      }
+
+      updateScene(s, r.A);
+      updatePhasor(r.t);
+
+      const ghost = state.ghost;
+      const ghostY = ghost ? ghost.x.map((v) => v * 100) : null;
+      const ghostAcm = ghost ? ghost.Acm : 0;
+      drawChart(elements.xChart, {
+        color: "#0f9fba", unit: "cm", fmt: chartFmt, cursorT: r.t, now: xcm,
+        t: r.hist.t, y: r.hist.x.map((v) => v * 100),
+        ymax: Math.max(r.A * 100, ghostAcm) * 1.14 + 0.7,
+        peaks: r.peaksX, xTicks: true,
+        ghost: ghost ? { t: ghost.t, y: ghostY, Acm: ghost.Acm } : null
+      });
+      drawChart(elements.vChart, {
+        color: "#d97706", unit: "m/s", fmt: chartFmt, cursorT: r.t, now: s.v,
+        t: r.hist.t, y: r.hist.v, ymax: OMEGA * r.A * 1.14 + 0.01,
+        peaks: r.peaksV, xTicks: false
+      });
+      drawChart(elements.aChart, {
+        color: "#7c3aed", unit: "m/s²", fmt: chartFmt, cursorT: r.t, now: s.a,
+        t: r.hist.t, y: r.hist.a, ymax: OMEGA * OMEGA * r.A * 1.14 + 0.05,
+        peaks: r.peaksA, xTicks: false
+      });
+
+      // insight (state-aware observation)
+      let main;
+      if (!state.running && r.t < 0.01) {
+        main = "点击「开始」：振子从正最大位移处释放，右侧三条曲线同步绘制。";
+      } else {
+        const ru = Math.abs(s.x) / r.A;
+        if (ru > 0.92) main = "最大位移处：v = 0，加速度 a 最大、指向平衡位置 O。";
+        else if (ru < 0.12) main = "经过平衡位置 O：速度 |v| 最大，加速度 a = 0。";
+        else if (s.x * s.v > 0) main = "远离平衡位置：v 与 x 同向，a 反向指向 O —— 振子减速。";
+        else main = "返回平衡位置：v 与 x 反向，a 指向 O —— 振子加速。";
+      }
+      elements.insightMain.textContent = main;
+      if (ghost) {
+        elements.insightGhost.hidden = false;
+        elements.insightGhost.textContent = `振幅 ${ghost.Acm} cm → ${Acm} cm：两条 x–t 曲线的峰依然对齐，实测周期相同（${fmtT(ghost.T)} → ${fmtT(r.Tmeas)}）。`;
+        elements.ghostChip.hidden = false;
+        elements.ghostChip.textContent = `对比 A = ${ghost.Acm} cm`;
+      } else {
+        elements.insightGhost.hidden = true;
+        elements.ghostChip.hidden = true;
+      }
+      let pl = `理论 T = 2π√(m/k) ≈ ${T_THEORY.toFixed(3)} s ｜ 本次 A = ${Acm} cm，实测 T = ${fmtT(r.Tmeas)}`;
+      pl += ghost
+        ? ` ｜ 上次 A = ${ghost.Acm} cm，实测 T = ${fmtT(ghost.T)}`
+        : " ｜ 改变振幅后，这里对比两次实测周期";
+      elements.periodLine.textContent = pl;
+    }
+
+    // ---------- controls ----------
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.ampInput.addEventListener("input", () => setParameters({ amplitude: elements.ampInput.value }));
+      for (const b of speedBtns) {
+        b.addEventListener("click", () => setSpeed(b.getAttribute("data-speed")));
+      }
+      window.addEventListener("resize", render);
+    }
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    // ---------- deterministic model checks (analytic tier oracle evidence) ----------
+    function runModelChecks() {
+      const cases = [];
+      const A0 = 0.10;
+
+      // 1. independent RK4 integration of x'' = -(k/m) x vs analytic kernel
+      const h = 2e-4, dur = 2.0, nSteps = Math.round(dur / h);
+      let yx = A0, yv = 0, maxDiff = 0;
+      const deriv = (x, v) => [v, -(CFG.k / CFG.m) * x];
+      for (let i = 0; i < nSteps; i += 1) {
+        const k1 = deriv(yx, yv);
+        const k2 = deriv(yx + h / 2 * k1[0], yv + h / 2 * k1[1]);
+        const k3 = deriv(yx + h / 2 * k2[0], yv + h / 2 * k2[1]);
+        const k4 = deriv(yx + h * k3[0], yv + h * k3[1]);
+        yx += h / 6 * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]);
+        yv += h / 6 * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]);
+        if ((i + 1) % 2500 === 0) {
+          const t = (i + 1) * h;
+          const ref = kernelAt(t, A0);
+          maxDiff = Math.max(maxDiff, Math.abs(yx - ref.x), Math.abs(yv - ref.v) / OMEGA);
+        }
+      }
+      cases.push({ name: "独立 RK4 数值解 vs 解析解（t = 0.5/1.0/1.5/2.0 s）", pass: maxDiff < 1e-8, expected: "最大偏差 < 1e-8 m", actual: maxDiff.toExponential(3) + " m", tolerance: "1e-8 m（步长 2e-4 s）" });
+
+      // 2. energy conservation on the sampled grid
+      const rE = makeRun(0.16); advanceR(rE, 6);
+      const E0 = 0.5 * CFG.k * 0.16 * 0.16;
+      let maxErel = 0;
+      for (let i = 0; i < rE.hist.t.length; i += 1) {
+        const E = 0.5 * CFG.m * rE.hist.v[i] * rE.hist.v[i] + 0.5 * CFG.k * rE.hist.x[i] * rE.hist.x[i];
+        maxErel = Math.max(maxErel, Math.abs(E - E0) / E0);
+      }
+      cases.push({ name: "能量守恒 E = ½mv² + ½kx² = ½kA²（6 s 采样）", pass: maxErel < 1e-12, expected: "相对偏差 < 1e-12", actual: maxErel.toExponential(3), tolerance: "1e-12（相对）" });
+
+      // 3. period is amplitude-independent (the teacher's verification)
+      const T1r = makeRun(0.05); advanceR(T1r, 8);
+      const T2r = makeRun(0.22); advanceR(T2r, 8);
+      const dT1 = Math.abs(T1r.Tmeas - T_THEORY), dT2 = Math.abs(T2r.Tmeas - T_THEORY);
+      cases.push({ name: "周期与振幅无关：A = 5 cm 与 A = 22 cm 实测周期", pass: dT1 < 0.003 && dT2 < 0.003, expected: `两者均 ≈ ${T_THEORY.toFixed(4)} s`, actual: `${T1r.Tmeas.toFixed(4)} s / ${T2r.Tmeas.toFixed(4)} s`, tolerance: "3 ms" });
+
+      // 4. antiphase identity a = -ω²x over the grid
+      let maxRes = 0;
+      for (let i = 0; i < rE.hist.t.length; i += 1) {
+        maxRes = Math.max(maxRes, Math.abs(rE.hist.a[i] + OMEGA * OMEGA * rE.hist.x[i]));
+      }
+      cases.push({ name: "反相关系 a = −ω²x（全程残差）", pass: maxRes < 1e-12, expected: "残差 < 1e-12 m/s²", actual: maxRes.toExponential(3) + " m/s²", tolerance: "1e-12 m/s²" });
+
+      // 5. zero-crossing detector vs analytic truth: upward crossings at 3T/4 + nT, v = +ωA there
+      const rC = makeRun(0.10); advanceR(rC, 8);
+      let maxCt = 0, maxCv = 0, nCross = Math.min(5, rC.upCross.length);
+      for (let i = 0; i < nCross; i += 1) {
+        const truth = (0.75 + i) * T_THEORY;
+        maxCt = Math.max(maxCt, Math.abs(rC.upCross[i] - truth));
+        maxCv = Math.max(maxCv, Math.abs(kernelAt(rC.upCross[i], 0.10).v - OMEGA * 0.10));
+      }
+      cases.push({ name: "过零点检测器与解析真值（前 5 个上穿点，v = ωA）", pass: nCross >= 3 && maxCt < 1e-3 && maxCv < 1e-3, expected: "t 误差 < 1 ms，v 误差 < 1e-3 m/s", actual: `Δt = ${maxCt.toExponential(2)} s，Δv = ${maxCv.toExponential(2)} m/s（${nCross} 个点）`, tolerance: "1 ms / 1e-3 m/s" });
+
+      // 6. time-scale invariance: step-aligned feeds at different speeds are bit-identical
+      const feed = (r, frames, frameDt, speed) => {
+        let acc = 0;
+        for (let i = 0; i < frames; i += 1) {
+          acc += frameDt * speed;
+          let g = 0;
+          while (acc >= CFG.step - 1e-12 && g < 20) { acc -= CFG.step; pushSampleR(r, r.t + CFG.step); g += 1; }
+        }
+      };
+      const ra = makeRun(0.1); feed(ra, 60, 0.02, 1);   // 1x speed, aligned feed
+      const rb = makeRun(0.1); feed(rb, 60, 0.01, 2);   // 2x speed, aligned feed -> same sim time per frame
+      let maxDV = 0;
+      if (ra.hist.t.length !== rb.hist.t.length) maxDV = 1;
+      else for (let i = 0; i < ra.hist.t.length; i += 1) maxDV = Math.max(maxDV, Math.abs(ra.hist.x[i] - rb.hist.x[i]));
+      cases.push({ name: "时间尺度不变性：0.02 s@1× 与 0.01 s@2× 轨迹逐点一致", pass: maxDV < 1e-12, expected: "两条采样序列完全相同", actual: `最大差 ${maxDV.toExponential(3)} m（${ra.hist.t.length} vs ${rb.hist.t.length} 点）`, tolerance: "1e-12 m" });
+
+      // 6b. non-aligned feed still lands on the fixed grid and matches the closed form exactly
+      const rc = makeRun(0.1); feed(rc, 90, 1 / 30, 1);
+      let maxGrid = 0, maxExact = 0;
+      for (let i = 0; i < rc.hist.t.length; i += 1) {
+        const t = rc.hist.t[i];
+        maxGrid = Math.max(maxGrid, Math.abs(t / CFG.step - Math.round(t / CFG.step)) * CFG.step);
+        maxExact = Math.max(maxExact, Math.abs(rc.hist.x[i] - kernelAt(t, 0.1).x));
+      }
+      cases.push({ name: "非整步帧率（1/30 s）仍锁定在固定步长网格且等于闭式解", pass: maxGrid < 1e-9 && maxExact < 1e-15, expected: "网格偏差 < 1e-9 s，闭式解偏差 < 1e-15 m", actual: `网格 ${maxGrid.toExponential(2)} s，闭式解 ${maxExact.toExponential(2)} m`, tolerance: "1e-9 s / 1e-15 m" });
+
+      // 7. initial conditions and sign conventions (release from +A)
+      const s0 = kernelAt(0, 0.1);
+      const ok7 = s0.x === 0.1 && s0.v === 0 && s0.a < 0 && Math.abs(s0.a + OMEGA * OMEGA * 0.1) === 0;
+      cases.push({ name: "初值与符号约定：x(0) = A，v(0) = 0，a(0) = −ω²A 指向 O", pass: ok7, expected: "x = 0.1 m，v = 0，a < 0", actual: `x = ${s0.x} m，v = ${s0.v}，a = ${s0.a.toFixed(3)} m/s²`, tolerance: "精确相等" });
+
+      // 8. determinism: identical scripted runs produce identical samples
+      const d1 = makeRun(0.12), d2 = makeRun(0.12);
+      advanceR(d1, 3); advanceR(d2, 3);
+      let same = d1.hist.t.length === d2.hist.t.length;
+      if (same) {
+        for (let i = 0; i < d1.hist.t.length; i += 1) {
+          if (d1.hist.t[i] !== d2.hist.t[i] || d1.hist.x[i] !== d2.hist.x[i] || d1.hist.v[i] !== d2.hist.v[i] || d1.hist.a[i] !== d2.hist.a[i]) { same = false; break; }
+        }
+      }
+      cases.push({ name: "确定性：两次相同脚本运行产生完全相同的采样", pass: same, expected: "逐点相等", actual: same ? `${d1.hist.t.length} 个采样点全部相等` : "存在差异", tolerance: "精确相等" });
+
+      return cases;
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks, setSpeed };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>链式反应与反应堆控制 · 交互式仿真</title>
+<style>
+:root{--bg:#0a0e14;--panel:#111926;--panel2:#0c121b;--line:#223145;--txt:#d9e4f2;--dim:#8ba3ba;--acc:#4da3ff;--grn:#3bd98a;--red:#ff6060;--blu:#5aa7ff;--yel:#ffd166}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font:14px/1.55 "PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;padding:16px}
+h1{font-size:19px;letter-spacing:.5px;margin-bottom:12px}
+h1 small{font-size:12px;color:var(--dim);font-weight:400;margin-left:10px}
+.layout{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.main{flex:1 1 660px;min-width:620px}
+.side{flex:0 0 340px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.card h3{font-size:13px;color:#a9c4de;margin-bottom:10px;letter-spacing:1px}
+canvas{width:100%;height:auto;display:block;border-radius:8px;background:#05080d}
+#sim{border:1px solid var(--line)}
+.charts{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+.chartbox{flex:1 1 300px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
+.chartbox h4{font-size:12px;color:var(--dim);margin:2px 0 6px 4px;font-weight:600}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--dim)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.row{display:flex;align-items:center;gap:10px;margin:9px 0}
+.row label{flex:0 0 96px;color:var(--dim);font-size:13px}
+.row output{flex:0 0 48px;text-align:right;color:var(--acc);font-variant-numeric:tabular-nums;font-size:13px}
+input[type=range]{flex:1;accent-color:var(--acc)}
+select,button{background:#1b2838;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;cursor:pointer}
+select{width:100%}
+button:hover{border-color:var(--acc)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.btnrow button{flex:1;white-space:nowrap}
+.switch{display:flex;align-items:center;gap:10px;margin:9px 0}
+.switch>label{flex:0 0 96px;color:var(--dim);font-size:13px}
+.tgl{position:relative;width:46px;height:24px;flex:0 0 46px}
+.tgl input{opacity:0;width:0;height:0}
+.tgl span{position:absolute;inset:0;background:#26344a;border-radius:20px;transition:.2s;cursor:pointer}
+.tgl span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#7d93aa;transition:.2s}
+.tgl input:checked+span{background:#1c5d9e}
+.tgl input:checked+span::after{left:25px;background:#bfe0ff}
+.kbox{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.bigk{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.lamp{width:16px;height:16px;border-radius:50%;box-shadow:0 0 12px currentColor;flex:0 0 16px}
+.stat{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0;border-bottom:1px dashed #1d2a3a}
+.stat b{font-variant-numeric:tabular-nums;color:#eaf3ff;font-weight:600;text-align:right}
+.sub{color:var(--dim);font-size:11.5px;margin-top:6px}
+ul.tips{list-style:none}
+ul.tips li{padding:6px 0 6px 22px;position:relative;font-size:13px;color:#c6d6e6;border-bottom:1px dashed #1d2a3a}
+ul.tips li:last-child{border:0}
+ul.tips li::before{content:"◆";position:absolute;left:2px;color:var(--acc);font-size:10px;top:8px}
+.hint{font-size:12px;color:var(--dim);margin-top:8px}
+</style>
+</head>
+<body>
+<h1>⚛ 链式反应与反应堆控制 · 交互式仿真 <small>单文件演示 · 全部本地运行</small></h1>
+<div class="layout">
+  <div class="main">
+    <div class="card">
+      <canvas id="sim" width="880" height="560"></canvas>
+      <div class="legend">
+        <span><i style="background:#2c4a6e;border:1px solid #4a76a8"></i>U-235（易裂变·深色）</span>
+        <span><i style="background:#c9bd93;border:1px solid #e2d8b4"></i>U-238（可转换·浅色）</span>
+        <span><i style="background:#9fe8ff;border-radius:50%"></i>快中子</span>
+        <span><i style="background:#ffd166;border-radius:50%"></i>热（慢）中子</span>
+        <span><i style="background:#7d8794"></i>控制棒（镉/硼）</span>
+      </div>
+      <div class="charts">
+        <div class="chartbox"><h4>逐代中子数 N（红点=k，虚线=k=1）</h4><canvas id="gen" width="420" height="150"></canvas></div>
+        <div class="chartbox"><h4>堆内中子总数 · 时间曲线</h4><canvas id="pop" width="420" height="150"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3>教学要点</h3>
+      <ul class="tips">
+        <li><b>链式自持由增殖系数 k 决定</b>：k&gt;1 超临界（指数增长），k≈1 临界（自持），k&lt;1 次临界（熄灭）。</li>
+        <li><b>控制棒靠"吃掉"中子控堆，不是降温</b>：镉/硼强烈吸收中子 → 下一代裂变数减少 → 压低 k。</li>
+        <li><b>慢化剂（石墨/重水）让快中子慢化</b>：热中子使 U-235 俘获裂变概率大幅提高（中子由青变黄即被慢化）。</li>
+        <li><b>单次裂变能量巨大</b>：约 200 MeV ≈ 3.2×10⁻¹¹ J；1 g U-235 全部裂变 ≈ 燃烧约 2.8 吨标准煤。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="side">
+    <div class="card">
+      <h3>堆芯状态</h3>
+      <div class="kbox">
+        <div class="lamp" id="lamp" style="color:#5aa7ff;background:#5aa7ff"></div>
+        <div><div class="bigk" id="kval">—</div><div class="sub" style="margin:0">实测 k</div></div>
+        <div style="margin-left:auto;text-align:right"><div class="sub" style="margin:0" id="kref">参考 k —</div><div class="sub" style="margin:0" id="stname">—</div></div>
+      </div>
+      <div class="stat"><span>累计裂变数</span><b id="fis">0</b></div>
+      <div class="stat"><span>释放能量</span><b id="enj">0 J</b></div>
+      <div class="stat"><span>能量（MeV）</span><b id="mev">0</b></div>
+      <div class="stat"><span>≈ 标准煤当量</span><b id="coal">0</b></div>
+      <div class="stat"><span>中子：堆内 / 逸出 / 吸收</span><b id="counts">0 / 0 / 0</b></div>
+    </div>
+    <div class="card">
+      <h3>播放控制</h3>
+      <div class="btnrow">
+        <button id="play">⏸ 暂停</button>
+        <button id="step">⏭ 单步一代</button>
+        <button id="reset">↺ 重置</button>
+        <button id="inject">✦ 注入中子</button>
+      </div>
+      <div class="hint">「单步一代」= 快进到当前代中子全部消亡、下一代全部出现的时刻。链熄灭后点「注入中子」重新点火。</div>
+    </div>
+    <div class="card">
+      <h3>反应堆参数</h3>
+      <div class="row"><label>控制棒插入</label><input type="range" id="depth" min="0" max="100" value="0"><output id="deptho">0%</output></div>
+      <div class="row"><label>棒材（吸收体）</label><select id="rodmat"><option value="Cd">镉 Cd（强吸收）</option><option value="B">硼 B-10（更强）</option></select></div>
+      <div class="switch"><label>慢化剂</label><div class="tgl"><input type="checkbox" id="mod" checked><span></span></div><span id="modname" style="font-size:13px">石墨/重水 · 开</span></div>
+      <div class="row"><label>初始中子数</label><input type="range" id="n0" min="1" max="10" value="3"><output id="n0o">3</output></div>
+      <div class="row"><label>仿真速度</label><input type="range" id="spd" min="1" max="5" value="2"><output id="spdo">2×</output></div>
+      <div class="row"><label>燃料浓度</label><select id="preset"></select></div>
+      <div class="sub" id="pdesc"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('sim'),ctx=cv.getContext('2d');
+const gcv=$('gen'),gx=gcv.getContext('2d');
+const pcv=$('pop'),px=pcv.getContext('2d');
+
+/* ---------- 几何常量 ---------- */
+const OX=80,OY=34,PITCH=72,BS=44,COLS=10,ROWS=7,CW=COLS*PITCH,CH=ROWS*PITCH;
+const VX=60,VY=14,VW=760,VH=528;                 // 堆容器（反射层边界）
+const RODC=[1,3,5,7],RODW=18,RODOFF=19;          // 控制棒所在间隙列
+const FAST=3.0,SP_MIN=0.7,THERM=1.5,MAXN=1400;
+const E_J=200*1.602e-13, COAL_JKG=2.927e7;       // 每裂变 200MeV→J；标准煤 29.27MJ/kg
+
+const PRESETS=[
+ {name:'天然铀 · 0.7% U-235',frac:0.07,k0:0.78,nu:2.42,desc:'U-235 太稀少，参考 k<1，无法自持链式反应'},
+ {name:'动力堆级 · 3% U-235',frac:0.28,k0:0.97,nu:2.45,desc:'典型核电站燃料：接近临界，用控制棒微调 k'},
+ {name:'中浓铀 · 8% U-235',frac:0.50,k0:1.10,nu:2.50,desc:'轻微超临界，链式反应可自持缓慢放大'},
+ {name:'高浓铀 · 20% U-235',frac:0.75,k0:1.32,nu:2.55,desc:'明显超临界，中子数指数增长'},
+ {name:'武器级 · 90% U-235',frac:0.95,k0:1.62,nu:2.60,desc:'碰撞几乎都命中 U-235 → 爆炸式增长（受演示上限截断）'}
+];
+
+/* ---------- 状态 ---------- */
+const S={depth:0,mod:true,n0:3,spd:2,pi:2,rodmat:'Cd',playing:true};
+let grid,shade,neutrons,births,kMap,kList,popHist;
+let fissions,leaks,absorbs,rodAbs,frameN,saturated;
+const fx={flash:[],frag:[],spark:[],cap:[],leak:[]};
+
+/* ---------- 初始化 ---------- */
+function buildLattice(){
+  const total=COLS*ROWS,n235=Math.round(PRESETS[S.pi].frac*total);
+  const arr=Array(total).fill(0).fill(1,0,n235);
+  for(let i=total-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  grid=[];shade=[];
+  for(let r=0;r<ROWS;r++){grid.push(arr.slice(r*COLS,(r+1)*COLS));shade.push(Array.from({length:COLS},()=>0.88+Math.random()*0.24));}
+}
+function spawn(x,y,gen,sp){
+  const a=Math.random()*Math.PI*2;
+  neutrons.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,gen,lb:null,dead:false});
+}
+function reset(){
+  buildLattice();
+  neutrons=[];births=[];kMap=new Map();kList=[];popHist=[];
+  fissions=0;leaks=0;absorbs=0;rodAbs=0;saturated=false;
+  fx.flash=[];fx.frag=[];fx.spark=[];fx.cap=[];fx.leak=[];
+  births[0]=S.n0;
+  for(let i=0;i<S.n0;i++)spawn(OX+20+Math.random()*(CW-40),OY+20+Math.random()*(CH-40),0,FAST);
+  S.playing=true;syncPlay();
+}
+function inject(){
+  const g=births.length;births[g]=(births[g]||0)+S.n0;
+  for(let i=0;i<S.n0;i++)spawn(OX+20+Math.random()*(CW-40),OY+20+Math.random()*(CH-40),g,FAST);
+}
+
+/* ---------- 物理 ---------- */
+function blockAt(x,y){
+  const rx=x-OX,ry=y-OY;
+  if(rx<0||ry<0||rx>=CW||ry>=CH)return null;
+  const c=Math.floor(rx/PITCH),r=Math.floor(ry/PITCH);
+  if(rx-c*PITCH>=BS||ry-r*PITCH>=BS)return null;
+  return {c,r,key:c*100+r,u235:grid[r][c]===1};
+}
+function setSpeed(n,sp){const m=Math.hypot(n.vx,n.vy)||1;n.vx=n.vx/m*sp;n.vy=n.vy/m*sp;}
+function doFission(n,key){
+  fissions++;
+  fx.flash.push({x:n.x,y:n.y,r:5,life:1});
+  const fa=Math.random()*Math.PI*2;
+  fx.frag.push({x:n.x,y:n.y,vx:Math.cos(fa)*2.2,vy:Math.sin(fa)*2.2,life:1});
+  fx.frag.push({x:n.x,y:n.y,vx:-Math.cos(fa)*2.2,vy:-Math.sin(fa)*2.2,life:1});
+  const P=PRESETS[S.pi];
+  let c=2+(Math.random()<(P.nu-2)?1:0);
+  c=Math.min(c,Math.max(0,MAXN-neutrons.length));
+  if(c<2+(Math.random()<(P.nu-2)?1:0)-0)if(neutrons.length+c>=MAXN)saturated=true;
+  const g=n.gen+1;births[g]=(births[g]||0)+c;
+  for(let i=0;i<c;i++){
+    spawn(n.x+(Math.random()*8-4),n.y+(Math.random()*8-4),g,FAST*(0.85+Math.random()*0.45));
+    neutrons[neutrons.length-1].lb=key;
+  }
+}
+function physics(){
+  const rodP=S.rodmat==='B'?0.8:0.65, yb=OY+S.depth/100*CH;
+  const died=new Set();
+  const kill=n=>{n.dead=true;died.add(n.gen);};
+  for(const n of neutrons){
+    if(n.dead)continue;
+    let sp=Math.hypot(n.vx,n.vy);
+    const inBlk=blockAt(n.x,n.y);
+    if(S.mod&&!inBlk&&sp>THERM&&Math.random()<0.055){      // 慢化剂碰撞
+      sp=Math.max(SP_MIN+0.02,sp*0.55);setSpeed(n,sp);
+      fx.spark.push({x:n.x,y:n.y,life:1});
+    }
+    if(sp<SP_MIN){sp=SP_MIN;setSpeed(n,sp);}
+    n.x+=n.vx;n.y+=n.vy;
+    /* 反射层边界：60%弹回，40%泄漏 */
+    let hit=false;
+    if(n.x<VX){hit=true;if(Math.random()<0.6){n.x=VX;n.vx=Math.abs(n.vx);}else kill(n);}
+    if(!n.dead&&n.x>VX+VW){hit=true;if(Math.random()<0.6){n.x=VX+VW;n.vx=-Math.abs(n.vx);}else kill(n);}
+    if(!n.dead&&n.y<VY){hit=true;if(Math.random()<0.6){n.y=VY;n.vy=Math.abs(n.vy);}else kill(n);}
+    if(!n.dead&&n.y>VY+VH){hit=true;if(Math.random()<0.6){n.y=VY+VH;n.vy=-Math.abs(n.vy);}else kill(n);}
+    if(n.dead){fx.leak.push({x:n.x,y:n.y,life:1});leaks++;continue;}
+    /* 控制棒吸收 */
+    if(S.depth>0){
+      let inRod=false;
+      for(const c of RODC){const rx=OX+c*PITCH+RODOFF;if(n.x>rx&&n.x<rx+RODW&&n.y<yb){inRod=true;break;}}
+      if(inRod&&Math.random()<rodP){kill(n);rodAbs++;fx.cap.push({x:n.x,y:n.y,life:1,rod:true});continue;}
+    }
+    /* 燃料块交互（每进入一块只判定一次） */
+    const b=blockAt(n.x,n.y);
+    if(b&&n.lb!==b.key){
+      n.lb=b.key;
+      const thermal=sp<THERM,r=Math.random();
+      if(b.u235){
+        const pF=thermal?0.62:0.10;
+        if(r<pF){kill(n);doFission(n,b.key);}
+        else if(r<pF+0.20){kill(n);absorbs++;fx.cap.push({x:n.x,y:n.y,life:1});}
+        else{const a=Math.random()*Math.PI*2;sp=Math.max(SP_MIN,sp*0.8);n.vx=Math.cos(a)*sp;n.vy=Math.sin(a)*sp;}
+      }else{
+        if(!thermal&&r<0.03){kill(n);doFission(n,b.key);}          // 快中子诱发 U-238 裂变
+        else if(r<(thermal?0.05:0.13)){kill(n);absorbs++;fx.cap.push({x:n.x,y:n.y,life:1});}
+        else{const a=Math.random()*Math.PI*2;sp=Math.max(SP_MIN,sp*0.85);n.vx=Math.cos(a)*sp;n.vy=Math.sin(a)*sp;}
+      }
+    }
+  }
+  neutrons=neutrons.filter(n=>!n.dead);
+  for(const g of died){                                            // 一代终结时计算 k
+    if(kMap.has(g)||!(births[g]>0))continue;
+    let alive=false;for(const n of neutrons)if(n.gen===g){alive=true;break;}
+    if(!alive){const k=(births[g+1]||0)/births[g];kMap.set(g,k);kList.push(k);}
+  }
+  /* 特效老化 */
+  for(const f of fx.flash){f.r+=3;f.life-=0.05;}
+  for(const f of fx.frag){f.x+=f.vx;f.y+=f.vy;f.vx*=0.94;f.vy*=0.94;f.life-=0.04;}
+  for(const a of [fx.spark,fx.cap,fx.leak])for(const f of a)f.life-=0.08;
+  fx.flash=fx.flash.filter(f=>f.life>0);fx.frag=fx.frag.filter(f=>f.life>0);
+  fx.spark=fx.spark.filter(f=>f.life>0);fx.cap=fx.cap.filter(f=>f.life>0);fx.leak=fx.leak.filter(f=>f.life>0);
+}
+function minAliveGen(){let m=Infinity;for(const n of neutrons)if(n.gen<m)m=n.gen;return m;}
+function stepGen(){
+  if(!neutrons.length){inject();return;}
+  const g0=minAliveGen();let guard=0;
+  do{physics();guard++;}while(neutrons.length&&minAliveGen()===g0&&guard<150000);
+}
+
+/* ---------- 绘制 ---------- */
+function roundRect(c,x,y,w,h,r){if(c.roundRect){c.beginPath();c.roundRect(x,y,w,h,r);}else{c.beginPath();c.rect(x,y,w,h);}}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  /* 慢化剂底色与介质点阵 */
+  if(S.mod){
+    ctx.fillStyle='rgba(90,160,230,0.05)';ctx.fillRect(OX,OY,CW,CH);
+    ctx.fillStyle='rgba(130,190,255,0.10)';
+    for(let c=0;c<COLS;c++){const gx0=OX+c*PITCH+BS+14;
+      for(let y=OY+10;y<OY+CH;y+=22){ctx.beginPath();ctx.arc(gx0,y,1.6,0,7);ctx.fill();}}
+    for(let r=0;r<ROWS;r++){const gy0=OY+r*PITCH+BS+14;
+      for(let x=OX+10;x<OX+CW;x+=22){ctx.beginPath();ctx.arc(x,gy0,1.6,0,7);ctx.fill();}}
+  }
+  /* 燃料块 */
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=OX+c*PITCH,y=OY+r*PITCH,s=shade[r][c];
+    if(grid[r][c]===1){ctx.fillStyle=`rgb(${Math.round(44*s)},${Math.round(74*s)},${Math.round(110*s)})`;ctx.strokeStyle='rgba(90,130,180,.5)';}
+    else{ctx.fillStyle=`rgb(${Math.round(201*s)},${Math.round(189*s)},${Math.round(147*s)})`;ctx.strokeStyle='rgba(230,215,170,.5)';}
+    ctx.fillRect(x,y,BS,BS);ctx.strokeRect(x+0.5,y+0.5,BS-1,BS-1);
+  }
+  /* 控制棒 */
+  const yb=OY+S.depth/100*CH;
+  for(const c of RODC){
+    const rx=OX+c*PITCH+RODOFF;
+    ctx.fillStyle='rgba(120,130,145,.12)';ctx.fillRect(rx-2,OY,RODW+4,CH);       // 导向管
+    if(S.depth>0){
+      ctx.fillStyle='#6d7787';ctx.fillRect(rx,OY-16,RODW,yb-OY+16);
+      ctx.fillStyle='rgba(0,0,0,.25)';
+      for(let y=OY-10;y<yb-4;y+=10)ctx.fillRect(rx,y,RODW,3);
+      ctx.fillStyle='#c0392b';ctx.fillRect(rx,yb-5,RODW,5);
+    }else{ctx.fillStyle='#6d7787';ctx.fillRect(rx,OY-16,RODW,8);}
+  }
+  /* 容器边界 */
+  ctx.strokeStyle='#33506e';ctx.lineWidth=2;roundRect(ctx,VX,VY,VW,VH,14);ctx.stroke();ctx.lineWidth=1;
+  ctx.fillStyle='#6d8299';ctx.font='12px system-ui';
+  ctx.fillText('堆芯边界 · 反射层（60% 中子弹回）',VX+10,VY+VH-10);
+  ctx.fillText(`控制棒 ${S.depth}% ｜ 慢化剂 ${S.mod?'开':'关'} ｜ ${PRESETS[S.pi].name}`,VX+10,VY+18);
+  if(saturated){ctx.fillStyle='#ffd166';ctx.fillText('⚠ 中子数已达演示上限（计数被截断）',VX+VW-260,VY+18);}
+  /* 特效 */
+  for(const f of fx.flash){ctx.strokeStyle=`rgba(255,225,130,${f.life})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,7);ctx.stroke();}
+  ctx.lineWidth=1;
+  for(const f of fx.frag){ctx.fillStyle=`rgba(255,150,60,${f.life})`;ctx.beginPath();ctx.arc(f.x,f.y,3,0,7);ctx.fill();}
+  for(const f of fx.spark){ctx.fillStyle=`rgba(140,210,255,${f.life})`;ctx.fillRect(f.x-1.5,f.y-1.5,3,3);}
+  for(const f of fx.cap){ctx.fillStyle=f.rod?`rgba(190,120,255,${f.life})`:`rgba(120,230,160,${f.life})`;ctx.beginPath();ctx.arc(f.x,f.y,3.5,0,7);ctx.fill();}
+  for(const f of fx.leak){ctx.fillStyle=`rgba(160,160,160,${f.life*0.7})`;ctx.beginPath();ctx.arc(f.x,f.y,2,0,7);ctx.fill();}
+  /* 中子 */
+  for(const n of neutrons){
+    const sp=Math.hypot(n.vx,n.vy),hot=sp<THERM,col=hot?'#ffd166':'#9fe8ff';
+    ctx.strokeStyle=hot?'rgba(255,209,102,.35)':'rgba(159,232,255,.35)';
+    ctx.beginPath();ctx.moveTo(n.x-n.vx*3,n.y-n.vy*3);ctx.lineTo(n.x,n.y);ctx.stroke();
+    ctx.fillStyle=col.replace(')',',0.18)').replace('#','rgba(')||col;
+    ctx.fillStyle=hot?'rgba(255,209,102,.16)':'rgba(159,232,255,.16)';
+    ctx.beginPath();ctx.arc(n.x,n.y,5.5,0,7);ctx.fill();
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(n.x,n.y,2.4,0,7);ctx.fill();
+  }
+  /* 熄灭提示 */
+  if(!neutrons.length){
+    ctx.fillStyle='rgba(5,8,13,.55)';ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle='#d9e4f2';ctx.font='bold 20px system-ui';ctx.textAlign='center';
+    ctx.fillText('链式反应已熄灭（次临界 / 中子耗尽）',cv.width/2,cv.height/2-8);
+    ctx.font='14px system-ui';ctx.fillStyle='#8ba3ba';
+    ctx.fillText('点击「✦ 注入中子」重新点火，或调低控制棒插入深度',cv.width/2,cv.height/2+20);
+    ctx.textAlign='left';
+  }
+}
+function drawGen(){
+  const w=gcv.width,h=gcv.height;gx.clearRect(0,0,w,h);
+  const base=h-16,top=8;
+  gx.strokeStyle='#2a3a4e';gx.beginPath();gx.moveTo(0,base);gx.lineTo(w,base);gx.stroke();
+  if(!births.length){gx.fillStyle='#5c7186';gx.font='12px system-ui';gx.fillText('等待数据…',10,20);return;}
+  const N=Math.min(34,births.length),start=births.length-N;
+  let vmax=1;for(let i=start;i<births.length;i++)if(births[i]>vmax)vmax=births[i];
+  const bw=(w-8)/N;
+  for(let i=0;i<N;i++){
+    const v=births[start+i]||0,bh=(v/vmax)*(base-top);
+    gx.fillStyle=(start+i===births.length-1)?'#ffd166':'rgba(77,163,255,.85)';
+    gx.fillRect(4+i*bw,base-bh,Math.max(2,bw-2),bh);
+    if((start+i)%5===0){gx.fillStyle='#5c7186';gx.font='10px system-ui';gx.fillText(start+i,4+i*bw,h-4);}
+  }
+  const ky=k=>base-Math.min(k,2)/2*(base-top);
+  gx.strokeStyle='rgba(255,255,255,.25)';gx.setLineDash([4,4]);
+  gx.beginPath();gx.moveTo(0,ky(1));gx.lineTo(w,ky(1));gx.stroke();gx.setLineDash([]);
+  gx.fillStyle='#ff7b7b';
+  for(let i=0;i<N;i++){const k=kMap.get(start+i);if(k!=null){gx.beginPath();gx.arc(4+i*bw+bw/2-1,ky(k),2.5,0,7);gx.fill();}}
+}
+function drawPop(){
+  const w=pcv.width,h=pcv.height;px.clearRect(0,0,w,h);
+  const base=h-8,top=8;
+  px.strokeStyle='#2a3a4e';px.beginPath();px.moveTo(0,base);px.lineTo(w,base);px.stroke();
+  if(popHist.length<2){px.fillStyle='#5c7186';px.font='12px system-ui';px.fillText('等待数据…',10,20);return;}
+  let vmax=1;for(const v of popHist)if(v>vmax)vmax=v;
+  const st=w/(popHist.length-1);
+  px.beginPath();px.moveTo(0,base);
+  popHist.forEach((v,i)=>px.lineTo(i*st,base-(v/vmax)*(base-top)));
+  px.lineTo((popHist.length-1)*st,base);px.closePath();
+  px.fillStyle='rgba(159,232,255,.12)';px.fill();
+  px.beginPath();popHist.forEach((v,i)=>{const y=base-(v/vmax)*(base-top);i?px.lineTo(i*st,y):px.moveTo(0,y);});
+  px.strokeStyle='#9fe8ff';px.lineWidth=1.5;px.stroke();px.lineWidth=1;
+  px.fillStyle='#ffd166';px.font='11px system-ui';
+  px.fillText('当前 '+popHist[popHist.length-1]+' ｜ 峰值 '+vmax,w-140,14);
+}
+
+/* ---------- 统计 ---------- */
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function sci(x){if(!isFinite(x)||x===0)return '0';const e=x.toExponential(2),[m,p]=e.split('e');
+  return m+'×10'+String(+p).split('').map(c=>SUP[c]||'').join('');}
+function fmtJ(j){return j>=1e-3?(j/1e3).toFixed(3)+' kJ':sci(j)+' J';}
+function fmtMass(g){if(g<=0)return '0';
+  if(g>=1000)return (g/1000).toFixed(3)+' kg';if(g>=1)return g.toFixed(3)+' g';
+  if(g>=1e-3)return (g*1e3).toFixed(3)+' mg';if(g>=1e-6)return (g*1e6).toFixed(3)+' µg';
+  if(g>=1e-9)return (g*1e9).toFixed(3)+' ng';return (g*1e12).toFixed(3)+' pg';}
+function kNow(){if(!kList.length)return null;const a=kList.slice(-3);return a.reduce((s,v)=>s+v,0)/a.length;}
+function refK(){return PRESETS[S.pi].k0*(S.mod?1:0.45)*Math.exp(-S.depth/100*2.7);}
+function updateStats(){
+  const km=kNow(),k=km!=null?km:refK();
+  $('kval').textContent=km!=null?k.toFixed(2):'—';
+  $('kval').style.color=k>1.05?'#ff6060':(k<0.95?'#5aa7ff':'#3bd98a');
+  $('kref').textContent='参考 k ≈ '+refK().toFixed(2);
+  let col,txt;
+  if(k<0.95){col='#5aa7ff';txt='次临界（衰减）';}
+  else if(k<=1.05){col='#3bd98a';txt='临界（自持）';}
+  else{col='#ff6060';txt='超临界（增长）';}
+  const lamp=$('lamp');lamp.style.color=col;lamp.style.background=col;
+  $('stname').textContent=txt;$('stname').style.color=col;
+  $('fis').textContent=fissions.toLocaleString();
+  const J=fissions*E_J;
+  $('enj').textContent=fmtJ(J);
+  const mev=fissions*200;
+  $('mev').textContent=mev>=1e4?sci(mev)+' MeV':mev.toLocaleString()+' MeV';
+  $('coal').textContent=fmtMass(J/COAL_JKG*1000);
+  $('counts').textContent=`${neutrons.length} / ${leaks} / ${absorbs+rodAbs}`;
+}
+
+/* ---------- 主循环 ---------- */
+function frame(){
+  if(S.playing){for(let i=0;i<S.spd;i++)physics();
+    if(frameN%4===0){popHist.push(neutrons.length);if(popHist.length>360)popHist.shift();}}
+  frameN++;
+  draw();drawGen();drawPop();updateStats();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 事件 ---------- */
+function syncPlay(){$('play').textContent=S.playing?'⏸ 暂停':'▶ 播放';}
+$('play').onclick=()=>{S.playing=!S.playing;syncPlay();};
+$('step').onclick=()=>{S.playing=false;syncPlay();stepGen();};
+$('reset').onclick=()=>reset();
+$('inject').onclick=()=>inject();
+$('depth').oninput=e=>{S.depth=+e.target.value;$('deptho').textContent=S.depth+'%';};
+$('rodmat').onchange=e=>S.rodmat=e.target.value;
+$('mod').onchange=e=>{S.mod=e.target.checked;$('modname').textContent=S.mod?'石墨/重水 · 开':'关闭（无慢化）';};
+$('n0').oninput=e=>{S.n0=+e.target.value;$('n0o').textContent=S.n0;};
+$('spd').oninput=e=>{S.spd=+e.target.value;$('spdo').textContent=S.spd+'×';};
+PRESETS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.name;$('preset').appendChild(o);});
+$('preset').value=S.pi;$('pdesc').textContent=PRESETS[S.pi].desc;
+$('preset').onchange=e=>{S.pi=+e.target.selectedOptions[0].value;$('pdesc').textContent=PRESETS[S.pi].desc;reset();};
+
+reset();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

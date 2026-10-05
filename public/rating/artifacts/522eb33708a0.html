@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>胡克定律实验：弹簧伸长法测劲度系数</title>
+<style>
+:root{
+  --bg:#eef1f6; --card:#fff; --ink:#1f2733; --sub:#5b6572; --line:#e3e8ef;
+  --blue:#2563eb; --red:#dc2626; --orange:#d97706; --green:#16a34a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1200px;margin:0 auto;padding:18px 16px 44px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:22px;margin:0}
+header .sub{color:var(--sub);font-size:13px}
+main{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:940px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 18px rgba(23,32,64,.06);padding:14px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--blue)}
+#appCanvas,#graphCanvas{width:100%;height:auto;display:block;touch-action:manipulation}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.tile{background:#f6f8fc;border:1px solid var(--line);border-radius:10px;padding:7px 9px}
+.tile .k{font-size:11px;color:var(--sub)}
+.tile .v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile.warn .v{color:var(--red)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+button{font:inherit;border:none;border-radius:9px;padding:9px 13px;cursor:pointer;background:#e8edf5;color:var(--ink);transition:filter .15s, transform .05s}
+button:hover{filter:brightness(.96)}
+button:active{transform:translateY(1px)}
+.b-blue{background:var(--blue);color:#fff}
+.b-red{background:var(--red);color:#fff}
+.b-green{background:var(--green);color:#fff}
+.b-ghost{background:#eef1f6}
+button:disabled{opacity:.45;cursor:not-allowed}
+#badge{display:inline-block;padding:5px 12px;border-radius:999px;font-size:13px;font-weight:600;margin-bottom:8px}
+.badge-ok{background:#dcfce7;color:#15803d}
+.badge-hot{background:#fee2e2;color:#b91c1c;animation:blink 1s infinite}
+.badge-pl{background:#ffedd5;color:#c2410c}
+@keyframes blink{50%{opacity:.55}}
+.hint{font-size:12.5px;color:var(--sub);line-height:1.7}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:6px 8px;text-align:center;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{background:#f4f6fa;position:sticky;top:0}
+tbody tr:nth-child(even){background:#fafbfd}
+tr.fresh{animation:rowflash 1.2s}
+@keyframes rowflash{0%{background:#dbeafe}100%{background:transparent}}
+.scrollbox{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+#slopeOut{font-size:13px;line-height:1.8;background:#f6f8fc;border:1px dashed #c8d2e0;border-radius:10px;padding:8px 12px;margin-top:10px;min-height:20px}
+#ansOut{margin-top:8px;font-size:13.5px;color:var(--green);font-weight:600;display:none}
+.note{font-size:12.5px;color:var(--sub);margin-top:10px;line-height:1.7}
+#toast{position:fixed;left:50%;top:22px;transform:translateX(-50%);background:#1f2733;color:#fff;padding:9px 18px;border-radius:999px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+.legendbar{display:flex;gap:16px;font-size:12.5px;color:var(--sub);margin-top:6px;flex-wrap:wrap}
+.legendbar span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;display:inline-block;border-radius:50%}
+.sw.sq{border-radius:2px}
+.sw.tr{border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧪 胡克定律实验：弹簧伸长法测劲度系数</h1>
+    <span class="sub">逐个加砝码 → 读指针 → 记数据 → 描点作图 → 自己求 k（g 取 9.8 m/s²，每个砝码 50 g）</span>
+  </header>
+
+  <main>
+    <!-- 左列：装置 + 控制 -->
+    <section>
+      <div class="card">
+        <h2><span class="dot"></span>实验装置（铁架台 · 弹簧 · 毫米刻度尺）</h2>
+        <canvas id="appCanvas"></canvas>
+      </div>
+
+      <div class="card">
+        <h2><span class="dot"></span>读数与操作</h2>
+        <div class="tiles">
+          <div class="tile"><div class="k">砝码数 n</div><div class="v" id="roN">0</div></div>
+          <div class="tile"><div class="k">砝码总质量</div><div class="v" id="roM">0 g</div></div>
+          <div class="tile"><div class="k">拉力 F</div><div class="v" id="roF">0.00 N</div></div>
+          <div class="tile"><div class="k">指针读数 L</div><div class="v" id="roL">15.00 cm</div></div>
+          <div class="tile"><div class="k">伸长量 x = L − 15.00</div><div class="v" id="roX">0.00 cm</div></div>
+          <div class="tile" id="tileXp"><div class="k">永久形变 xₚ</div><div class="v" id="roXp">0.00 cm</div></div>
+        </div>
+        <span id="badge" class="badge-ok">弹性范围内：F = kx 成立</span>
+        <div class="btnrow">
+          <button class="b-blue" id="btnAdd">➕ 加一个砝码</button>
+          <button id="btnSub">➖ 取下一个砝码</button>
+          <button id="btnClear">⬇ 撤去全部砝码</button>
+          <button class="b-green" id="btnNew">🔧 换新弹簧（全部重置）</button>
+        </div>
+        <div class="btnrow">
+          <button class="b-ghost" id="btnRow">✍ 手动记录当前数据</button>
+          <button class="b-ghost" id="btnDel">↩ 删除最后一条数据</button>
+        </div>
+        <div class="hint">
+          提示：待弹簧<strong>稳定后</strong>会自动记入表格（也可手动记录）。大胆加砝码试试——加到某个程度，刻度尺会告诉你发生了什么；再把砝码全部撤掉，看看指针还回不回得去。快捷键：↑ 加砝码、↓ 减砝码。
+        </div>
+      </div>
+    </section>
+
+    <!-- 右列：图像 + 表格 -->
+    <section>
+      <div class="card">
+        <h2><span class="dot"></span>F–x 图像（学生自己求斜率）</h2>
+        <canvas id="graphCanvas"></canvas>
+        <div class="legendbar">
+          <span><i class="sw" style="background:#2563eb"></i>加载·弹性段</span>
+          <span><i class="sw sq" style="background:#dc2626"></i>加载·超过弹性限度</span>
+          <span><i class="sw tr" style="background:#f59e0b"></i>卸载 / 塑性后再加载</span>
+        </div>
+        <div class="tools">
+          <button class="b-blue" id="btnPick">📐 两点法求斜率：点我后在图上依次点击两个数据点</button>
+          <button class="b-ghost" id="btnPickClr">清除选点</button>
+          <button class="b-green" id="btnAns">显示参考答案 k</button>
+        </div>
+        <div id="slopeOut">在图上选取 <b>A、B</b> 两个数据点（建议都选弹性加载段的点），即可得 k = ΔF / Δx。</div>
+        <div id="ansOut"></div>
+        <div class="note">
+          观察要点：① 弹性段各点几乎在一条过原点的直线上，斜率即劲度系数；② 超过弹性限度后点明显“掉”到直线右下方；③ 卸载点沿一条<b>与弹性段平行</b>的直线返回，但回不到原点——差值就是<b>永久形变 xₚ</b>。
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="dot"></span>数据记录表</h2>
+        <div class="scrollbox">
+          <table>
+            <thead><tr><th>序号</th><th>n</th><th>m / g</th><th>F / N</th><th>L / cm</th><th>x / cm</th><th>阶段</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ================= 物理模型 =================
+   弹性段:  x = F/k                       (k = 20 N/m)
+   屈服后:  x = F/k + b·(Fmax − Fe)       (Fe = 2.45 N ≈ 5个砝码, b = 0.028 m/N)
+   卸载时 Fmax 保留 → 撤掉砝码仍剩 xₚ = b·(Fmax − Fe)，即“回不来”。
+==================================================*/
+const G=9.8, MW=0.05, K=20, FE=2.45, BP=0.028, L0=0.15, MAXN=10;
+
+let S;
+function freshState(){ return {n:0,Fmax:0,disp:0,vel:0,dir:'up',rows:[],id:0,pending:true,still:1e9,picks:[],picking:false,showAns:false}; }
+S=freshState();
+
+const xPlastic=()=>Math.max(0,(S.Fmax-FE))*BP;
+const force=()=>S.n*MW*G;
+const xTarget=()=>force()/K + xPlastic();
+
+/* ================= 画布初始化 ================= */
+const appCv=document.getElementById('appCanvas'), gCv=document.getElementById('graphCanvas');
+const ACTX=appCv.getContext('2d'), GCTX=gCv.getContext('2d');
+const AW=380, AH=700, GW=600, GH=430;
+function fit(cv,w,h){const d=window.devicePixelRatio||1;cv.width=w*d;cv.height=h*d;cv.getContext('2d').setTransform(d,0,0,d,0,0);cv.style.aspectRatio=w+'/'+h;}
+fit(appCv,AW,AH); fit(gCv,GW,GH);
+
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+
+/* ================= 装置绘制 ================= */
+const topY=76, ppc=8.6, springX=208;
+function drawApparatus(){
+  const c=ACTX; c.clearRect(0,0,AW,AH);
+  const yielded=S.Fmax>FE+1e-9;
+
+  /* 铁架台 */
+  c.fillStyle='#39424f'; rr(c,26,648,300,30,7); c.fill();
+  c.fillStyle='#4a5568'; rr(c,54,58,10,590,4); c.fill();        // 立杆
+  c.fillStyle='#4a5568'; rr(c,54,56,170,12,5); c.fill();        // 横杆
+  c.fillStyle='#26303d'; c.beginPath(); c.arc(59,62,7,0,7); c.fill(); // 夹紧螺母
+  c.strokeStyle='#37424f'; c.lineWidth=2; c.beginPath(); c.moveTo(224,62); c.lineTo(springX,72); c.stroke(); // 挂环
+  /* 刻度尺支架 */
+  c.fillStyle='#5a6472'; rr(c,304,88,7,560,3); c.fill();
+  c.fillStyle='#5a6472'; rr(c,284,96,20,8,2); c.fill(); rr(c,284,360,20,8,2); c.fill();
+
+  /* 毫米刻度尺（0 刻度对齐弹簧悬挂点） */
+  const rx=266, rw=18;
+  c.fillStyle='#fdf7dc'; c.strokeStyle='#c9b06a'; c.lineWidth=1;
+  rr(c,rx,70,rw,444,3); c.fill(); c.stroke();
+  c.strokeStyle='#8a7434';
+  for(let cm=0;cm<=50;cm++){
+    const y=topY+cm*ppc, major=cm%5===0;
+    c.beginPath(); c.moveTo(rx,y); c.lineTo(rx+(major?10:cm%1===0?7:4),y); c.stroke();
+    if(major){c.fillStyle='#6b5a24';c.font='9.5px sans-serif';c.textAlign='left';c.textBaseline='middle';c.fillText(cm,rx+rw+1,y);}
+  }
+  /* 原长参考线 */
+  const y0=topY+L0*ppc;
+  c.strokeStyle='#0ea5a4'; c.setLineDash([5,4]); c.lineWidth=1.4;
+  c.beginPath(); c.moveTo(springX+14,y0); c.lineTo(rx+rw+16,y0); c.stroke(); c.setLineDash([]);
+  c.fillStyle='#0ea5a4'; c.font='10px sans-serif'; c.textAlign='left';
+  c.fillText('原长 15.00 cm', rx+rw+18, y0-6);
+
+  /* 弹簧 */
+  const len=(L0+S.disp)*ppc;
+  const coils=13, amp=9, seg=coils*22;
+  const springStroke=(f0,f1,col)=>{c.strokeStyle=col;c.lineWidth=2.6;c.lineCap='round';c.beginPath();
+    for(let i=0;i<=seg;i++){const f=f0+(f1-f0)*i/seg;
+      const px=springX+amp*Math.sin(f*coils*2*Math.PI), py=topY+len*f;
+      i===0?c.moveTo(px,py):c.lineTo(px,py);} c.stroke();};
+  springStroke(0,1,'#525d6e');
+  if(yielded) springStroke(0,0.22,'#d6545a');   // 上端线圈发红 = 永久形变区
+  c.strokeStyle='#525d6e'; c.lineWidth=2.6;
+  c.beginPath(); c.moveTo(springX,70); c.lineTo(springX,topY); c.stroke();
+
+  /* 指针 */
+  const py=topY+len;
+  c.strokeStyle='#e11d48'; c.setLineDash([4,3]); c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(springX+amp+3,py); c.lineTo(rx-1,py); c.stroke(); c.setLineDash([]);
+  c.fillStyle='#e11d48'; c.beginPath();
+  c.moveTo(rx-1,py); c.lineTo(rx-8,py-4); c.lineTo(rx-8,py+4); c.closePath(); c.fill();
+
+  /* 挂钩 + 砝码 */
+  c.strokeStyle='#42506b'; c.lineWidth=3;
+  c.beginPath(); c.moveTo(springX,py); c.lineTo(springX,py+8); c.stroke();
+  c.fillStyle='#42506b'; rr(c,springX-20,py+8,40,5,2); c.fill();
+  for(let i=0;i<S.n;i++){
+    const y=py+14+i*12;
+    const g=c.createLinearGradient(springX-27,0,springX+27,0);
+    g.addColorStop(0,'#93a1b4'); g.addColorStop(.5,'#d5dce6'); g.addColorStop(1,'#8b98ab');
+    c.fillStyle=g; c.strokeStyle='#6b7889'; c.lineWidth=1;
+    rr(c,springX-27,y,54,11,3); c.fill(); c.stroke();
+    c.fillStyle='#39424f'; c.font='8.5px sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText('50 g',springX,y+6);
+  }
+}
+
+/* ================= F–x 图像 ================= */
+function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r)));const m=r/p;return (m<=1?1:m<=2?2:m<=5?5:10)*p;}
+function ptStyle(phase){
+  if(phase.includes('超限')) return 'sq_r';
+  if(phase==='卸载'||phase==='再加载') return 'tr_o';
+  return 'ci_b';
+}
+function drawGraph(){
+  const c=GCTX; c.clearRect(0,0,GW,GH);
+  const mL=58,mR=16,mT=18,mB=46,pw=GW-mL-mR,ph=GH-mT-mB;
+  let maxX=6,maxF=3;
+  S.rows.forEach(r=>{maxX=Math.max(maxX,r.x*100);maxF=Math.max(maxF,r.F);});
+  const xs=niceStep(maxX*1.15/6), Fs=niceStep(maxF*1.15/6);
+  const xMax=Math.ceil(maxX*1.15/xs)*xs, FMax=Math.ceil(maxF*1.15/Fs)*Fs;
+  const X=v=>mL+pw*v/xMax, Y=v=>mT+ph*(1-v/FMax);
+
+  c.font='11.5px sans-serif'; c.fillStyle='#5b6572';
+  for(let v=0;v<=xMax+1e-9;v+=xs){
+    c.strokeStyle='#e7ebf2'; c.beginPath(); c.moveTo(X(v),mT); c.lineTo(X(v),mT+ph); c.stroke();
+    c.textAlign='center'; c.textBaseline='top'; c.fillText(v,X(v),mT+ph+6);
+  }
+  for(let v=0;v<=FMax+1e-9;v+=Fs){
+    c.strokeStyle='#e7ebf2'; c.beginPath(); c.moveTo(mL,Y(v)); c.lineTo(mL+pw,Y(v)); c.stroke();
+    c.textAlign='right'; c.textBaseline='middle'; c.fillText(Fs<1?v.toFixed(1):v,mL-7,Y(v));
+  }
+  c.strokeStyle='#5b6572'; c.lineWidth=1.4;
+  c.beginPath(); c.moveTo(mL,mT); c.lineTo(mL,mT+ph); c.lineTo(mL+pw,mT+ph); c.stroke();
+  c.fillStyle='#333c49'; c.font='13px sans-serif';
+  c.textAlign='right'; c.fillText('x / cm',mL+pw,mT+ph+26);
+  c.textAlign='left'; c.fillText('F / N',mL-44,mT-4);
+  c.font='12px sans-serif'; c.fillStyle='#5b6572'; c.textAlign='center';
+  c.fillText('F–x 图像（横轴：伸长量，纵轴：拉力）',mL+pw/2,mT-6);
+
+  /* 参考答案直线 */
+  if(S.showAns && S.kFit){
+    c.strokeStyle='#16a34a'; c.setLineDash([7,5]); c.lineWidth=2;
+    c.beginPath(); c.moveTo(X(0),Y(0)); c.lineTo(X(xMax),Y(S.kFit*xMax/100)); c.stroke(); c.setLineDash([]);
+  }
+
+  /* 数据点 */
+  for(const r of S.rows){
+    const px=X(r.x*100), py=Y(r.F), st=ptStyle(r.phase);
+    if(st==='ci_b'){c.fillStyle='#2563eb';c.beginPath();c.arc(px,py,4.6,0,7);c.fill();
+      c.strokeStyle='#fff';c.lineWidth=1.4;c.stroke();}
+    else if(st==='sq_r'){c.fillStyle='#dc2626';c.fillRect(px-4.5,py-4.5,9,9);
+      c.strokeStyle='#fff';c.lineWidth=1.4;c.strokeRect(px-4.5,py-4.5,9,9);}
+    else{c.fillStyle='#f59e0b';c.beginPath();c.moveTo(px,py-5.5);c.lineTo(px+5.5,py+4.5);c.lineTo(px-5.5,py+4.5);c.closePath();c.fill();
+      c.strokeStyle='#fff';c.lineWidth=1.4;c.stroke();}
+  }
+
+  /* 两点法选点 */
+  const picks=S.picks.map(id=>S.rows.find(r=>r.id===id)).filter(Boolean);
+  if(picks.length){
+    if(picks.length===2){
+      const [a,b]=picks;
+      c.strokeStyle='#7c3aed'; c.setLineDash([5,4]); c.lineWidth=1.8;
+      c.beginPath(); c.moveTo(X(a.x*100),Y(a.F)); c.lineTo(X(b.x*100),Y(b.F)); c.stroke(); c.setLineDash([]);
+    }
+    picks.forEach((p,i)=>{
+      const px=X(p.x*100),py=Y(p.F);
+      c.strokeStyle='#7c3aed'; c.lineWidth=2.4;
+      c.beginPath(); c.arc(px,py,9.5,0,7); c.stroke();
+      c.fillStyle='#7c3aed'; c.font='bold 13px sans-serif'; c.textAlign='left'; c.textBaseline='bottom';
+      c.fillText(i===0?'A':'B',px+12,py-6);
+    });
+  }
+}
+
+/* ================= 记录与表格 ================= */
+function phaseOf(F){
+  if(S.Fmax<=FE+1e-9) return '加载·弹性';
+  if(F>=S.Fmax-1e-9) return '加载·超限度';
+  return S.dir==='up'?'再加载':'卸载';
+}
+function addRow(){
+  const F=force(), x=xTarget();
+  S.rows.push({id:++S.id, n:S.n, m:S.n*50, F:F, L:L0+x, x:x, phase:S.rows.length===0&&S.n===0?'初始':phaseOf(F)});
+  renderTable(true); drawGraph(); updateSlopeOut();
+}
+function renderTable(freshLast){
+  const tb=document.getElementById('tbody');
+  tb.innerHTML=S.rows.map((r,i)=>
+    `<tr${freshLast&&i===S.rows.length-1?' class="fresh"':''}><td>${i+1}</td><td>${r.n}</td><td>${r.m}</td><td>${r.F.toFixed(2)}</td><td>${r.L.toFixed(2)}</td><td>${(r.x*100).toFixed(2)}</td><td>${r.phase}</td></tr>`).join('');
+}
+
+/* ================= 状态 / 读数 ================= */
+const $=id=>document.getElementById(id);
+function updateStatus(){
+  const b=$('badge'), F=force(), xp=xPlastic();
+  if(S.n>0 && F>=S.Fmax-1e-9 && S.Fmax>FE+1e-9){
+    b.className='badge-hot';
+    b.textContent='⚠ 已超过弹性限度！弹簧正在发生不可恢复的形变';
+  }else if(S.Fmax>FE+1e-9){
+    b.className='badge-pl';
+    b.textContent='⚠ 弹簧已永久形变：撤掉全部砝码仍残留 xₚ = '+(xp*100).toFixed(2)+' cm，回不去了';
+  }else{
+    b.className='badge-ok';
+    b.textContent='✔ 弹性范围内：F = kx 成立';
+  }
+  $('tileXp').classList.toggle('warn',xp>0.0005);
+}
+function updateReadouts(){
+  $('roN').textContent=S.n;
+  $('roM').textContent=(S.n*50)+' g';
+  $('roF').textContent=force().toFixed(2)+' N';
+  $('roL').textContent=((L0+S.disp)*100).toFixed(2)+' cm';
+  $('roX').textContent=(S.disp*100).toFixed(2)+' cm';
+  $('roXp').textContent=(xPlastic()*100).toFixed(2)+' cm';
+}
+
+/* ================= 操作 ================= */
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.opacity=1;clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity=0,1800);}
+function add(){ if(S.n>=MAXN){toast('最多 '+MAXN+' 个砝码，别把弹簧拉断啦！');return;}
+  S.n++; S.dir='up'; S.Fmax=Math.max(S.Fmax,force()); S.pending=true; updateStatus(); }
+function sub(){ if(S.n<=0){toast('已经没有砝码了');return;}
+  S.n--; S.dir='down'; S.pending=true; updateStatus(); }
+function setAllOff(){ if(S.n===0)return; S.n=0; S.dir='down'; S.pending=true; updateStatus(); }
+function newSpring(){
+  const keep=false; S=freshState(); renderTable(false); drawGraph(); updateStatus(); updateSlopeOut();
+  $('ansOut').style.display='none'; toast('已换上新弹簧，数据已清空');
+}
+$('btnAdd').onclick=add; $('btnSub').onclick=sub;
+$('btnClear').onclick=setAllOff; $('btnNew').onclick=newSpring;
+$('btnRow').onclick=()=>{addRow();toast('已手动记录 1 条数据');};
+$('btnDel').onclick=()=>{ if(!S.rows.length){toast('没有可删除的数据');return;}
+  S.rows.pop(); S.picks=S.picks.filter(id=>S.rows.some(r=>r.id===id));
+  renderTable(false); drawGraph(); updateSlopeOut(); };
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp'){e.preventDefault();add();}
+  if(e.key==='ArrowDown'){e.preventDefault();sub();}
+});
+
+/* ================= 两点法求斜率 & 参考答案 ================= */
+function updateSlopeOut(){
+  const el=$('slopeOut');
+  const picks=S.picks.map(id=>S.rows.find(r=>r.id===id)).filter(Boolean);
+  if(picks.length===0){el.innerHTML='在图上选取 <b>A、B</b> 两个数据点（建议都选弹性加载段的点），即可得 k = ΔF / Δx。';return;}
+  const a=picks[0];
+  let html=`选点 A：x = ${(a.x*100).toFixed(2)} cm，F = ${a.F.toFixed(2)} N`;
+  if(picks.length===2){
+    const b=picks[1];
+    const dF=b.F-a.F, dx=b.x-a.x;
+    if(Math.abs(dx)<1e-6){html+=`<br>选点 B：x = ${(b.x*100).toFixed(2)} cm，F = ${b.F.toFixed(2)} N<br>两点 x 相同，无法求斜率！`;el.innerHTML=html;return;}
+    const kEst=dF/dx;
+    const tip=(ptStyle(a.phase)==='ci_b'&&ptStyle(b.phase)==='ci_b')?'（两点都在弹性段，结果即为劲度系数 ✔）':'（注意：所选点含塑性/卸载段数据，结果会偏离 k，建议重选弹性加载段的点）';
+    html+=`<br>选点 B：x = ${(b.x*100).toFixed(2)} cm，F = ${b.F.toFixed(2)} N<br>
+      ΔF = ${dF.toFixed(2)} N，Δx = ${dx.toFixed(2)} cm = ${(dx/100).toFixed(4)} m<br>
+      <b>k = ΔF / Δx = ${dF.toFixed(2)} ÷ ${(dx/100).toFixed(4)} ≈ ${kEst.toFixed(1)} N/m</b> ${tip}`;
+  }else{html+='<br>请再点击第二个数据点 B';}
+  el.innerHTML=html;
+}
+$('btnPick').onclick=()=>{S.picking=!S.picking;
+  toast(S.picking?'请在图上点击两个数据点（先 A 后 B）':'已退出选点模式');
+  $('btnPick').classList.toggle('b-blue',S.picking);
+  $('btnPick').classList.toggle('b-ghost',!S.picking);};
+$('btnPickClr').onclick=()=>{S.picks=[];drawGraph();updateSlopeOut();};
+gCv.addEventListener('click',e=>{
+  if(!S.picking)return;
+  const r=gCv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*GW/r.width, my=(e.clientY-r.top)*GH/r.height;
+  /* 反算每个数据点的像素坐标（与 drawGraph 相同的比例） */
+  const mL=58,mR=16,mT=18,mB=46,pw=GW-mL-mR,ph=GH-mT-mB;
+  let maxX=6,maxF=3;S.rows.forEach(q=>{maxX=Math.max(maxX,q.x*100);maxF=Math.max(maxF,q.F);});
+  const xs=niceStep(maxX*1.15/6),Fs=niceStep(maxF*1.15/6);
+  const xMax=Math.ceil(maxX*1.15/xs)*xs,FMax=Math.ceil(maxF*1.15/Fs)*Fs;
+  let best=null,bd=26;
+  for(const q of S.rows){
+    const px=mL+pw*q.x*100/xMax, py=mT+ph*(1-q.F/FMax);
+    const d=Math.hypot(px-mx,py-my);
+    if(d<bd){bd=d;best=q;}
+  }
+  if(!best){toast('没点中数据点，请点在圆点附近');return;}
+  if(S.picks.length>=2)S.picks=[];
+  if(!S.picks.includes(best.id))S.picks.push(best.id);
+  drawGraph();updateSlopeOut();
+  if(S.picks.length===2)toast('选点完成，看下方计算结果');
+});
+$('btnAns').onclick=()=>{
+  S.showAns=!S.showAns;
+  const out=$('ansOut');
+  if(S.showAns){
+    const fit=S.rows.filter(r=>(r.phase==='加载·弹性'||r.phase==='初始'));
+    if(fit.length<2){toast('弹性段数据不足，先在弹性范围内多加几个砝码吧');S.showAns=false;return;}
+    let sx=0,sxy=0; fit.forEach(r=>{sx+=r.x*r.x;sxy+=r.x*r.F;});
+    S.kFit=sxy/sx;
+    out.textContent='参考答案：对弹性段 ' + fit.length + ' 个数据作直线拟合，k ≈ ' + S.kFit.toFixed(1) + ' N/m（本实验真实值 k = 20 N/m）';
+    out.style.display='block';
+  }else{out.style.display='none';}
+  drawGraph();
+};
+
+/* ================= 动画主循环 ================= */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.033,(now-last)/1000); last=now;
+  const target=xTarget(), w=8.5, z=0.30;
+  const a=w*w*(target-S.disp)-2*z*w*S.vel;
+  S.vel+=a*dt; S.disp+=S.vel*dt;
+  const rest=Math.abs(target-S.disp)<0.0006&&Math.abs(S.vel)<0.01;
+  S.still=rest?S.still+dt:0;
+  if(S.pending&&S.still>0.5){S.pending=false;addRow();}
+  drawApparatus(); updateReadouts();
+  requestAnimationFrame(loop);
+}
+updateStatus(); renderTable(false); drawGraph(); updateSlopeOut();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

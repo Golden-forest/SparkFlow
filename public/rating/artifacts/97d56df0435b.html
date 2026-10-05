@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>电磁打点计时器 · 纸带逐差法分析</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject tokens (extend, not replace, the base set) */
+      --sim-bench: #22384c;
+      --sim-bench-deep: #16283a;
+      --sim-tape: #fbf7ea;
+      --sim-tape-edge: #d9cfae;
+      --sim-dot: #c23a2b;
+      --sim-mark: #1d5fd6;
+      --sim-mark-soft: rgba(29, 95, 214, 0.14);
+      --sim-ruler: #33475c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.12), transparent 26%),
+        radial-gradient(circle at 94% 6%, rgba(194, 58, 43, 0.07), transparent 24%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.1; }
+    .header .purpose { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.25); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; font-size: 0.86rem; }
+    .status.alert { border-color: rgba(220,38,38,.3); background: #fdecec; color: var(--sim-danger); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(330px, 0.9fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.95); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 12px 12px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border-radius: 16px; background: linear-gradient(160deg, #f6fafc 0%, #eef4f7 55%, #f7f4ea 100%); border: 1px solid rgba(15,159,186,.10); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px 12px; }
+    .readouts h3 { margin: 0 0 8px; font-size: 0.86rem; color: var(--sim-muted); font-weight: 700; letter-spacing: .02em; }
+    .pos-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+    .cell { border: 1px solid var(--sim-border); border-radius: 9px; background: var(--sim-surface-soft); padding: 6px 2px 5px; text-align: center; }
+    .cell small { display: block; color: var(--sim-muted); font-size: 0.66rem; margin-bottom: 2px; }
+    .cell b { font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+    .cell.filled { border-color: rgba(29,95,214,.35); background: #f3f7ff; }
+    .cell.filled b { color: var(--sim-mark); }
+    .interval-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+    .cell.interval.filled { border-color: rgba(194,58,43,.35); background: #fdf4f2; }
+    .cell.interval.filled b { color: var(--sim-dot); }
+    .analysis { padding: 14px 16px 12px; display: none; }
+    .analysis.show { display: block; }
+    .formula { border: 1px dashed rgba(15,159,186,.45); background: #f4fbfd; border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; line-height: 1.9; font-variant-numeric: tabular-nums; }
+    .formula .frac { display: inline-block; vertical-align: middle; text-align: center; margin: 0 3px; }
+    .formula .frac i { display: block; font-style: normal; border-bottom: 1.5px solid var(--sim-text); padding: 0 6px; }
+    .formula .frac u { display: block; text-decoration: none; padding: 0 6px; }
+    .result-row { display: flex; gap: 8px; margin-top: 10px; }
+    .result-row .metric { flex: 1; padding: 10px 12px; border: 1px solid rgba(15,159,186,.14); border-radius: 12px; background: linear-gradient(150deg, #f8fcfd, #f2f7fa); }
+    .result-row .metric small { display: block; color: var(--sim-muted); font-size: 0.7rem; margin-bottom: 3px; }
+    .result-row .metric strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+    .result-row .metric.good strong { color: var(--sim-accent-deep); }
+    .chart-wrap { margin-top: 10px; }
+    .chart-wrap h4 { margin: 0 0 4px; font-size: 0.78rem; color: var(--sim-muted); }
+    #chartSvg { width: 100%; height: auto; display: block; background: var(--sim-surface-soft); border: 1px solid var(--sim-border); border-radius: 10px; }
+    .model-note { padding: 13px 16px; display: grid; align-content: start; gap: 10px; }
+    .insight { border-left: 3px solid var(--sim-warning); border-radius: 0 10px 10px 0; background: #fff7e6; color: #7c4f08; padding: 10px 12px; font-weight: 650; font-size: 0.86rem; line-height: 1.5; }
+    .model-note .notes { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+    .controls { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.86rem; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover:not(:disabled) { border-color: #b9c8da; background: #eef4f9; }
+    button:active:not(:disabled) { transform: scale(.97); }
+    button:disabled { opacity: .42; cursor: not-allowed; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 7px 16px rgba(15,159,186,.22); }
+    button[aria-pressed="true"] { border-color: var(--sim-accent-deep); background: var(--sim-accent-soft); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1.5px rgba(8,117,138,.4); }
+    .power-group { display: flex; align-items: center; gap: 8px; }
+    .power-group .seg { display: flex; border: 1px solid var(--sim-border); border-radius: 11px; overflow: hidden; }
+    .power-group .seg button { border: 0; border-radius: 0; padding: 8px 14px; }
+    .power-group .seg button + button { border-left: 1px solid var(--sim-border); }
+    .power-group label { font-size: 0.8rem; font-weight: 700; color: var(--sim-muted); }
+    .control { min-width: 190px; flex: 1; max-width: 260px; }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .phase-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .phase-actions button.step { border-color: rgba(29,95,214,.4); color: var(--sim-mark); background: #f3f7ff; }
+    .phase-actions button.step:hover:not(:disabled) { background: #e7efff; }
+    .svg-text { font-family: inherit; }
+    @media (max-width: 900px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+      .pos-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .interval-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
+      .stage-caption { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>电磁打点计时器 · 纸带逐差法分析</h1>
+        <p class="purpose">打一条匀加速纸带 → 标计数点 → 量间距 → 用逐差法和统计平均求加速度。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">准备：请接通交流电源</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">实验台</h2>
+          <span id="stageHint">交流 50 Hz · 每隔 0.02 s 打一个点</span>
+        </div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">电磁打点计时器在匀加速运动的纸带上打出一列间距逐渐增大且略带随机的点；随后标出计数点、用毫米刻度尺测量并做逐差法计算。</desc>
+          <defs>
+            <linearGradient id="benchGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#2b4760"></stop><stop offset="1" stop-color="#1a2e40"></stop>
+            </linearGradient>
+            <linearGradient id="tapeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#fdfaf0"></stop><stop offset="0.5" stop-color="#f8f3e2"></stop><stop offset="1" stop-color="#efe8d0"></stop>
+            </linearGradient>
+          </defs>
+
+          <!-- 计时器仪器（示意） -->
+          <g id="apparatus">
+            <rect x="30" y="38" width="200" height="118" rx="12" fill="url(#benchGrad)" stroke="#0f1d29" stroke-width="1.5"></rect>
+            <text class="svg-text" x="130" y="60" text-anchor="middle" fill="#cfe6f0" font-size="13" font-weight="700">电磁打点计时器</text>
+            <rect id="coilBlock" x="58" y="74" width="52" height="56" rx="6" fill="#c9a15c" stroke="#8a6b2f" stroke-width="1.5"></rect>
+            <text class="svg-text" x="84" y="106" text-anchor="middle" fill="#5c4413" font-size="11" font-weight="700">线圈</text>
+            <rect id="magnetBlock" x="150" y="74" width="52" height="56" rx="6" fill="#9fb3c8" stroke="#5d7a8e" stroke-width="1.5"></rect>
+            <text class="svg-text" x="176" y="106" text-anchor="middle" fill="#26374a" font-size="11" font-weight="700">磁极</text>
+            <g id="armature">
+              <rect x="104" y="78" width="52" height="9" rx="4" fill="#e8edf3" stroke="#7d8ea0" stroke-width="1"></rect>
+              <line id="needle" x1="130" y1="87" x2="130" y2="150" stroke="#d0442e" stroke-width="4" stroke-linecap="round"></line>
+            </g>
+            <text class="svg-text" x="130" y="172" text-anchor="middle" fill="#4a5f74" font-size="12" font-weight="650" id="powerLabel">电源：4~6 V 交流 50 Hz</text>
+          </g>
+
+          <!-- 阶段说明（右上角） -->
+          <g id="captionBox">
+            <rect x="262" y="40" width="472" height="56" rx="10" fill="#ffffff" opacity="0.82" stroke="#d6e2ea" stroke-width="1"></rect>
+            <text class="svg-text" id="captionText" x="498" y="63" text-anchor="middle" fill="#172033" font-size="13.5" font-weight="700">第 1 步：接通电源，待振针稳定振动后释放纸带</text>
+            <text class="svg-text" id="captionSub" x="498" y="83" text-anchor="middle" fill="#657188" font-size="11.5">计时器必须使用低压交流电源（50 Hz，打点周期 0.02 s）</text>
+          </g>
+
+          <!-- 纸带 -->
+          <g id="tapeGroup">
+            <rect id="tapeRect" x="24" y="238" width="716" height="46" rx="4" fill="url(#tapeGrad)" stroke="#cfc3a0" stroke-width="1.5"></rect>
+            <g id="dotsGroup"></g>
+            <g id="marksGroup"></g>
+            <g id="cursorGroup">
+              <line id="stampLine" x1="40" y1="224" x2="40" y2="298" stroke="#d0442e" stroke-width="2" stroke-dasharray="5 4" visibility="hidden"></line>
+              <circle id="stampDot" cx="40" cy="261" r="4" fill="#d0442e" visibility="hidden"></circle>
+            </g>
+          </g>
+
+          <!-- 毫米刻度尺 -->
+          <g id="rulerGroup" visibility="hidden">
+            <rect x="24" y="304" width="716" height="42" rx="4" fill="#f2f6fa" stroke="#9fb3c8" stroke-width="1.2"></rect>
+            <g id="rulerTicks"></g>
+            <g id="rulerLabels"></g>
+            <text class="svg-text" x="736" y="298" text-anchor="end" fill="#33475c" font-size="11.5" font-weight="650">毫米刻度尺（单位：cm）</text>
+            <g id="readCursor" visibility="hidden">
+              <line id="readLine" x1="40" y1="286" x2="40" y2="352" stroke="#1d5fd6" stroke-width="2"></line>
+              <polygon id="readTag0" points="0,0" fill="#1d5fd6" visibility="hidden"></polygon>
+            </g>
+          </g>
+
+          <text class="svg-text" id="tapeNote" x="380" y="382" text-anchor="middle" fill="#657188" font-size="11.5">教学视图：以纸带自身为参考系展示打点位置（实际实验中纸带被小车拖动、计时器固定不动）</text>
+          <g id="dcFlash" visibility="hidden">
+            <rect x="170" y="192" width="420" height="34" rx="8" fill="#fdecec" stroke="#dc2626" stroke-width="1.2"></rect>
+            <text class="svg-text" x="380" y="214" text-anchor="middle" fill="#b91c1c" font-size="13" font-weight="700">直流 = 恒定磁场：振针只被吸下压出 1 个点，纸带拉过再无点痕</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="测量记录">
+          <h3>测量记录（毫米刻度尺，估读到 0.1 mm）</h3>
+          <div class="pos-grid" id="posGrid">
+            <div class="cell"><small>s₀/cm</small><b id="pos-0">—</b></div>
+            <div class="cell"><small>s₁/cm</small><b id="pos-1">—</b></div>
+            <div class="cell"><small>s₂/cm</small><b id="pos-2">—</b></div>
+            <div class="cell"><small>s₃/cm</small><b id="pos-3">—</b></div>
+            <div class="cell"><small>s₄/cm</small><b id="pos-4">—</b></div>
+            <div class="cell"><small>s₅/cm</small><b id="pos-5">—</b></div>
+            <div class="cell"><small>s₆/cm</small><b id="pos-6">—</b></div>
+            <div class="cell"><small>T</small><b>0.1 s</b></div>
+          </div>
+          <div class="interval-grid" id="intervalGrid">
+            <div class="cell interval"><small>x₁</small><b id="xint-1">—</b></div>
+            <div class="cell interval"><small>x₂</small><b id="xint-2">—</b></div>
+            <div class="cell interval"><small>x₃</small><b id="xint-3">—</b></div>
+            <div class="cell interval"><small>x₄</small><b id="xint-4">—</b></div>
+            <div class="cell interval"><small>x₅</small><b id="xint-5">—</b></div>
+            <div class="cell interval"><small>x₆</small><b id="xint-6">—</b></div>
+          </div>
+        </section>
+
+        <section class="panel analysis" id="analysisPanel" aria-label="逐差法计算">
+          <h3 style="margin:0 0 8px;font-size:0.86rem;color:var(--sim-muted);font-weight:700;">逐差法（间隔 T = 5 × 0.02 s = 0.1 s）</h3>
+          <div class="formula" id="formulaBox">
+            <div>a = <span class="frac"><i>(x₄+x₅+x₆) − (x₁+x₂+x₃)</i><u>9T²</u></span> = <span class="frac"><i id="zNum">—</i><u id="zDen">9 × 0.01 s²</u></span></div>
+            <div style="margin-top:4px;">= <b id="zCalc" style="color:#08758a;">…</b> m/s²</div>
+          </div>
+          <div class="result-row">
+            <div class="metric good"><small>逐差法 a（平均）</small><strong id="aEst">— m/s²</strong></div>
+            <div class="metric"><small>真实 a（设定值）</small><strong id="aTrue">— m/s²</strong></div>
+            <div class="metric"><small>偏差</small><strong id="aErr">—</strong></div>
+          </div>
+          <div class="chart-wrap">
+            <h4>只用相邻差 (x<sub>j+1</sub>−x<sub>j</sub>)/T² 逐个算：结果参差；逐差法取平均：稳定</h4>
+            <svg id="chartSvg" viewBox="0 0 330 168" role="img" aria-label="相邻差估计散点与逐差法平均值的对比图">
+              <g id="chartGrid"></g>
+              <line id="chartTrueLine" x1="34" y1="80" x2="318" y2="80" stroke="#9aa7ba" stroke-width="2" stroke-dasharray="7 5"></line>
+              <line id="chartEstLine" x1="34" y1="80" x2="318" y2="80" stroke="#08758a" stroke-width="3"></line>
+              <g id="chartDots"></g>
+              <text id="chartTrueLabel" class="svg-text" x="318" y="72" text-anchor="end" fill="#657188" font-size="11">真实 a</text>
+              <text id="chartEstLabel" class="svg-text" x="318" y="94" text-anchor="end" fill="#08758a" font-size="11" font-weight="700">逐差法 a</text>
+              <text class="svg-text" x="20" y="16" fill="#657188" font-size="10.5">a / (m·s⁻²)</text>
+              <g id="chartXLabels"></g>
+            </svg>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <div id="insight" class="insight" aria-live="polite">先在左下角确认电源为“交流”，再按“开始打点”。振针随 50 Hz 交流电每秒振动 50 次，纸带上每 0.02 s 留下一个点痕。</div>
+          <p class="notes">模型说明：匀加速直线运动 x(t) = v₀t + ½at²（v₀ = 0.40 m/s）；打点周期 0.02 s，每 5 个间隔取一个计数点（T = 0.1 s）。点痕位置含微小随机偏移（可调），读数量化到 0.1 mm——间距不相等是正常的测量误差，不是实验失败。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="实验控制">
+      <div class="power-group">
+        <label id="powerLabelCtl">电源</label>
+        <div class="seg" role="group" aria-labelledby="powerLabelCtl">
+          <button id="acBtn" type="button" aria-pressed="true">交流 4~6 V</button>
+          <button id="dcBtn" type="button" aria-pressed="false">直流（试试看）</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始打点</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">复位</button>
+        <button id="newTapeBtn" type="button">换一条纸带</button>
+      </div>
+      <div class="phase-actions">
+        <button id="markBtn" class="step" type="button" disabled>① 标记计数点</button>
+        <button id="measureBtn" class="step" type="button" disabled>② 测量间距</button>
+        <button id="analyzeBtn" class="step" type="button" disabled>③ 逐差法计算</button>
+      </div>
+      <div class="control">
+        <label for="aInput">加速度 a <output id="aOutput">2.0 m/s²</output></label>
+        <input id="aInput" type="range" min="1" max="4" step="0.1" value="2">
+      </div>
+      <div class="control">
+        <label for="noiseInput">点痕随机偏移 σ <output id="noiseOutput">0.3 mm</output></label>
+        <input id="noiseInput" type="range" min="0" max="1" step="0.05" value="0.3">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ================= 纯物理模型（无 DOM，可在 Node 中直接检验） =================
+       匀加速直线运动: x(t) = v0·t + ½·a·t²
+       电磁打点计时器: 50 Hz 交流 → 打点周期 0.02 s；每 5 个间隔取一个计数点, T = 0.1 s
+       测量链: 点痕位置 + 高斯随机偏移(排序保单调) → 毫米刻度尺读数(量化到 0.1 mm)
+       逐差法: a = ((x4+x5+x6) − (x1+x2+x3)) / (9T²)                                     */
+
+    const TICK_HZ = 50;
+    const TICK_T = 1 / TICK_HZ;             // 0.02 s
+    const EVERY = 5;                        // 每 5 个间隔取一个计数点
+    const COUNT_T = EVERY * TICK_T;         // 0.1 s
+    const N_TICKS = 31;                     // 打点 0..30 → 7 个计数点、6 段间距
+    const V0 = 0.40;                        // 释放速度 m/s
+    const QUANT = 0.0001;                   // 读数量化 0.1 mm
+
+    function mulberry32(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function gauss(rng) {                   // Box–Muller
+      let u = 0, v = 0;
+      while (u === 0) u = rng();
+      while (v === 0) v = rng();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+    function xAnalytic(t, a, v0) { return v0 * t + 0.5 * a * t * t; }
+
+    function generateTape(p) {
+      const a = p.a, v0 = (p.v0 === undefined ? V0 : p.v0), seed = p.seed | 0, power = p.power || "ac";
+      if (power === "dc") {
+        // 直流: 线圈产生恒定磁场, 振针被吸下只压出 1 个点, 不再随时间打点
+        return { ticks: [{ t: 0, x: 0, xTrue: 0 }], dc: true, params: { a, v0, seed, power, noiseMm: p.noiseMm } };
+      }
+      const rng = mulberry32(seed);
+      const sigma = (p.noiseMm || 0) / 1000;                    // mm → m
+      const xs = [];
+      for (let i = 0; i < N_TICKS; i++) xs.push(xAnalytic(i * TICK_T, a, v0) + gauss(rng) * sigma);
+      xs.sort((m, n) => m - n);                                 // 排序保护: 点痕严格沿纸带递增
+      const ticks = xs.map((x, i) => ({ t: i * TICK_T, x, xTrue: xAnalytic(i * TICK_T, a, v0) }));
+      return { ticks, dc: false, params: { a, v0, seed, power, noiseMm: p.noiseMm || 0 } };
+    }
+    function countingIndices(n, every) {
+      const out = [];
+      for (let i = 0; i < n; i += every) out.push(i);
+      return out;
+    }
+    function quantizeRead(x) { return Math.round(x / QUANT) * QUANT; }
+    function measureCounting(tape) {          // 计数点读数 s0..s6（米，量化 0.1 mm）
+      return countingIndices(tape.ticks.length, EVERY).map(i => quantizeRead(tape.ticks[i].x));
+    }
+    function intervalsFrom(positions) {       // x1..x6（米）
+      const out = [];
+      for (let i = 1; i < positions.length; i++) out.push(quantizeRead(positions[i] - positions[i - 1]));
+      return out;
+    }
+    function zhucha(intervals, T) {
+      const half = intervals.length / 2;      // 3
+      let sumLow = 0, sumHigh = 0;
+      for (let i = 0; i < half; i++) sumLow += intervals[i];
+      for (let i = half; i < intervals.length; i++) sumHigh += intervals[i];
+      const denom = half * half * T * T;      // 9T²
+      const pairs = [];
+      for (let i = 0; i < half; i++) pairs.push((intervals[i + half] - intervals[i]) / denom);
+      return { a: (sumHigh - sumLow) / denom, pairs, sumLow, sumHigh, denom };
+    }
+    function adjacentEstimates(intervals, T) {  // (x_{j+1} − x_j)/T²
+      const out = [];
+      for (let i = 1; i < intervals.length; i++) out.push((intervals[i] - intervals[i - 1]) / (T * T));
+      return out;
+    }
+
+    function runModelChecks() {
+      const results = [];
+      const add = (name, pass, expected, actual, tolerance) => results.push({ name, pass, expected, expectedText: String(expected), actual, actualText: String(actual), tolerance });
+      const fmt = (v) => (typeof v === "number" ? v.toPrecision(6) : v);
+
+      // 1) 无噪声时逐差法应精确还原设定加速度（解析恒等式）
+      for (const a of [1, 2, 3.7]) {
+        const tape = generateTape({ a, v0: V0, noiseMm: 0, seed: 7, power: "ac" });
+        const est = zhucha(intervalsFrom(measureCounting(tape)), COUNT_T).a;
+        add(`无噪声逐差法还原 a=${a}`, Math.abs(est - a) < 1e-9, fmt(a), fmt(est), "|Δ| < 1e-9");
+      }
+      // 2) 典型噪声(σ=0.3 mm)下 40 个种子全部落在 ±0.1 m/s² 内
+      let worst2 = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        const tape = generateTape({ a: 2, v0: V0, noiseMm: 0.3, seed, power: "ac" });
+        const est = zhucha(intervalsFrom(measureCounting(tape)), COUNT_T).a;
+        worst2 = Math.max(worst2, Math.abs(est - 2));
+      }
+      add("噪声 σ=0.3 mm 时逐差法 40 种子全部 |Δa| < 0.1", worst2 < 0.1, "worst |Δa| < 0.1", fmt(worst2), "0.1 m/s²");
+      // 3) 相邻差估计的散布应显著大于逐差法（统计平均的意义）
+      const adjAll = [], zuAll = [];
+      for (let seed = 1; seed <= 40; seed++) {
+        const tape = generateTape({ a: 2, v0: V0, noiseMm: 0.3, seed, power: "ac" });
+        const ints = intervalsFrom(measureCounting(tape));
+        adjacentEstimates(ints, COUNT_T).forEach(v => adjAll.push(v));
+        zuAll.push(zhucha(ints, COUNT_T).a);
+      }
+      const std = (arr) => { const m = arr.reduce((s, v) => s + v, 0) / arr.length; return Math.sqrt(arr.reduce((s, v) => s + (v - m) * (v - m), 0) / arr.length); };
+      const sdAdj = std(adjAll), sdZu = std(zuAll);
+      add("相邻差散布 ≫ 逐差法散布（平均抑制噪声）", sdAdj > 3 * sdZu, "sd(邻差) > 3·sd(逐差)", `${fmt(sdAdj)} vs ${fmt(sdZu)}`, "比值 > 3");
+      // 4) 直流电源只能打出 1 个点
+      const dc = generateTape({ a: 2, v0: V0, noiseMm: 0.3, seed: 9, power: "dc" });
+      add("直流模式只压出 1 个点", dc.ticks.length === 1 && dc.dc === true, "1", String(dc.ticks.length), "精确");
+      // 5) 强噪声(σ=1 mm)下点痕仍严格递增（排序保护）
+      let monoOK = true;
+      for (let seed = 1; seed <= 20; seed++) {
+        const tape = generateTape({ a: 1, v0: V0, noiseMm: 1, seed, power: "ac" });
+        for (let i = 1; i < tape.ticks.length; i++) if (!(tape.ticks[i].x > tape.ticks[i - 1].x)) monoOK = false;
+      }
+      add("σ=1 mm 时 20 条纸带全部严格递增", monoOK, "全部严格递增", monoOK ? "全部严格递增" : "存在乱序", "无例外");
+      // 6) 读数全部量化到 0.1 mm 网格
+      let quantOK = true;
+      for (let seed = 1; seed <= 10; seed++) {
+        const tape = generateTape({ a: 2.5, v0: V0, noiseMm: 0.45, seed, power: "ac" });
+        measureCounting(tape).forEach(s => { if (Math.abs(s / QUANT - Math.round(s / QUANT)) > 1e-6) quantOK = false; });
+      }
+      add("所有读数量化到 0.1 mm 网格", quantOK, "s 是 1e-4 m 的整数倍", quantOK ? "满足" : "存在偏离", "1e-6 网格误差");
+      // 7) 同一种子完全可复现（确定性）
+      const t1 = generateTape({ a: 3.2, v0: V0, noiseMm: 0.5, seed: 123, power: "ac" });
+      const t2 = generateTape({ a: 3.2, v0: V0, noiseMm: 0.5, seed: 123, power: "ac" });
+      const reproOK = t1.ticks.length === t2.ticks.length && t1.ticks.every((tk, i) => tk.x === t2.ticks[i].x);
+      add("同一种子逐点完全复现", reproOK, "数组逐位相等", reproOK ? "相等" : "不等", "精确");
+      // 8) 无噪声时间距为严格等差数列（相邻差恒为 aT²）
+      const tape8 = generateTape({ a: 2, v0: V0, noiseMm: 0, seed: 5, power: "ac" });
+      const ints8 = intervalsFrom(measureCounting(tape8));
+      const dIdeal = 2 * COUNT_T * COUNT_T;
+      let linOK = true;
+      for (let i = 1; i < ints8.length; i++) if (Math.abs((ints8[i] - ints8[i - 1]) - dIdeal) > 1e-9) linOK = false;
+      add("无噪声间距是公差 aT²=0.02 m 的等差数列", linOK, fmt(dIdeal), linOK ? "等差成立" : "等差破坏", "|Δ| < 1e-9");
+      return results;
+    }
+
+    /* ================= 应用状态与界面（仅浏览器绑定 DOM） ================= */
+    const SLOW = 6;                                   // 慢放因子：0.62 s 运动 ≈ 3.7 s 演示
+    const params = { a: 2, noiseMm: 0.3, power: "ac", seed: 20260929 };
+    const state = {
+      phase: "ready",        // ready | ticking | stopped | marked | measuring | measured | analyzed
+      running: false,
+      tWall: 0, tSim: 0,
+      duration: (N_TICKS - 1) * TICK_T + 0.02,
+      tape: null,
+      markedCount: 0, measuredCount: 0,
+      positions: [], intervals: [], analysis: null,
+      lastTs: null, stageTimer: null
+    };
+    let elements = null;
+
+    const PX0 = 40, PX1 = 728, TAPE_Y = 261;
+    function tapeScale() {
+      const L = (state.tape ? xAnalytic((state.tape.ticks.length - 1) * TICK_T, params.a, V0) : 0.9) + 0.02;
+      return { L, px: (PX1 - PX0) / L, x0: PX0 };
+    }
+    function Xof(x) { const s = tapeScale(); return s.x0 + x * s.px; }
+
+    const CAPTIONS = {
+      readyAc: ["第 1 步：接通电源，待振针稳定振动后释放纸带", "计时器必须使用低压交流电源（50 Hz，打点周期 0.02 s）"],
+      readyDc: ["直流接上了——先预测一下：纸带上会出现什么？", "线圈磁场恒定不变，振针不会来回振动"],
+      tickingAc: ["第 2 步：小车拖动纸带匀加速前进（慢放 1:6）", "每 0.02 s 打一个点；点距逐渐拉开说明速度在增大"],
+      tickingDc: ["直流“打点”中……", "恒定磁场只是把振针吸下压出 1 个点，之后再也没有点痕"],
+      stoppedAc: ["打点完成：纸带上留下 31 个点痕", "仔细看：相邻间距并不严格等差——这是正常的随机偏差"],
+      stoppedDc: ["结果：整条纸带只有开头 1 个点", "没有周期性点痕就没有时间信息，直流电源不可用"],
+      marked: ["第 3 步：舍去开头过密点，每 5 个间隔取 1 个计数点", "计数点 0~6，相邻计数点时间间隔 T = 5 × 0.02 s = 0.1 s"],
+      measuring: ["第 4 步：把毫米刻度尺贴在纸带上读数", "视线正对刻度，估读到 0.1 mm；可点击纸带上的计数点逐个读数"],
+      measured: ["六段间距 x₁…x₆ 已读出", "看看它们的两两之差：不相等！这正是要用逐差法的原因"],
+      analyzed: ["第 5 步：逐差法 a = [(x₄+x₅+x₆) − (x₁+x₂+x₃)] / (9T²)", "六段数据全部用上，相当于对加速度做统计平均"]
+    };
+    const INSIGHTS = {
+      readyAc: "电磁打点计时器必须使用 4~6 V 交流电源：50 Hz 交流电使线圈磁场的磁极每秒反复变化 50 次，振针随之每 0.02 s 打一个点——点痕就是“秒表”。",
+      readyDc: "你把电源换成了直流。可以先按下“开始打点”看看会发生什么，再换回交流。",
+      ticking: "看振针：它在交流电驱动下每秒振动 50 次（此处慢放）。纸带上的点距越来越大——小车在做匀加速运动。",
+      stoppedAc: "间距不相等？别慌！打点偏移和读数误差让每段间距都带一点随机偏差，这不是失败。接下来用逐差法把它们平均掉。",
+      stoppedDc: "直流 = 恒定磁场：振针只被吸下一次、压出 1 个点，无法周期性打点，也就无法记录时间。所以电源必须用交流。",
+      marked: "计数点取好后，相邻计数点间的时间 T = 0.1 s。为什么不一个一个点都量？开头点太密、误差大，取 5 个间隔既拉开了距离又便于测量。",
+      measuring: "读数要领：刻度尺紧贴纸带、视线正对刻度线，估读到最小分度（1 mm）的下一位，即 0.1 mm。",
+      measured: "看 x₁…x₆ 的相邻差：理论上都应等于 aT²，但实测各不相等——单用其中一段算 a 会偏。逐差法把六段全部用上。",
+      analyzed: "对比右下图：只用相邻差逐个算，a 参差不齐；逐差法相当于取平均，结果稳定且接近真值。这就是“不相等不慌、用统计平均”的道理。"
+    };
+
+    function fmtCm(m) { return (m * 100).toFixed(2); }
+    function setCell(id, text, filled) {
+      if (typeof document === "undefined") return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = text;
+      if (filled !== undefined) el.parentElement.classList.toggle("filled", filled);
+    }
+    function clearRecords() {
+      for (let k = 0; k <= 6; k++) setCell("pos-" + k, "—", false);
+      for (let k = 1; k <= 6; k++) setCell("xint-" + k, "—", false);
+      state.positions = []; state.intervals = []; state.analysis = null; state.markedCount = 0; state.measuredCount = 0;
+      if (elements && elements.analysisPanel) elements.analysisPanel.classList.remove("show");
+    }
+    function svgEl(tag, attrs) {
+      const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+    function captionFor(key) {
+      const c = CAPTIONS[key];
+      elements.captionText.textContent = c[0];
+      elements.captionSub.textContent = c[1];
+    }
+    function renderCaption() {
+      if (params.power === "dc") captionFor(state.phase === "ticking" ? "tickingDc" : "stoppedDc");
+      else if (state.phase === "ready") captionFor("readyAc");
+      else if (state.phase === "ticking") captionFor("tickingAc");
+      else if (state.phase === "stopped") captionFor("stoppedAc");
+      else captionFor(state.phase);
+      elements.dcFlash.setAttribute("visibility", params.power === "dc" && state.phase === "stopped" ? "visible" : "hidden");
+      elements.stageHint.textContent = params.power === "dc" ? "直流 · 振针不振动" : "交流 50 Hz · 每隔 0.02 s 打一个点";
+    }
+    function renderApparatus() {
+      let angle = -4;
+      if (params.power === "ac") {
+        if (state.phase === "ticking" && state.running) {
+          const ph = (state.tSim * TICK_HZ) % 1;
+          angle = -4 + 9 * Math.abs(Math.sin(Math.PI * ph));
+        } else if (state.phase === "ticking" || state.phase === "stopped") { angle = 2; }
+      } else {
+        angle = state.tSim > 0.04 ? 8 : -4;      // 直流：吸下后保持
+      }
+      elements.armature.setAttribute("transform", `rotate(${angle.toFixed(2)} 130 78)`);
+      elements.powerLabel.textContent = params.power === "dc" ? "电源：直流（错误示范）" : "电源：4~6 V 交流 50 Hz";
+    }
+    function renderTapeDots() {
+      const g = elements.dotsGroup;
+      while (g.firstChild) g.removeChild(g.firstChild);
+      const showAll = state.phase !== "ticking" && state.phase !== "ready";
+      if (!state.tape) return;
+      for (const tk of state.tape.ticks) {
+        if (!showAll && !(tk.t <= state.tSim + 1e-9)) continue;
+        g.appendChild(svgEl("circle", { cx: Xof(tk.x).toFixed(2), cy: TAPE_Y, r: 3.1, fill: "var(--sim-dot)", opacity: "0.92" }));
+      }
+    }
+    function renderMarks() {
+      const g = elements.marksGroup;
+      while (g.firstChild) g.removeChild(g.firstChild);
+      if (!state.tape || state.markedCount === 0) return;
+      const idx = countingIndices(state.tape.ticks.length, EVERY);
+      for (let k = 0; k < state.markedCount && k < idx.length; k++) {
+        const cx = Xof(state.tape.ticks[idx[k]].x);
+        g.appendChild(svgEl("circle", { cx: cx.toFixed(2), cy: TAPE_Y, r: 8, fill: "var(--sim-mark-soft)", stroke: "var(--sim-mark)", "stroke-width": 2.2 }));
+        const t = svgEl("text", { x: cx.toFixed(2), y: (TAPE_Y + 29).toFixed(2), "text-anchor": "middle", fill: "var(--sim-mark)", "font-size": 12.5, "font-weight": 700, "class": "svg-text" });
+        t.textContent = String(k);
+        g.appendChild(t);
+      }
+    }
+    function renderStampCursor() {
+      const live = state.phase === "ticking";
+      const xLead = params.power === "dc"
+        ? (state.tape ? Math.min(state.tSim / 0.5, 1) * tapeScale().L : 0)
+        : xAnalytic(Math.min(state.tSim, (N_TICKS - 1) * TICK_T), params.a, V0);
+      const vis = live ? "visible" : "hidden";
+      elements.stampLine.setAttribute("visibility", vis);
+      elements.stampDot.setAttribute("visibility", vis);
+      if (live) {
+        const px = Xof(xLead);
+        elements.stampLine.setAttribute("x1", px); elements.stampLine.setAttribute("x2", px);
+        elements.stampDot.setAttribute("cx", px);
+      }
+    }
+    function renderRuler() {
+      const show = state.phase === "measuring" || state.phase === "measured" || state.phase === "analyzed";
+      elements.rulerGroup.setAttribute("visibility", show ? "visible" : "hidden");
+      if (!show) { elements.readCursor.setAttribute("visibility", "hidden"); return; }
+      const tg = elements.rulerTicks, lg = elements.rulerLabels;
+      while (tg.firstChild) tg.removeChild(tg.firstChild);
+      while (lg.firstChild) lg.removeChild(lg.firstChild);
+      const { L } = tapeScale();
+      for (let cm = 0; cm <= Math.round(L * 100); cm++) {
+        const px = Xof(cm / 100);
+        if (px > PX1 + 1) break;
+        const major = cm % 10 === 0, mid = cm % 5 === 0;
+        tg.appendChild(svgEl("line", { x1: px, y1: 346, x2: px, y2: 346 - (major ? 16 : mid ? 11 : 6), stroke: "var(--sim-ruler)", "stroke-width": major ? 1.6 : 1 }));
+        if (major) {
+          const t = svgEl("text", { x: px, y: 338, "text-anchor": "middle", fill: "var(--sim-ruler)", "font-size": 11, "class": "svg-text" });
+          t.textContent = String(cm);
+          lg.appendChild(t);
+        }
+      }
+      // 读数游标：跟随最近测量的计数点
+      const vis = state.measuredCount > 0 ? "visible" : "hidden";
+      elements.readCursor.setAttribute("visibility", vis);
+      if (state.measuredCount > 0 && state.tape) {
+        const idx = countingIndices(state.tape.ticks.length, EVERY);
+        const k = state.measuredCount - 1;
+        const px = Xof(state.tape.ticks[idx[k]].x);
+        elements.readLine.setAttribute("x1", px); elements.readLine.setAttribute("x2", px);
+      }
+    }
+    function renderStatus() {
+      let txt = "准备：请接通交流电源", alert = false;
+      if (params.power === "dc" && state.phase === "ready") { txt = "准备：直流电源（错误示范）"; alert = true; }
+      else if (state.phase === "ready") txt = "准备：交流电源已接通";
+      else if (state.phase === "ticking") txt = state.running ? "打点中…（慢放 1:6）" : "已暂停";
+      else if (state.phase === "stopped") txt = params.power === "dc" ? "直流演示：整条纸带只有 1 个点" : "打点完成：31 个点痕";
+      else if (state.phase === "marked") txt = "已标记 7 个计数点（T = 0.1 s）";
+      else if (state.phase === "measuring") txt = `测量中 ${state.measuredCount}/7`;
+      else if (state.phase === "measured") txt = "六段间距已读出";
+      else if (state.phase === "analyzed") txt = state.analysis ? `逐差法完成：a = ${state.analysis.zu.a.toFixed(2)} m/s²` : "逐差法完成";
+      elements.status.textContent = txt;
+      elements.status.classList.toggle("alert", alert);
+      elements.insight.textContent = INSIGHTS[insightKey()];
+    }
+    function insightKey() {
+      if (state.phase === "ready") return params.power === "dc" ? "readyDc" : "readyAc";
+      if (state.phase === "ticking") return "ticking";
+      if (state.phase === "stopped") return params.power === "dc" ? "stoppedDc" : "stoppedAc";
+      return state.phase;
+    }
+    function renderControls() {
+      const busy = state.phase === "ticking" || state.phase === "measuring";
+      elements.startBtn.disabled = state.phase !== "ready";
+      elements.startBtn.textContent = state.phase === "ready" ? (params.power === "dc" ? "开始打点（直流）" : "开始打点") : "开始打点";
+      elements.pauseBtn.disabled = state.phase !== "ticking";
+      elements.pauseBtn.textContent = state.running ? "暂停" : "继续";
+      elements.pauseBtn.disabled = state.phase !== "ticking";
+      elements.markBtn.disabled = !(state.phase === "stopped" && params.power === "ac");
+      elements.measureBtn.disabled = !(state.phase === "marked");
+      elements.analyzeBtn.disabled = !(state.phase === "measured");
+      elements.acBtn.setAttribute("aria-pressed", String(params.power === "ac"));
+      elements.dcBtn.setAttribute("aria-pressed", String(params.power === "dc"));
+      elements.aInput.disabled = busy; elements.noiseInput.disabled = busy;
+      elements.aOutput.textContent = `${params.a.toFixed(1)} m/s²`;
+      elements.noiseOutput.textContent = `${params.noiseMm.toFixed(2)} mm`;
+    }
+    function renderAnalysisPanel() {
+      const an = state.analysis;
+      if (!an) return;
+      elements.analysisPanel.classList.add("show");
+      elements.zNum.textContent = `${fmtCm(an.zu.sumHigh - an.zu.sumLow)} cm`;
+      elements.zCalc.textContent = an.zu.a.toFixed(3);
+      elements.aEst.textContent = `${an.zu.a.toFixed(2)} m/s²`;
+      elements.aTrue.textContent = `${params.a.toFixed(1)} m/s²`;
+      const err = Math.abs(an.zu.a - params.a);
+      elements.aErr.textContent = `${err.toFixed(3)} m/s²（${(err / params.a * 100).toFixed(1)}%）`;
+      drawChart(an.adj, an.zu.a, params.a);
+    }
+    function drawChart(adj, aZu, aTrue) {
+      const XL = 34, XR = 318, YT = 14, YB = 140;
+      const vals = adj.concat([aZu, aTrue]);
+      const lo = Math.min(...vals) - 0.07, hi = Math.max(...vals) + 0.07;
+      const y = (v) => YB - (v - lo) / (hi - lo) * (YB - YT);
+      const gg = elements.chartGrid, dg = elements.chartDots, xl = elements.chartXLabels;
+      while (gg.firstChild) gg.removeChild(gg.firstChild);
+      while (dg.firstChild) dg.removeChild(dg.firstChild);
+      while (xl.firstChild) xl.removeChild(xl.firstChild);
+      for (let i = 0; i <= 3; i++) {
+        const v = lo + (hi - lo) * i / 3, py = y(v);
+        gg.appendChild(svgEl("line", { x1: XL, y1: py, x2: XR, y2: py, stroke: "var(--sim-grid)", "stroke-width": 1 }));
+        const t = svgEl("text", { x: XL - 4, y: py + 3.5, "text-anchor": "end", fill: "var(--sim-muted)", "font-size": 9.5, "class": "svg-text" });
+        t.textContent = v.toFixed(2);
+        gg.appendChild(t);
+      }
+      adj.forEach((v, i) => {
+        const cx = XL + (i + 0.5) * (XR - XL) / adj.length;
+        dg.appendChild(svgEl("circle", { cx: cx.toFixed(1), cy: y(v).toFixed(1), r: 4.5, fill: "var(--sim-dot)", opacity: 0.9, stroke: "#fff", "stroke-width": 1 }));
+        const t = svgEl("text", { x: cx.toFixed(1), y: (YB + 12).toFixed(1), "text-anchor": "middle", fill: "var(--sim-muted)", "font-size": 9.5, "class": "svg-text" });
+        t.textContent = `Δx${i + 1}`;
+        xl.appendChild(t);
+      });
+      elements.chartTrueLine.setAttribute("y1", y(aTrue)); elements.chartTrueLine.setAttribute("y2", y(aTrue));
+      elements.chartEstLine.setAttribute("y1", y(aZu)); elements.chartEstLine.setAttribute("y2", y(aZu));
+      elements.chartTrueLabel.setAttribute("y", y(aTrue) - 6);
+      elements.chartEstLabel.setAttribute("y", y(aZu) + 14);
+    }
+    function render() {
+      if (!elements) return;
+      renderCaption(); renderApparatus(); renderTapeDots(); renderMarks(); renderStampCursor(); renderRuler(); renderStatus(); renderControls();
+      if (state.analysis) renderAnalysisPanel();
+    }
+
+    /* ================= 生命周期与交互 ================= */
+    function clampN(v, lo, hi) { return Math.min(hi, Math.max(lo, Number.isFinite(v) ? v : lo)); }
+    function update(dt) {
+      if (!state.running) return;
+      state.tWall += clampN(dt, 0, 0.05);
+      state.tSim = Math.min(state.tWall / SLOW, state.duration);
+      if (state.tSim >= state.duration - 1e-9) {
+        state.running = false;
+        state.phase = "stopped";
+        render();
+      }
+    }
+    function start() {
+      if (state.phase !== "ready") return;
+      state.tape = generateTape({ a: params.a, v0: V0, noiseMm: params.noiseMm, seed: params.seed, power: params.power });
+      state.duration = params.power === "dc" ? 0.5 : (N_TICKS - 1) * TICK_T + 0.02;
+      state.tWall = 0; state.tSim = 0; state.running = true; state.phase = "ticking";
+      render();
+    }
+    function pause() {
+      if (state.phase !== "ticking") return;
+      state.running = !state.running;
+      render();
+    }
+    function stopStageTimer() {
+      if (state.stageTimer) { clearInterval(state.stageTimer); state.stageTimer = null; }
+    }
+    function reset() {
+      stopStageTimer();
+      state.running = false; state.phase = "ready"; state.tWall = 0; state.tSim = 0;
+      state.tape = null;
+      clearRecords();
+      render();
+    }
+    function newTape() {
+      params.seed = (params.seed * 1664525 + 1013904223) >>> 0;
+      reset();
+    }
+    function setParameters(values) {
+      if (values.a !== undefined) params.a = clampN(Number(values.a), 1, 4);
+      if (values.noiseMm !== undefined) params.noiseMm = clampN(Number(values.noiseMm), 0, 1);
+      if (values.power !== undefined && values.power !== params.power) {
+        params.power = values.power === "dc" ? "dc" : "ac";
+        reset();
+        render();
+        return;
+      }
+      if (state.phase !== "ready" && (values.a !== undefined || values.noiseMm !== undefined)) {
+        reset();
+        if (elements) elements.insight.textContent = "参数已修改，当前纸带作废。请重新“开始打点”。";
+      }
+      render();
+    }
+    function beginMarking() {
+      if (state.phase !== "stopped" || params.power !== "ac") return;
+      state.phase = "marked"; state.markedCount = 0;
+      const step = () => {
+        state.markedCount += 1;
+        render();
+        if (state.markedCount >= 7) { stopStageTimer(); render(); }
+      };
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { state.markedCount = 7; render(); }
+      else { step(); state.stageTimer = setInterval(step, 300); }
+    }
+    function recordReading(k) {          // 读出第 k 个计数点位置（0..6）
+      if (!state.tape || state.positions[k] !== undefined) return;
+      state.positions[k] = measureCounting(state.tape)[k];
+      state.measuredCount = Math.max(state.measuredCount, k + 1);
+      setCell("pos-" + k, fmtCm(state.positions[k]), true);
+      if (state.measuredCount === 7) finishMeasuring();
+    }
+    function finishMeasuring() {
+      stopStageTimer();
+      state.intervals = intervalsFrom(state.positions);
+      state.intervals.forEach((v, i) => setCell("xint-" + (i + 1), fmtCm(v), true));
+      state.phase = "measured";
+      render();
+    }
+    function beginMeasuring() {
+      if (state.phase !== "marked") return;
+      state.phase = "measuring";
+      const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduced) {
+        for (let k = 0; k <= 6; k++) recordReading(k);
+        render();
+        return;
+      }
+      let k = 0;
+      state.stageTimer = setInterval(() => {
+        if (k > 6) { finishMeasuring(); return; }
+        recordReading(k); k += 1; render();
+      }, 430);
+      render();
+    }
+    function analyze() {
+      if (state.phase !== "measured") return;
+      const zu = zhucha(state.intervals, COUNT_T);
+      state.analysis = { zu, adj: adjacentEstimates(state.intervals, COUNT_T) };
+      state.phase = "analyzed";
+      render();
+    }
+    function getState() {
+      return {
+        phase: state.phase, running: state.running, tSim: state.tSim,
+        markedCount: state.markedCount, measuredCount: state.measuredCount,
+        positions: state.positions.slice(), intervals: state.intervals.slice(),
+        power: params.power, a: params.a, noiseMm: params.noiseMm, seed: params.seed,
+        analysis: state.analysis ? { aEst: state.analysis.zu.a, adj: state.analysis.adj.slice() } : null
+      };
+    }
+    function getReadouts() {
+      return {
+        power: params.power, phase: state.phase, time: +state.tSim.toFixed(3),
+        aParam: params.a, aEst: state.analysis ? state.analysis.zu.a : null,
+        intervals: state.intervals.slice()
+      };
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt); render();
+      requestAnimationFrame(frame);
+    }
+    function onSceneClick(ev) {
+      if (state.phase !== "marked" && state.phase !== "measuring") return;
+      const pt = ev.target.ownerSVGElement.createSVGPoint();
+      pt.x = ev.clientX; pt.y = ev.clientY;
+      const loc = pt.matrixTransform(ev.target.ownerSVGElement.getScreenCTM().inverse());
+      if (!state.tape || loc.y < TAPE_Y - 40 || loc.y > TAPE_Y + 70) return;
+      const idx = countingIndices(state.tape.ticks.length, EVERY);
+      let best = -1, bestD = 26;
+      idx.forEach((ti, k) => {
+        const d = Math.abs(Xof(state.tape.ticks[ti].x) - loc.x);
+        if (d < bestD && state.positions[k] === undefined) { best = k; bestD = d; }
+      });
+      if (best >= 0) {
+        if (state.phase === "marked") state.phase = "measuring";
+        recordReading(best); render();
+      }
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.newTapeBtn.addEventListener("click", newTape);
+      elements.markBtn.addEventListener("click", beginMarking);
+      elements.measureBtn.addEventListener("click", beginMeasuring);
+      elements.analyzeBtn.addEventListener("click", analyze);
+      elements.acBtn.addEventListener("click", () => setParameters({ power: "ac" }));
+      elements.dcBtn.addEventListener("click", () => setParameters({ power: "dc" }));
+      elements.aInput.addEventListener("input", () => setParameters({ a: elements.aInput.value }));
+      elements.noiseInput.addEventListener("input", () => setParameters({ noiseMm: elements.noiseInput.value }));
+      elements.scene.addEventListener("click", onSceneClick);
+    }
+    function init() {
+      if (typeof document === "undefined") return;   // Node 校验环境：只暴露纯模型
+      const q = (sel) => document.querySelector(sel);
+      elements = {
+        status: q("#status"), insight: q("#insight"), stageHint: q("#stageHint"),
+        captionText: q("#captionText"), captionSub: q("#captionSub"),
+        apparatus: q("#apparatus"), armature: q("#armature"), powerLabel: q("#powerLabel"),
+        dotsGroup: q("#dotsGroup"), marksGroup: q("#marksGroup"),
+        stampLine: q("#stampLine"), stampDot: q("#stampDot"),
+        rulerGroup: q("#rulerGroup"), rulerTicks: q("#rulerTicks"), rulerLabels: q("#rulerLabels"),
+        readCursor: q("#readCursor"), readLine: q("#readLine"),
+        dcFlash: q("#dcFlash"), analysisPanel: q("#analysisPanel"),
+        zNum: q("#zNum"), zCalc: q("#zCalc"), aEst: q("#aEst"), aTrue: q("#aTrue"), aErr: q("#aErr"),
+        chartGrid: q("#chartGrid"), chartDots: q("#chartDots"), chartXLabels: q("#chartXLabels"),
+        chartTrueLine: q("#chartTrueLine"), chartEstLine: q("#chartEstLine"),
+        chartTrueLabel: q("#chartTrueLabel"), chartEstLabel: q("#chartEstLabel"),
+        startBtn: q("#startBtn"), pauseBtn: q("#pauseBtn"), resetBtn: q("#resetBtn"), newTapeBtn: q("#newTapeBtn"),
+        markBtn: q("#markBtn"), measureBtn: q("#measureBtn"), analyzeBtn: q("#analyzeBtn"),
+        acBtn: q("#acBtn"), dcBtn: q("#dcBtn"),
+        aInput: q("#aInput"), aOutput: q("#aOutput"), noiseInput: q("#noiseInput"), noiseOutput: q("#noiseOutput"),
+        scene: q("#scene")
+      };
+      bindControls();
+      render();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

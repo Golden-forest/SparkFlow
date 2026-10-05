@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>水平传送带 · 从相对滑动到共速</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific additions (extend the base set) */
+      --sim-belt: #3d4d6b;
+      --sim-belt-deep: #2c3a54;
+      --sim-belt-soft: #5a6d91;
+      --sim-block: #c8863f;
+      --sim-block-deep: #a5672b;
+      --sim-heat: #ea580c;
+      --sim-beltline: #d97706;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.55rem, 2.3vw, 2.05rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .status[data-mode="run"] { border-color: rgba(15,159,186,.4); background: #cdf0f5; }
+    .status[data-mode="done"] { border-color: rgba(217,119,6,.35); background: #fdeeda; color: #9a5a06; }
+    .status[data-mode="pause"] { border-color: rgba(100,116,139,.3); background: #eef2f7; color: #475569; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f7fa 55%, #fdf7ec 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .chart-panel { padding: 13px 14px 10px; }
+    #vtchart { width: 100%; height: auto; aspect-ratio: 360 / 250; display: block; }
+    .readouts { padding: 14px 15px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.08rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.heat { border-color: rgba(234,88,12,.35); background: linear-gradient(145deg, #fff7ef, #fdeee1); }
+    .metric.heat strong { color: #b4470c; }
+    .model-note { display: grid; align-content: start; gap: 11px; padding: 15px 17px; overflow: auto; }
+    .model-note h2 { margin: 0; font-size: 1rem; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; font-size: 0.9rem !important; line-height: 1.6 !important; }
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto repeat(4, minmax(140px, 1fr)); gap: 15px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover:enabled { border-color: #c7d2e2; background: #eef3f9; }
+    button:active:enabled { transform: scale(.97); }
+    button:disabled { opacity: .5; cursor: default; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .tick-label { fill: var(--sim-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .scene-note { fill: #8d9aad; font-size: 12px; }
+    #vtTrace { fill: none; stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    #beltLine { stroke: var(--sim-beltline); stroke-width: 2.5; stroke-dasharray: 8 6; }
+    #cospeedDot { fill: var(--sim-accent); stroke: #fff; stroke-width: 2; }
+    #cospeedGhost { fill: none; stroke: var(--sim-accent-deep); stroke-width: 2; stroke-dasharray: 3 3; }
+    #cospeedGuide { stroke: var(--sim-accent-deep); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .cospeed-text { fill: var(--sim-accent-deep); font-size: 12px; font-weight: 750; }
+    .legend-cell { font-size: 12px; fill: var(--sim-muted); font-weight: 650; }
+    .belt-body { stroke: var(--sim-belt); stroke-linecap: round; }
+    .roller { fill: #55688c; stroke: var(--sim-belt-deep); stroke-width: 3; }
+    .roller-hub { fill: var(--sim-belt-deep); }
+    .roller-spoke { stroke: #d7e0ee; stroke-width: 3; stroke-linecap: round; }
+    .tread-tick { stroke: var(--sim-belt-soft); stroke-width: 2.5; stroke-linecap: round; }
+    .frame-leg { fill: #b9c6d9; }
+    .ruler-tick { stroke: #aebccd; stroke-width: 1.5; }
+    .ruler-base { stroke: #c3cfe0; stroke-width: 2; }
+    #blockRect { fill: url(#woodGrad); stroke: var(--sim-block-deep); stroke-width: 2.5; rx: 7; }
+    .block-label { fill: #5c3a12; font-size: 12px; font-weight: 750; }
+    .f-arrow-forward { stroke: var(--sim-positive); }
+    .f-arrow-back { stroke: var(--sim-danger); }
+    .f-head-forward { fill: var(--sim-positive); }
+    .f-head-back { fill: var(--sim-danger); }
+    .f-label { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .v-arrow-v1 { stroke: var(--sim-accent); stroke-width: 4; stroke-linecap: round; }
+    .v-head-v1 { fill: var(--sim-accent); }
+    .v-arrow-v2 { stroke: var(--sim-beltline); stroke-width: 4; stroke-linecap: round; }
+    .v-head-v2 { fill: var(--sim-beltline); }
+    .v-label { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .v-tag { font-size: 12px; font-weight: 700; }
+    #slipGlow { fill: var(--sim-heat); }
+    .spark { stroke: var(--sim-heat); stroke-width: 2.5; stroke-linecap: round; }
+    #cospeedBadge rect { fill: var(--sim-accent-soft); stroke: var(--sim-accent-deep); stroke-width: 1.5; }
+    #cospeedBadge text { fill: var(--sim-accent-deep); font-size: 13px; font-weight: 800; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure. Layout: SceneFirstLayout. -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>水平传送带 · 从相对滑动到共速</h1>
+        <p>调节带速、动摩擦因数与物块初速度，看清相对滑动、摩擦力方向与摩擦生热</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite" data-mode="idle">未开始</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">传送带装置 · 侧视示意</h2><span>镜头跟随物块 · 皮带视为无限长 · 滑动时花纹相对物块流动</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">物块放在水平传送带上：两条速度箭头分别显示物块速度 v1 与皮带速度 v2，物块上的水平箭头显示滑动摩擦力方向与大小，共速后摩擦力消失、生热停止。</desc>
+          <defs>
+            <linearGradient id="woodGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#d99a55"></stop><stop offset="1" stop-color="#bd7a33"></stop>
+            </linearGradient>
+            <clipPath id="rulerClip"><rect x="56" y="382" width="648" height="26"></rect></clipPath>
+            <clipPath id="treadClip"><rect x="90" y="288" width="580" height="32"></rect></clipPath>
+          </defs>
+
+          <!-- ground ruler (world frame, scrolls with block motion) -->
+          <g clip-path="url(#rulerClip)">
+            <g id="ruler">
+              <line class="ruler-base" x1="30" y1="392" x2="730" y2="392"></line>
+            </g>
+          </g>
+          <text class="scene-note" x="56" y="410">地面刻度：每格 1 m（随物块移动）</text>
+
+          <!-- frame legs -->
+          <rect class="frame-leg" x="146" y="352" width="10" height="40" rx="2"></rect>
+          <rect class="frame-leg" x="604" y="352" width="10" height="40" rx="2"></rect>
+
+          <!-- belt loop (endless schematic) -->
+          <line class="belt-body" x1="150" y1="356" x2="610" y2="356" stroke-width="13"></line>
+          <line class="belt-body" x1="124" y1="330" x2="636" y2="330" stroke-width="13" opacity="0"></line>
+          <line class="belt-body" x1="124" y1="304" x2="636" y2="304" stroke-width="13"></line>
+
+          <!-- moving tread ticks (belt material frame) -->
+          <g clip-path="url(#treadClip)">
+            <g id="tread"></g>
+          </g>
+
+          <!-- rollers: circle body, then spinning spokes on top, then hub -->
+          <circle class="roller" cx="150" cy="330" r="26"></circle>
+          <circle class="roller" cx="610" cy="330" r="26"></circle>
+          <g id="rollerLSpokes"><line class="roller-spoke" x1="150" y1="312" x2="150" y2="348"></line><line class="roller-spoke" x1="132" y1="330" x2="168" y2="330"></line></g>
+          <g id="rollerRSpokes"><line class="roller-spoke" x1="610" y1="312" x2="610" y2="348"></line><line class="roller-spoke" x1="592" y1="330" x2="628" y2="330"></line></g>
+          <circle class="roller-hub" cx="150" cy="330" r="5"></circle>
+          <circle class="roller-hub" cx="610" cy="330" r="5"></circle>
+
+          <!-- slip heat glow + sparks at contact -->
+          <ellipse id="slipGlow" cx="380" cy="302" rx="36" ry="7" opacity="0"></ellipse>
+          <g id="sparkGroup"></g>
+
+          <!-- block (camera anchor: screen x fixed at 380) -->
+          <g id="blockG">
+            <rect id="blockRect" x="350" y="258" width="60" height="40" rx="7"></rect>
+            <text class="block-label" x="380" y="276" text-anchor="middle">物块</text>
+            <text class="block-label" x="380" y="291" text-anchor="middle">m = 1 kg</text>
+          </g>
+
+          <!-- friction arrow on block -->
+          <text id="fLabel" class="f-label" x="380" y="248" text-anchor="middle"></text>
+          <line id="fLine" class="f-arrow-forward" x1="380" y1="278" x2="380" y2="278" stroke-width="5" stroke-linecap="round"></line>
+          <polygon id="fHead" class="f-head-forward" points=""></polygon>
+
+          <!-- stacked velocity arrows above block -->
+          <text class="v-tag" x="380" y="222" text-anchor="middle" fill="#0b7c92">物块 v₁</text>
+          <line id="v1Line" class="v-arrow-v1" x1="380" y1="236" x2="380" y2="236"></line>
+          <polygon id="v1Head" class="v-head-v1" points=""></polygon>
+          <text id="v1Label" class="v-label" x="380" y="232" fill="#0b7c92"></text>
+          <text class="v-tag" x="380" y="188" text-anchor="middle" fill="#a35d00">皮带 v₂</text>
+          <line id="v2Line" class="v-arrow-v2" x1="380" y1="202" x2="380" y2="202"></line>
+          <polygon id="v2Head" class="v-head-v2" points=""></polygon>
+          <text id="v2Label" class="v-label" x="380" y="198" fill="#a35d00"></text>
+
+          <!-- co-speed badge -->
+          <g id="cospeedBadge" visibility="hidden">
+            <rect x="330" y="158" width="100" height="26" rx="13"></rect>
+            <text x="380" y="176" text-anchor="middle">已共速 f = 0</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-panel" aria-labelledby="vt-title">
+          <div class="panel-head"><h2 id="vt-title">速度—时间图（物块与皮带）</h2><span>两线汇合即共速</span></div>
+          <svg id="vtchart" viewBox="0 0 360 250" role="img" aria-label="物块与皮带的速度时间图像">
+            <g id="vtGrid"></g>
+            <line class="axis" x1="46" y1="220" x2="348" y2="220"></line>
+            <line class="axis" x1="46" y1="16" x2="46" y2="220"></line>
+            <text id="vtYAxisLabel" class="axis-label" x="14" y="12">v / (m·s⁻¹)</text>
+            <text class="axis-label" x="332" y="244">t / s</text>
+            <line id="zeroLine" class="axis" x1="46" y1="220" x2="348" y2="220" stroke-dasharray="2 3" opacity="0.6"></line>
+            <line id="beltLine" x1="46" y1="120" x2="348" y2="120"></line>
+            <polyline id="vtTrace" points=""></polyline>
+            <circle id="cospeedGhost" cx="0" cy="0" r="4.5" visibility="hidden"></circle>
+            <line id="cospeedGuide" x1="0" y1="0" x2="0" y2="220" visibility="hidden"></line>
+            <circle id="cospeedDot" cx="0" cy="0" r="5" visibility="hidden"></circle>
+            <text id="cospeedText" class="cospeed-text" x="0" y="0" visibility="hidden"></text>
+            <g id="vtLegend">
+              <line x1="236" y1="24" x2="258" y2="24" stroke="#0f9fba" stroke-width="3" stroke-linecap="round"></line>
+              <text class="legend-cell" x="262" y="28">物块 v₁</text>
+              <line x1="236" y1="40" x2="258" y2="40" stroke="#d97706" stroke-width="2.5" stroke-dasharray="7 5"></line>
+              <text class="legend-cell" x="262" y="44">皮带 v₂</text>
+            </g>
+          </svg>
+        </section>
+
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>物块速度 v₁ (m/s)</small><strong id="v1Readout">0.0</strong></div>
+            <div class="metric"><small>皮带速度 v₂ (m/s)</small><strong id="v2Readout">4.0</strong></div>
+            <div class="metric"><small>摩擦力 f (N)</small><strong id="fReadout">5.0</strong></div>
+            <div class="metric"><small>相对滑移 |Δs| (m)</small><strong id="slipReadout">0.00</strong></div>
+            <div class="metric heat"><small>摩擦生热 Q (J)</small><strong id="heatReadout">0.00</strong></div>
+            <div class="metric"><small>时间 t (s)</small><strong id="timeReadout">0.00</strong></div>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-labelledby="insight-title">
+          <div class="panel-head" style="margin-bottom:0"><h2 id="insight-title">观察与模型</h2></div>
+          <p id="insight" class="insight">点击「开始」：物块先相对皮带向后滑，滑动摩擦力向前拖动它加速；v–t 图上两线逐渐靠拢。</p>
+          <p>教学模型：滑动阶段 f = μmg·sign(v₂ − v₁)，共速后水平传送带上 f = 0；摩擦生热 Q = μmg·|Δs<sub>相对</sub>|。</p>
+          <p>参数约定：g = 10 m/s²，物块质量 m = 1 kg（固定），皮带匀速且视为无限长。μ 为动摩擦因数，共速后无相对滑动趋势。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="beltInput">皮带速度 v₂ <output id="beltOutput">4.0 m/s</output></label>
+        <input id="beltInput" type="range" min="-6" max="6" step="0.5" value="4">
+      </div>
+      <div class="control">
+        <label for="muInput">动摩擦因数 μ <output id="muOutput">0.50</output></label>
+        <input id="muInput" type="range" min="0.05" max="0.8" step="0.05" value="0.5">
+      </div>
+      <div class="control">
+        <label for="v0Input">物块初速度 v₀ <output id="v0Output">0.0 m/s</output></label>
+        <input id="v0Input" type="range" min="-6" max="6" step="0.5" value="0">
+      </div>
+      <div class="control">
+        <label for="speedInput">时间倍率 <output id="speedOutput">0.4×</output></label>
+        <input id="speedInput" type="range" min="0.1" max="2" step="0.1" value="0.4">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // ===================== parameter schema =====================
+    const parameterSchema = [
+      { key: "beltSpeed", label: "皮带速度 v₂", type: "slider", min: -6, max: 6, step: 0.5, default: 4, unit: "m/s", playback: false },
+      { key: "mu", label: "动摩擦因数 μ", type: "slider", min: 0.05, max: 0.8, step: 0.05, default: 0.5, unit: "", playback: false },
+      { key: "v0", label: "物块初速度 v₀", type: "slider", min: -6, max: 6, step: 0.5, default: 0, unit: "m/s", playback: false },
+      { key: "timeScale", label: "时间倍率", type: "slider", min: 0.1, max: 2, step: 0.1, default: 0.4, unit: "×", playback: true }
+    ];
+    const KERNEL = { g: 10, mass: 1, fixedDt: 1 / 240 };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+    function mod(a, n) { return ((a % n) + n) % n; }
+    function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+    // ============ physics kernel (DOM-free, event-driven analytic) ============
+    // Modes: SLIDING (kinetic friction, a = μg·sign(v2 − v1), exact constant-acceleration
+    // advance with exact co-speed event location and step splitting) and CO_SPEED
+    // (f = 0 on a horizontal belt, uniform motion). No integration error by design.
+    function makeWorld(beltSpeed, mu, v0) {
+      const world = { beltSpeed, mu, v0, t: 0, x: 0, v: v0, phase: "SLIDING", friction: 0, accel: 0, heat: 0, slipAbs: 0, blockWork: 0, beltWork: 0, tCospd: null };
+      if (v0 === beltSpeed) { lockCospd(world, 0); }
+      else {
+        world.friction = mu * KERNEL.mass * KERNEL.g * Math.sign(beltSpeed - v0);
+        world.accel = world.friction / KERNEL.mass;
+      }
+      return world;
+    }
+    function lockCospd(world, tNow) {
+      world.phase = "CO_SPEED"; world.v = world.beltSpeed; world.friction = 0; world.accel = 0;
+      if (world.tCospd === null) world.tCospd = tNow;
+    }
+    function advanceCospd(world, dt) {
+      world.x += world.v * dt; world.t += dt; // f = 0: no heat, no work
+    }
+    function advanceSliding(world, dt) {
+      const a = world.accel;               // constant within SLIDING
+      const rel = world.beltSpeed - world.v; // sign(rel) = sign(a) in SLIDING
+      const tStar = rel / a;               // exact time to co-speed
+      if (tStar >= 0 && tStar <= dt) {
+        // split the step at the co-speed event: slide exactly to it, then ride with the belt
+        const dx = world.v * tStar + 0.5 * a * tStar * tStar;
+        const slipSeg = 0.5 * rel * tStar;  // ∫(v2−v)dt, closed form (linear relative velocity)
+        world.x += dx;
+        world.blockWork += world.friction * dx;
+        world.beltWork += world.friction * (world.beltSpeed * tStar);
+        world.slipAbs += Math.abs(slipSeg);
+        world.heat += Math.abs(world.friction) * Math.abs(slipSeg);
+        world.v = world.beltSpeed; world.t += tStar;
+        lockCospd(world, world.t);
+        const rest = dt - tStar;
+        if (rest > 1e-15) advanceCospd(world, rest);
+      } else {
+        const dx = world.v * dt + 0.5 * a * dt * dt;
+        const slipSeg = rel * dt - 0.5 * a * dt * dt; // ∫(v2−v)dt over the full step
+        world.x += dx;
+        world.blockWork += world.friction * dx;
+        world.beltWork += world.friction * (world.beltSpeed * dt);
+        world.slipAbs += Math.abs(slipSeg);
+        world.heat += Math.abs(world.friction) * Math.abs(slipSeg);
+        world.v += a * dt; world.t += dt;
+      }
+    }
+    function stepWorld(world, dt) {
+      if (!(dt > 0) || !Number.isFinite(dt)) return world;
+      if (world.phase === "CO_SPEED") advanceCospd(world, dt);
+      else advanceSliding(world, dt);
+      return world;
+    }
+    // closed-form co-speed oracle, independent of the stepper
+    function analyticCospd(beltSpeed, mu, v0) {
+      if (v0 === beltSpeed) return { t: 0, dx: 0, slip: 0, heat: 0, a: 0 };
+      const a = mu * KERNEL.g * Math.sign(beltSpeed - v0);
+      const t = (beltSpeed - v0) / a;
+      const dx = 0.5 * (v0 + beltSpeed) * t;
+      const slip = Math.abs(0.5 * (beltSpeed - v0) * t);
+      return { t, dx, slip, heat: mu * KERNEL.mass * KERNEL.g * slip, a };
+    }
+    function steppedCospd(beltSpeed, mu, v0, dt, extra) {
+      const target = analyticCospd(beltSpeed, mu, v0).t + (extra || 0);
+      const world = makeWorld(beltSpeed, mu, v0);
+      let guard = 0;
+      while (world.t < target - 1e-12 && guard < 2000000) { stepWorld(world, dt); guard += 1; }
+      return world;
+    }
+
+    // ============ model checks (analytic oracles, tolerances chosen beforehand) ============
+    function runModelChecks() {
+      const checks = [];
+      const push = (name, pass, expected, actual, tolerance) =>
+        checks.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+      // 1 ordinary case: v0=0, belt=4, mu=0.5 -> a=+5, t*=0.8 s, Q=8 J, x*=1.6 m
+      let w = steppedCospd(4, 0.5, 0, 1 / 240, 0.5);
+      push("常规 v₀=0,v₂=4,μ=0.5：共速时刻 t* = 0.8 s", near(w.tCospd, 0.8, 1e-9), 0.8, w.tCospd, 1e-9);
+      push("常规：共速后 v₁ = v₂ = 4 m/s", near(w.v, 4, 1e-12), 4, w.v, 1e-12);
+      push("常规：摩擦生热 Q = 8 J", near(w.heat, 8, 1e-9), 8, w.heat, 1e-9);
+      push("常规：滑行位移 x* = 1.6 m", near(w.x - w.beltSpeed * (w.t - w.tCospd), 1.6, 1e-9), 1.6, w.x - w.beltSpeed * (w.t - w.tCospd), 1e-9);
+      // 2 block faster than belt: v0=6, belt=2, mu=0.5 -> a=-5, t*=0.8 s, Q=8 J, W=ΔKE=-16 J
+      w = steppedCospd(2, 0.5, 6, 1 / 240, 0.5);
+      push("物块更快 v₀=6,v₂=2,μ=0.5：t* = 0.8 s", near(w.tCospd, 0.8, 1e-9), 0.8, w.tCospd, 1e-9);
+      push("物块更快：摩擦力向后，Q = 8 J", near(w.heat, 8, 1e-9), 8, w.heat, 1e-9);
+      const dke = 0.5 * KERNEL.mass * (2 * 2 - 6 * 6);
+      push("功—能恒等式 W_f = ΔKE = −16 J", near(w.blockWork, dke, 1e-9), dke, w.blockWork, 1e-9);
+      // 3 opposite direction: v0=-4, belt=2, mu=0.4 -> a=+4, t*=1.5 s, Q=18 J
+      w = steppedCospd(2, 0.4, -4, 1 / 240, 0.5);
+      push("反向初速 v₀=−4,v₂=2,μ=0.4：t* = 1.5 s", near(w.tCospd, 1.5, 1e-9), 1.5, w.tCospd, 1e-9);
+      push("反向初速：先减速后反向加速，Q = 18 J", near(w.heat, 18, 1e-9), 18, w.heat, 1e-9);
+      // 4 threshold: v0 = belt -> immediate co-speed, no heat ever
+      w = steppedCospd(3, 0.5, 3, 1 / 240, 2);
+      push("阈值 v₀=v₂：立即共速", w.phase === "CO_SPEED" && w.tCospd === 0, "CO_SPEED @ t=0", w.phase + " @ t=" + w.tCospd, "exact");
+      push("阈值：Q = 0 且 2 s 内保持为 0", w.heat === 0 && w.slipAbs === 0, 0, w.heat, "exact");
+      push("阈值：随带匀速 x(2 s) = 6 m", near(w.x, 6, 1e-9), 6, w.x, 1e-9);
+      // 5 belt at rest: v2=0, v0=3, mu=0.3 -> a=-3, block stops at t*=1 s, Q=4.5 J
+      w = steppedCospd(0, 0.3, 3, 1 / 240, 1);
+      push("皮带静止 v₂=0,v₀=3,μ=0.3：t* = 1 s", near(w.tCospd, 1, 1e-9), 1, w.tCospd, 1e-9);
+      push("皮带静止：物块停住，末速 v = 0", near(w.v, 0, 1e-12), 0, w.v, 1e-12);
+      push("皮带静止：Q = 4.5 J", near(w.heat, 4.5, 1e-9), 4.5, w.heat, 1e-9);
+      // 6 step-size invariance: the event-exact kernel is independent of dt
+      const q60 = steppedCospd(4, 0.5, 0, 1 / 60, 0.2).heat;
+      const q240 = steppedCospd(4, 0.5, 0, 1 / 240, 0.2).heat;
+      const q1440 = steppedCospd(4, 0.5, 0, 1 / 1440, 0.2).heat;
+      push("步长不变性 dt=1/60, 1/240, 1/1440 的 Q 均为 8 J", near(q60, 8, 1e-9) && near(q240, 8, 1e-9) && near(q1440, 8, 1e-9), 8, q60 + ", " + q240 + ", " + q1440, 1e-9);
+      // 7 energy identity W_belt = W_block + Q across six parameter sets
+      const cases = [[4, 0.5, 0], [2, 0.5, 6], [2, 0.4, -4], [0, 0.3, 3], [-5, 0.25, 2], [6, 0.1, -6]];
+      let energyOk = true, worst = 0;
+      for (const c of cases) {
+        const ww = steppedCospd(c[0], c[1], c[2], 1 / 240, 0.3);
+        const err = Math.abs(ww.beltWork - (ww.blockWork + ww.heat));
+        worst = Math.max(worst, err);
+        if (err > 1e-9) energyOk = false;
+      }
+      push("能量恒等式 W_带 = W_物 + Q（6 组参数）", energyOk, "max err ≤ 1e-9", "max err " + worst, 1e-9);
+      // 8 event order: after co-speed nothing drifts and heat stops accumulating
+      const heatAtLock = steppedCospd(4, 0.5, 0, 1 / 240, 0).heat; // Q accumulated up to the event
+      w = steppedCospd(4, 0.5, 0, 1 / 240, 3);
+      push("共速后 3 s：v 严格等于 v₂ 且 Q 冻结", w.v === 4 && w.heat === heatAtLock, "v ≡ 4, Q ≡ Q(t*)", "v=" + w.v + ", Q=" + w.heat + " (Q(t*)=" + heatAtLock + ")", "exact");
+      return checks;
+    }
+    // ===================== application state =====================
+    const SCENE = { pxPerM: 60, anchorX: 380 };
+    const state = {
+      params: { beltSpeed: 4, mu: 0.5, v0: 0, timeScale: 0.4 },
+      world: null, history: [],
+      running: false, runStarted: false, finishFired: false,
+      lastTs: null, acc: 0, sparkPhase: 0, reducedMotion: false
+    };
+    let elements = null;
+    let sceneParts = null;
+
+    // ===================== scene scaffolding =====================
+    function initSceneParts() {
+      let treadHtml = "";
+      for (let i = 0; i <= 23; i += 1) {
+        const x = 30 + i * 30; // belt-material ticks every 0.5 m
+        treadHtml += `<line class="tread-tick" x1="${x}" y1="292" x2="${x + 5}" y2="316"></line>`;
+      }
+      elements.tread.innerHTML = treadHtml;
+      let rulerHtml = "";
+      for (let i = 0; i <= 15; i += 1) {
+        const x = -90 + i * 60; // ground-frame ticks every 1 m
+        rulerHtml += `<line class="ruler-tick" x1="${x}" y1="388" x2="${x}" y2="396"></line>`;
+      }
+      elements.ruler.insertAdjacentHTML("beforeend", rulerHtml);
+      let sparkHtml = "";
+      for (let i = 0; i < 4; i += 1) sparkHtml += `<line class="spark" x1="0" y1="0" x2="0" y2="0" visibility="hidden"></line>`;
+      elements.sparkGroup.innerHTML = sparkHtml;
+      sceneParts = { tread: elements.tread, ruler: elements.ruler, sparks: Array.from(elements.sparkGroup.children) };
+    }
+
+    // ===================== drawing helpers =====================
+    function setHArrow(lineEl, headEl, x0, y, len) {
+      if (Math.abs(len) < 3) { lineEl.setAttribute("visibility", "hidden"); headEl.setAttribute("visibility", "hidden"); return; }
+      const s = Math.sign(len), tip = x0 + len;
+      lineEl.setAttribute("visibility", "visible");
+      lineEl.setAttribute("x1", x0); lineEl.setAttribute("y1", y);
+      lineEl.setAttribute("x2", tip - s * 9); lineEl.setAttribute("y2", y);
+      headEl.setAttribute("visibility", "visible");
+      headEl.setAttribute("points", `${tip},${y} ${tip - s * 11},${y - 5.5} ${tip - s * 11},${y + 5.5}`);
+    }
+    function placeValueLabel(el, x0, len, text, y) {
+      el.setAttribute("x", x0 + len + (len >= 0 ? 8 : -8));
+      el.setAttribute("y", y);
+      el.setAttribute("text-anchor", len >= 0 ? "start" : "end");
+      el.textContent = text;
+    }
+
+    // ===================== lifecycle =====================
+    function init() {
+      const $ = (id) => document.getElementById(id);
+      elements = {
+        status: $("status"), insight: $("insight"),
+        v1Readout: $("v1Readout"), v2Readout: $("v2Readout"), fReadout: $("fReadout"),
+        slipReadout: $("slipReadout"), heatReadout: $("heatReadout"), timeReadout: $("timeReadout"),
+        tread: $("tread"), ruler: $("ruler"), rollerLSpokes: $("rollerLSpokes"), rollerRSpokes: $("rollerRSpokes"),
+        sparkGroup: $("sparkGroup"), slipGlow: $("slipGlow"),
+        fLine: $("fLine"), fHead: $("fHead"), fLabel: $("fLabel"),
+        v1Line: $("v1Line"), v1Head: $("v1Head"), v1Label: $("v1Label"),
+        v2Line: $("v2Line"), v2Head: $("v2Head"), v2Label: $("v2Label"),
+        cospeedBadge: $("cospeedBadge"),
+        vtGrid: $("vtGrid"), vtTrace: $("vtTrace"), beltLine: $("beltLine"), zeroLine: $("zeroLine"),
+        cospeedDot: $("cospeedDot"), cospeedGhost: $("cospeedGhost"), cospeedGuide: $("cospeedGuide"), cospeedText: $("cospeedText"),
+        startBtn: $("startBtn"), pauseBtn: $("pauseBtn"), resetBtn: $("resetBtn"),
+        beltInput: $("beltInput"), beltOutput: $("beltOutput"),
+        muInput: $("muInput"), muOutput: $("muOutput"),
+        v0Input: $("v0Input"), v0Output: $("v0Output"),
+        speedInput: $("speedInput"), speedOutput: $("speedOutput")
+      };
+      state.reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      initSceneParts();
+      bindControls();
+      setParameters({ beltSpeed: 4, mu: 0.5, v0: 0, timeScale: 0.4 });
+      requestAnimationFrame(frame);
+    }
+    function start() { if (state.world === null) return; state.running = true; state.runStarted = true; state.lastTs = null; updateButtons(); render(); }
+    function pause() { state.running = false; updateButtons(); render(); }
+    function reset() { restartExperiment(); }
+    function restartExperiment() {
+      state.world = makeWorld(state.params.beltSpeed, state.params.mu, state.params.v0);
+      state.history = [{ t: 0, v: state.params.v0 }];
+      state.running = false; state.runStarted = false; state.finishFired = false;
+      state.acc = 0; state.lastTs = null; state.sparkPhase = 0;
+      updateButtons(); render();
+    }
+    function updateButtons() {
+      if (!elements) return;
+      elements.startBtn.disabled = state.running;
+      elements.pauseBtn.disabled = !state.running;
+    }
+    function update(dt) {
+      if (!state.running || state.world === null) return;
+      const wall = clamp(finite(dt, 0), 0, 0.05);
+      state.acc = Math.min(state.acc + wall * state.params.timeScale, 0.5);
+      let guard = 0;
+      while (state.acc >= KERNEL.fixedDt - 1e-12 && guard < 1600) {
+        stepWorld(state.world, KERNEL.fixedDt);
+        state.acc -= KERNEL.fixedDt; guard += 1;
+        if (!state.finishFired && state.world.phase === "CO_SPEED" && state.world.t >= state.world.tCospd + 1.5) {
+          state.running = false; state.finishFired = true; updateButtons(); break;
+        }
+      }
+      sampleHistory();
+    }
+    function sampleHistory() {
+      const w = state.world;
+      if (w.tCospd !== null) { // keep the co-speed kink exact on the chart
+        const last = state.history[state.history.length - 1];
+        if (last.t < w.tCospd - 1e-12 && w.t >= w.tCospd - 1e-12) state.history.push({ t: w.tCospd, v: w.beltSpeed });
+      }
+      const tail = state.history[state.history.length - 1];
+      if (w.t - tail.t >= 0.02) state.history.push({ t: w.t, v: w.v });
+      if (state.history.length > 4000) state.history.shift();
+    }
+    function setParameters(values) {
+      const next = {};
+      for (const def of parameterSchema) {
+        const raw = values && values[def.key] !== undefined ? values[def.key] : state.params[def.key];
+        next[def.key] = clamp(finite(Number(raw), def.default), def.min, def.max);
+      }
+      const physicsChanged = next.beltSpeed !== state.params.beltSpeed || next.mu !== state.params.mu || next.v0 !== state.params.v0;
+      state.params = next;
+      syncControls();
+      if (physicsChanged || state.world === null) restartExperiment(); // param change = new experiment, preview at t=0
+    }
+    function syncControls() {
+      if (!elements) return;
+      const p = state.params;
+      elements.beltInput.value = String(p.beltSpeed);
+      elements.beltOutput.textContent = `${p.beltSpeed.toFixed(1)} m/s`;
+      elements.muInput.value = String(p.mu);
+      elements.muOutput.textContent = p.mu.toFixed(2);
+      elements.v0Input.value = String(p.v0);
+      elements.v0Output.textContent = `${p.v0.toFixed(1)} m/s`;
+      elements.speedInput.value = String(p.timeScale);
+      elements.speedOutput.textContent = `${p.timeScale.toFixed(1)}×`;
+    }
+    function getState() {
+      if (state.world === null) return { params: { ...state.params } };
+      return {
+        running: state.running, t: state.world.t, x: state.world.x, v: state.world.v,
+        phase: state.world.phase, heat: state.world.heat, slipAbs: state.world.slipAbs,
+        tCospd: state.world.tCospd, params: { ...state.params },
+        history: state.history.map((s) => ({ t: s.t, v: s.v }))
+      };
+    }
+    function getReadouts() {
+      if (state.world === null) return {};
+      const w = state.world;
+      return { t: w.t, v1: w.v, v2: w.beltSpeed, friction: w.friction, slipAbs: w.slipAbs, heat: w.heat, phase: w.phase };
+    }
+
+    // ===================== rendering (all derived from state.world) =====================
+    function setStatus(text, mode) { elements.status.textContent = text; elements.status.setAttribute("data-mode", mode); }
+    function insightText() {
+      const w = state.world;
+      if (!state.runStarted && w.t === 0) {
+        if (w.phase === "CO_SPEED") return "v₀ = v₂：物块一放上去就与皮带共速，摩擦力为 0。可调整 v₀ 或 v₂ 再试。";
+        const rel = w.friction > 0 ? "物块相对皮带向后滑 → 滑动摩擦力向前" : "物块相对皮带向前滑 → 滑动摩擦力向后";
+        return `预判：${rel}（图中箭头已给出方向与大小）。点击「开始」验证。`;
+      }
+      if (w.phase === "SLIDING") {
+        const rel = w.beltSpeed - w.v > 0 ? "物块比皮带慢（相对皮带向后滑）→ 摩擦力向前" : "物块比皮带快（相对皮带向前滑）→ 摩擦力向后";
+        const speed = w.accel * w.v > 0 ? "加速" : w.accel * w.v < 0 ? "减速" : "速率最小";
+        return `相对滑动中：${rel}，物块正在${speed}；摩擦生热进行中，Q = ${w.heat.toFixed(2)} J。`;
+      }
+      return `已共速（t* = ${w.tCospd.toFixed(2)} s）：无相对滑动，水平传送带上摩擦力为 0，物块随皮带匀速运动，生热停止，最终 Q = ${w.heat.toFixed(2)} J。`;
+    }
+    function render() {
+      if (!elements || state.world === null) return;
+      const w = state.world;
+      elements.v1Readout.textContent = w.v.toFixed(1);
+      elements.v2Readout.textContent = w.beltSpeed.toFixed(1);
+      elements.fReadout.textContent = (w.friction > 0 ? "+" : "") + w.friction.toFixed(1);
+      elements.slipReadout.textContent = w.slipAbs.toFixed(2);
+      elements.heatReadout.textContent = w.heat.toFixed(2);
+      elements.timeReadout.textContent = w.t.toFixed(2);
+      if (state.running) setStatus("运行中", "run");
+      else if (state.finishFired) setStatus("已共速 · 演示完成", "done");
+      else if (w.t > 0) setStatus("已暂停", "pause");
+      else setStatus("未开始", "idle");
+      elements.insight.textContent = insightText();
+      renderScene();
+      renderChart();
+    }
+    function renderScene() {
+      const w = state.world;
+      const sliding = w.phase === "SLIDING";
+      // belt tread moves with the belt material; ground ruler moves with the world frame
+      sceneParts.tread.setAttribute("transform", `translate(${mod((w.beltSpeed * w.t - w.x) * SCENE.pxPerM, 30).toFixed(2)},0)`);
+      sceneParts.ruler.setAttribute("transform", `translate(${mod(-w.x * SCENE.pxPerM, 60).toFixed(2)},0)`);
+      const angle = mod((w.beltSpeed * w.t) / (26 / SCENE.pxPerM) * 180 / Math.PI, 360);
+      elements.rollerLSpokes.setAttribute("transform", `rotate(${angle.toFixed(2)} 150 330)`);
+      elements.rollerRSpokes.setAttribute("transform", `rotate(${angle.toFixed(2)} 610 330)`);
+      // stacked velocity arrows: equal length ⇔ co-speed
+      setHArrow(elements.v1Line, elements.v1Head, SCENE.anchorX, 236, w.v * 10);
+      setHArrow(elements.v2Line, elements.v2Head, SCENE.anchorX, 202, w.beltSpeed * 10);
+      placeValueLabel(elements.v1Label, SCENE.anchorX, w.v * 10, `${w.v.toFixed(1)} m/s`, 252);
+      placeValueLabel(elements.v2Label, SCENE.anchorX, w.beltSpeed * 10, `${w.beltSpeed.toFixed(1)} m/s`, 218);
+      // friction arrow: direction and magnitude from the solver
+      if (sliding) {
+        const len = Math.sign(w.friction) * (26 + Math.abs(w.friction) * 5);
+        setHArrow(elements.fLine, elements.fHead, SCENE.anchorX, 278, len);
+        elements.fLine.setAttribute("class", w.friction > 0 ? "f-arrow-forward" : "f-arrow-back");
+        elements.fHead.setAttribute("class", w.friction > 0 ? "f-head-forward" : "f-head-back");
+        elements.fLabel.setAttribute("fill", w.friction > 0 ? "#0b7c92" : "#b91c1c");
+        placeValueLabel(elements.fLabel, SCENE.anchorX, len, `f = ${Math.abs(w.friction).toFixed(1)} N`, 271);
+        elements.fLabel.setAttribute("visibility", "visible");
+      } else {
+        elements.fLine.setAttribute("visibility", "hidden");
+        elements.fHead.setAttribute("visibility", "hidden");
+        elements.fLabel.setAttribute("visibility", "hidden");
+      }
+      elements.cospeedBadge.setAttribute("visibility", sliding ? "hidden" : "visible");
+      // heat glow + sparks encode the slipping state only
+      const flicker = state.running && sliding && !state.reducedMotion;
+      elements.slipGlow.setAttribute("opacity", sliding ? (flicker ? (0.26 + 0.14 * Math.sin(state.sparkPhase * 0.9)).toFixed(3) : "0.3") : "0");
+      if (flicker) {
+        state.sparkPhase += 1;
+        const dir = -Math.sign(w.beltSpeed - w.v) * 9;
+        sceneParts.sparks.forEach((s, i) => {
+          const x = SCENE.anchorX + mod(state.sparkPhase * 7 + i * 29, 46) - 23;
+          const y = 300 + (i % 2) * 3;
+          s.setAttribute("x1", x.toFixed(1)); s.setAttribute("y1", String(y));
+          s.setAttribute("x2", (x + dir).toFixed(1)); s.setAttribute("y2", String(y - 3));
+          s.setAttribute("visibility", "visible");
+        });
+      } else {
+        sceneParts.sparks.forEach((s) => s.setAttribute("visibility", "hidden"));
+      }
+    }
+    function renderChart() {
+      const w = state.world;
+      let lo = Math.min(0, w.beltSpeed, w.v0), hi = Math.max(0, w.beltSpeed, w.v0);
+      for (const s of state.history) { if (s.v < lo) lo = s.v; if (s.v > hi) hi = s.v; }
+      const pad = Math.max(0.7, (hi - lo) * 0.14);
+      lo -= pad; hi += pad;
+      if (hi - lo < 2.4) { const c = (hi + lo) / 2; lo = c - 1.2; hi = c + 1.2; }
+      const xMax = Math.max(3, w.t * 1.15);
+      const X = (t) => 46 + (t / xMax) * 302;
+      const Y = (v) => 220 - ((v - lo) / (hi - lo)) * 204;
+      const stepV = hi - lo <= 8.5 ? 1 : 2;
+      const stepT = xMax <= 6.5 ? 1 : 2;
+      let gridHtml = "";
+      for (let v = Math.ceil(lo / stepV) * stepV; v <= hi + 1e-9; v += stepV) {
+        gridHtml += `<line class="grid-line" x1="46" y1="${Y(v).toFixed(1)}" x2="348" y2="${Y(v).toFixed(1)}"></line><text class="tick-label" x="41" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end">${Math.round(v * 10) / 10}</text>`;
+      }
+      for (let t = 0; t <= xMax + 1e-9; t += stepT) {
+        gridHtml += `<line class="grid-line" x1="${X(t).toFixed(1)}" y1="16" x2="${X(t).toFixed(1)}" y2="220"></line><text class="tick-label" x="${X(t).toFixed(1)}" y="234" text-anchor="middle">${t}</text>`;
+      }
+      elements.vtGrid.innerHTML = gridHtml;
+      elements.zeroLine.setAttribute("y1", Y(0).toFixed(1));
+      elements.zeroLine.setAttribute("y2", Y(0).toFixed(1));
+      const yb = Y(w.beltSpeed).toFixed(1);
+      elements.beltLine.setAttribute("y1", yb);
+      elements.beltLine.setAttribute("y2", yb);
+      const pts = state.history.map((s) => `${X(s.t).toFixed(1)},${Y(s.v).toFixed(1)}`);
+      pts.push(`${X(w.t).toFixed(1)},${Y(w.v).toFixed(1)}`);
+      elements.vtTrace.setAttribute("points", pts.join(" "));
+      if (w.tCospd !== null) {
+        const cx = X(w.tCospd), cy = Y(w.beltSpeed);
+        elements.cospeedGhost.setAttribute("visibility", "hidden");
+        elements.cospeedDot.setAttribute("visibility", "visible");
+        elements.cospeedDot.setAttribute("cx", cx.toFixed(1));
+        elements.cospeedDot.setAttribute("cy", cy.toFixed(1));
+        elements.cospeedGuide.setAttribute("visibility", "visible");
+        elements.cospeedGuide.setAttribute("x1", cx.toFixed(1));
+        elements.cospeedGuide.setAttribute("x2", cx.toFixed(1));
+        elements.cospeedGuide.setAttribute("y1", (cy + 6).toFixed(1));
+        elements.cospeedGuide.setAttribute("y2", "220");
+        elements.cospeedText.setAttribute("visibility", "visible");
+        if (cx > 268) { elements.cospeedText.setAttribute("x", (cx - 7).toFixed(1)); elements.cospeedText.setAttribute("text-anchor", "end"); }
+        else { elements.cospeedText.setAttribute("x", (cx + 7).toFixed(1)); elements.cospeedText.setAttribute("text-anchor", "start"); }
+        elements.cospeedText.setAttribute("y", (cy < 50 ? cy + 20 : cy - 9).toFixed(1));
+        elements.cospeedText.textContent = `共速 t*=${w.tCospd.toFixed(2)} s`;
+      } else {
+        elements.cospeedDot.setAttribute("visibility", "hidden");
+        elements.cospeedGuide.setAttribute("visibility", "hidden");
+        elements.cospeedText.setAttribute("visibility", "hidden");
+        const ana = analyticCospd(w.beltSpeed, w.mu, w.v0); // predicted co-speed point
+        if (ana.t > 0) {
+          elements.cospeedGhost.setAttribute("visibility", "visible");
+          elements.cospeedGhost.setAttribute("cx", X(ana.t).toFixed(1));
+          elements.cospeedGhost.setAttribute("cy", Y(w.beltSpeed).toFixed(1));
+        } else {
+          elements.cospeedGhost.setAttribute("visibility", "hidden");
+        }
+      }
+    }
+
+    // ===================== bindings & frame loop =====================
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.beltInput.addEventListener("input", () => setParameters({ beltSpeed: elements.beltInput.value }));
+      elements.muInput.addEventListener("input", () => setParameters({ mu: elements.muInput.value }));
+      elements.v0Input.addEventListener("input", () => setParameters({ v0: elements.v0Input.value }));
+      elements.speedInput.addEventListener("input", () => setParameters({ timeScale: elements.speedInput.value }));
+    }
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (typeof document !== "undefined" && document.getElementById && !window.__APPSHELL_HEADLESS__) init();
+  })();
+  </script>
+</body>
+</html>

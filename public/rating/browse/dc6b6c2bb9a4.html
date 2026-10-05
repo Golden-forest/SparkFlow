@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>示波管的静电偏转</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend, not replace, the base set) */
+      --sim-beam: #22d3ee;
+      --sim-seg-field: #f59e0b;
+      --sim-seg-line: #94a3b8;
+      --sim-phosphor: #7ef0a8;
+      --sim-plate-pos: #f87171;
+      --sim-plate-neg: #60a5fa;
+      --sim-tube: #0c1526;
+      --sim-tube-wall: #33507a;
+      --sim-tube-text: #c7d4ea;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.035em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; font-size: 0.86rem; white-space: nowrap; }
+    .status.warn { border-color: rgba(220,38,38,.22); background: #fdecec; color: #b91c1c; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(300px, 0.62fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 380px; padding: 12px 14px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; height: 100%; min-height: 300px; display: block; border-radius: 16px; background: #f4f8fc; border: 1px solid rgba(15,159,186,.10); }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 8px; padding: 0 4px; font-size: 0.76rem; color: var(--sim-muted); }
+    .legend .chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 640; color: var(--sim-text); }
+    .chip i { width: 22px; height: 4px; border-radius: 2px; display: inline-block; }
+    .chip i.dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend .note { margin-left: auto; font-size: 0.72rem; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+    .readouts { padding: 14px 16px 12px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.7rem; }
+    .metric strong { font-size: 1.22rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.primary { border-color: rgba(15,159,186,.4); background: linear-gradient(145deg, #effbfd, #e6f6f9); }
+    .metric.primary strong { color: var(--sim-accent-deep); }
+    .chart-panel { padding: 12px 14px 8px; }
+    #chart { width: 100%; height: auto; aspect-ratio: 340 / 224; display: block; }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; overflow: auto; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 640; font-size: 0.85rem !important; }
+    .relation { padding: 10px 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: #eefafd; color: var(--sim-accent-deep) !important; font-weight: 620; font-size: 0.82rem !important; }
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto auto minmax(210px, 1.25fr) minmax(190px, 1fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button.toggle[aria-pressed="true"] { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); box-shadow: inset 0 0 0 1px rgba(8,117,138,.35); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speed-row { display: flex; gap: 5px; align-items: center; }
+    .speed-row .lbl { font-size: 0.78rem; font-weight: 700; color: var(--sim-text); margin-right: 2px; }
+    .speed-row button { padding: 7px 9px; font-size: 0.78rem; }
+    .speed-row button.active { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); box-shadow: inset 0 0 0 1px rgba(8,117,138,.35); }
+    /* scene svg shared classes */
+    .tube-wall { fill: url(#tubeGrad); stroke: var(--sim-tube-wall); stroke-width: 2.5; }
+    .axis-line { stroke: #5b6b8c; stroke-width: 1.2; stroke-dasharray: 7 7; }
+    .plate { fill: #8aa2c8; stroke: #1e293b; stroke-width: 1; }
+    .seg-gun { stroke: var(--sim-seg-line); stroke-width: 3; stroke-linecap: round; }
+    .seg-field { fill: none; stroke: var(--sim-seg-field); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(245,158,11,.35)); }
+    .seg-drift { stroke: var(--sim-beam); stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(34,211,238,.35)); }
+    .construction { stroke: #cbd5e1; stroke-width: 1.4; }
+    .construction-label { fill: #a8b7d4; font-size: 12px; font-weight: 700; }
+    .dim-line { stroke: #7d8db1; stroke-width: 1.1; }
+    .dim-label { fill: #93a3c2; font-size: 11px; font-weight: 640; }
+    .scene-label { fill: var(--sim-tube-text); font-size: 13px; font-weight: 700; }
+    .scene-sublabel { fill: #8fa2c6; font-size: 11.5px; font-weight: 560; }
+    .polarity { font-size: 17px; font-weight: 800; }
+    .field-arrow { stroke: #fcd34d; stroke-width: 1.6; opacity: .8; }
+    .electron { fill: #b4f0ff; filter: drop-shadow(0 0 4px rgba(34,211,238,.9)); }
+    .screen-strip { fill: #14304a; stroke: #33507a; stroke-width: 1.5; }
+    .phosphor-line { stroke: var(--sim-phosphor); stroke-width: 2; opacity: .55; }
+    .ghost { fill: var(--sim-phosphor); }
+    @media (max-width: 920px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 1120 / 470; }
+      .side { grid-template-rows: none; }
+    }
+    @media (max-width: 620px) {
+      .controls { grid-template-columns: 1fr; }
+      .header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>示波管的静电偏转</h1>
+        <p>电子先被加速电压 U₁ 打快 → 穿过偏转电场 U₂ → 沿切线直飞 → 打到荧光屏上发光。调 U₂ 看光点移动，反向就打到另一侧。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">示波管剖面 · 电子轨迹分段</h2><span>拖动下方滑块调电压；琥珀色段 = 场内，青色段 = 场外</span></div>
+        <svg id="scene" viewBox="0 0 1120 470" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">示波管剖面图：电子枪在左侧加速电子，电子穿过一对偏转极板间的匀强电场发生抛物线偏转，离开电场后沿切线直线前进，打在右侧荧光屏上形成光点。</desc>
+          <defs>
+            <linearGradient id="tubeGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#0e1a30"></stop>
+              <stop offset="0.55" stop-color="#0c1526"></stop>
+              <stop offset="1" stop-color="#101d33"></stop>
+            </linearGradient>
+            <radialGradient id="spotGrad">
+              <stop offset="0" stop-color="#d9ffe9" stop-opacity="1"></stop>
+              <stop offset="0.35" stop-color="#7ef0a8" stop-opacity="0.85"></stop>
+              <stop offset="1" stop-color="#7ef0a8" stop-opacity="0"></stop>
+            </radialGradient>
+          </defs>
+
+          <!-- tube body -->
+          <rect class="tube-wall" x="26" y="56" width="978" height="358" rx="26"></rect>
+
+          <!-- central axis -->
+          <line class="axis-line" x1="74" y1="235" x2="950" y2="235"></line>
+          <text class="scene-sublabel" x="565" y="252" text-anchor="middle">中轴线（U₂ = 0 时光点位置）</text>
+
+          <!-- electron gun: cathode + slitted anode + acceleration chevrons -->
+          <circle cx="70" cy="235" r="7" fill="#f59e0b" opacity="0.5"></circle>
+          <rect x="64" y="207" width="9" height="56" rx="3" fill="#64748b" stroke="#334155" stroke-width="1"></rect>
+          <rect x="98" y="207" width="6" height="24" rx="2" fill="#8aa2c8" stroke="#1e293b" stroke-width="1"></rect>
+          <rect x="98" y="239" width="6" height="24" rx="2" fill="#8aa2c8" stroke="#1e293b" stroke-width="1"></rect>
+          <g fill="#67e8f9" opacity="0.85">
+            <path d="M78 230 l7 5 l-7 5 z"></path>
+            <path d="M87 230 l7 5 l-7 5 z"></path>
+          </g>
+          <text class="scene-label" x="88" y="188" text-anchor="middle">电子枪 · 加速电压 U₁</text>
+          <text class="scene-sublabel" id="v0Text" x="88" y="288" text-anchor="middle">出枪速度 v₀</text>
+
+          <!-- deflection plates -->
+          <rect class="plate" id="plateTop" x="266" y="218" width="136.5" height="7"></rect>
+          <rect class="plate" id="plateBottom" x="266" y="245" width="136.5" height="7"></rect>
+          <text class="polarity" id="plateTopSign" x="276" y="214" text-anchor="middle"></text>
+          <text class="polarity" id="plateBottomSign" x="276" y="270" text-anchor="middle"></text>
+          <text class="scene-label" id="plateU2Text" x="334" y="186" text-anchor="middle">偏转电场 U₂</text>
+          <g id="fieldArrows"></g>
+
+          <!-- fluorescent screen -->
+          <rect class="screen-strip" x="950" y="128" width="15" height="214" rx="5"></rect>
+          <line class="phosphor-line" id="phosphor" x1="950.8" y1="130" x2="950.8" y2="340"></line>
+          <text class="scene-label" x="958" y="118" text-anchor="middle">荧光屏</text>
+          <text class="dim-label" x="941" y="139" text-anchor="end">+5</text>
+          <text class="dim-label" x="941" y="239" text-anchor="end">0</text>
+          <text class="dim-label" x="941" y="339" text-anchor="end">−5</text>
+
+          <!-- construction / measurement overlays -->
+          <g id="construction">
+            <line id="tangentLine" class="construction" stroke-dasharray="6 6" x1="334" y1="235" x2="956" y2="235"></line>
+            <circle id="oPrime" cx="334" cy="235" r="3.2" fill="#cbd5e1"></circle>
+            <text class="construction-label" id="oPrimeText" x="334" y="256" text-anchor="middle">O′（板中央）</text>
+            <line id="guideY1" class="construction" stroke-dasharray="4 6" x1="403" y1="235" x2="946" y2="235" opacity="0.55"></line>
+            <g id="y1Bracket">
+              <line class="construction" x1="410" y1="235" x2="410" y2="227" id="y1Line"></line>
+              <line class="construction" x1="406" y1="235" x2="414" y2="235"></line>
+              <line class="construction" x1="406" y1="227" x2="414" y2="227" id="y1Tick"></line>
+              <text class="construction-label" id="y1Text" x="417" y="233">y₁</text>
+            </g>
+            <g id="y2Bracket">
+              <line class="construction" id="y2Line" x1="940" y1="227" x2="940" y2="167"></line>
+              <line class="construction" id="y2TickA" x1="936" y1="227" x2="944" y2="227"></line>
+              <line class="construction" id="y2TickB" x1="936" y1="167" x2="944" y2="167"></line>
+              <text class="construction-label" id="y2Text" x="934" y="200" text-anchor="end">y₂</text>
+            </g>
+            <path id="thetaArc" class="construction" fill="none" d=""></path>
+            <text class="construction-label" id="thetaText" x="0" y="0">θ</text>
+            <g id="dims">
+              <line class="dim-line" x1="272" y1="168" x2="396" y2="168"></line>
+              <line class="dim-line" x1="272" y1="163" x2="272" y2="173"></line>
+              <line class="dim-line" x1="396" y1="163" x2="396" y2="173"></line>
+              <text class="dim-label" x="334" y="160" text-anchor="middle">板长 L₁ = 4 cm</text>
+              <line class="dim-line" x1="403" y1="392" x2="956" y2="392"></line>
+              <line class="dim-line" x1="403" y1="387" x2="403" y2="397"></line>
+              <line class="dim-line" x1="956" y1="387" x2="956" y2="397"></line>
+              <text class="dim-label" x="680" y="384" text-anchor="middle">场外距离 L₂ = 18 cm</text>
+              <line class="dim-line" x1="416" y1="225" x2="416" y2="245"></line>
+              <line class="dim-line" x1="412" y1="225" x2="420" y2="225"></line>
+              <line class="dim-line" x1="412" y1="245" x2="420" y2="245"></line>
+              <text class="dim-label" x="426" y="240">板距 d = 1 cm</text>
+            </g>
+          </g>
+
+          <!-- trajectory segments (updated by render) -->
+          <line id="pathGun" class="seg-gun" x1="117" y1="235" x2="272" y2="235"></line>
+          <polyline id="pathField" class="seg-field" points=""></polyline>
+          <line id="pathDrift" class="seg-drift" x1="396" y1="235" x2="956" y2="235"></line>
+
+          <!-- plate-hit marker -->
+          <g id="hitMark" visibility="hidden">
+            <circle id="hitRing" cx="0" cy="0" r="11" fill="none" stroke="#f87171" stroke-width="2"></circle>
+            <line id="hitX1" x1="0" y1="0" x2="0" y2="0" stroke="#f87171" stroke-width="2.5"></line>
+            <line id="hitX2" x1="0" y1="0" x2="0" y2="0" stroke="#f87171" stroke-width="2.5"></line>
+            <text id="hitText" class="scene-sublabel" x="0" y="0" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">打在极板上</text>
+          </g>
+
+          <!-- moving electrons + screen spot ghosts (populated in init) -->
+          <g id="electrons"></g>
+          <g id="ghosts"></g>
+
+          <!-- glowing screen spot -->
+          <g id="spotGroup">
+            <circle id="spotHalo" cx="951" cy="235" r="26" fill="url(#spotGrad)"></circle>
+            <circle id="spotCore" cx="951" cy="235" r="4.5" fill="#d9ffe9" stroke="#ffffff" stroke-width="1.5"></circle>
+          </g>
+        </svg>
+        <div class="legend">
+          <span class="chip"><i style="background:#94a3b8"></i>枪内加速后：直线</span>
+          <span class="chip"><i style="background:#f59e0b"></i>场内：抛物线</span>
+          <span class="chip"><i style="background:#22d3ee"></i>场外：沿切线直线</span>
+          <span class="chip"><i class="dot" style="background:#7ef0a8"></i>屏上光点</span>
+          <span class="note">剖面为示意图：纵向放大、时间放慢约 10⁸ 倍；读数均为解析精确值</span>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="panel-head"><h2>实时读数</h2><span>来自同一解析解</span></div>
+          <div class="readout-grid">
+            <div class="metric primary"><small>光点偏移 y（厘米）</small><strong id="yRead">—</strong></div>
+            <div class="metric"><small>出射偏角 θ</small><strong id="thetaRead">—</strong></div>
+            <div class="metric"><small>场内偏移 y₁（厘米）</small><strong id="y1Read">—</strong></div>
+            <div class="metric"><small>场外偏移 y₂（厘米）</small><strong id="y2Read">—</strong></div>
+            <div class="metric"><small>电子速度 v₀</small><strong id="v0Read">—</strong></div>
+            <div class="metric"><small>全程飞行时间</small><strong id="tRead">—</strong></div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel" aria-label="y 与 U2 关系图">
+          <div class="panel-head"><h2>y – U₂ 关系</h2><span>拖 U₂：落点连成过原点的直线</span></div>
+          <svg id="chart" viewBox="0 0 340 224" role="img" aria-label="光点偏移 y 与偏转电压 U2 的关系图">
+            <line x1="44" y1="106" x2="326" y2="106" stroke="#9aa7ba" stroke-width="1.3"></line>
+            <line x1="185" y1="16" x2="185" y2="196" stroke="#9aa7ba" stroke-width="1.3"></line>
+            <g stroke="#e8edf4" stroke-width="1">
+              <line x1="44" y1="61" x2="326" y2="61"></line>
+              <line x1="44" y1="151" x2="326" y2="151"></line>
+              <line x1="44" y1="196" x2="326" y2="196"></line>
+              <line x1="44" y1="16" x2="326" y2="16"></line>
+              <line x1="44" y1="16" x2="44" y2="196"></line>
+              <line x1="125.5" y1="16" x2="125.5" y2="196"></line>
+              <line x1="244.5" y1="16" x2="244.5" y2="196"></line>
+              <line x1="326" y1="16" x2="326" y2="196"></line>
+            </g>
+            <g fill="#7a8798" font-size="9.5" text-anchor="middle">
+              <text x="44" y="209">−250</text>
+              <text x="125.5" y="209">−125</text>
+              <text x="185" y="209">0</text>
+              <text x="244.5" y="209">125</text>
+              <text x="326" y="209">250</text>
+            </g>
+            <g fill="#7a8798" font-size="9.5" text-anchor="end">
+              <text x="39" y="19">6</text>
+              <text x="39" y="64">3</text>
+              <text x="39" y="109">0</text>
+              <text x="39" y="154">−3</text>
+              <text x="39" y="199">−6</text>
+            </g>
+            <text x="333" y="220" text-anchor="end" fill="#657188" font-size="10">U₂ / V</text>
+            <text x="44" y="11" fill="#657188" font-size="10">y / cm</text>
+            <line x1="44" y1="31" x2="326" y2="31" stroke="#34d399" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"></line>
+            <line x1="44" y1="181" x2="326" y2="181" stroke="#34d399" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"></line>
+            <text x="324" y="27" text-anchor="end" fill="#34d399" font-size="9">+5 屏边</text>
+            <text x="324" y="194" text-anchor="end" fill="#34d399" font-size="9">−5 屏边</text>
+            <line id="chartCritP" x1="0" y1="31" x2="0" y2="181" stroke="#f87171" stroke-width="1.2" stroke-dasharray="3 4" opacity="0.75" visibility="hidden"></line>
+            <line id="chartCritN" x1="0" y1="31" x2="0" y2="181" stroke="#f87171" stroke-width="1.2" stroke-dasharray="3 4" opacity="0.75" visibility="hidden"></line>
+            <text id="chartCritText" x="0" y="45" fill="#f87171" font-size="9" visibility="hidden">打在极板上 →</text>
+            <line id="chartLine" x1="160" y1="106" x2="210" y2="106" stroke="#0f9fba" stroke-width="2.5" stroke-linecap="round"></line>
+            <g id="chartDots"></g>
+            <circle id="chartLive" cx="185" cy="106" r="4" fill="#f59e0b" stroke="#ffffff" stroke-width="1.5" visibility="hidden"></circle>
+            <text id="chartSlope" x="185" y="216" text-anchor="middle" fill="#657188" font-size="9.5">y = 40·U₂/U₁ cm（斜率 ∝ 1/U₁）</text>
+          </svg>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="观察解读">
+          <div class="panel-head"><h2>观察解读</h2></div>
+          <p id="insight" class="insight">点击 ▶ 开始：电子被 U₁ 加速后沿中轴线射向荧光屏。</p>
+          <p id="relation" class="relation">y = (L₁/2 + L₂)·tanθ = 40·U₂/U₁ cm：y 与 U₂ 成正比；U₂ 反向时光点对称移到中轴另一侧。</p>
+          <p>教学视图：示波管有两对偏转板，这里只画竖直一对；忽略极板边缘效应、相对论与重力。几何取 d = 1 cm、L₁ = 4 cm、L₂ = 18 cm，恰好 y = 40·U₂/U₁ cm，且 |U₂| = 0.125·U₁ 时电子恰好擦板飞出、光点恰在屏边。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">▶ 开始</button>
+        <button id="pauseBtn" type="button">⏸ 暂停</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="actions">
+        <button id="reverseBtn" type="button">⇄ 反向 U₂</button>
+        <button id="annotateBtn" type="button" class="toggle" aria-pressed="true">分段标注</button>
+      </div>
+      <div class="control">
+        <label for="u2Input">偏转电压 U₂ <output id="u2Output">+100 V</output></label>
+        <input id="u2Input" type="range" min="-250" max="250" step="5" value="100">
+      </div>
+      <div class="control">
+        <label for="u1Input">加速电压 U₁ <output id="u1Output">1000 V</output></label>
+        <input id="u1Input" type="range" min="400" max="2500" step="50" value="1000">
+      </div>
+      <div class="speed-row" role="group" aria-label="动画速度">
+        <span class="lbl">速度</span>
+        <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+        <button class="speed-btn active" data-speed="1" type="button">1×</button>
+        <button class="speed-btn" data-speed="2" type="button">2×</button>
+        <button class="speed-btn" data-speed="4" type="button">4×</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ---------------- constants and scene mapping ---------------- */
+    const PHYS = { e: 1.602176634e-19, m: 9.1093837015e-31, d: 0.01, L1: 0.04, L2: 0.18, screenHalf: 0.05 };
+    const parameterSchema = [
+      { key: "U2", label: "偏转电压 U₂", type: "slider", min: -250, max: 250, step: 5, default: 100, unit: "V" },
+      { key: "U1", label: "加速电压 U₁", type: "slider", min: 400, max: 2500, step: 50, default: 1000, unit: "V" }
+    ];
+    // scene coordinate mapping: physical x in [-0.065, 0.22] m -> px [70, 956]; y magnified (ky > kx)
+    const KX = (956 - 70) / (0.22 + 0.065);
+    const KY = 2000, AXIS_Y = 235;
+    const PX_GUN_EXIT = -0.05, X_PLATE0 = 0, X_PLATE1 = PHYS.L1, X_SCREEN = PHYS.L1 + PHYS.L2;
+    const sx = (x) => 70 + (x + 0.065) * KX;
+    const sy = (y) => AXIS_Y - y * KY;
+    const PX = { gun: sx(PX_GUN_EXIT), p0: sx(X_PLATE0), p1: sx(X_PLATE1), mid: sx(PHYS.L1 / 2), screen: 951, screenAxis: sx(X_SCREEN) };
+    // teaching animation: full traversal takes ~2.4 s at U1 = 1000 V, 1x speed
+    const V0_REF = Math.sqrt(2 * PHYS.e * 1000 / PHYS.m);
+    const ANIM_K = (X_SCREEN - PX_GUN_EXIT) / (V0_REF * 2.4);
+
+    /* ---------------- physics kernel (pure, closed form) ---------------- */
+    // Frame: origin at plate entrance on the tube axis; +x toward screen; +y up.
+    // U2 = phi_top - phi_bottom; electron charge -e; U2 > 0 -> force upward (toward positive top plate).
+    function v0Of(U1) { return Math.sqrt(2 * PHYS.e * U1 / PHYS.m); }
+    function y1Of(U2, U1) { return U2 * PHYS.L1 * PHYS.L1 / (4 * PHYS.d * U1); }
+    function tanThetaOf(U2, U1) { return U2 * PHYS.L1 / (2 * PHYS.d * U1); }
+    function ysOf(U2, U1) { return (PHYS.L1 / 2 + PHYS.L2) * tanThetaOf(U2, U1); }
+    function criticalU2(U1) { return 2 * PHYS.d * PHYS.d * U1 / (PHYS.L1 * PHYS.L1); }
+    function xHitOf(U2, U1) { return Math.sqrt(2 * PHYS.d * PHYS.d * U1 / Math.abs(U2)); }
+    function pathY(x, U2, U1) {
+      if (x <= X_PLATE0) return 0;
+      if (x <= X_PLATE1) return U2 * x * x / (4 * PHYS.d * U1);
+      return y1Of(U2, U1) + tanThetaOf(U2, U1) * (x - X_PLATE1);
+    }
+    function computeSolution(U1, U2) {
+      const v0 = v0Of(U1);
+      const crit = criticalU2(U1);
+      const y1 = y1Of(U2, U1);
+      const tan = tanThetaOf(U2, U1);
+      const absY1 = Math.abs(y1);
+      const passes = absY1 <= PHYS.d / 2 + 1e-15; // grazing the plate edge still exits
+      const ys = (PHYS.L1 / 2 + PHYS.L2) * tan;
+      let hit = null;
+      if (!passes) hit = { x: xHitOf(U2, U1), y: Math.sign(y1) * PHYS.d / 2 };
+      const xEnd = passes ? X_SCREEN : hit.x;
+      const regime = U2 === 0 ? "center" : (passes ? "deflect" : "hitPlate");
+      return { U1, U2, v0, vy: tan * v0, tanTheta: tan, theta: Math.atan(tan),
+               y1, y2: ys - y1, ys, crit, passes, hit, xEnd, regime,
+               flightTime: (xEnd - PX_GUN_EXIT) / v0 };
+    }
+    function samplePath(sol) {
+      const fieldEnd = sol.passes ? X_PLATE1 : sol.hit.x;
+      const field = [];
+      const n = 24;
+      for (let i = 0; i <= n; i += 1) {
+        const x = fieldEnd * i / n;
+        field.push([x, pathY(x, sol.U2, sol.U1)]);
+      }
+      return { field, drift: sol.passes ? [[X_PLATE1, sol.y1], [X_SCREEN, sol.ys]] : null };
+    }
+
+    /* ---------------- state ---------------- */
+    const REDUCED = (typeof window !== "undefined" && typeof window.matchMedia === "function")
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
+    const state = {
+      running: false, t: 0, U1: 1000, U2: 100, speed: 1, annotate: true,
+      phases: [0, 0.167, 0.333, 0.5, 0.667, 0.833],
+      sol: null, lastTs: null,
+      ghosts: [], samples: [], lastSampleU2: null,
+      note: { key: "init" }, samplesDirty: true
+    };
+    const $ = (sel) => document.querySelector(sel);
+    const elements = {
+      status: $("#status"), v0Text: $("#v0Text"), plateTop: $("#plateTop"), plateBottom: $("#plateBottom"),
+      plateTopSign: $("#plateTopSign"), plateBottomSign: $("#plateBottomSign"), plateU2Text: $("#plateU2Text"),
+      fieldArrows: $("#fieldArrows"), construction: $("#construction"),
+      tangentLine: $("#tangentLine"), oPrime: $("#oPrime"), oPrimeText: $("#oPrimeText"),
+      guideY1: $("#guideY1"),
+      y1Bracket: $("#y1Bracket"), y1Line: $("#y1Line"), y1Tick: $("#y1Tick"), y1Text: $("#y1Text"),
+      y2Bracket: $("#y2Bracket"), y2Line: $("#y2Line"), y2TickA: $("#y2TickA"), y2TickB: $("#y2TickB"), y2Text: $("#y2Text"),
+      thetaArc: $("#thetaArc"), thetaText: $("#thetaText"),
+      pathGun: $("#pathGun"), pathField: $("#pathField"), pathDrift: $("#pathDrift"),
+      hitMark: $("#hitMark"), hitRing: $("#hitRing"), hitX1: $("#hitX1"), hitX2: $("#hitX2"), hitText: $("#hitText"),
+      electrons: $("#electrons"), ghosts: $("#ghosts"),
+      spotGroup: $("#spotGroup"), spotHalo: $("#spotHalo"), spotCore: $("#spotCore"),
+      phosphor: $("#phosphor"),
+      yRead: $("#yRead"), thetaRead: $("#thetaRead"), y1Read: $("#y1Read"), y2Read: $("#y2Read"),
+      v0Read: $("#v0Read"), tRead: $("#tRead"),
+      insight: $("#insight"), relation: $("#relation"),
+      chartLine: $("#chartLine"), chartDots: $("#chartDots"), chartLive: $("#chartLive"),
+      chartCritP: $("#chartCritP"), chartCritN: $("#chartCritN"), chartCritText: $("#chartCritText"),
+      chartSlope: $("#chartSlope"),
+      u2Input: $("#u2Input"), u2Output: $("#u2Output"), u1Input: $("#u1Input"), u1Output: $("#u1Output"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"),
+      reverseBtn: $("#reverseBtn"), annotateBtn: $("#annotateBtn")
+    };
+    const electronNodes = [];
+
+    /* ---------------- helpers ---------------- */
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const fmtSigned = (v, d) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    function svgNode(tag, attrs) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const key in attrs) node.setAttribute(key, String(attrs[key]));
+      return node;
+    }
+    const cX = (u2) => 185 + u2 * 0.564;         // chart: U2 volt -> px
+    const cY = (ycm) => 106 - ycm * 15;          // chart: y cm -> px
+
+    /* ---------------- scene rendering ---------------- */
+    function renderScene() {
+      const sol = state.sol;
+      const path = samplePath(sol);
+      // segmented trajectory
+      elements.pathGun.setAttribute("x1", PX.gun); elements.pathGun.setAttribute("y1", AXIS_Y);
+      elements.pathGun.setAttribute("x2", PX.p0); elements.pathGun.setAttribute("y2", AXIS_Y);
+      elements.pathField.setAttribute("points", path.field.map(([x, y]) => `${sx(x).toFixed(2)},${sy(y).toFixed(2)}`).join(" "));
+      if (sol.passes) {
+        elements.pathDrift.setAttribute("visibility", "visible");
+        elements.pathDrift.setAttribute("x1", PX.p1); elements.pathDrift.setAttribute("y1", sy(sol.y1).toFixed(2));
+        elements.pathDrift.setAttribute("x2", PX.screen); elements.pathDrift.setAttribute("y2", sy(sol.ys).toFixed(2));
+      } else {
+        elements.pathDrift.setAttribute("visibility", "hidden");
+      }
+      // plates polarity + captions
+      const hasField = sol.U2 !== 0;
+      const topPositive = sol.U2 > 0;
+      elements.plateTopSign.textContent = hasField ? "+" : "";
+      elements.plateBottomSign.textContent = hasField ? "−" : "";
+      elements.plateTopSign.setAttribute("fill", topPositive ? "#f87171" : "#60a5fa");
+      elements.plateBottomSign.setAttribute("fill", topPositive ? "#60a5fa" : "#f87171");
+      elements.plateU2Text.textContent = hasField ? `偏转电场 U₂ = ${fmtSigned(sol.U2, 0)} V（电子被吸向${topPositive ? "上" : "下"}方的正极板）` : "偏转电场 U₂ = 0 V（两板等电位）";
+      renderFieldArrows(hasField, topPositive);
+      // gun speed readout on scene
+      elements.v0Text.textContent = `出枪速度 v₀ = ${(sol.v0 / 1e7).toFixed(2)}×10⁷ m/s`;
+      renderConstruction(sol);
+      renderHitMark(sol);
+      renderSpot(sol);
+      renderElectrons(sol);
+    }
+
+    function renderFieldArrows(hasField, topPositive) {
+      // three downward/upward E-field arrows between the plates (E points from + plate to - plate)
+      const g = elements.fieldArrows;
+      while (g.firstChild) g.removeChild(g.firstChild);
+      if (!hasField) return;
+      const yTip = topPositive ? AXIS_Y + 8 : AXIS_Y - 8;
+      const yTail = topPositive ? AXIS_Y - 8 : AXIS_Y + 8;
+      for (let i = 0; i < 3; i += 1) {
+        const x = PX.p0 + 28 + i * 34;
+        g.appendChild(svgNode("line", { class: "field-arrow", x1: x, y1: yTail, x2: x, y2: yTip }));
+        const dir = topPositive ? 1 : -1;
+        g.appendChild(svgNode("path", { d: `M ${x - 3.5} ${yTip - dir * 5} L ${x + 3.5} ${yTip - dir * 5} L ${x} ${yTip} Z`, fill: "#fcd34d", opacity: "0.85" }));
+      }
+    }
+
+    function show(node, visible) { node.setAttribute("visibility", visible ? "visible" : "hidden"); }
+
+    function renderConstruction(sol) {
+      show(elements.construction, state.annotate);
+      const deflect = sol.regime === "deflect";
+      // tangent construction: backward extension of drift segment meets the axis at plate midpoint O'
+      show(elements.tangentLine, deflect);
+      show(elements.oPrime, deflect);
+      show(elements.oPrimeText, deflect);
+      if (deflect) {
+        elements.tangentLine.setAttribute("x1", PX.mid); elements.tangentLine.setAttribute("y1", AXIS_Y);
+        elements.tangentLine.setAttribute("x2", PX.screen); elements.tangentLine.setAttribute("y2", sy(sol.ys).toFixed(2));
+      }
+      // y1 / y2 measurement brackets
+      const hasY = deflect && Math.abs(sol.y1) > 1e-9;
+      show(elements.y1Bracket, hasY);
+      show(elements.guideY1, hasY);
+      show(elements.y2Bracket, hasY);
+      if (hasY) {
+        const y1p = sy(sol.y1);
+        elements.y1Line.setAttribute("x1", PX.p1 + 10); elements.y1Line.setAttribute("y1", AXIS_Y);
+        elements.y1Line.setAttribute("x2", PX.p1 + 10); elements.y1Line.setAttribute("y2", y1p.toFixed(2));
+        elements.y1Tick.setAttribute("x1", PX.p1 + 6); elements.y1Tick.setAttribute("y1", y1p.toFixed(2));
+        elements.y1Tick.setAttribute("x2", PX.p1 + 14); elements.y1Tick.setAttribute("y2", y1p.toFixed(2));
+        elements.y1Text.setAttribute("x", PX.p1 + 17); elements.y1Text.setAttribute("y", (AXIS_Y + y1p) / 2 + 4);
+        elements.y1Text.textContent = `y₁ = ${(sol.y1 * 100).toFixed(2)} cm`;
+        elements.guideY1.setAttribute("x1", PX.p1); elements.guideY1.setAttribute("y1", y1p.toFixed(2));
+        elements.guideY1.setAttribute("x2", 946); elements.guideY1.setAttribute("y2", y1p.toFixed(2));
+        elements.y2Line.setAttribute("x1", 940); elements.y2Line.setAttribute("y1", y1p.toFixed(2));
+        elements.y2Line.setAttribute("x2", 940); elements.y2Line.setAttribute("y2", sy(sol.ys).toFixed(2));
+        elements.y2TickA.setAttribute("x1", 936); elements.y2TickA.setAttribute("y1", y1p.toFixed(2));
+        elements.y2TickA.setAttribute("x2", 944); elements.y2TickA.setAttribute("y2", y1p.toFixed(2));
+        elements.y2TickB.setAttribute("x1", 936); elements.y2TickB.setAttribute("y1", sy(sol.ys).toFixed(2));
+        elements.y2TickB.setAttribute("x2", 944); elements.y2TickB.setAttribute("y2", sy(sol.ys).toFixed(2));
+        elements.y2Text.setAttribute("x", 933); elements.y2Text.setAttribute("y", (y1p + sy(sol.ys)) / 2 + 4);
+        elements.y2Text.setAttribute("text-anchor", "end");
+        elements.y2Text.textContent = `y₂ = ${(sol.y2 * 100).toFixed(2)} cm`;
+        // exit angle arc
+        const ex = PX.p1, ey = sy(sol.y1);
+        const ang = Math.atan2(sy(sol.ys) - ey, PX.screen - ex);
+        const r = 30;
+        const ax = ex + r, ay = ey;
+        const bx = ex + r * Math.cos(ang), by = ey + r * Math.sin(ang);
+        elements.thetaArc.setAttribute("d", `M ${ax.toFixed(2)} ${ay.toFixed(2)} A ${r} ${r} 0 0 ${ang < 0 ? 0 : 1} ${bx.toFixed(2)} ${by.toFixed(2)}`);
+        elements.thetaText.setAttribute("x", (ex + 42 * Math.cos(ang / 2)).toFixed(1));
+        elements.thetaText.setAttribute("y", (ey + 42 * Math.sin(ang / 2) + 4).toFixed(1));
+        elements.thetaText.textContent = `θ = ${(sol.theta * 180 / Math.PI).toFixed(1)}°`;
+        show(elements.thetaArc, true); show(elements.thetaText, true);
+      } else {
+        show(elements.thetaArc, false); show(elements.thetaText, false);
+      }
+    }
+
+    function renderHitMark(sol) {
+      if (sol.regime === "hitPlate") {
+        const hx = sx(sol.hit.x), hy = sy(sol.hit.y);
+        show(elements.hitMark, true);
+        elements.hitRing.setAttribute("cx", hx); elements.hitRing.setAttribute("cy", hy);
+        elements.hitX1.setAttribute("x1", hx - 6); elements.hitX1.setAttribute("y1", hy - 6);
+        elements.hitX1.setAttribute("x2", hx + 6); elements.hitX1.setAttribute("y2", hy + 6);
+        elements.hitX2.setAttribute("x1", hx - 6); elements.hitX2.setAttribute("y1", hy + 6);
+        elements.hitX2.setAttribute("x2", hx + 6); elements.hitX2.setAttribute("y2", hy - 6);
+        const labelAbove = sol.hit.y > 0;
+        elements.hitText.setAttribute("x", hx + 4); elements.hitText.setAttribute("y", labelAbove ? hy - 18 : hy + 26);
+      } else {
+        show(elements.hitMark, false);
+      }
+    }
+
+    function renderSpot(sol) {
+      // fading history of recent spot positions on the screen strip
+      const g = elements.ghosts;
+      while (g.children.length < state.ghosts.length) g.appendChild(svgNode("circle", { class: "ghost", r: "3", cx: "951", cy: "0" }));
+      while (g.children.length > state.ghosts.length) g.removeChild(g.lastChild);
+      state.ghosts.forEach((ghost, i) => {
+        const node = g.children[i];
+        node.setAttribute("cy", sy(ghost.y).toFixed(2));
+        node.setAttribute("opacity", (0.12 + 0.4 * (i + 1) / state.ghosts.length).toFixed(2));
+      });
+      const on = sol.regime !== "hitPlate";
+      show(elements.spotGroup, on);
+      elements.phosphor.setAttribute("opacity", on ? "0.55" : "0.25");
+      if (on) {
+        const py = sy(sol.ys).toFixed(2);
+        elements.spotHalo.setAttribute("cy", py); elements.spotCore.setAttribute("cy", py);
+      }
+    }
+
+    function renderElectrons(sol) {
+      if (REDUCED) { show(elements.electrons, false); return; }
+      show(elements.electrons, true);
+      const span = sol.xEnd - PX_GUN_EXIT;
+      for (let i = 0; i < electronNodes.length; i += 1) {
+        const node = electronNodes[i];
+        const x = PX_GUN_EXIT + state.phases[i] * span;
+        const y = pathY(x, sol.U2, sol.U1);
+        node.circle.setAttribute("cx", sx(x).toFixed(2));
+        node.circle.setAttribute("cy", sy(y).toFixed(2));
+        node.label.setAttribute("visibility", i === 0 ? "visible" : "hidden");
+        if (i === 0) {
+          node.label.setAttribute("x", (sx(x) - 10).toFixed(2));
+          node.label.setAttribute("y", (sy(y) - 10).toFixed(2));
+        }
+      }
+    }
+
+    /* ---------------- chart, readouts, text ---------------- */
+    function renderChart() {
+      const sol = state.sol;
+      // theoretical straight line y = 40*U2/U1 cm, valid where the electron passes the plates
+      const clipU2 = Math.min(sol.crit, 250);
+      const yAt = (u2) => 40 * u2 / sol.U1;
+      elements.chartLine.setAttribute("x1", cX(-clipU2).toFixed(2)); elements.chartLine.setAttribute("y1", cY(yAt(-clipU2)).toFixed(2));
+      elements.chartLine.setAttribute("x2", cX(clipU2).toFixed(2)); elements.chartLine.setAttribute("y2", cY(yAt(clipU2)).toFixed(2));
+      const showCrit = sol.crit <= 249.99;
+      show(elements.chartCritP, showCrit); show(elements.chartCritN, showCrit);
+      elements.chartCritP.setAttribute("x1", cX(sol.crit).toFixed(2)); elements.chartCritP.setAttribute("x2", cX(sol.crit).toFixed(2));
+      elements.chartCritN.setAttribute("x1", cX(-sol.crit).toFixed(2)); elements.chartCritN.setAttribute("x2", cX(-sol.crit).toFixed(2));
+      if (showCrit) {
+        elements.chartCritText.setAttribute("x", (cX(sol.crit) - 6).toFixed(2));
+        elements.chartCritText.setAttribute("visibility", "visible");
+        elements.chartCritText.setAttribute("text-anchor", "end");
+      } else {
+        elements.chartCritText.setAttribute("visibility", "hidden");
+      }
+      if (state.samplesDirty) {
+        const dots = state.samples.map((s) => `<circle cx="${cX(s.U2).toFixed(2)}" cy="${cY(s.ys * 100).toFixed(2)}" r="2.4" fill="#08758a" opacity="0.75"></circle>`).join("");
+        elements.chartDots.innerHTML = dots;
+        state.samplesDirty = false;
+      }
+      if (sol.regime !== "hitPlate") {
+        show(elements.chartLive, true);
+        elements.chartLive.setAttribute("cx", cX(sol.U2).toFixed(2));
+        elements.chartLive.setAttribute("cy", cY(sol.ys * 100).toFixed(2));
+      } else {
+        show(elements.chartLive, false);
+      }
+      elements.chartSlope.textContent = `y = 40·U₂/U₁ cm（当前斜率 ${(40 / sol.U1 * 1000).toFixed(1)} cm/kV）`;
+    }
+
+    function renderReadouts() {
+      const sol = state.sol;
+      if (sol.regime === "hitPlate") {
+        elements.yRead.textContent = "未到屏";
+        elements.thetaRead.textContent = "—";
+        elements.y1Read.textContent = (sol.hit.y * 100).toFixed(2);
+        elements.y2Read.textContent = "—";
+      } else {
+        const arrow = sol.ys > 1e-12 ? "▲ " : (sol.ys < -1e-12 ? "▼ " : "");
+        elements.yRead.textContent = `${arrow}${fmtSigned(sol.ys * 100, 2)} cm`;
+        elements.thetaRead.textContent = `${(sol.theta * 180 / Math.PI).toFixed(2)}°`;
+        elements.y1Read.textContent = `${fmtSigned(sol.y1 * 100, 2)}`;
+        elements.y2Read.textContent = `${fmtSigned(sol.y2 * 100, 2)}`;
+      }
+      elements.v0Read.textContent = `${(sol.v0 / 1e7).toFixed(2)}×10⁷`;
+      elements.tRead.textContent = `${(sol.flightTime * 1e9).toFixed(2)} ns`;
+      elements.u2Output.textContent = `${fmtSigned(state.U2, 0)} V`;
+      elements.u1Output.textContent = `${state.U1.toFixed(0)} V`;
+    }
+
+    function insightFor(sol) {
+      if (sol.regime === "center") return "U₂ = 0：两板等电位，没有偏转电场 —— 电子沿中轴线直线前进，光点停在屏中心。";
+      if (!sol.passes) return `偏转电压过大：|U₂| = ${Math.abs(sol.U2).toFixed(0)} V ≥ 0.125·U₁ = ${(0.125 * sol.U1).toFixed(1)} V，电子还没飞出极板就被吸到极板上，屏上不会出现光点。`;
+      const plate = sol.y1 > 0 ? "上" : "下";
+      const side = sol.ys > 0 ? "上" : "下";
+      return `电子带负电，被吸向${plate}极板（正极一侧）：场内轨迹是抛物线，飞出场后沿切线做匀速直线运动，光点落在屏中心${side}方 ${Math.abs(sol.ys * 100).toFixed(2)} cm 处。`;
+    }
+    function relationFor() {
+      const note = state.note;
+      if (note.key === "U1") return `${note.dir > 0 ? "增大" : "减小"} U₁ 后：y ∝ 1/U₁ —— 加速电压越大，电子越快（v₀ ∝ √U₁），在板间停留时间越短，偏转越小。`;
+      if (note.key === "reverse") return "U₂ 已反向：极板极性对调，轨迹与光点关于中轴线镜像对称，y(−U₂) = −y(U₂)。";
+      return "y = (L₁/2 + L₂)·tanθ = 40·U₂/U₁ cm：y 与 U₂ 成正比；反向时 y(−U₂) = −y(U₂)，光点对称移到另一侧。";
+    }
+    function renderTexts() {
+      const sol = state.sol;
+      const regimeText = sol.regime === "center" ? "U₂ = 0 · 光点在屏中心"
+        : sol.regime === "hitPlate" ? "电子打在极板上"
+        : `光点 y = ${fmtSigned(sol.ys * 100, 2)} cm`;
+      elements.status.textContent = `${state.running ? "运行中" : "已暂停"} · ${regimeText}`;
+      elements.status.className = "status" + (sol.regime === "hitPlate" ? " warn" : "");
+      elements.insight.textContent = insightFor(sol);
+      elements.relation.textContent = relationFor();
+    }
+
+    /* ---------------- lifecycle ---------------- */
+    function init() {
+      // pre-create electron nodes and bind controls
+      for (let i = 0; i < state.phases.length; i += 1) {
+        const circle = svgNode("circle", { class: "electron", r: "4.5", cx: PX.gun, cy: AXIS_Y });
+        const label = svgNode("text", { class: "scene-sublabel", "font-size": "12", fill: "#a5f3fc", "font-weight": "700", visibility: "hidden" });
+        label.textContent = "e⁻";
+        elements.electrons.appendChild(circle);
+        elements.electrons.appendChild(label);
+        electronNodes.push({ circle, label });
+      }
+      bindControls();
+      setParameters({ U2: 100, U1: 1000 });
+      reset();
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(frame);
+    }
+    function start() { state.running = true; render(); }
+    function pause() { state.running = false; render(); }
+    function reset() {
+      state.running = false;
+      state.t = 0; state.lastTs = null;
+      state.phases = [0, 0.167, 0.333, 0.5, 0.667, 0.833];
+      state.ghosts = []; state.samples = []; state.lastSampleU2 = null; state.samplesDirty = true;
+      state.speed = 1; state.annotate = true; state.note = { key: "init" };
+      state.U2 = parameterSchema[0].default; state.U1 = parameterSchema[1].default;
+      state.sol = computeSolution(state.U1, state.U2);
+      recordSample();
+      syncControls();
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clamp(finite(dt, 0), 0, 0.05);
+      const step = bounded * state.speed;
+      state.t += step;
+      const sol = state.sol;
+      const teachingSpeed = sol.v0 * ANIM_K;                 // scene m per teaching second
+      const span = sol.xEnd - PX_GUN_EXIT;
+      for (let i = 0; i < state.phases.length; i += 1) {
+        state.phases[i] = (state.phases[i] + (teachingSpeed * step) / span) % 1;
+        if (!Number.isFinite(state.phases[i])) state.phases[i] = 0;
+      }
+    }
+    function render() {
+      renderScene();
+      renderChart();
+      renderReadouts();
+      renderTexts();
+    }
+    function recordSample() {
+      const sol = state.sol;
+      if (!sol.passes) return;
+      if (state.lastSampleU2 !== null && Math.abs(sol.U2 - state.lastSampleU2) < parameterSchema[0].step - 1e-9) return;
+      state.samples.push({ U2: sol.U2, ys: sol.ys });
+      if (state.samples.length > 220) state.samples.shift();
+      state.lastSampleU2 = sol.U2;
+      state.samplesDirty = true;
+    }
+    function recordGhost(prevSol, sol) {
+      if (!sol.passes) return;
+      const last = state.ghosts.length ? state.ghosts[state.ghosts.length - 1].y : null;
+      if (last === null || Math.abs(sol.ys - last) > 0.0012) {
+        state.ghosts.push({ y: sol.ys });
+        if (state.ghosts.length > 16) state.ghosts.shift();
+      }
+      void prevSol;
+    }
+    function setParameters(values) {
+      const dU2 = parameterSchema[0], dU1 = parameterSchema[1];
+      const nextU2 = clamp(finite(Number(values.U2), dU2.default), dU2.min, dU2.max);
+      const nextU1 = clamp(finite(Number(values.U1), dU1.default), dU1.min, dU1.max);
+      const prevSol = state.sol;
+      if (values.U1 !== undefined && nextU1 !== state.U1) {
+        state.note = { key: "U1", dir: nextU1 > state.U1 ? 1 : -1 };
+        state.samples = []; state.lastSampleU2 = null; state.samplesDirty = true; // chart holds one U1 at a time
+      }
+      if (values.U2 !== undefined && nextU2 === -state.U2 && nextU2 !== 0) state.note = { key: "reverse" };
+      state.U2 = nextU2; state.U1 = nextU1;
+      state.sol = computeSolution(state.U1, state.U2);
+      if (prevSol && values.U2 !== undefined && nextU2 !== prevSol.U2) recordGhost(prevSol, state.sol);
+      recordSample();
+      syncControls();
+      render();
+    }
+    function syncControls() {
+      elements.u2Input.value = String(state.U2);
+      elements.u1Input.value = String(state.U1);
+      const speedButtons = document.querySelectorAll(".speed-btn");
+      for (let i = 0; i < speedButtons.length; i += 1) {
+        speedButtons[i].classList.toggle("active", Number(speedButtons[i].getAttribute("data-speed")) === state.speed);
+      }
+      elements.annotateBtn.setAttribute("aria-pressed", state.annotate ? "true" : "false");
+    }
+    function getState() {
+      return { running: state.running, t: state.t, U1: state.U1, U2: state.U2, speed: state.speed,
+               annotate: state.annotate, phases: state.phases.slice(), ghosts: state.ghosts.slice(),
+               samples: state.samples.slice(), sol: { ...state.sol } };
+    }
+    function getReadouts() {
+      const sol = state.sol;
+      return { y_m: sol.ys, y_cm: sol.ys * 100, theta_deg: sol.theta * 180 / Math.PI,
+               y1_cm: sol.y1 * 100, y2_cm: sol.y2 * 100, v0_m_s: sol.v0, flight_time_s: sol.flightTime,
+               regime: sol.regime };
+    }
+
+    /* ---------------- model checks against analytic oracle ---------------- */
+    function runModelChecks() {
+      const cases = [];
+      const rel = (a, b) => Math.abs(a - b) / Math.abs(b);
+      // 1. ordinary case, U1 = 1000 V, U2 = +100 V (oracle: k = 0.4 m exactly)
+      const s = computeSolution(1000, 100);
+      cases.push({ name: "ordinary screen offset y_s (1000 V, +100 V)", pass: rel(s.ys, 0.04) < 1e-9, expected: "0.04 m", actual: s.ys, tolerance: "rel 1e-9" });
+      cases.push({ name: "ordinary in-field offset y1", pass: rel(s.y1, 0.004) < 1e-9, expected: "0.004 m", actual: s.y1, tolerance: "rel 1e-9" });
+      cases.push({ name: "ordinary exit slope tan(theta)", pass: rel(s.tanTheta, 0.2) < 1e-9, expected: "0.2", actual: s.tanTheta, tolerance: "rel 1e-9" });
+      cases.push({ name: "drift split y1 + y2 = y_s", pass: Math.abs(s.y1 + s.y2 - s.ys) < 1e-15, expected: s.ys, actual: s.y1 + s.y2, tolerance: "abs 1e-15" });
+      // 2. odd symmetry y(-U2) = -y(U2)
+      let sym = 0;
+      for (let u2 = -250; u2 <= 250; u2 += 5) sym = Math.max(sym, Math.abs(ysOf(u2, 1000) + ysOf(-u2, 1000)));
+      cases.push({ name: "odd symmetry max |y(U2)+y(-U2)|", pass: sym < 1e-15, expected: "< 1e-15", actual: sym, tolerance: "abs 1e-15" });
+      // 3. plate-hit threshold: |U2| = 2 d^2 U1 / L1^2 = 125 V grazes; beyond hits
+      const crit = criticalU2(1000);
+      const graze = computeSolution(1000, crit);
+      const beyond = computeSolution(1000, 130);
+      cases.push({ name: "threshold value 0.125*U1", pass: Math.abs(crit - 125) < 1e-12, expected: "125 V", actual: crit, tolerance: "abs 1e-12" });
+      cases.push({ name: "grazing exit y1 = d/2, spot at screen edge", pass: graze.passes && Math.abs(graze.y1 - 0.005) < 1e-12 && Math.abs(graze.ys - 0.05) < 1e-12, expected: "y1=0.005 m, y_s=0.05 m", actual: `y1=${graze.y1}, y_s=${graze.ys}, passes=${graze.passes}`, tolerance: "abs 1e-12" });
+      cases.push({ name: "beyond threshold hits plate at |y| = d/2 inside field", pass: beyond.regime === "hitPlate" && Math.abs(pathY(beyond.hit.x, 130, 1000) - 0.005) < 1e-12 && beyond.hit.x < PHYS.L1, expected: "hit.x < 0.04 m at y = 0.005 m", actual: `x_hit=${beyond.hit.x}, y=${pathY(beyond.hit.x, 130, 1000)}`, tolerance: "abs 1e-12" });
+      // 4. zero deflection
+      const zero = computeSolution(1000, 0);
+      cases.push({ name: "U2 = 0 stays centered", pass: zero.regime === "center" && zero.ys === 0 && zero.tanTheta === 0, expected: "y_s = 0", actual: zero.ys, tolerance: "exact" });
+      // 5. U1 scaling: y_s ratio and v0 ratio
+      const yR = ysOf(100, 400) / ysOf(100, 2500), vR = v0Of(2500) / v0Of(400);
+      cases.push({ name: "y_s ratio U1=400/2500 = 6.25", pass: Math.abs(yR - 6.25) < 1e-12, expected: "6.25", actual: yR, tolerance: "abs 1e-12" });
+      cases.push({ name: "v0 ratio U1=2500/400 = 2.5", pass: Math.abs(vR - 2.5) < 1e-12, expected: "2.5", actual: vR, tolerance: "abs 1e-12" });
+      // 6. energy identity 1/2 m (v0^2 + vy^2) = e U1 + e (U2/d) y1 over grid
+      let worstE = 0;
+      for (let u1 = 400; u1 <= 2500; u1 += 100) {
+        for (let u2 = -250; u2 <= 250; u2 += 50) {
+          if (Math.abs(u2) >= criticalU2(u1)) continue;
+          const sol = computeSolution(u1, u2);
+          const lhs = 0.5 * PHYS.m * (sol.v0 * sol.v0 + sol.vy * sol.vy);
+          const rhs = PHYS.e * u1 + PHYS.e * (u2 / PHYS.d) * sol.y1;
+          worstE = Math.max(worstE, Math.abs(lhs - rhs) / rhs);
+        }
+      }
+      cases.push({ name: "energy identity over parameter grid", pass: worstE < 1e-9, expected: "< 1e-9 rel", actual: worstE, tolerance: "rel 1e-9" });
+      // 7. exit tangent passes through (L1/2, 0)
+      const intercept = PHYS.L1 - s.y1 / s.tanTheta;
+      cases.push({ name: "exit tangent meets axis at plate midpoint", pass: Math.abs(intercept - PHYS.L1 / 2) < 1e-12, expected: "0.02 m", actual: intercept, tolerance: "abs 1e-12" });
+      // 8. parabola quarter property and drift midpoint interpolation
+      const quarter = pathY(PHYS.L1 / 2, 100, 1000);
+      const driftMid = pathY(X_PLATE1 + PHYS.L2 / 2, 100, 1000);
+      cases.push({ name: "y(L1/2) = y1/4", pass: Math.abs(quarter - s.y1 / 4) < 1e-15, expected: s.y1 / 4, actual: quarter, tolerance: "abs 1e-15" });
+      cases.push({ name: "drift midpoint is (y1+y_s)/2", pass: Math.abs(driftMid - (s.y1 + s.ys) / 2) < 1e-15, expected: (s.y1 + s.ys) / 2, actual: driftMid, tolerance: "abs 1e-15" });
+      // 9. sampled path lies exactly on the closed-form segments
+      const path = samplePath(s);
+      let worstP = 0;
+      for (const [x, y] of path.field) worstP = Math.max(worstP, Math.abs(y * PHYS.L1 * PHYS.L1 - s.y1 * x * x));
+      cases.push({ name: "in-field samples satisfy y = y1 (x/L1)^2", pass: worstP < 1e-15, expected: "< 1e-15", actual: worstP, tolerance: "abs 1e-15" });
+      // 10. finiteness and screen bound over the full slider grid
+      let allFinite = true, bounded = true;
+      for (let u1 = 400; u1 <= 2500; u1 += 50) {
+        for (let u2 = -250; u2 <= 250; u2 += 10) {
+          const sol = computeSolution(u1, u2);
+          const ok = Number.isFinite(sol.ys) && Number.isFinite(sol.v0) && Number.isFinite(sol.tanTheta);
+          allFinite = allFinite && ok;
+          if (sol.passes && Math.abs(sol.ys) > PHYS.screenHalf + 1e-9) bounded = false;
+          if (!sol.passes && sol.regime !== "hitPlate") bounded = false;
+        }
+      }
+      cases.push({ name: "all slider states finite", pass: allFinite, expected: "finite everywhere", actual: allFinite, tolerance: "strict" });
+      cases.push({ name: "passing states stay on screen, others hit plate", pass: bounded, expected: "|y_s| <= 5 cm when passing", actual: bounded, tolerance: "abs 1e-9" });
+      return cases;
+    }
+
+    /* ---------------- bindings and frame loop ---------------- */
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.reverseBtn.addEventListener("click", () => setParameters({ U2: -state.U2, U1: state.U1 }));
+      elements.annotateBtn.addEventListener("click", () => { state.annotate = !state.annotate; syncControls(); render(); });
+      elements.u2Input.addEventListener("input", () => setParameters({ U2: elements.u2Input.value, U1: state.U1 }));
+      elements.u1Input.addEventListener("input", () => setParameters({ U2: state.U2, U1: elements.u1Input.value }));
+      const speedButtons = document.querySelectorAll(".speed-btn");
+      for (let i = 0; i < speedButtons.length; i += 1) {
+        speedButtons[i].addEventListener("click", () => {
+          state.speed = Number(speedButtons[i].getAttribute("data-speed"));
+          syncControls();
+        });
+      }
+    }
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt); render();
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>导热棒：温度分布如何拉成一条直线</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-hot: #ea580c;
+      --sim-cold: #2563eb;
+      --sim-probe-a: #f59e0b;
+      --sim-probe-b: #8b5cf6;
+      --sim-probe-c: #10b981;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(234, 88, 12, 0.09), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(37, 99, 235, 0.09), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.4); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; min-height: 620px; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; }
+    .status.run { background: #fdeee0; border-color: rgba(234,88,12,.25); color: #b3400a; }
+    .status.near { background: #fff6e0; border-color: rgba(245,158,11,.3); color: #92600a; }
+    .status.steady { background: #e2f6ec; border-color: rgba(14,138,88,.28); color: #0a6b47; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(320px, 0.78fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { padding: 12px 14px 8px; min-height: 430px; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+    #scene { width: 100%; flex: 1; min-height: 0; display: block; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(110px, 1fr); gap: 10px; overflow: auto; padding-right: 1px; }
+    .readouts { padding: 12px 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 9px 11px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.7rem; }
+    .metric strong { font-size: 1.18rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric strong em { font-style: normal; font-size: .72rem; color: var(--sim-muted); margin-left: 2px; }
+    .devwrap { margin-top: 10px; }
+    .devwrap label { display: flex; justify-content: space-between; font-size: 0.74rem; font-weight: 700; color: var(--sim-muted); margin-bottom: 4px; }
+    .devtrack { height: 9px; border-radius: 999px; background: var(--sim-grid); overflow: hidden; }
+    #devBar { height: 100%; width: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--sim-warning), var(--sim-hot)); transition: width .2s ease; }
+    .chart-card { height: 178px; padding: 9px 12px 7px; display: flex; flex-direction: column; min-height: 0; }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0 2px 6px; }
+    .chart-title h3 { margin: 0; font-size: 0.9rem; }
+    .chart-title span { font-size: 0.68rem; color: var(--sim-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin: 0 3px 0 7px; vertical-align: baseline; }
+    canvas { width: 100%; flex: 1; min-height: 0; display: block; }
+    .model-note { display: grid; align-content: start; gap: 9px; padding: 13px 14px; }
+    .model-note h2 { margin: 0; font-size: 0.9rem; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.74rem; }
+    .insight { padding: 11px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 640; line-height: 1.6; font-size: 0.82rem; }
+    .controls { padding: 10px 12px; display: grid; grid-template-columns: auto auto minmax(150px, 1fr) minmax(150px, 1fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .seg-group { display: flex; align-items: center; gap: 9px; }
+    .seg-label { font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+    .seg { display: flex; gap: 5px; }
+    .seg button { padding: 8px 11px; font-size: 0.82rem; }
+    .seg button.active { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.45); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(15,159,186,.25); }
+    #scene text { font-family: inherit; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .tick-label { fill: #7a8798; font-size: 11.5px; }
+    @media (max-width: 900px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .side { overflow: visible; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { flex: none; height: auto; aspect-ratio: 920 / 560; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } #devBar { transition: none; } }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="domain-solver">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>导热棒：温度分布如何拉成一条直线</h1>
+        <p>整根冷棒夹在两个恒温槽之间：看温度分布如何建立、拉成直线——以及稳态后仍在流动的热流。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">导热棒实验台（热端在左，冷端在右）</h2>
+          <span>实线 = 当前温度分布 · 琥珀虚线 = 稳态直线 · 白点 = 热流（快慢 ∝ 当地热流）</span>
+        </div>
+        <svg id="scene" viewBox="0 0 920 560" role="img" aria-labelledby="scene-title scene-desc" preserveAspectRatio="xMidYMid meet">
+          <desc id="scene-desc">一根水平导热棒，左端浸在恒温热槽、右端浸在恒温冷槽。上方是温度—位置曲线，棒的配色表示温度，白色粒子表示热流。</desc>
+          <defs>
+            <linearGradient id="hotFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#f97316"></stop>
+              <stop offset="1" stop-color="#c2410c"></stop>
+            </linearGradient>
+            <linearGradient id="coldFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#60a5fa"></stop>
+              <stop offset="1" stop-color="#1d4ed8"></stop>
+            </linearGradient>
+            <clipPath id="rodClip"><rect x="104" y="352" width="712" height="76" rx="10"></rect></clipPath>
+          </defs>
+
+          <!-- 温度-位置曲线区 -->
+          <text class="axis-label" x="26" y="40">温度 T / ℃</text>
+          <rect x="104" y="44" width="712" height="252" fill="#fbfdff" stroke="var(--sim-grid)"></rect>
+          <g id="grid"></g>
+          <line id="steadyLine" x1="104" y1="52" x2="816" y2="296" stroke="var(--sim-warning)" stroke-width="2.5" stroke-dasharray="8 7" opacity=".85"></line>
+          <text id="steadyLabel" x="808" y="66" text-anchor="end" fill="#b45309" font-size="12.5" font-weight="750">稳态直线</text>
+          <polyline id="curve" points="" fill="none" stroke="#0f172a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 2px 3px rgba(15,23,42,.18))"></polyline>
+          <g id="probes">
+            <circle id="probeA" r="6" fill="var(--sim-probe-a)" stroke="#fff" stroke-width="2.5"></circle>
+            <circle id="probeB" r="6" fill="var(--sim-probe-b)" stroke="#fff" stroke-width="2.5"></circle>
+            <circle id="probeC" r="6" fill="var(--sim-probe-c)" stroke="#fff" stroke-width="2.5"></circle>
+            <text id="probeALabel" fill="var(--sim-probe-a)" font-size="12.5" font-weight="800" text-anchor="middle">A</text>
+            <text id="probeBLabel" fill="var(--sim-probe-b)" font-size="12.5" font-weight="800" text-anchor="middle">B</text>
+            <text id="probeCLabel" fill="var(--sim-probe-c)" font-size="12.5" font-weight="800" text-anchor="middle">C</text>
+          </g>
+
+          <!-- 导热棒 -->
+          <g id="rodCells" clip-path="url(#rodClip)"></g>
+          <rect x="104" y="357" width="712" height="11" rx="5.5" fill="#ffffff" opacity=".15" pointer-events="none"></rect>
+          <rect x="104" y="352" width="712" height="76" rx="10" fill="none" stroke="#334155" stroke-width="2.5"></rect>
+          <text class="axis-label" x="460" y="344" text-anchor="middle">棒内温度（颜色）与热流（白点，热端 → 冷端）</text>
+          <g id="particles"></g>
+          <g id="chevrons" opacity="0">
+            <polygon points="250,383 264,390 250,397" fill="#ffffff"></polygon>
+            <polygon points="430,383 444,390 430,397" fill="#ffffff"></polygon>
+            <polygon points="610,383 624,390 610,397" fill="#ffffff"></polygon>
+            <polygon points="760,383 774,390 760,397" fill="#ffffff"></polygon>
+          </g>
+
+          <!-- 恒温槽 -->
+          <g id="steamGroup">
+            <path class="steam" d="M44 312 c 6 -8 -6 -14 0 -22 c 6 -8 -6 -14 0 -20" fill="none" stroke="#fb923c" stroke-width="3.5" stroke-linecap="round" opacity=".4"></path>
+            <path class="steam" d="M64 316 c 6 -8 -6 -14 0 -22 c 6 -8 -6 -14 0 -20" fill="none" stroke="#fdba74" stroke-width="3" stroke-linecap="round" opacity=".35"></path>
+            <path class="steam" d="M84 312 c 6 -8 -6 -14 0 -22 c 6 -8 -6 -14 0 -20" fill="none" stroke="#fb923c" stroke-width="3.5" stroke-linecap="round" opacity=".4"></path>
+          </g>
+          <g id="bathHot">
+            <rect x="18" y="318" width="92" height="134" rx="14" fill="url(#hotFill)" stroke="#9a3412" stroke-width="2"></rect>
+            <rect x="26" y="326" width="76" height="10" rx="5" fill="#ffffff" opacity=".22"></rect>
+            <text x="64" y="341" text-anchor="middle" fill="#fff7ed" font-size="13" font-weight="700">恒温热槽</text>
+            <text id="bathHotTemp" x="64" y="374" text-anchor="middle" fill="#ffffff" font-size="25" font-weight="800" font-variant-numeric="tabular-nums">100 ℃</text>
+            <text x="64" y="396" text-anchor="middle" fill="#ffe4d2" font-size="11.5">持续供热 · 维持恒温</text>
+            <path d="M28 430 H100" stroke="#7c2d12" stroke-width="4" stroke-linecap="round"></path>
+            <path d="M36 440 q 6 -4 12 0 q 6 4 12 0 q 6 -4 12 0 q 6 4 12 0" fill="none" stroke="#f97316" stroke-width="3" stroke-linecap="round" opacity=".8"></path>
+          </g>
+          <g id="bathCold">
+            <rect x="810" y="318" width="92" height="134" rx="14" fill="url(#coldFill)" stroke="#1e3a8a" stroke-width="2"></rect>
+            <rect x="818" y="326" width="76" height="10" rx="5" fill="#ffffff" opacity=".25"></rect>
+            <text x="856" y="341" text-anchor="middle" fill="#eff6ff" font-size="13" font-weight="700">恒温冷槽</text>
+            <text id="bathColdTemp" x="856" y="374" text-anchor="middle" fill="#ffffff" font-size="25" font-weight="800" font-variant-numeric="tabular-nums">0 ℃</text>
+            <text x="856" y="396" text-anchor="middle" fill="#dbeafe" font-size="11.5">持续吸热 · 维持恒温</text>
+            <rect x="832" y="408" width="20" height="20" rx="4" fill="#f0f9ff" stroke="#bae6fd" stroke-width="2" transform="rotate(10 842 418)" opacity=".95"></rect>
+            <rect x="858" y="414" width="16" height="16" rx="3.5" fill="#f0f9ff" stroke="#bae6fd" stroke-width="2" transform="rotate(-14 866 422)" opacity=".95"></rect>
+          </g>
+
+          <!-- 流入 / 储存 / 流出 -->
+          <g id="fluxRow">
+            <line id="arrowInLine" x1="122" y1="474" x2="168" y2="474" stroke="var(--sim-hot)" stroke-width="5" stroke-linecap="round"></line>
+            <polygon id="arrowInHead" points="166,466 182,474 166,482" fill="var(--sim-hot)"></polygon>
+            <text id="textIn" x="152" y="497" text-anchor="middle" fill="var(--sim-hot)" font-size="13.5" font-weight="750">流入 0.00 W</text>
+            <line id="arrowOutLine" x1="738" y1="474" x2="784" y2="474" stroke="var(--sim-cold)" stroke-width="5" stroke-linecap="round"></line>
+            <polygon id="arrowOutHead" points="782,466 798,474 782,482" fill="var(--sim-cold)"></polygon>
+            <text id="textOut" x="768" y="497" text-anchor="middle" fill="var(--sim-cold)" font-size="13.5" font-weight="750">流出 0.00 W</text>
+            <rect id="storePill" x="392" y="459" width="136" height="28" rx="14" fill="#fffdf5" stroke="#e7d9b8" stroke-width="1.5"></rect>
+            <text id="storeText" x="460" y="478" text-anchor="middle" fill="#92600a" font-size="13" font-weight="750">储存 0.00 W</text>
+            <text x="460" y="508" text-anchor="middle" fill="#7a8798" font-size="11.5">储存 = 流入 − 流出（正在给棒升温）</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>模拟时间 t</small><strong id="tRead">0.0<em>s</em></strong></div>
+            <div class="metric"><small>中点温度 T<sub>B</sub></small><strong id="midRead">0.0<em>℃</em></strong></div>
+            <div class="metric"><small>流入功率（热端）</small><strong id="pinRead">0.00<em>W</em></strong></div>
+            <div class="metric"><small>流出功率（冷端）</small><strong id="poutRead">0.00<em>W</em></strong></div>
+          </div>
+          <div class="devwrap">
+            <label for="devBar"><span>当前分布偏离稳态直线</span><span id="devRead">100%</span></label>
+            <div class="devtrack"><div id="devBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
+          </div>
+        </section>
+
+        <section class="panel chart-card" aria-label="三点温度随时间变化">
+          <div class="chart-title">
+            <h3>三点温度 T–t</h3>
+            <span class="legend"><i style="--c:var(--sim-probe-a)"></i>A 近热端<i style="--c:var(--sim-probe-b)"></i>B 中点<i style="--c:var(--sim-probe-c)"></i>C 近冷端</span>
+          </div>
+          <canvas id="probeChart" aria-label="棒上三个位置的温度随模拟时间变化的曲线图"></canvas>
+        </section>
+
+        <section class="panel chart-card" aria-label="流入流出功率随时间变化">
+          <div class="chart-title">
+            <h3>流入 / 流出功率 P–t</h3>
+            <span>虚线 = 稳态值 · 阴影 = 棒升温耗热</span>
+          </div>
+          <canvas id="powerChart" aria-label="热端流入功率与冷端流出功率随模拟时间变化的曲线图"></canvas>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="当前解读与模型说明">
+          <h2>当前解读</h2>
+          <p id="insight" class="insight">按「开始」：整根棒现在均匀 0 ℃（与冷槽同温）。两端一接上恒温槽，热端就会立刻向棒内传热。</p>
+          <p>模型：一维热传导 ∂T/∂t = α·∂²T/∂x²，两端恒温（=槽温），初始整根均匀 T<sub>冷</sub>。数值解用显式有限差分（81 段网格，稳定性 r ≤ 0.45）；虚线是解析稳态解 T(x) = T<sub>热</sub> − (T<sub>热</sub>−T<sub>冷</sub>)·x/L。功率按截面积 1 cm² 计算。</p>
+          <p>教学视图：时间加速 ×1～×500（真实尺寸钢棒达到稳态约需 20 分钟，需加速观察）；白点速度表示当地热流大小，稳态时处处相等；颜色对应 0～100 ℃ 固定标尺。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="seg-group">
+        <span class="seg-label" id="matLabel">材质</span>
+        <div class="seg" id="matSeg" role="group" aria-labelledby="matLabel">
+          <button type="button" data-mat="copper">铜</button>
+          <button type="button" data-mat="steel" class="active">钢</button>
+          <button type="button" data-mat="glass">玻璃</button>
+        </div>
+      </div>
+      <div class="control">
+        <label for="thInput">热端温度 T<sub>热</sub> <output id="thOutput">100 ℃</output></label>
+        <input id="thInput" type="range" min="40" max="100" step="5" value="100" aria-describedby="matLabel">
+      </div>
+      <div class="control">
+        <label for="tcInput">冷端温度 T<sub>冷</sub> <output id="tcOutput">0 ℃</output></label>
+        <input id="tcInput" type="range" min="0" max="40" step="5" value="0">
+      </div>
+      <div class="seg-group">
+        <span class="seg-label" id="speedLabel">时间加速</span>
+        <div class="seg" id="speedSeg" role="group" aria-labelledby="speedLabel">
+          <button type="button" data-speed="1">×1</button>
+          <button type="button" data-speed="10">×10</button>
+          <button type="button" data-speed="100" class="active">×100</button>
+          <button type="button" data-speed="500">×500</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ================= parameter schema ================= */
+    const parameterSchema = [
+      { key: "material", label: "材质", type: "segmented", options: ["copper", "steel", "glass"], default: "steel", unit: "" },
+      { key: "Th", label: "热端温度", type: "slider", min: 40, max: 100, step: 5, default: 100, unit: "℃" },
+      { key: "Tc", label: "冷端温度", type: "slider", min: 0, max: 40, step: 5, default: 0, unit: "℃" },
+      { key: "speed", label: "时间加速", type: "segmented", options: [1, 10, 100, 500], default: 100, unit: "×" }
+    ];
+
+    /* ================= physics kernel (DOM-free) =================
+       1-D heat equation dT/dt = alpha * d2T/dx2 on x in [0, L].
+       Dirichlet boundaries: virtual bath nodes 0 and N+1 at x=0 and x=L.
+       FTCS explicit scheme, r = alpha*h/dx^2 <= 0.45. */
+    const GEOM = { L: 0.4, N: 80, A: 1e-4 };
+    const MATERIALS = {
+      copper: { label: "铜", k: 400, alpha: 1.1e-4 },
+      steel: { label: "钢", k: 50, alpha: 1.4e-5 },
+      glass: { label: "玻璃", k: 1.0, alpha: 3.4e-7 }
+    };
+    const DX = GEOM.L / (GEOM.N + 1);
+    const stableStep = (alpha) => Math.min(0.5, 0.45 * DX * DX / alpha);
+
+    function createKernel(cfg) {
+      const mat = MATERIALS[cfg.mat];
+      const kn = {
+        Th: cfg.Th, Tc: cfg.Tc, matKey: cfg.mat, k: mat.k, alpha: mat.alpha, h: stableStep(mat.alpha),
+        T: new Float64Array(GEOM.N), Tn: new Float64Array(GEOM.N), rem: 0,
+        lastDeltaSum: 0, lastDeltaExpected: 0,
+        setMaterial(key) { const m = MATERIALS[key]; kn.matKey = key; kn.k = m.k; kn.alpha = m.alpha; kn.h = stableStep(m.alpha); },
+        advance(hStep) {
+          const h = hStep, r = kn.alpha * h / (DX * DX);
+          const T = kn.T, Tn = kn.Tn, N = GEOM.N, Th = kn.Th, Tc = kn.Tc;
+          let deltaSum = 0;
+          for (let i = 0; i < N; i += 1) {
+            const left = i === 0 ? Th : T[i - 1];
+            const right = i === N - 1 ? Tc : T[i + 1];
+            Tn[i] = T[i] + r * (left + right - 2 * T[i]);
+            deltaSum += Tn[i] - T[i];
+          }
+          kn.lastDeltaSum = deltaSum;
+          kn.lastDeltaExpected = r * ((Th - T[0]) + (Tc - T[N - 1]));
+          T.set(Tn);
+        },
+        flux() {
+          const T = kn.T, N = GEOM.N;
+          return { qin: kn.k * (kn.Th - T[0]) / DX, qout: kn.k * (T[N - 1] - kn.Tc) / DX };
+        },
+        nodeFlux() {
+          const T = kn.T, N = GEOM.N, out = new Float64Array(N);
+          out[0] = kn.k * (kn.Th - T[0]) / DX;
+          out[N - 1] = kn.k * (T[N - 1] - kn.Tc) / DX;
+          for (let i = 1; i < N - 1; i += 1) out[i] = -kn.k * (T[i + 1] - T[i - 1]) / (2 * DX);
+          return out;
+        },
+        steadyProfile() {
+          const dT = kn.Th - kn.Tc, out = new Float64Array(GEOM.N);
+          for (let i = 0; i < GEOM.N; i += 1) out[i] = kn.Th - dT * (i + 1) / (GEOM.N + 1);
+          return out;
+        },
+        deviation() {
+          const dT = kn.Th - kn.Tc;
+          if (Math.abs(dT) < 1e-9) return 0;
+          const ss = kn.steadyProfile();
+          let m = 0;
+          for (let i = 0; i < GEOM.N; i += 1) m = Math.max(m, Math.abs(kn.T[i] - ss[i]));
+          return m / Math.abs(dT);
+        }
+      };
+      kn.T.fill(cfg.Tinit);
+      return kn;
+    }
+
+    /* Advance simulated time with FIXED physical steps of exactly kernel.h.
+       Fractional remainders are carried across calls, so any frame/time-scale
+       chunking produces an identical substep sequence (exact time-scale
+       invariance). Returns the simulated seconds actually advanced. */
+    function advanceSim(kernel, dtSim, maxSubsteps) {
+      const cap = maxSubsteps || 20000;
+      kernel.rem += Math.min(dtSim, cap * kernel.h);
+      let n = Math.floor(kernel.rem / kernel.h + 1e-12);
+      if (n > cap) { n = cap; kernel.rem = Math.min(kernel.rem - n * kernel.h, kernel.h); }
+      else kernel.rem -= n * kernel.h;
+      for (let i = 0; i < n; i += 1) kernel.advance(kernel.h);
+      return n * kernel.h;
+    }
+
+    /* Analytic oracle: Fourier series for uniform-cold IC, Dirichlet ends. */
+    function seriesTemp(s, Fo, Th, Tc) {
+      const dT = Th - Tc;
+      let sum = 0;
+      for (let n = 1; n <= 64; n += 1) sum += Math.sin(n * Math.PI * s) / n * Math.exp(-n * n * Math.PI * Math.PI * Fo);
+      return Th - dT * s - (2 * dT / Math.PI) * sum;
+    }
+
+    /* ================= runtime state ================= */
+    const SVG = { x0: 104, x1: 816, yTop: 52, yBot: 296, rodY: 352, lanes: [377, 390, 403], crossS: 2400 };
+    const PROBE_IDX = [19, 39, 59];
+    const state = {
+      running: false, t: 0, animReal: 0, speed: 100, Th: 100, Tc: 0, mat: "steel",
+      kernel: createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 }),
+      history: [], lastSample: -1e18, lastTs: null, particles: [], reduced: false
+    };
+    let els = null;
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => Number.isFinite(v) ? v : fb;
+    const xOf = (s) => SVG.x0 + (SVG.x1 - SVG.x0) * s;
+    const yOf = (T) => SVG.yBot - (clamp(T, 0, 100) / 100) * (SVG.yBot - SVG.yTop);
+
+    /* fixed 0-100 ℃ color scale (absolute temperature, stable while sliders move) */
+    const CMAP = [
+      [0.00, 30, 64, 175], [0.25, 8, 145, 178], [0.45, 34, 211, 238],
+      [0.55, 254, 243, 199], [0.72, 251, 146, 60], [0.88, 239, 68, 68], [1.00, 185, 28, 28]
+    ];
+    function tempColor(T) {
+      const u = clamp((T - 0) / 100, 0, 1);
+      for (let i = 1; i < CMAP.length; i += 1) {
+        if (u <= CMAP[i][0] || i === CMAP.length - 1) {
+          const [u0, r0, g0, b0] = CMAP[i - 1], [u1, r1, g1, b1] = CMAP[i];
+          const f = clamp((u - u0) / Math.max(1e-9, u1 - u0), 0, 1);
+          return `rgb(${Math.round(r0 + (r1 - r0) * f)},${Math.round(g0 + (g1 - g0) * f)},${Math.round(b0 + (b1 - b0) * f)})`;
+        }
+      }
+      return "rgb(30,64,175)";
+    }
+
+    function fmtPower(p) {
+      if (!Number.isFinite(p)) return "—";
+      if (Math.abs(p) < 0.1) return (p * 1000).toFixed(Math.abs(p) < 0.02 ? 1 : 0) + " mW";
+      return p.toFixed(2) + " W";
+    }
+    function fmtTime(s) {
+      if (s >= 1e4) return (s / 1e4).toFixed(1) + " 万s";
+      if (s >= 1000) return (s / 1000).toFixed(1) + "k s";
+      if (s < 10) return s.toFixed(1) + " s";
+      return Math.round(s) + " s";
+    }
+    function fmtTick(s) {
+      if (s >= 1e4) return (s / 1e4).toFixed(1) + "万";
+      if (s >= 1000) return (s / 1000).toFixed(1) + "k";
+      return String(Math.round(s));
+    }
+
+    /* ================= derived observables (single source of truth) ================= */
+    function observables() {
+      const kn = state.kernel, T = kn.T;
+      const f = kn.flux();
+      const Pin = f.qin * GEOM.A, Pout = f.qout * GEOM.A;
+      const Pss = Math.abs(kn.k * (kn.Th - kn.Tc) / GEOM.L) * GEOM.A;
+      return {
+        Pin, Pout, Pss, store: Pin - Pout,
+        TA: T[PROBE_IDX[0]], TB: T[PROBE_IDX[1]], TC: T[PROBE_IDX[2]],
+        dev: kn.deviation(), qNode: kn.nodeFlux()
+      };
+    }
+
+    /* ================= lifecycle ================= */
+    function init() {
+      els = {
+        status: document.querySelector("#status"), grid: document.querySelector("#grid"), curve: document.querySelector("#curve"),
+        steadyLine: document.querySelector("#steadyLine"), steadyLabel: document.querySelector("#steadyLabel"),
+        probeA: document.querySelector("#probeA"), probeB: document.querySelector("#probeB"), probeC: document.querySelector("#probeC"),
+        probeALabel: document.querySelector("#probeALabel"), probeBLabel: document.querySelector("#probeBLabel"), probeCLabel: document.querySelector("#probeCLabel"),
+        rodCells: document.querySelector("#rodCells"), particles: document.querySelector("#particles"), chevrons: document.querySelector("#chevrons"),
+        steam: Array.from(document.querySelectorAll(".steam")),
+        bathHotTemp: document.querySelector("#bathHotTemp"), bathColdTemp: document.querySelector("#bathColdTemp"),
+        textIn: document.querySelector("#textIn"), textOut: document.querySelector("#textOut"),
+        arrowInLine: document.querySelector("#arrowInLine"), arrowInHead: document.querySelector("#arrowInHead"),
+        arrowOutLine: document.querySelector("#arrowOutLine"), arrowOutHead: document.querySelector("#arrowOutHead"),
+        storeText: document.querySelector("#storeText"), storePill: document.querySelector("#storePill"),
+        tRead: document.querySelector("#tRead"), midRead: document.querySelector("#midRead"),
+        pinRead: document.querySelector("#pinRead"), poutRead: document.querySelector("#poutRead"),
+        devBar: document.querySelector("#devBar"), devRead: document.querySelector("#devRead"),
+        probeChart: document.querySelector("#probeChart"), powerChart: document.querySelector("#powerChart"),
+        insight: document.querySelector("#insight"),
+        thInput: document.querySelector("#thInput"), thOutput: document.querySelector("#thOutput"),
+        tcInput: document.querySelector("#tcInput"), tcOutput: document.querySelector("#tcOutput"),
+        startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+        matSeg: document.querySelector("#matSeg"), speedSeg: document.querySelector("#speedSeg")
+      };
+      state.reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      buildGrid();
+      buildRod();
+      buildParticles();
+      bindControls();
+      window.addEventListener("resize", render);
+      setParameters({ material: "steel", Th: 100, Tc: 0, speed: 100 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function buildGrid() {
+      const parts = [];
+      for (let T = 0; T <= 100; T += 20) {
+        const y = yOf(T);
+        parts.push(`<line x1="104" y1="${y}" x2="816" y2="${y}" stroke="var(--sim-grid)" stroke-width="1"></line>`);
+        parts.push(`<text class="tick-label" x="96" y="${y + 4}" text-anchor="end">${T}</text>`);
+      }
+      els.grid.innerHTML = parts.join("");
+    }
+
+    function buildRod() {
+      const frag = document.createDocumentFragment();
+      const w = (SVG.x1 - SVG.x0) / GEOM.N + 0.6;
+      for (let i = 0; i < GEOM.N; i += 1) {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", (xOf((i + 0.5) / GEOM.N) - w / 2).toFixed(2));
+        rect.setAttribute("y", SVG.rodY);
+        rect.setAttribute("width", w.toFixed(2));
+        rect.setAttribute("height", 76);
+        frag.appendChild(rect);
+      }
+      els.rodCells.textContent = "";
+      els.rodCells.appendChild(frag);
+    }
+
+    function buildParticles() {
+      if (state.reduced) { els.particles.setAttribute("display", "none"); return; }
+      const NS = "http://www.w3.org/2000/svg";
+      els.particles.textContent = "";
+      state.particles = [];
+      for (let i = 0; i < 16; i += 1) {
+        const halo = document.createElementNS(NS, "circle");
+        halo.setAttribute("r", "7.5");
+        halo.setAttribute("fill", "#fbbf24");
+        const dot = document.createElementNS(NS, "circle");
+        dot.setAttribute("r", "3.8");
+        dot.setAttribute("fill", "#ffffff");
+        dot.setAttribute("stroke", "rgba(255,255,255,.85)");
+        els.particles.appendChild(halo);
+        els.particles.appendChild(dot);
+        state.particles.push({ p: (i / 16 + 0.031) % 1, lane: i % 3, halo, dot });
+      }
+    }
+
+    function start() { state.running = true; elementsSync(); }
+    function pause() { state.running = false; elementsSync(); }
+    function reset() {
+      state.running = false;
+      state.t = 0;
+      state.animReal = 0;
+      state.lastTs = null;
+      state.kernel = createKernel({ Th: state.Th, Tc: state.Tc, mat: state.mat, Tinit: state.Tc });
+      const o0 = observables();
+      state.history = [{ t: 0, a: o0.TA, b: o0.TB, c: o0.TC, pin: o0.Pin, pout: o0.Pout }];
+      state.lastSample = 0;
+      state.particles.forEach((pt, i) => { pt.p = (i / state.particles.length + 0.031) % 1; });
+      elementsSync();
+      render();
+    }
+    function elementsSync() {
+      els.startBtn.setAttribute("aria-pressed", state.running ? "true" : "false");
+    }
+
+    function update(dtReal) {
+      if (!state.running || !state.kernel) return;
+      const dtr = clamp(finite(dtReal, 0), 0, 0.05);
+      state.animReal += dtr;
+      const dtSim = dtr * state.speed;
+      const advanced = advanceSim(state.kernel, dtSim);
+      state.t += advanced;
+      moveParticles(dtSim);
+      sampleHistory();
+    }
+
+    function moveParticles(dtSim) {
+      const o = observables();
+      const qss = state.kernel.k * (state.kernel.Th - state.kernel.Tc) / GEOM.L;
+      if (Math.abs(qss) < 1e-12) { state.pFlow = 0; return; }
+      const qn = o.qNode;
+      state.particles.forEach((pt) => {
+        const pos = pt.p * (GEOM.N - 1);
+        const i0 = clamp(Math.floor(pos), 0, GEOM.N - 2);
+        const frac = pos - i0;
+        const qLocal = qn[i0] * (1 - frac) + qn[i0 + 1] * frac;
+        const vNorm = clamp(Math.abs(qLocal / qss), 0, 1.5);
+        pt.p = (pt.p + (vNorm / SVG.crossS) * dtSim) % 1;
+      });
+      state.pFlow = clamp(Math.abs(o.Pin / (o.Pss || 1e-12)), 0, 1);
+    }
+
+    function sampleHistory() {
+      const interval = Math.max(2 * state.kernel.h, state.t / 500);
+      if (state.t - state.lastSample >= interval) {
+        const o = observables();
+        state.history.push({ t: state.t, a: o.TA, b: o.TB, c: o.TC, pin: o.Pin, pout: o.Pout });
+        state.lastSample = state.t;
+        if (state.history.length > 1500) state.history.splice(0, 750);
+      }
+    }
+
+    /* ================= rendering ================= */
+    function render() {
+      if (!els) return;
+      const o = observables();
+      state.qCache = o;
+      const kn = state.kernel, N = GEOM.N, T = kn.T;
+      const dT = kn.Th - kn.Tc;
+      const devPct = dT === 0 ? 0 : clamp(o.dev * 100, 0, 100);
+      const steady = state.t > 0 && devPct <= 3;
+
+      /* status */
+      let cls = "status", txt = "就绪";
+      if (Math.abs(dT) < 1e-9) { txt = "两端同温 · 无热流"; }
+      else if (state.t === 0 && !state.running) { txt = "就绪"; }
+      else if (steady) { cls += " steady"; txt = "已稳态 · 热流持续不断"; }
+      else if (!state.running) { txt = "已暂停"; }
+      else if (devPct <= 15) { cls += " near"; txt = "接近稳态 · 曲线正在拉直"; }
+      else { cls += " run"; txt = "升温中 · 热量正建立分布"; }
+      els.status.className = cls;
+      els.status.textContent = txt;
+
+      /* baths + rod + curve */
+      els.bathHotTemp.textContent = `${kn.Th.toFixed(0)} ℃`;
+      els.bathColdTemp.textContent = `${kn.Tc.toFixed(0)} ℃`;
+      const cells = els.rodCells.children;
+      for (let i = 0; i < N; i += 1) cells[i].setAttribute("fill", tempColor(T[i]));
+      const pts = [`${xOf(0)},${yOf(kn.Th)}`];
+      for (let i = 0; i < N; i += 1) pts.push(`${xOf((i + 1) / (N + 1)).toFixed(1)},${yOf(T[i]).toFixed(1)}`);
+      pts.push(`${xOf(1)},${yOf(kn.Tc)}`);
+      els.curve.setAttribute("points", pts.join(" "));
+      els.steadyLine.setAttribute("y1", yOf(kn.Th));
+      els.steadyLine.setAttribute("y2", yOf(kn.Tc));
+      const ly = yOf(kn.Th) + (yOf(kn.Tc) - yOf(kn.Th)) * 0.86 - 11;
+      els.steadyLabel.setAttribute("y", clamp(ly, 40, 300));
+
+      /* probes */
+      const probes = [
+        [els.probeA, els.probeALabel, 0], [els.probeB, els.probeBLabel, 1], [els.probeC, els.probeCLabel, 2]
+      ];
+      probes.forEach(([circle, label, pi]) => {
+        const i = PROBE_IDX[pi];
+        const x = xOf((i + 1) / (N + 1)), y = yOf(T[i]);
+        circle.setAttribute("cx", x); circle.setAttribute("cy", y);
+        label.setAttribute("x", x); label.setAttribute("y", y - 12);
+      });
+
+      /* flow arrows + power texts */
+      const flowIn = clamp(Math.abs(o.Pin) / (o.Pss || 1e-12), 0, 1);
+      const flowOut = clamp(Math.abs(o.Pout) / (o.Pss || 1e-12), 0, 1);
+      els.arrowInLine.setAttribute("opacity", (0.25 + 0.75 * flowIn).toFixed(2));
+      els.arrowInHead.setAttribute("opacity", (0.25 + 0.75 * flowIn).toFixed(2));
+      els.arrowOutLine.setAttribute("opacity", (0.25 + 0.75 * flowOut).toFixed(2));
+      els.arrowOutHead.setAttribute("opacity", (0.25 + 0.75 * flowOut).toFixed(2));
+      els.textIn.textContent = `流入 ${fmtPower(Math.max(0, o.Pin))}`;
+      els.textOut.textContent = `流出 ${fmtPower(Math.max(0, o.Pout))}`;
+      const balanced = steady || (o.Pss > 1e-12 && Math.abs(o.store) < 0.02 * o.Pss);
+      if (Math.abs(dT) < 1e-9) {
+        els.storeText.textContent = "无温差 · 无热流";
+        els.storePill.setAttribute("fill", "#f1f5f9");
+      } else if (balanced) {
+        els.storeText.textContent = "进出平衡";
+        els.storePill.setAttribute("fill", "#e2f6ec");
+      } else {
+        els.storeText.textContent = `储存 ${fmtPower(Math.max(0, o.store))}`;
+        els.storePill.setAttribute("fill", "#fffdf5");
+      }
+
+      /* particles / chevrons */
+      if (state.reduced) {
+        els.chevrons.setAttribute("opacity", (0.15 + 0.8 * (state.pFlow || 0)).toFixed(2));
+      } else {
+        const qss = Math.abs(kn.k * dT / GEOM.L);
+        state.particles.forEach((pt) => {
+          const pos = pt.p * (GEOM.N - 1);
+          const i0 = clamp(Math.floor(pos), 0, GEOM.N - 2);
+          const frac = pos - i0;
+          const qLocal = Math.abs(o.qNode[i0] * (1 - frac) + o.qNode[i0 + 1] * frac);
+          const op = qss < 1e-12 ? 0 : clamp(0.15 + 0.85 * (qLocal / qss), 0, 1);
+          const cx = xOf(clamp(pt.p, 0, 1));
+          pt.dot.setAttribute("cx", cx); pt.dot.setAttribute("cy", SVG.lanes[pt.lane]);
+          pt.dot.setAttribute("opacity", op.toFixed(2));
+          pt.halo.setAttribute("cx", cx); pt.halo.setAttribute("cy", SVG.lanes[pt.lane]);
+          pt.halo.setAttribute("opacity", (op * 0.3).toFixed(2));
+        });
+      }
+
+      /* steam (driven by wall-clock time while running, frozen on pause) */
+      if (!state.reduced) {
+        els.steam.forEach((path, i) => {
+          const ph = state.animReal * 1.6 + i * 1.1;
+          const frac = (Math.sin(ph) + 1) / 2;
+          path.setAttribute("transform", `translate(0 ${(-2 - 5 * frac).toFixed(1)})`);
+          path.setAttribute("opacity", (0.18 + 0.3 * frac).toFixed(2));
+        });
+      }
+
+      /* readouts */
+      els.tRead.textContent = fmtTime(state.t);
+      els.midRead.textContent = `${o.TB.toFixed(1)} ℃`;
+      els.pinRead.textContent = fmtPower(Math.max(0, o.Pin));
+      els.poutRead.textContent = fmtPower(Math.max(0, o.Pout));
+      const devText = Math.abs(dT) < 1e-9 ? "—" : devPct.toFixed(1) + "%";
+      els.devRead.textContent = devText;
+      els.devBar.style.width = devText === "—" ? "0%" : clamp(devPct, 0, 100).toFixed(1) + "%";
+      els.devBar.setAttribute("aria-valuenow", Math.round(devPct));
+
+      /* insight */
+      els.insight.textContent = insightText(o, devPct, steady, dT);
+
+      /* charts */
+      drawProbeChart(o);
+      drawPowerChart(o);
+
+      /* slider outputs */
+      els.thOutput.textContent = `${state.Th.toFixed(0)} ℃`;
+      els.tcOutput.textContent = `${state.Tc.toFixed(0)} ℃`;
+    }
+
+    function insightText(o, devPct, steady, dT) {
+      if (Math.abs(dT) < 1e-9) return "两端温度相同：没有温差就没有热流，棒保持均匀温度。把热端调高试试。";
+      if (state.t === 0 && !state.running) return `按「开始」：整根棒现在均匀 ${state.Tc.toFixed(0)} ℃（与冷槽同温）。两端一接上恒温槽，热端就会立刻向棒内传热。`;
+      if (steady) return `分布已稳定成一条直线，但热量仍在源源不断从热端流向冷端：流入 = 流出 = ${fmtPower(o.Pss)}（> 0）。棒不再储存热量，它只是一条“通道”——稳态是“动态平衡”，不是“静止”。`;
+      if (!state.running) return "已暂停。拖动时间加速可快进；改变槽温或材质，曲线会重新弯曲再拉直。";
+      if (devPct > 15) return `热量从热端涌入：靠近热端的棒先升温，曲线开始“翘起”。此刻流入 ${fmtPower(o.Pin)} > 流出 ${fmtPower(o.Pout)}，差值（${fmtPower(Math.max(0, o.store))}）正用于给整根棒升温。`;
+      return "曲线正被逐渐“拉直”，向琥珀色虚线（稳态直线）靠拢：每一点的升温都变慢了，但热流一刻也没停。";
+    }
+
+    /* ================= charts ================= */
+    function resizeCanvas(canvas) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(80, Math.floor(rect.width * dpr)), h = Math.max(60, Math.floor(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w: rect.width, h: rect.height };
+    }
+
+    function chartFrame(ctx, w, h, pad, yMin, yMax, maxT, yFmt) {
+      const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      ctx.font = '11px -apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = "#e8edf4"; ctx.fillStyle = "#7a8798"; ctx.lineWidth = 1;
+      for (let k = 0; k <= 4; k += 1) {
+        const y = pad.t + ph * k / 4;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        ctx.fillText(yFmt(yMax - (yMax - yMin) * k / 4), pad.l - 6, y);
+      }
+      for (let k = 0; k <= 5; k += 1) {
+        const x = pad.l + pw * k / 5;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(fmtTick(maxT * k / 5), x, h - pad.b + 6);
+      }
+      ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h - pad.b); ctx.lineTo(w - pad.r, h - pad.b); ctx.stroke();
+      return { pw, ph };
+    }
+
+    function drawProbeChart() {
+      const { ctx, w, h } = resizeCanvas(els.probeChart);
+      const pad = { l: 42, r: 10, t: 10, b: 24 };
+      const Tlo = Math.min(state.Tc, state.Th) - 4, Thi = Math.max(state.Tc, state.Th) + 4;
+      const maxT = Math.max(120, state.t);
+      const { pw, ph } = chartFrame(ctx, w, h, pad, Tlo, Thi, maxT, (v) => v.toFixed(0));
+      const X = (t) => pad.l + (t / maxT) * pw;
+      const Y = (v) => pad.t + (Thi - v) / (Thi - Tlo) * ph;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(pad.l, pad.t, pw, ph); ctx.clip();
+      const colors = { a: "#f59e0b", b: "#8b5cf6", c: "#10b981" };
+      ["a", "b", "c"].forEach((key) => {
+        ctx.strokeStyle = colors[key]; ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.beginPath();
+        state.history.forEach((p, idx) => { const x = X(p.t), y = Y(p[key]); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke();
+      });
+      ctx.restore();
+      ctx.fillStyle = "#64748b"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("T / ℃", 4, 2); ctx.textAlign = "right"; ctx.fillText("t(模拟) / s", w - 4, h - 14);
+    }
+
+    function drawPowerChart(o) {
+      const { ctx, w, h } = resizeCanvas(els.powerChart);
+      const pad = { l: 42, r: 10, t: 10, b: 24 };
+      const yMax = Math.max(2.2 * o.Pss, 1e-4);
+      const maxT = Math.max(120, state.t);
+      const { pw, ph } = chartFrame(ctx, w, h, pad, 0, yMax, maxT, (v) => v >= 1 ? v.toFixed(1) : (v * 1000).toFixed(0) + "m");
+      const X = (t) => pad.l + (t / maxT) * pw;
+      const Yc = (v) => pad.t + ph - clamp(v / yMax, -0.05, 1.05) * ph;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(pad.l, pad.t, pw, ph); ctx.clip();
+      /* steady reference */
+      const ys = Yc(o.Pss);
+      ctx.strokeStyle = "#b45309"; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(pad.l, ys); ctx.lineTo(w - pad.r, ys); ctx.stroke();
+      ctx.setLineDash([]);
+      /* storage fill between pin and pout */
+      ctx.beginPath();
+      state.history.forEach((p, idx) => { const x = X(p.t), y = Yc(Math.max(0, p.pin)); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+      for (let idx = state.history.length - 1; idx >= 0; idx -= 1) { const p = state.history[idx]; ctx.lineTo(X(p.t), Yc(Math.max(0, p.pout))); }
+      ctx.closePath();
+      ctx.fillStyle = "rgba(217,119,6,.14)"; ctx.fill();
+      /* traces */
+      [["pin", "#ea580c"], ["pout", "#2563eb"]].forEach(([key, color]) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2.4; ctx.lineJoin = "round"; ctx.beginPath();
+        state.history.forEach((p, idx) => { const x = X(p.t), y = Yc(p[key]); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke();
+      });
+      ctx.restore();
+      ctx.fillStyle = "#b45309"; ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+      ctx.fillText("稳态值", w - pad.r - 2, ys - 2);
+      ctx.fillStyle = "#64748b"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("P / W", 4, 2); ctx.textAlign = "right"; ctx.fillText("t(模拟) / s", w - 4, h - 14);
+    }
+
+    /* ================= parameters & controls ================= */
+    function setParameters(values) {
+      const defs = {}; parameterSchema.forEach((d) => { defs[d.key] = d; });
+      if (values.material !== undefined && MATERIALS[values.material]) {
+        state.mat = values.material;
+        state.kernel.setMaterial(state.mat);
+      }
+      if (values.Th !== undefined) state.Th = clamp(finite(Number(values.Th), defs.Th.default), defs.Th.min, defs.Th.max);
+      if (values.Tc !== undefined) state.Tc = clamp(finite(Number(values.Tc), defs.Tc.default), defs.Tc.min, defs.Tc.max);
+      if (values.speed !== undefined) state.speed = clamp(finite(Number(values.speed), defs.speed.default), 1, 500);
+      state.kernel.Th = state.Th;
+      state.kernel.Tc = state.Tc;
+      els.thInput.value = String(state.Th);
+      els.tcInput.value = String(state.Tc);
+      Array.from(els.matSeg.children).forEach((b) => b.classList.toggle("active", b.dataset.mat === state.mat));
+      Array.from(els.speedSeg.children).forEach((b) => b.classList.toggle("active", Number(b.dataset.speed) === state.speed));
+      state.qCache = null;
+      render();
+    }
+
+    function bindControls() {
+      els.startBtn.addEventListener("click", start);
+      els.pauseBtn.addEventListener("click", pause);
+      els.resetBtn.addEventListener("click", reset);
+      els.thInput.addEventListener("input", () => setParameters({ Th: els.thInput.value, Tc: els.tcInput.value }));
+      els.tcInput.addEventListener("input", () => setParameters({ Th: els.thInput.value, Tc: els.tcInput.value }));
+      Array.from(els.matSeg.children).forEach((btn) => btn.addEventListener("click", () => setParameters({ material: btn.dataset.mat })));
+      Array.from(els.speedSeg.children).forEach((btn) => btn.addEventListener("click", () => setParameters({ speed: Number(btn.dataset.speed) })));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      state.qCache = null;
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function getState() {
+      return {
+        running: state.running, t: state.t, Th: state.Th, Tc: state.Tc, mat: state.mat, speed: state.speed,
+        T: Array.from(state.kernel.T), history: state.history.map((p) => ({ ...p }))
+      };
+    }
+    function getReadouts() {
+      const o = observables();
+      return { t: state.t, Th: state.Th, Tc: state.Tc, TB: o.TB, Pin: o.Pin, Pout: o.Pout, store: o.store, deviationPct: o.dev * 100, steady: state.t > 0 && o.dev <= 0.03 };
+    }
+
+    /* ================= model checks (pure, DOM-free) ================= */
+    function runModelChecks() {
+      const results = [];
+      const push = (name, pass, expected, actual, tolerance) => results.push({ name, pass, expected, actual, tolerance });
+      function runTo(Th, Tc, mat, tEnd, hOverride) {
+        const kn = createKernel({ Th, Tc, mat, Tinit: Tc });
+        let t = 0;
+        while (t < tEnd - 1e-9) { const h = Math.min(hOverride || kn.h, tEnd - t); kn.advance(h); t += h; }
+        return kn;
+      }
+      /* 1. steady state is exactly the analytic straight line */
+      {
+        const kn = runTo(100, 0, "steel", 40000);
+        const ss = kn.steadyProfile();
+        let m = 0;
+        for (let i = 0; i < GEOM.N; i += 1) m = Math.max(m, Math.abs(kn.T[i] - ss[i]));
+        const f = kn.flux();
+        const qBal = Math.abs(f.qin - f.qout);
+        push("稳态分布 = 解析直线，且流入 = 流出", m < 0.01 && qBal < 1e-6,
+          "最大偏差 < 0.01 ℃，|q进-q出| < 1e-6 W/m²",
+          `${m.toExponential(2)} ℃，|Δq| = ${qBal.toExponential(2)} W/m²`, "0.01 ℃ / 1e-6 W/m²");
+      }
+      /* 2. exact discrete energy balance in one step */
+      {
+        const kn = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        kn.advance(kn.h);
+        const diff = Math.abs(kn.lastDeltaSum - kn.lastDeltaExpected);
+        push("单步能量收支守恒 ΣΔT = 净边界流入", diff <= 1e-10 * Math.abs(kn.lastDeltaExpected),
+          "差 ≤ 1e-10 × 期望值", `相对差 ${(diff / Math.abs(kn.lastDeltaExpected)).toExponential(3)}`, "相对 1e-10");
+      }
+      /* 3. Fourier-series oracle + maximum principle */
+      {
+        let worst = 0, boundsOk = true;
+        for (const Fo of [0.05, 0.2]) {
+          const tEnd = Fo * GEOM.L * GEOM.L / MATERIALS.steel.alpha;
+          const kn = runTo(100, 0, "steel", tEnd);
+          for (let i = 0; i < GEOM.N; i += 1) {
+            const s = (i + 1) / (GEOM.N + 1);
+            worst = Math.max(worst, Math.abs(kn.T[i] - seriesTemp(s, Fo, 100, 0)));
+            if (kn.T[i] < -1e-9 || kn.T[i] > 100 + 1e-9) boundsOk = false;
+          }
+        }
+        push("傅里叶级数解析解对照（Fo=0.05 与 0.2，全节点）", worst < 1.0,
+          "最大偏差 < 1.0 ℃（1% 温差）", `最大偏差 ${worst.toFixed(4)} ℃`, "1.0 ℃");
+        push("最大值原理：温度始终介于两槽温度之间", boundsOk, "0 ≤ T ≤ 100 ℃", boundsOk ? "满足" : "出现越界", "严格（含 1e-9 容差）");
+      }
+      /* 4. step-halving convergence */
+      {
+        const Fo = 0.2, tEnd = Fo * GEOM.L * GEOM.L / MATERIALS.steel.alpha;
+        const errOf = (kn) => { let m = 0; for (let i = 0; i < GEOM.N; i += 1) m = Math.max(m, Math.abs(kn.T[i] - seriesTemp((i + 1) / (GEOM.N + 1), Fo, 100, 0))); return m; };
+        const coarse = errOf(runTo(100, 0, "steel", tEnd, 0.5));
+        const fine = errOf(runTo(100, 0, "steel", tEnd, 0.25));
+        push("步长减半收敛（误差减小）", fine < coarse, "细步长误差 < 粗步长误差", `${fine.toFixed(5)} < ${coarse.toFixed(5)} ℃`, "严格");
+      }
+      /* 5. chunked stepping invariance (aligned substeps: identical) */
+      {
+        const a = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        const b = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        advanceSim(a, 5.0);
+        for (let i = 0; i < 5; i += 1) advanceSim(b, 1.0);
+        let d = 0;
+        for (let i = 0; i < GEOM.N; i += 1) d = Math.max(d, Math.abs(a.T[i] - b.T[i]));
+        push("帧分块不变性（对齐步长，逐帧 vs 整段）", d < 1e-12, "完全一致", `最大差 ${d.toExponential(2)} ℃`, "1e-12 ℃");
+      }
+      /* 6. time-scale invariance: any chunking yields an identical substep sequence */
+      {
+        const a = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        const b = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        const c = createKernel({ Th: 100, Tc: 0, mat: "steel", Tinit: 0 });
+        advanceSim(a, 25.0);
+        for (let i = 0; i < 100; i += 1) advanceSim(b, 0.25);
+        for (let i = 0; i < 1500; i += 1) advanceSim(c, 1 / 60);
+        let d = 0;
+        for (let i = 0; i < GEOM.N; i += 1) d = Math.max(d, Math.abs(a.T[i] - b.T[i]), Math.abs(a.T[i] - c.T[i]));
+        push("时间加速不变性（整段 / 100 帧 / 60fps 任意分块）", d < 1e-12,
+          "完全一致（固定物理步长 + 余数进位）", `最大差 ${d.toExponential(2)} ℃`, "1e-12 ℃");
+      }
+      /* 7. bath swap = reflection in T: B(x) = (Th+Tc) - A(x), flux reverses */
+      {
+        const A = runTo(100, 0, "steel", 300);
+        const B = runTo(0, 100, "steel", 300);
+        let d = 0;
+        for (let i = 0; i < GEOM.N; i += 1) d = Math.max(d, Math.abs(B.T[i] - (100 - A.T[i])));
+        const fA = A.flux(), fB = B.flux();
+        const fluxErr = Math.abs(fB.qin + fA.qin) / Math.max(1, Math.abs(fA.qin));
+        push("冷热槽对调：温度反演对称且热流反向", d < 1e-6 && fluxErr < 1e-9,
+          "T′(x) = 100 − T(x)，q′进 = −q进", `温度差 ${d.toExponential(2)} ℃，热流相对差 ${fluxErr.toExponential(2)}`, "1e-6 ℃ / 相对 1e-9");
+      }
+      return results;
+    }
+
+    /* ================= export ================= */
+    if (typeof window !== "undefined") window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    else if (typeof globalThis !== "undefined") globalThis.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (typeof document !== "undefined" && document.getElementById("scene")) init();
+  })();
+  </script>
+</body>
+</html>

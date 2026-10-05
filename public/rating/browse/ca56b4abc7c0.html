@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>机械能过山车 · 圆环与摩擦生热</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.12), transparent 26%),
+        radial-gradient(circle at 94% 4%, rgba(245, 158, 11, 0.10), transparent 24%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.4); outline-offset: 2px; }
+    .app { width: min(1680px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 9px 16px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; }
+    .status[data-tone="run"] { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.3); color: var(--sim-accent-deep); }
+    .status[data-tone="ok"] { background: #e3f6ec; border-color: rgba(22,138,72,.3); color: #167a48; }
+    .status[data-tone="warn"] { background: #fdf1dc; border-color: rgba(217,119,6,.3); color: #9a5a07; }
+    .status[data-tone="fail"] { background: #fdeaea; border-color: rgba(220,38,38,.3); color: #b91c1c; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.95fr) minmax(350px, 0.92fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.95); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 380px; padding: 12px 12px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+    #scene { width: 100%; height: 100%; min-height: 320px; display: block; border: 1px solid rgba(15,159,186,.14); border-radius: 16px; background: linear-gradient(180deg, #edf7fb 0%, #f5fafc 58%, #fdf7ec 100%); touch-action: none; }
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
+    .readouts { padding: 14px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; overflow: hidden; }
+    .readout-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 9px 11px; border: 1px solid rgba(15,159,186,.13); border-radius: 13px; background: linear-gradient(150deg, #f8fcfd, #f3f7fa); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; white-space: nowrap; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .metric strong em { font-style: normal; font-size: 0.78rem; color: var(--sim-muted); margin-left: 2px; }
+    .metric.heat { border-color: rgba(220,38,38,.18); background: linear-gradient(150deg, #fdf5f5, #fbf1f1); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.75rem; color: var(--sim-muted); }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    #energyChart { width: 100%; height: 100%; min-height: 170px; display: block; }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+    .model-note h2 { margin: 0; font-size: 1rem; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #7a4e08 !important; font-weight: 600; line-height: 1.6; min-height: 3.2em; }
+    .controls { padding: 11px 16px; display: grid; grid-template-columns: auto minmax(210px, 1fr) minmax(190px, 0.9fr) minmax(200px, 1.15fr); gap: 18px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .15s ease, background .15s ease, border-color .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); box-shadow: inset 0 0 0 1px rgba(8,117,138,.35); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; font-weight: 650; }
+    .control output.ok { color: #167a48; }
+    .control output.low { color: var(--sim-danger); }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .hint { margin: 0; color: var(--sim-muted); font-size: 0.76rem; line-height: 1.55; }
+    /* scene svg parts */
+    .ground { fill: #e8e0cd; }
+    .ground-deep { fill: #dccfae; }
+    .ruler-strip { fill: rgba(23,32,51,.045); }
+    .ruler-tick { stroke: #9aa7ba; stroke-width: 1; }
+    .ruler-tick.major { stroke: #64748b; stroke-width: 1.6; }
+    .ruler-label { fill: #657188; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .scene-label { fill: #52627a; font-size: 13px; font-weight: 650; }
+    .scene-label.accent { fill: #08758a; }
+    .scene-label.heat { fill: #b91c1c; }
+    .crit-line { stroke: var(--sim-danger); stroke-width: 2; stroke-dasharray: 9 7; opacity: .8; }
+    .crit-text { fill: #b91c1c; font-size: 13px; font-weight: 700; }
+    .track-bed { stroke: #cbb98e; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .track-rail { stroke: #33465e; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .loop-rail { stroke: #08758a; stroke-width: 5; }
+    .release-strut { stroke: #b3a37d; stroke-width: 3; stroke-dasharray: 2 4; }
+    .release-guide { stroke: var(--sim-accent); stroke-width: 1.6; stroke-dasharray: 6 5; opacity: .75; }
+    .cart-body { fill: #0f7f96; stroke: #085968; stroke-width: 1.5; }
+    .cart-window { fill: #d9f4f7; }
+    .wheel circle { fill: #22303f; }
+    .wheel line { stroke: #9fb3c8; stroke-width: 1.6; }
+    .vel-arrow { stroke: #d97706; stroke-width: 3.5; stroke-linecap: round; }
+    .vel-head { fill: #d97706; }
+    .mark-fail { fill: none; stroke: var(--sim-danger); stroke-width: 3; }
+    .mark-text { fill: #b91c1c; font-size: 13px; font-weight: 750; }
+    .axis-line { stroke: #9aa7ba; stroke-width: 1.5; }
+    .chart-grid { stroke: var(--sim-grid); stroke-width: 1; }
+    .chart-axis-label { fill: #657188; font-size: 12px; }
+    @media (max-width: 900px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; gap: 10px; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 1280 / 600; }
+      #energyChart { min-height: 0; height: auto; aspect-ratio: 640 / 300; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>机械能过山车 · 圆环与摩擦生热</h1>
+        <p>调节释放高度：观察势能与动能的转化、竖直圆环的临界高度（不够高会怎样）、以及摩擦段的生热。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite" data-tone="run">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">过山车轨道</h2><span id="sceneSub">h = 3.20 m · μ = 0.15 · 临界高度 3.00 m</span></div>
+        <svg id="scene" viewBox="0 0 1280 600" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">过山车轨道演示：左侧是高度可调的释放斜坡（带标尺与临界高度线），中部是竖直圆环，右侧是一段有摩擦的粗糙轨道。小车释放后沿轨道运动，画面实时显示速度箭头、轨迹与能量数据。</desc>
+          <defs>
+            <pattern id="hatch" width="9" height="9" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <rect width="9" height="9" fill="#fdecea"></rect>
+              <line x1="0" y1="0" x2="0" y2="9" stroke="#e39a95" stroke-width="3"></line>
+            </pattern>
+            <marker id="velHead" markerWidth="9" markerHeight="9" refX="6.5" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 z" class="vel-head"></path>
+            </marker>
+          </defs>
+          <g id="groundGroup"></g>
+          <g id="rulerGroup"></g>
+          <rect id="rulerHit" x="18" y="24" width="66" height="560" fill="transparent" style="cursor: ns-resize;"></rect>
+          <line id="critLine" class="crit-line" x1="84" y1="175" x2="1266" y2="175"></line>
+          <text id="critText" class="crit-text" x="1262" y="166" text-anchor="end">临界释放高度 h = 2.5R = 3.0 m（低于此线：过不了环顶）</text>
+          <g id="releaseGroup"></g>
+          <path id="trackBed" class="track-bed" d=""></path>
+          <path id="trackPath" class="track-rail" d=""></path>
+          <rect id="roughBand" x="0" y="0" width="0" height="0" fill="url(#hatch)" stroke="#d6706b" stroke-width="1.4" rx="3"></rect>
+          <text id="roughLabel" class="scene-label heat" text-anchor="middle"></text>
+          <text id="loopLabel" class="scene-label accent" text-anchor="middle">竖直圆环 R = 1.2 m</text>
+          <g id="trailGroup"></g>
+          <g id="markGroup"></g>
+          <g id="cartGroup" transform="translate(0,0)">
+            <g id="cartTilt" transform="rotate(0)">
+              <rect class="cart-body" x="-18" y="-28" width="36" height="18" rx="6"></rect>
+              <rect class="cart-window" x="-11" y="-24" width="13" height="7" rx="3"></rect>
+              <g id="wheelA" class="wheel" transform="translate(-10,-6)"><circle r="6"></circle><line x1="-4.2" y1="0" x2="4.2" y2="0"></line><line x1="0" y1="-4.2" x2="0" y2="4.2"></line></g>
+              <g id="wheelB" class="wheel" transform="translate(10,-6)"><circle r="6"></circle><line x1="-4.2" y1="0" x2="4.2" y2="0"></line><line x1="0" y1="-4.2" x2="0" y2="4.2"></line></g>
+            </g>
+          </g>
+          <line id="velArrow" class="vel-arrow" x1="0" y1="0" x2="0" y2="0" marker-end="url(#velHead)"></line>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>速度 v</small><strong id="vReadout">0.0<em>m/s</em></strong></div>
+            <div class="metric"><small>高度 y</small><strong id="yReadout">3.20<em>m</em></strong></div>
+            <div class="metric"><small>动能 E<sub>k</sub></small><strong id="keReadout">0.0<em>J</em></strong></div>
+            <div class="metric"><small>势能 E<sub>p</sub></small><strong id="peReadout">31.4<em>J</em></strong></div>
+            <div class="metric heat"><small>摩擦生热 Q</small><strong id="qReadout">0.0<em>J</em></strong></div>
+            <div class="metric"><small>机械能 / 总能</small><strong id="emReadout">31.4 / 31.4<em>J</em></strong></div>
+          </div>
+          <div class="legend">
+            <span><i style="background:#0f9fba;"></i>势能 E<sub>p</sub></span>
+            <span><i style="background:#f59e0b;"></i>动能 E<sub>k</sub></span>
+            <span><i style="background:#dc2626;"></i>摩擦生热 Q</span>
+            <span><i style="background:#172033;"></i>总能量（守恒）</span>
+          </div>
+          <svg id="energyChart" viewBox="0 0 640 300" role="img" aria-label="能量随时间变化图：势能、动能、摩擦生热堆叠图与总能线">
+            <g id="chartGrid"></g>
+            <path id="chartPE" fill="rgba(15,159,186,.55)"></path>
+            <path id="chartKE" fill="rgba(245,158,11,.6)"></path>
+            <path id="chartQ" fill="rgba(220,38,38,.5)"></path>
+            <line id="chartE0" stroke="#657188" stroke-width="1.6" stroke-dasharray="6 5"></line>
+            <polyline id="chartTotal" fill="none" stroke="#172033" stroke-width="2.6" stroke-linejoin="round"></polyline>
+            <circle id="chartDot" r="4.5" fill="#172033" stroke="#fff" stroke-width="2"></circle>
+            <g id="chartAxes"></g>
+          </svg>
+        </section>
+        <section class="panel model-note" data-zone="insight">
+          <h2>解读与模型</h2>
+          <p id="insight" class="insight">按「开始」释放小车：势能（蓝）逐渐转化为动能（橙）。拖动左侧标尺或滑块改变释放高度——低于 3.0 m 时看看会发生什么。</p>
+          <p>教学模型：小车视为质点，m = 1 kg，g = 9.8 m/s²；除摩擦段（动摩擦因数 μ）外轨道光滑；圆环半径 R = 1.2 m，通过环顶的临界释放高度 h = 2.5R = 3.0 m；小车脱离圆环后做抛体运动，落地按完全非弹性碰撞处理（动能全部计入热 Q）；数值采用固定步长 RK4（240 步/秒）。图中速度箭头长度按速度放大显示。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="演示控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">复位</button>
+        <button id="slowBtn" type="button" aria-pressed="false">慢速 0.5×</button>
+      </div>
+      <div class="control">
+        <label for="hInput">释放高度 h <output id="hOutput" class="ok">3.20 m · 足够过环</output></label>
+        <input id="hInput" type="range" min="0.6" max="4" step="0.05" value="3.2">
+      </div>
+      <div class="control">
+        <label for="muInput">摩擦段动摩擦因数 μ <output id="muOutput">0.15</output></label>
+        <input id="muInput" type="range" min="0" max="0.6" step="0.01" value="0.15">
+      </div>
+      <p class="hint">调节参数会自动复位重新演示 · μ = 0 时摩擦段光滑，可对比"有无摩擦"两次运行 · 也可上下拖动左侧标尺直接改变释放高度。</p>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    // ================= Physics constants (SI units) =================
+    const G = 9.8, MASS = 1.0, R = 1.2;              // gravity, cart mass, loop radius
+    const H_MIN = 0.6, H_MAX = 4.0, H_CRIT = 2.5 * R; // release-height range and loop threshold
+    const MU_MIN = 0, MU_MAX = 0.6;
+    const GEO = { xr0: 0.55, xr1: 2.75, xc: 4.5, xf0: 6.5, xf1: 9.5, xe: 10.9 }; // track key x-positions (m)
+    const DT = 1 / 240;                               // fixed physical step (s)
+    const TAU = Math.PI * 2;
+    const ROUGH_LEN = GEO.xf1 - GEO.xf0;
+
+    // ================= Pure kernel: bead-on-track with detachment / flight / friction =================
+    // Each segment is parameterized by u in [0,1]; the unit tangent is t=(cosA,sinA) along
+    // increasing u, the left normal n points to the side the cart rides on, so the contact
+    // force per unit mass is N = v^2*kappa + G*cosA. The cart detaches when N < 0 inside the loop.
+    function rampFactory(h) {
+      const dx = GEO.xr1 - GEO.xr0;
+      return {
+        kind: "ramp", mu: 0,
+        J: (u) => Math.hypot(dx, 2 * h * (1 - u)),
+        pos: (u) => ({ x: GEO.xr0 + dx * u, y: h * (1 - u) * (1 - u) }),
+        sinA: (u) => (-2 * h * (1 - u)) / Math.hypot(dx, 2 * h * (1 - u)),
+        cosA: (u) => dx / Math.hypot(dx, 2 * h * (1 - u)),
+        kappa: (u) => {
+          const slope = (-2 * h * (1 - u)) / dx;
+          return (2 * h / (dx * dx)) / Math.pow(1 + slope * slope, 1.5);
+        }
+      };
+    }
+    function flatFactory(x0, len, mu) {
+      return {
+        kind: "flat", mu,
+        J: () => len,
+        pos: (u) => ({ x: x0 + len * u, y: 0 }),
+        sinA: () => 0, cosA: () => 1, kappa: () => 0
+      };
+    }
+    function loopFactory() {
+      return {
+        kind: "loop", mu: 0, J: () => TAU * R,
+        pos: (u) => { const th = TAU * u; return { x: GEO.xc + R * Math.sin(th), y: R * (1 - Math.cos(th)) }; },
+        sinA: (u) => Math.sin(TAU * u), cosA: (u) => Math.cos(TAU * u), kappa: () => 1 / R
+      };
+    }
+    function buildTrack(h, mu) {
+      const segs = [
+        rampFactory(h),
+        flatFactory(GEO.xr1, GEO.xc - GEO.xr1, 0),
+        loopFactory(),
+        flatFactory(GEO.xc, GEO.xf0 - GEO.xc, 0),
+        flatFactory(GEO.xf0, ROUGH_LEN, mu),
+        flatFactory(GEO.xf1, GEO.xe - GEO.xf1, 0)
+      ];
+      // Dense polyline of the whole track, used for flight-impact detection and rendering.
+      const pts = [];
+      const N = { ramp: 64, loop: 128 };
+      segs.forEach((seg) => {
+        const n = N[seg.kind] || 2;
+        for (let i = 0; i < n; i += 1) { const p = seg.pos(i / n); pts.push([p.x, p.y]); }
+      });
+      const end = segs[segs.length - 1].pos(1);
+      pts.push([end.x, end.y]);
+      const poly = [];
+      for (let i = 0; i < pts.length - 1; i += 1) {
+        const a = pts[i], b = pts[i + 1];
+        poly.push({ ax: a[0], ay: a[1], bx: b[0], by: b[1],
+          minx: Math.min(a[0], b[0]), maxx: Math.max(a[0], b[0]),
+          miny: Math.min(a[1], b[1]), maxy: Math.max(a[1], b[1]) });
+      }
+      return { h, mu, segs, poly, pts };
+    }
+    function normalAccel(seg, u, v) { return v * v * seg.kappa(u) + G * seg.cosA(u); }
+    function accel(seg, u, v) {
+      let at = -G * seg.sinA(u);
+      if (seg.mu > 0 && Math.abs(v) > 1e-9) at -= seg.mu * Math.max(normalAccel(seg, u, v), 0) * Math.sign(v);
+      return at;
+    }
+    function rk4(seg, u, v, dt) {
+      const f = (uu, vv) => {
+        const c = Math.min(1, Math.max(0, uu));
+        return [vv / seg.J(c), accel(seg, c, vv)];
+      };
+      const k1 = f(u, v);
+      const k2 = f(u + dt / 2 * k1[0], v + dt / 2 * k1[1]);
+      const k3 = f(u + dt / 2 * k2[0], v + dt / 2 * k2[1]);
+      const k4 = f(u + dt * k3[0], v + dt * k3[1]);
+      return {
+        u: u + dt / 6 * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+        v: v + dt / 6 * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1])
+      };
+    }
+    function bisectTime(seg, u, v, dt, crosses) {
+      let lo = 0, hi = dt;
+      for (let i = 0; i < 24; i += 1) {
+        const mid = (lo + hi) / 2;
+        if (crosses(rk4(seg, u, v, mid))) hi = mid; else lo = mid;
+      }
+      return hi;
+    }
+    // Advance the rolling mode one fixed step; splits at segment boundaries and detachment.
+    function stepRoll(tr, st, dt) {
+      let remaining = dt, guard = 0;
+      while (remaining > 1e-12 && guard < 6) {
+        guard += 1;
+        const seg = tr.segs[st.seg];
+        const preU = st.u, preV = st.v;
+        let next = rk4(seg, preU, preV, remaining);
+        let used = remaining;
+        if (next.u >= 1 && preU < 1) {
+          used = bisectTime(seg, preU, preV, remaining, (r) => r.u >= 1);
+          next = rk4(seg, preU, preV, used); next.u = 1;
+        } else if (next.u <= 0 && preU > 0) {
+          used = bisectTime(seg, preU, preV, remaining, (r) => r.u <= 0);
+          next = rk4(seg, preU, preV, used); next.u = 0;
+        }
+        const vAvg = (preV + next.v) / 2;
+        if (seg.mu > 0) {
+          const uMid = (preU + next.u) / 2;
+          st.Q += seg.mu * MASS * Math.max(normalAccel(seg, uMid, vAvg), 0) * Math.abs(vAvg) * used;
+        }
+        st.u = next.u; st.v = next.v; st.t += used; st.dist += Math.abs(vAvg) * used;
+        const p = seg.pos(Math.min(1, Math.max(0, st.u)));
+        st.x = p.x; st.y = p.y;
+        if (seg.kind === "loop" && preU < 0.5 && st.u >= 0.5) {
+          st.topCleared = true; st.keAtTop = 0.5 * MASS * st.v * st.v;
+        }
+        // Detachment inside the loop: locate the exact N = 0 crossing inside this substep.
+        const segNow = tr.segs[st.seg];
+        if (segNow.kind === "loop" && normalAccel(segNow, st.u, st.v) < 0) {
+          const tD = bisectTime(segNow, preU, preV, used,
+            (r) => normalAccel(segNow, Math.min(1, Math.max(0, r.u)), r.v) < 0);
+          const rD = rk4(segNow, preU, preV, tD);
+          const ud = Math.min(1, Math.max(0, rD.u));
+          const thD = TAU * ud;
+          const pD = segNow.pos(ud);
+          const vd = Math.sqrt(Math.max(2 * G * (st.h0 - pD.y), 0)); // energy-exact speed on the frictionless loop
+          const dir = rD.v >= 0 ? 1 : -1;
+          st.phase = "flight"; st.seg = -1; st.u = 0;
+          st.t += tD - used; // correct substep clock to the detachment instant
+          st.x = pD.x; st.y = pD.y;
+          st.vx = dir * vd * segNow.cosA(ud); st.vy = dir * vd * segNow.sinA(ud); st.v = vd;
+          st.detachTheta = thD; st.detachX = pD.x; st.detachY = pD.y; st.flightT = 0;
+          return;
+        }
+        if (st.u >= 1) {
+          if (st.seg >= tr.segs.length - 1) { st.phase = "finished"; return; }
+          st.seg += 1; st.u = 0; remaining -= used;
+        } else if (st.u <= 0) {
+          if (st.seg === 0) {
+            if (st.dist > 0.3) { st.Q += 0.5 * MASS * st.v * st.v; st.v = 0; st.phase = "stopped"; return; }
+            st.u = 0; remaining -= used;
+          } else { st.seg -= 1; st.u = 1; remaining -= used; }
+        } else {
+          remaining = 0;
+        }
+      }
+    }
+    function segCross(ax, ay, bx, by, s) {
+      const dx = bx - ax, dy = by - ay, ex = s.bx - s.ax, ey = s.by - s.ay;
+      const den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-12) return null;
+      const t = ((s.ax - ax) * ey - (s.ay - ay) * ex) / den;
+      const w = ((s.ax - ax) * dy - (s.ay - ay) * dx) / den;
+      if (t < 0 || t > 1 || w < 0 || w > 1) return null;
+      return t;
+    }
+    // Ballistic mode: exact kinematics per step; first track crossing ends the trial.
+    function stepFlight(tr, st, dt) {
+      const x1 = st.x + st.vx * dt;
+      const y1 = st.y + st.vy * dt - 0.5 * G * dt * dt;
+      const vy1 = st.vy - G * dt;
+      st.flightT += dt;
+      let hit = null;
+      if (st.flightT > 0.1) {
+        for (let i = 0; i < tr.poly.length; i += 1) {
+          const s = tr.poly[i];
+          if (Math.max(st.x, x1) < s.minx || Math.min(st.x, x1) > s.maxx ||
+              Math.max(st.y, y1) < s.miny || Math.min(st.y, y1) > s.maxy) continue;
+          const f = segCross(st.x, st.y, x1, y1, s);
+          if (f !== null && (hit === null || f < hit.f)) hit = { f, i };
+        }
+      }
+      if (hit) {
+        const cx = st.x + (x1 - st.x) * hit.f, cy = st.y + (y1 - st.y) * hit.f;
+        const vImp = Math.hypot(st.vx, st.vy - G * dt * hit.f);
+        st.t += dt * hit.f; st.x = cx; st.y = cy;
+        st.tilt = Math.atan2(st.vy, st.vx);
+        st.Q += 0.5 * MASS * vImp * vImp;      // fully inelastic capture: KE -> heat
+        st.vx = 0; st.vy = 0; st.v = 0;
+        st.phase = "crashed"; st.impact = { x: cx, y: cy, v: vImp };
+        return;
+      }
+      st.t += dt; st.x = x1; st.y = y1; st.vy = vy1; st.v = Math.hypot(st.vx, vy1);
+      st.dist += Math.hypot(st.vx, vy1) * dt;
+      st.tilt = Math.atan2(vy1, st.vx);
+      if (st.y < -0.6) { st.y = 0; st.Q += 0.5 * MASS * st.v * st.v; st.v = 0; st.vx = 0; st.vy = 0; st.phase = "crashed"; st.impact = { x: st.x, y: 0, v: 0 }; }
+    }
+    function newTrial(h, mu) {
+      const tr = buildTrack(h, mu);
+      return {
+        h, mu, tr,
+        st: {
+          phase: "ready", t: 0, seg: 0, u: 0, v: 0, x: GEO.xr0, y: h, vx: 0, vy: 0,
+          Q: 0, dist: 0, h0: h, topCleared: false, keAtTop: null, detachTheta: null,
+          detachX: null, detachY: null, impact: null, flightT: 0, tilt: 0
+        },
+        hist: [{ t: 0, pe: MASS * G * h, ke: 0, q: 0 }], trail: [],
+        lastHistT: -1, lastTrailT: -1
+      };
+    }
+    function stepOnce(trial, dt) {
+      const st = trial.st;
+      if (st.phase === "roll") stepRoll(trial.tr, st, dt);
+      else if (st.phase === "flight") stepFlight(trial.tr, st, dt);
+      // Settle the endless frictionless back-and-forth when the cart returns to the start.
+      if (st.phase === "roll" && st.dist > 0.3 && st.seg === 0 && st.u < 0.06 && Math.abs(st.v) < 0.05) {
+        st.Q += 0.5 * MASS * st.v * st.v; st.v = 0; st.phase = "stopped";
+      }
+    }
+    function energies(trial) {
+      const st = trial.st;
+      return { pe: MASS * G * st.y, ke: 0.5 * MASS * st.v * st.v, q: st.Q, e0: MASS * G * trial.h };
+    }
+    // Deterministic full-run simulation used by runModelChecks (no DOM involved).
+    function runTrialSim(h, mu, dt, maxT) {
+      const trial = newTrial(h, mu);
+      const st = trial.st;
+      st.phase = "roll";
+      const out = { st, v2AtLoopEntry: null, exitV2: null, maxYAfterReversal: 0, reversed: false };
+      const steps = Math.ceil((maxT || 14) / dt);
+      for (let i = 0; i < steps; i += 1) {
+        const prevSeg = st.seg;
+        stepOnce(trial, dt);
+        if (st.v < 0) out.reversed = true;
+        if (out.reversed && st.y > out.maxYAfterReversal) out.maxYAfterReversal = st.y;
+        if (prevSeg === 1 && st.seg === 2 && out.v2AtLoopEntry === null) out.v2AtLoopEntry = st.v * st.v;
+        if (prevSeg === 4 && st.seg === 5 && out.exitV2 === null) out.exitV2 = st.v * st.v;
+        if (st.phase === "crashed" || st.phase === "finished" || st.phase === "stopped") break;
+      }
+      out.energy = energies(trial);
+      return out;
+    }
+    function fmt(x, d) { return (Math.round(x * Math.pow(10, d || 2)) / Math.pow(10, d || 2)).toString(); }
+    function runModelChecks() {
+      const cases = [];
+      const push = (name, pass, expected, actual, tolerance) => cases.push({ name, pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+      // 1. Ordinary case: frictionless energy conversion at the loop entry, v^2 = 2gh.
+      {
+        const r = runTrialSim(3.6, 0, DT);
+        const expected = 2 * G * 3.6;
+        const ratio = r.v2AtLoopEntry / expected;
+        push("摩擦下滑·环底动能守恒 v²=2gh", ratio > 0.995 && ratio < 1.005 && Number.isFinite(ratio),
+          `v² = ${fmt(expected)} m²/s²`, `v² = ${fmt(r.v2AtLoopEntry)} m²/s² (比值 ${fmt(ratio, 4)})`, "±0.5%");
+      }
+      // 2. Threshold just above 2.5R: the cart clears the top and finishes.
+      {
+        const r = runTrialSim(H_CRIT + 0.01, 0, DT);
+        push("临界+1cm：刚好过环并跑完全程", r.st.topCleared && r.st.phase === "finished" && r.st.detachTheta === null,
+          "过环顶、不脱离、运行完成", `过环=${r.st.topCleared}，脱离=${r.st.detachTheta !== null}，终态=${r.st.phase}`, "事件必须成立");
+      }
+      // 3. Threshold just below 2.5R: the cart must detach before the top.
+      {
+        const r = runTrialSim(H_CRIT - 0.01, 0, DT);
+        const thetaDeg = r.st.detachTheta === null ? null : r.st.detachTheta * 180 / Math.PI;
+        push("临界-1cm：环内脱离轨道", r.st.detachTheta !== null && thetaDeg < 180,
+          "θ_脱离 < 180°（环顶之前）", `θ_脱离 = ${thetaDeg === null ? "无" : fmt(thetaDeg, 1) + "°"}`, "事件必须成立");
+      }
+      // 4. Detachment angle vs the analytic result cos(θ) = 2(R-h)/(3R).
+      {
+        const h = 2.2;
+        const analytic = Math.acos(2 * (R - h) / (3 * R)) * 180 / Math.PI;
+        const r = runTrialSim(h, 0, DT);
+        const sim = r.st.detachTheta === null ? NaN : r.st.detachTheta * 180 / Math.PI;
+        push("脱离角度 vs 解析值 θ=acos(2(R−h)/3R)", Math.abs(sim - analytic) < 1.5,
+          `${fmt(analytic, 2)}°`, `${fmt(sim, 2)}°`, "±1.5°");
+      }
+      // 5. Frictional heat on the flat rough segment: Q = μmgL exactly, exit speed matches.
+      {
+        const mu = 0.2;
+        const r = runTrialSim(3.6, mu, DT);
+        const qExp = mu * MASS * G * ROUGH_LEN;
+        const v2Exp = 2 * G * 3.6 - 2 * mu * G * ROUGH_LEN;
+        const qRatio = r.st.Q / qExp;
+        const v2Ratio = r.exitV2 / v2Exp;
+        push("摩擦生热 Q=μmg·d 与出段速度", qRatio > 0.9999 && qRatio < 1.0001 && v2Ratio > 0.995 && v2Ratio < 1.005,
+          `Q = ${fmt(qExp, 3)} J，v² = ${fmt(v2Exp)} m²/s²`,
+          `Q = ${fmt(r.st.Q, 3)} J (比值 ${fmt(qRatio, 6)})，v² = ${fmt(r.exitV2)} (比值 ${fmt(v2Ratio, 4)})`, "Q ±0.01%，v² ±0.5%");
+      }
+      // 6. Worst-case friction run: total energy (PE+KE+Q) stays at E0, all finite.
+      {
+        const r = runTrialSim(4.0, 0.6, DT);
+        const res = Math.abs(r.energy.pe + r.energy.ke + r.energy.q - r.energy.e0);
+        const finite = [r.energy.pe, r.energy.ke, r.energy.q, r.st.t, r.st.x, r.st.y].every(Number.isFinite);
+        push("最大摩擦·能量守恒 Ep+Ek+Q=E₀", r.st.phase === "finished" && finite && res < 0.05,
+          `残差 < 0.05 J`, `终态=${r.st.phase}，残差 = ${fmt(res, 6)} J`, "0.05 J");
+      }
+      // 7. Opposite direction: low release never detaches; the cart returns to its release height.
+      {
+        const r = runTrialSim(1.0, 0, DT);
+        push("低高度·滑回（不脱离、回到原高度）", r.st.detachTheta === null && r.reversed && Math.abs(r.maxYAfterReversal - 1.0) < 0.01,
+          "无脱离事件，回摆最高 y = 1.00 m", `脱离=${r.st.detachTheta !== null}，回摆最高 y = ${fmt(r.maxYAfterReversal, 4)} m`, "±0.01 m");
+      }
+      // 8. Step-halving: the conservation residual shrinks (or stays negligible) at half step.
+      {
+        const coarse = runTrialSim(3.6, 0.2, DT);
+        const fine = runTrialSim(3.6, 0.2, DT / 2);
+        const rc = Math.abs(coarse.energy.pe + coarse.energy.ke + coarse.energy.q - coarse.energy.e0);
+        const rf = Math.abs(fine.energy.pe + fine.energy.ke + fine.energy.q - fine.energy.e0);
+        push("步长减半·能量残差不增大", rf <= rc + 1e-9 && rf < 0.05,
+          `残差(${fmt(DT, 5)}s) ≥ 残差(${fmt(DT / 2, 5)}s)，且 < 0.05 J`, `${fmt(rc, 8)} J → ${fmt(rf, 8)} J`, "0.05 J");
+      }
+      return cases;
+    }
+    // ================= UI layer (all DOM access lives below this line) =================
+    const S = 107.5, STOP = 30, SPADL = 86, YMAX = 4.35;                 // px-per-metre, view padding
+    const px = (x) => SPADL + x * S;
+    const py = (y) => STOP + (YMAX - y) * S;
+    const elements = {};
+    const cur = { h: 3.2, mu: 0.15 };
+    const ui = { ready: false, running: false, acc: 0, timeScale: 1, chartKey: "", lastTs: null };
+    let trial = newTrial(cur.h, cur.mu);
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    function initStaticScene() {
+      const g = [];
+      g.push(`<rect x="34" y="${py(4)}" width="30" height="${py(0) - py(4)}" rx="4" class="ruler-strip"></rect>`);
+      for (let m = 0; m <= 4; m += 0.5) {
+        const major = Number.isInteger(m);
+        g.push(`<line class="ruler-tick${major ? " major" : ""}" x1="64" y1="${py(m)}" x2="${major ? 74 : 70}" y2="${py(m)}"></line>`);
+        if (major) g.push(`<text class="ruler-label" x="58" y="${py(m) + 4}" text-anchor="end">${m} m</text>`);
+      }
+      elements.rulerGroup.innerHTML = g.join("");
+      elements.groundGroup.innerHTML =
+        `<rect class="ground" x="40" y="${py(0) + 6}" width="1226" height="18"></rect>` +
+        `<rect class="ground-deep" x="40" y="${py(0) + 24}" width="1226" height="${600 - py(0) - 24}"></rect>`;
+      elements.critLine.setAttribute("y1", py(3.0));
+      elements.critLine.setAttribute("y2", py(3.0));
+      elements.critText.setAttribute("y", py(3.0) - 9);
+      elements.loopLabel.setAttribute("x", px(GEO.xc));
+      elements.loopLabel.setAttribute("y", py(2 * R) - 16);
+    }
+    function drawTrack() {
+      if (!ui.ready) return;
+      const d = trial.tr.pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(p[0]).toFixed(1)},${py(p[1]).toFixed(1)}`).join(" ");
+      elements.trackBed.setAttribute("d", d);
+      elements.trackPath.setAttribute("d", d);
+      elements.roughBand.setAttribute("x", px(GEO.xf0));
+      elements.roughBand.setAttribute("y", py(0) + 7);
+      elements.roughBand.setAttribute("width", (GEO.xf1 - GEO.xf0) * S);
+      elements.roughBand.setAttribute("height", 10);
+      elements.roughLabel.setAttribute("x", px((GEO.xf0 + GEO.xf1) / 2));
+      elements.roughLabel.setAttribute("y", py(0) + 34);
+      elements.roughLabel.textContent = `摩擦段 μ = ${trial.mu.toFixed(2)}`;
+      const X = px(GEO.xr0), Y = py(trial.h);
+      elements.releaseGroup.innerHTML =
+        `<line class="release-strut" x1="${X}" y1="${Y}" x2="${X}" y2="${py(0) + 6}"></line>` +
+        `<line class="release-guide" x1="64" y1="${Y}" x2="${X - 8}" y2="${Y}"></line>` +
+        `<path d="M${X},${Y - 30} L${X + 16},${Y - 24} L${X},${Y - 18} Z" fill="#0f7f96"></path>` +
+        `<text class="scene-label accent" x="${X + 22}" y="${Y - 20}">释放高度 h = ${trial.h.toFixed(2)} m</text>`;
+    }
+    function buildChart() {
+      const st = trial.st, hist = trial.hist;
+      const e0 = MASS * G * trial.h;
+      const ymax = Math.max(10, Math.ceil(e0 / 5) * 5);
+      const xmax = Math.max(8, Math.ceil(st.t));
+      const key = `${ymax}|${xmax}`;
+      const X = (t) => 52 + (t / xmax) * 576;
+      const Y = (e) => 264 - (e / ymax) * 248;
+      if (key !== ui.chartKey) {
+        ui.chartKey = key;
+        let grid = "";
+        for (let e = 0; e <= ymax; e += 5) grid += `<line class="chart-grid" x1="52" y1="${Y(e)}" x2="628" y2="${Y(e)}"></line><text class="chart-axis-label" x="46" y="${Y(e) + 4}" text-anchor="end">${e}</text>`;
+        for (let t = 0; t <= xmax; t += 2) grid += `<line class="chart-grid" x1="${X(t)}" y1="16" x2="${X(t)}" y2="264"></line><text class="chart-axis-label" x="${X(t)}" y="282" text-anchor="middle">${t}</text>`;
+        grid += `<text class="chart-axis-label" x="46" y="12">E/J</text><text class="chart-axis-label" x="628" y="296" text-anchor="end">t/s</text>`;
+        elements.chartGrid.innerHTML = grid;
+        elements.chartE0.setAttribute("y1", Y(e0));
+        elements.chartE0.setAttribute("y2", Y(e0));
+      }
+      const up = hist.map((s) => `${X(s.t).toFixed(1)},${Y(s.pe + s.ke + s.q).toFixed(1)}`);
+      const last = hist[hist.length - 1];
+      elements.chartTotal.setAttribute("points", up.join(" "));
+      elements.chartPE.setAttribute("d", `M${X(hist[0].t)},${Y(0)} L${hist.map((s) => `${X(s.t).toFixed(1)},${Y(s.pe).toFixed(1)}`).join(" L")} L${X(last.t)},${Y(0)} Z`);
+      elements.chartKE.setAttribute("d", `M${hist.map((s) => `${X(s.t).toFixed(1)},${Y(s.pe + s.ke).toFixed(1)}`).join(" L")} L${hist.slice().reverse().map((s) => `${X(s.t).toFixed(1)},${Y(s.pe).toFixed(1)}`).join(" L")} Z`);
+      elements.chartQ.setAttribute("d", `M${hist.map((s) => `${X(s.t).toFixed(1)},${Y(s.pe + s.ke + s.q).toFixed(1)}`).join(" L")} L${hist.slice().reverse().map((s) => `${X(s.t).toFixed(1)},${Y(s.pe + s.ke).toFixed(1)}`).join(" L")} Z`);
+      elements.chartDot.setAttribute("cx", X(last.t));
+      elements.chartDot.setAttribute("cy", Y(last.pe + last.ke + last.q));
+    }
+    function insightText() {
+      const st = trial.st, e = energies(trial);
+      if (st.phase === "crashed") {
+        const deg = st.detachTheta === null ? "—" : (st.detachTheta * 180 / Math.PI).toFixed(0);
+        return `掉落轨道！小车在圆环内 θ ≈ ${deg}° 处脱离（释放高度不足，h < 2.5R）。脱离后做抛体运动，落地碰撞的动能 ${st.impact ? (0.5 * MASS * st.impact.v * st.impact.v).toFixed(1) : "0"} J 全部转化为热 Q。`;
+      }
+      if (st.phase === "stopped") return "滑回停止：释放高度低于临界高度 3.0 m，小车爬到一半速度耗尽、沿轨道滑回——能量始终守恒，但不足以过环。";
+      if (st.phase === "finished") {
+        if (trial.mu <= 0) return "运行完成：本次轨道光滑（μ = 0），机械能全程守恒，Q = 0。把 μ 调大再跑一次，对比摩擦生热。";
+        return `运行完成：摩擦生热 Q = ${e.q.toFixed(1)} J，约占初始总能量 ${(100 * e.q / e.e0).toFixed(0)}%。机械能减少了，但总能量线始终水平。`;
+      }
+      if (st.phase === "flight") return "脱离轨道！环顶附近维持圆周运动所需的向心力超过了重力所能提供的极限，轨道无法再“拉住”小车，它沿切线方向飞出。";
+      if (st.seg === 4) return `摩擦段上：Q = μmg·d 正比于滑过路程，此刻 Q = ${e.q.toFixed(1)} J。动能被摩擦消耗，机械能下降，总能量不变。`;
+      if (st.topCleared && st.seg >= 2 && st.seg <= 3) return `成功过环顶！顶部动能 Eₖ = ${st.keAtTop === null ? "—" : st.keAtTop.toFixed(1)} J（恰好 ≥ mgR/2 ≈ 5.9 J 才能维持接触）。这正是临界高度 h = 2.5R = 3.0 m 的由来。`;
+      if (st.seg === 2) return "圆环内：越接近环顶，重力沿轨道的分量越大、速度越小，而维持圆周需要的向心力却不减——环顶是最“危险”的位置。";
+      if (st.v < 0 && st.seg <= 1) return "高度不够：小车向上爬升时动能提前耗尽，正在沿轨道滑回。把释放高度调到 3.0 m 以上再试。";
+      if (st.seg === 0 && st.v > 0.05) return "下滑加速：势能（蓝）持续转化为动能（橙），两者之和保持不变——机械能守恒。";
+      if (st.seg === 3 || st.seg === 5) return `光滑平段：高度不变，动能几乎恒定（v = ${Math.abs(st.v).toFixed(1)} m/s）。即将进入下一段轨道。`;
+      return "按「开始」释放小车：势能（蓝）逐渐转化为动能（橙）。拖动左侧标尺或滑块改变释放高度——低于 3.0 m 时看看会发生什么。";
+    }
+    function statusFor() {
+      const st = trial.st;
+      if (st.phase === "finished") return { text: "运行完成", tone: "ok" };
+      if (st.phase === "crashed") return { text: "掉落轨道！", tone: "fail" };
+      if (st.phase === "stopped") return { text: "滑回 · 停止", tone: "warn" };
+      if (!ui.running) return st.t > 0 ? { text: "已暂停", tone: "warn" } : { text: "就绪", tone: "run" };
+      if (st.phase === "flight") return { text: "脱离轨道…", tone: "fail" };
+      if (st.topCleared && st.seg >= 3) return { text: "已过环 · 运行中", tone: "ok" };
+      return { text: "运行中", tone: "run" };
+    }
+    function render() {
+      if (!ui.ready) return;
+      const st = trial.st, e = energies(trial);
+      // cart pose
+      let x = st.x, y = st.y, tilt = 0, ux = 0, uy = 0;
+      if (st.seg >= 0 && st.phase !== "crashed") {
+        const seg = trial.tr.segs[Math.min(st.seg, trial.tr.segs.length - 1)];
+        const u = clamp(st.u, 0, 1);
+        const p = seg.pos(u);
+        x = p.x; y = p.y;
+        tilt = Math.atan2(seg.sinA(u), seg.cosA(u));
+        ux = seg.cosA(u) * (st.v < 0 ? -1 : 1); uy = seg.sinA(u) * (st.v < 0 ? -1 : 1);
+      } else {
+        tilt = st.tilt || 0;
+        const vmag = Math.hypot(st.vx, st.vy);
+        if (vmag > 1e-9) { ux = st.vx / vmag; uy = st.vy / vmag; }
+      }
+      elements.cartGroup.setAttribute("transform", `translate(${px(x).toFixed(1)},${py(y).toFixed(1)})`);
+      elements.cartTilt.setAttribute("transform", `rotate(${(-tilt * 180 / Math.PI).toFixed(1)})`);
+      const wheelDeg = (trial.st.dist / 0.056) * 180 / Math.PI % 360;
+      elements.wheelA.setAttribute("transform", `translate(-10,-6) rotate(${wheelDeg.toFixed(1)})`);
+      elements.wheelB.setAttribute("transform", `translate(10,-6) rotate(${wheelDeg.toFixed(1)})`);
+      // velocity arrow (visual amplification: length ∝ speed)
+      const vmagRead = Math.abs(st.v);
+      if (vmagRead > 0.25 && (st.phase === "roll" || st.phase === "flight")) {
+        const L = clamp(vmagRead * 14, 26, 130);
+        const sx = px(x), sy = py(y) - 17;
+        elements.velArrow.setAttribute("x1", sx); elements.velArrow.setAttribute("y1", sy);
+        elements.velArrow.setAttribute("x2", sx + ux * L); elements.velArrow.setAttribute("y2", sy - uy * L);
+        elements.velArrow.setAttribute("display", "");
+      } else elements.velArrow.setAttribute("display", "none");
+      // trail
+      elements.trailGroup.innerHTML = trial.trail.map((t, i) => {
+        const hue = 190 - clamp(t.v / 9, 0, 1) * 175;
+        return `<circle cx="${px(t.x).toFixed(1)}" cy="${py(t.y).toFixed(1)}" r="3.1" fill="hsl(${hue.toFixed(0)},72%,46%)" fill-opacity="${(0.08 + 0.5 * i / Math.max(1, trial.trail.length)).toFixed(3)}"></circle>`;
+      }).join("");
+      // event marks
+      let marks = "";
+      if (st.detachTheta !== null && (st.phase === "flight" || st.phase === "crashed")) {
+        marks += `<circle class="mark-fail" cx="${px(st.detachX).toFixed(1)}" cy="${py(st.detachY).toFixed(1)}" r="9"></circle>` +
+          `<text class="mark-text" x="${px(st.detachX) + 13}" y="${py(st.detachY) + 4}">脱离</text>`;
+      }
+      if (st.phase === "crashed" && st.impact) {
+        const cx = px(st.impact.x), cy = py(st.impact.y);
+        marks += `<circle class="mark-fail" cx="${cx}" cy="${cy}" r="13"></circle>` +
+          `<line class="mark-fail" x1="${cx - 7}" y1="${cy - 7}" x2="${cx + 7}" y2="${cy + 7}"></line>` +
+          `<line class="mark-fail" x1="${cx - 7}" y1="${cy + 7}" x2="${cx + 7}" y2="${cy - 7}"></line>` +
+          `<text class="mark-text" x="${cx}" y="${cy + 30}" text-anchor="middle">落地（动能 → 热）</text>`;
+      }
+      elements.markGroup.innerHTML = marks;
+      // readouts
+      elements.vReadout.innerHTML = `${Math.abs(st.v).toFixed(1)}<em>m/s</em>`;
+      elements.yReadout.innerHTML = `${st.y.toFixed(2)}<em>m</em>`;
+      elements.keReadout.innerHTML = `${e.ke.toFixed(1)}<em>J</em>`;
+      elements.peReadout.innerHTML = `${e.pe.toFixed(1)}<em>J</em>`;
+      elements.qReadout.innerHTML = `${e.q.toFixed(1)}<em>J</em>`;
+      elements.emReadout.innerHTML = `${(e.ke + e.pe).toFixed(1)} / ${e.e0.toFixed(1)}<em>J</em>`;
+      elements.insight.textContent = insightText();
+      const s = statusFor();
+      elements.status.textContent = s.text;
+      elements.status.setAttribute("data-tone", s.tone);
+      elements.sceneSub.textContent = `h = ${trial.h.toFixed(2)} m · μ = ${trial.mu.toFixed(2)} · 临界高度 ${H_CRIT.toFixed(1)} m`;
+      elements.hOutput.textContent = `${trial.h.toFixed(2)} m · ${trial.h >= H_CRIT ? "足够过环" : "不足过环（将脱离）"}`;
+      elements.hOutput.className = trial.h >= H_CRIT ? "ok" : "low";
+      elements.muOutput.textContent = trial.mu.toFixed(2);
+      buildChart();
+    }
+    function sampleTrial() {
+      const st = trial.st;
+      if (st.t - trial.lastHistT >= 1 / 24 || st.phase === "crashed" || st.phase === "finished" || st.phase === "stopped") {
+        if (trial.hist.length === 0 || trial.hist[trial.hist.length - 1].t !== st.t) {
+          const e = energies(trial);
+          trial.hist.push({ t: st.t, pe: e.pe, ke: e.ke, q: e.q });
+          if (trial.hist.length > 1600) trial.hist.shift();
+        }
+        trial.lastHistT = st.t;
+      }
+      if ((st.phase === "roll" || st.phase === "flight") && st.t - trial.lastTrailT >= 1 / 48) {
+        trial.trail.push({ x: st.x, y: st.y, v: Math.abs(st.v) });
+        if (trial.trail.length > 96) trial.trail.shift();
+        trial.lastTrailT = st.t;
+      }
+    }
+    function update(dt) {
+      const st = trial.st;
+      if (!ui.running || (st.phase !== "roll" && st.phase !== "flight")) return;
+      ui.acc = Math.min(ui.acc + clamp(finite(dt, 0), 0, 0.05) * ui.timeScale, DT * 8);
+      let n = 0;
+      while (ui.acc >= DT && n < 8) {
+        stepOnce(trial, DT);
+        ui.acc -= DT; n += 1;
+        sampleTrial();
+        if (st.phase !== "roll" && st.phase !== "flight") { sampleTrial(); break; }
+      }
+    }
+    function resetTrial() {
+      trial = newTrial(cur.h, cur.mu);
+      ui.acc = 0; ui.chartKey = "";
+      drawTrack();
+      render();
+    }
+    function start() {
+      if (["crashed", "finished", "stopped"].includes(trial.st.phase)) resetTrial();
+      if (trial.st.phase === "ready") trial.st.phase = "roll";
+      ui.running = true; ui.acc = 0;
+      render();
+    }
+    function pause() { ui.running = false; render(); }
+    function reset() { ui.running = false; resetTrial(); }
+    function setParameters(values) {
+      const h = clamp(finite(Number(values.h), cur.h), H_MIN, H_MAX);
+      const mu = clamp(finite(Number(values.mu), cur.mu), MU_MIN, MU_MAX);
+      const changed = h !== cur.h || mu !== cur.mu;
+      cur.h = h; cur.mu = mu;
+      if (ui.ready) { elements.hInput.value = String(h); elements.muInput.value = String(mu); }
+      if (changed) { ui.running = false; resetTrial(); }
+    }
+    function getState() {
+      const st = trial.st;
+      return { phase: st.phase, running: ui.running, timeScale: ui.timeScale, t: st.t, h: trial.h, mu: trial.mu,
+        x: st.x, y: st.y, v: st.v, Q: st.Q, dist: st.dist, topCleared: st.topCleared,
+        detachTheta: st.detachTheta, impact: st.impact ? { ...st.impact } : null };
+    }
+    function getReadouts() {
+      const e = energies(trial);
+      return { t: trial.st.t, v: Math.abs(trial.st.v), y: trial.st.y, ke: e.ke, pe: e.pe, q: e.q, e0: e.e0, eMech: e.ke + e.pe };
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.slowBtn.addEventListener("click", () => {
+        ui.timeScale = ui.timeScale === 1 ? 0.5 : 1;
+        elements.slowBtn.setAttribute("aria-pressed", ui.timeScale === 1 ? "false" : "true");
+      });
+      elements.hInput.addEventListener("input", () => setParameters({ h: elements.hInput.value, mu: cur.mu }));
+      elements.muInput.addEventListener("input", () => setParameters({ h: cur.h, mu: elements.muInput.value }));
+      const hit = elements.rulerHit;
+      const applyPointer = (ev) => {
+        const rect = elements.scene.getBoundingClientRect();
+        const pyPx = clamp((ev.clientY - rect.top) / rect.height, 0, 1) * 600;
+        const worldY = YMAX - (pyPx - STOP) / S;
+        setParameters({ h: Math.round(worldY / 0.05) * 0.05, mu: cur.mu });
+      };
+      hit.addEventListener("pointerdown", (ev) => { hit.setPointerCapture(ev.pointerId); applyPointer(ev); });
+      hit.addEventListener("pointermove", (ev) => { if (ev.buttons & 1) applyPointer(ev); });
+    }
+    function init() {
+      ["status", "scene", "sceneSub", "groundGroup", "rulerGroup", "rulerHit", "critLine", "critText",
+       "releaseGroup", "trackBed", "trackPath", "roughBand", "roughLabel", "loopLabel", "trailGroup",
+       "markGroup", "cartGroup", "cartTilt", "wheelA", "wheelB", "velArrow",
+       "vReadout", "yReadout", "keReadout", "peReadout", "qReadout", "emReadout",
+       "insight", "chartGrid", "chartPE", "chartKE", "chartQ", "chartE0", "chartTotal", "chartDot",
+       "hInput", "hOutput", "muInput", "muOutput", "startBtn", "pauseBtn", "resetBtn", "slowBtn"]
+        .forEach((id) => { elements[id] = document.getElementById(id); });
+      ui.ready = true;
+      initStaticScene();
+      bindControls();
+      setParameters({ h: 3.2, mu: 0.15 });
+      resetTrial();
+      requestAnimationFrame(frame);
+    }
+    function frame(timestamp) {
+      if (ui.lastTs === null) ui.lastTs = timestamp;
+      const dt = (timestamp - ui.lastTs) / 1000;
+      ui.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (typeof document !== "undefined" && typeof document.getElementById === "function" && document.getElementById("scene")) init();
+  })();
+  </script>
+</body>
+</html>

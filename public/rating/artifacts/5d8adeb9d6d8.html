@@ -1,0 +1,995 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>绳波脉冲演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* Subject extensions (base tokens above remain authoritative). */
+      --sim-rope: #b45309;
+      --sim-ghost: #7fa3b0;
+      --sim-point: #dc2626;
+      --sim-wall: #64748b;
+      --sim-ring: #d97706;
+      --sim-hand: #8a97ab;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .status[data-state="running"] { background: var(--sim-accent-soft); }
+    .status[data-state="paused"] { background: #fdeecd; color: #92610a; border-color: rgba(245,158,11,.35); }
+    .status[data-state="ended"] { background: #eef1f5; color: var(--sim-muted); border-color: var(--sim-border); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); touch-action: none; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 9px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 2px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.18rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .chart-panel { padding: 13px 15px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    #ytChart { width: 100%; height: 100%; min-height: 150px; display: block; }
+    .insight-panel { padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+    .insight { margin: 0; padding: 11px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; line-height: 1.55; font-size: 0.92rem; }
+    .insight-panel p.note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+    .controls { padding: 12px 14px; display: grid; gap: 10px; border-radius: 17px; }
+    .controls-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 7px; }
+    .tabs .group-label, .controls-row .group-label { color: var(--sim-muted); font-size: 0.78rem; font-weight: 700; margin-right: 2px; }
+    .tab { border: 1px solid var(--sim-border); border-radius: 999px; padding: 8px 14px; background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; font-size: 0.88rem; color: var(--sim-text); transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+    .tab:hover { border-color: #c7d2e2; background: #eef3f9; }
+    .tab:active { transform: scale(.97); }
+    .tab[aria-selected="true"] { border-color: var(--sim-accent-deep); background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); color: #fff; box-shadow: 0 6px 14px rgba(15,159,186,.24); }
+    .actions { display: flex; gap: 8px; margin-left: auto; }
+    button.action { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 15px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button.action:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button.action:active { transform: scale(.97); }
+    button.action[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+    button.action.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    .control { flex: 1 1 190px; min-width: 165px; max-width: 260px; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    #phaseBtn { border-radius: 999px; padding: 7px 13px; font-size: 0.82rem; }
+    #phaseBtn[aria-pressed="true"] { border-color: var(--sim-warning); background: #fff3d6; color: #92610a; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .rest-line { stroke: #b9c6d4; stroke-width: 1.4; stroke-dasharray: 3 6; }
+    .tick-label { fill: var(--sim-muted); font-size: 12px; }
+    .axis-note { fill: var(--sim-muted); font-size: 12.5px; }
+    .ghost { fill: none; stroke: var(--sim-ghost); stroke-width: 3; stroke-linecap: round; }
+    #rope { fill: none; stroke: var(--sim-rope); stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 4px rgba(180, 83, 9, 0.22)); }
+    #pointGuide { stroke: var(--sim-point); stroke-width: 1.6; stroke-dasharray: 4 5; opacity: .55; }
+    #pointDot { fill: var(--sim-point); stroke: #fff; stroke-width: 3; cursor: grab; }
+    #pointDot:active { cursor: grabbing; }
+    #pointHit { fill: transparent; cursor: grab; }
+    #pointLabel { fill: var(--sim-point); font-size: 13px; font-weight: 750; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+    #peakTag { fill: var(--sim-accent-deep); font-size: 13.5px; font-weight: 780; paint-order: stroke; stroke: #fff; stroke-width: 3.5px; }
+    .hand-arm { fill: var(--sim-hand); }
+    .hand-fist { fill: #6b7889; stroke: #fff; stroke-width: 2; }
+    .hand-label { fill: #fff; font-size: 11.5px; font-weight: 750; }
+    #wallBody { fill: url(#brick); stroke: var(--sim-wall); stroke-width: 2; }
+    .wall-label { fill: var(--sim-wall); font-size: 12.5px; font-weight: 740; }
+    #ringRod { stroke: #9aa7ba; stroke-width: 5; stroke-linecap: round; }
+    #ringStopTop, #ringStopBottom { fill: #9aa7ba; }
+    #ringDot { fill: none; stroke: var(--sim-ring); stroke-width: 5; }
+    .ring-label { fill: var(--sim-ring); font-size: 12.5px; font-weight: 740; }
+    .vel-arrow { stroke: var(--sim-accent-deep); stroke-width: 2.6; fill: var(--sim-accent-deep); opacity: .85; }
+    .vel-label { fill: var(--sim-accent-deep); font-size: 12.5px; font-weight: 750; }
+    .yt-axis { stroke: #9aa7ba; stroke-width: 1.4; }
+    .yt-zero { stroke: #c3cedb; stroke-width: 1.3; stroke-dasharray: 4 5; }
+    .yt-grid { stroke: var(--sim-grid); stroke-width: 1; }
+    #ytTrace { fill: none; stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    #ytDot { fill: var(--sim-point); stroke: #fff; stroke-width: 2; }
+    .yt-label { fill: var(--sim-muted); font-size: 11.5px; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .side { grid-template-rows: auto auto auto; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 920 / 430; }
+      #ytChart { height: auto; aspect-ratio: 320 / 200; }
+      .actions { margin-left: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>绳波脉冲演示</h1>
+        <p>波形在往前走，绳上的点只在原地上下振动；碰墙翻转、碰自由端不翻；两脉冲互穿不改形。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite" data-state="ready">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">绳舞台</h2><span id="stageHint">深色＝当前波形 · 淡色＝0.9 s 前的残影 · 红点＝跟踪的绳上质点（可拖动）</span></div>
+        <svg id="scene" viewBox="0 0 920 430" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">一根水平张紧的绳：手抖出脉冲，脉冲沿绳传播，遇到固定端或自由端反射，或与另一脉冲对撞叠加。红色质点只在原地上下振动。</desc>
+          <defs>
+            <pattern id="brick" width="16" height="12" patternUnits="userSpaceOnUse">
+              <rect width="16" height="12" fill="#dbe2ea"></rect>
+              <path d="M0 0h16v12H0z M0 6h16 M8 0v6 M0 6v6 M16 6v6" stroke="#c2ccd8" stroke-width="1.2" fill="none"></path>
+            </pattern>
+          </defs>
+          <g id="grid"></g>
+          <line id="restLine" class="rest-line" x1="52" y1="232" x2="868" y2="232"></line>
+
+          <!-- ghost snapshots drawn under the live rope -->
+          <polyline id="ghost3" class="ghost" opacity="0.10" points=""></polyline>
+          <polyline id="ghost2" class="ghost" opacity="0.19" points=""></polyline>
+          <polyline id="ghost1" class="ghost" opacity="0.30" points=""></polyline>
+
+          <!-- right-end fixtures (visibility switched per scenario) -->
+          <g id="wallGroup">
+            <rect id="wallBody" x="872" y="112" width="34" height="240" rx="4"></rect>
+            <text class="wall-label" x="889" y="372" text-anchor="middle">固定端（墙）</text>
+          </g>
+          <g id="ringGroup">
+            <line id="ringRod" x1="876" y1="104" x2="876" y2="360"></line>
+            <rect id="ringStopTop" x="871" y="98" width="10" height="7" rx="2"></rect>
+            <rect id="ringStopBottom" x="871" y="359" width="10" height="7" rx="2"></rect>
+            <circle id="ringDot" cx="876" cy="232" r="9.5"></circle>
+            <text class="ring-label" x="876" y="384" text-anchor="middle">自由端（滑环）</text>
+          </g>
+
+          <!-- hands at both rope ends -->
+          <g id="handLeft">
+            <rect class="hand-arm" x="8" y="223" width="34" height="18" rx="9"></rect>
+            <circle class="hand-fist" cx="52" cy="232" r="11"></circle>
+            <text class="hand-label" x="25" y="237" text-anchor="middle">手</text>
+          </g>
+          <g id="handRight">
+            <rect class="hand-arm" x="878" y="223" width="34" height="18" rx="9"></rect>
+            <circle class="hand-fist" cx="868" cy="232" r="11"></circle>
+            <text class="hand-label" x="895" y="237" text-anchor="middle">手</text>
+          </g>
+
+          <!-- live rope -->
+          <polyline id="rope" points=""></polyline>
+
+          <!-- propagation direction arrows -->
+          <g id="arrows"></g>
+
+          <!-- peak tag -->
+          <text id="peakTag" x="0" y="0" text-anchor="middle" visibility="hidden"></text>
+
+          <!-- marked point -->
+          <line id="pointGuide" x1="52" y1="114" x2="52" y2="350"></line>
+          <text id="pointLabel" x="52" y="102" text-anchor="middle">质点</text>
+          <circle id="pointDot" cx="52" cy="232" r="8"></circle>
+          <circle id="pointHit" cx="52" cy="232" r="19"></circle>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>时刻 t</small><strong id="tReadout">0.00 s</strong></div>
+            <div class="metric"><small>波速 v</small><strong>2.0 m/s</strong></div>
+            <div class="metric"><small>质点位置 x</small><strong id="xpReadout">4.80 m</strong></div>
+            <div class="metric"><small>质点位移 y</small><strong id="yReadout">+0.00 m</strong></div>
+            <div class="metric"><small>质点速度 v<sub>y</sub></small><strong id="vyReadout">+0.00 m/s</strong></div>
+            <div class="metric"><small>绳上峰值 |y|</small><strong id="peakReadout">0.00 m</strong></div>
+          </div>
+        </section>
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head"><h2 id="chart-title">质点振动图像（y–t）</h2><span>红点只在平衡线附近上下振动</span></div>
+          <svg id="ytChart" viewBox="0 0 320 200" role="img" aria-label="红色质点的位移随时间变化曲线">
+            <g id="ytGrid"></g>
+            <line id="ytZero" class="yt-zero" x1="40" y1="100" x2="308" y2="100"></line>
+            <line class="yt-axis" x1="40" y1="14" x2="40" y2="172"></line>
+            <line class="yt-axis" x1="40" y1="172" x2="308" y2="172"></line>
+            <polyline id="ytTrace" points=""></polyline>
+            <circle id="ytDot" cx="40" cy="100" r="4.5"></circle>
+            <text class="yt-label" id="ytYmax" x="36" y="22" text-anchor="end"></text>
+            <text class="yt-label" id="ytYmin" x="36" y="170" text-anchor="end"></text>
+            <text class="yt-label" id="ytT0" x="40" y="188" text-anchor="middle"></text>
+            <text class="yt-label" id="ytT1" x="308" y="188" text-anchor="end"></text>
+            <text class="yt-label" x="308" y="10" text-anchor="end">y / m</text>
+            <text class="yt-label" x="308" y="198" text-anchor="end">t / s</text>
+          </svg>
+        </section>
+        <section class="panel insight-panel" data-zone="insight" aria-label="观察提示">
+          <p id="insight" class="insight">按「开始」：手抖一下，一个脉冲沿绳向右跑。盯住红色质点。</p>
+          <p class="note" id="modelNote">教学模型：理想绳 y(x,t)＝f(x−vt)＋g(x+vt)，线性叠加、无色散无损耗；固定端反射反相，自由端同相；v＝√(T/μ)＝2 m/s。振幅按演示比例放大，几何关系保持精确。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="演示控制">
+      <div class="controls-row">
+        <div class="tabs" role="tablist" aria-label="演示场景">
+          <span class="group-label">场景</span>
+          <button class="tab" role="tab" id="tabTravel" aria-selected="true" type="button">① 脉冲传播</button>
+          <button class="tab" role="tab" id="tabFixed" aria-selected="false" type="button">② 固定端反射</button>
+          <button class="tab" role="tab" id="tabFree" aria-selected="false" type="button">③ 自由端反射</button>
+          <button class="tab" role="tab" id="tabPair" aria-selected="false" type="button">④ 双脉冲对撞</button>
+        </div>
+        <div class="actions">
+          <button id="startBtn" class="action primary" type="button">开始</button>
+          <button id="pauseBtn" class="action" type="button" disabled>暂停</button>
+          <button id="resetBtn" class="action" type="button">重置</button>
+        </div>
+      </div>
+      <div class="controls-row">
+        <div class="control">
+          <label for="timeScaleInput">时间流速 <output id="timeScaleOutput">1.00×</output></label>
+          <input id="timeScaleInput" type="range" min="0.1" max="1.5" step="0.05" value="1">
+        </div>
+        <div class="control">
+          <label for="markerInput">质点位置 x <output id="markerOutput">4.8 m</output></label>
+          <input id="markerInput" type="range" min="0.5" max="11.5" step="0.1" value="4.8">
+        </div>
+        <div class="control">
+          <label for="ampInput">脉冲振幅 A <output id="ampOutput">0.60 m</output></label>
+          <input id="ampInput" type="range" min="0.2" max="1" step="0.05" value="0.6">
+        </div>
+        <div class="control">
+          <label for="widthInput">脉冲宽度 w <output id="widthOutput">1.00 m</output></label>
+          <input id="widthInput" type="range" min="0.6" max="1.6" step="0.05" value="1">
+        </div>
+        <button id="phaseBtn" class="action" type="button" aria-pressed="false" hidden>脉冲相位：同向</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ---------- physical constants and analytic kernel (no DOM) ---------- */
+    const L = 12;      // rope length (m), x in [0, L]
+    const V = 2.0;     // wave speed (m/s)
+    const GRID_N = 180; // render/check sample count per rope
+
+    const parameterSchema = [
+      { key: "timeScale", label: "时间流速", type: "slider", min: 0.1, max: 1.5, step: 0.05, default: 1, unit: "×" },
+      { key: "markerX", label: "质点位置", type: "slider", min: 0.5, max: 11.5, step: 0.1, default: 4.8, unit: "m" },
+      { key: "amp", label: "脉冲振幅", type: "slider", min: 0.2, max: 1, step: 0.05, default: 0.6, unit: "m" },
+      { key: "width", label: "脉冲宽度", type: "slider", min: 0.6, max: 1.6, step: 0.05, default: 1.0, unit: "m" }
+    ];
+
+    // Compact cosine bump: b(s)=0.5(1+cos(pi s)) for |s|<=1 else 0. C1, even, b(0)=1.
+    function bump(s) { const a = Math.abs(s); return a >= 1 ? 0 : 0.5 * (1 + Math.cos(Math.PI * a)); }
+    function bumpPrime(s) { const a = Math.abs(s); if (a >= 1) return 0; const sign = s < 0 ? -1 : 1; return -sign * (Math.PI / 2) * Math.sin(Math.PI * a); }
+
+    const SCENARIOS = {
+      travel: { rightEnd: "wall", launch: (p) => [{ amp: p.amp, width: p.width, c0: 0.5 * p.width, dir: 1 }] },
+      fixed: { rightEnd: "wall", launch: (p) => [{ amp: p.amp, width: p.width, c0: 0.5 * p.width, dir: 1 }] },
+      free: { rightEnd: "ring", launch: (p) => [{ amp: p.amp, width: p.width, c0: 0.5 * p.width, dir: 1 }] },
+      pair: {
+        rightEnd: "hand",
+        launch: (p) => [
+          { amp: p.amp, width: p.width, c0: 0.5 * p.width, dir: 1 },
+          { amp: p.amp * p.pairSign, width: p.width, c0: L - 0.5 * p.width, dir: -1 }
+        ]
+      }
+    };
+
+    // Deterministic traveling-component list at time t (method of images for
+    // reflections; left hand absorbs every leftward arrival, right hand in the
+    // pair scenario absorbs the arriving rightward pulse).
+    function compsAt(scenarioKey, params, t) {
+      const scn = SCENARIOS[scenarioKey];
+      const list = scn.launch(params).map((c) => Object.assign({}, c));
+      if (scn.rightEnd !== "hand") {
+        for (let i = 0; i < list.length; i += 1) {
+          const c = list[i];
+          if (c.dir === 1 && !c.reflected) {
+            const center = c.c0 + V * t;
+            if (center >= L - c.width) { // mirror support starts touching the domain
+              c.reflected = true;
+              list.push({
+                amp: c.amp * (scn.rightEnd === "wall" ? -1 : 1),
+                width: c.width,
+                c0: 2 * L - c.c0,
+                dir: -1,
+                reflected: true
+              });
+            }
+          }
+        }
+      }
+      return list;
+    }
+
+    const centerAt = (c, t) => c.c0 + c.dir * V * t;
+    const supportOverlaps = (c, t) => {
+      const m = centerAt(c, t);
+      return m - c.width <= L + 1e-9 && m + c.width >= -1e-9;
+    };
+    function activeComps(list, t) { return list.filter((c) => supportOverlaps(c, t)); }
+
+    function yAt(list, x, t) {
+      let sum = 0;
+      for (const c of list) sum += c.amp * bump((x - centerAt(c, t)) / c.width);
+      return sum;
+    }
+    function vyAt(list, x, t) {
+      let sum = 0;
+      for (const c of list) sum += c.amp * bumpPrime((x - centerAt(c, t)) / c.width) * (-c.dir * V / c.width);
+      return sum;
+    }
+    function scanMaxAbs(list, t) {
+      let best = 0;
+      for (let i = 0; i <= GRID_N; i += 1) {
+        const y = Math.abs(yAt(list, (i * L) / GRID_N, t));
+        if (y > best) best = y;
+      }
+      return best;
+    }
+
+    /* ---------- authoritative runtime state ---------- */
+    const state = {
+      scenarioKey: "travel",
+      running: false,
+      ended: false,
+      t: 0,
+      lastTimestamp: null,
+      params: { timeScale: 1, markerX: 4.8, amp: 0.6, width: 1.0, pairSign: 1 },
+      history: [{ t: 0, y: 0 }]
+    };
+
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const fmt = (v, d) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(d)}`;
+
+    /* ---------- DOM bindings (guarded so the kernel runs headless) ---------- */
+    const hasDom = typeof document !== "undefined" && typeof document.getElementById === "function";
+    const $ = (sel) => document.querySelector(sel);
+    const elements = hasDom ? {
+      status: $("#status"), grid: $("#grid"), rope: $("#rope"),
+      ghost1: $("#ghost1"), ghost2: $("#ghost2"), ghost3: $("#ghost3"),
+      arrows: $("#arrows"), peakTag: $("#peakTag"),
+      pointGuide: $("#pointGuide"), pointDot: $("#pointDot"), pointHit: $("#pointHit"), pointLabel: $("#pointLabel"),
+      handLeft: $("#handLeft"), handRight: $("#handRight"), wallGroup: $("#wallGroup"), ringGroup: $("#ringGroup"), ringDot: $("#ringDot"),
+      stageHint: $("#stageHint"),
+      tReadout: $("#tReadout"), xpReadout: $("#xpReadout"), yReadout: $("#yReadout"), vyReadout: $("#vyReadout"), peakReadout: $("#peakReadout"),
+      ytGrid: $("#ytGrid"), ytTrace: $("#ytTrace"), ytDot: $("#ytDot"), ytZero: $("#ytZero"),
+      ytYmax: $("#ytYmax"), ytYmin: $("#ytYmin"), ytT0: $("#ytT0"), ytT1: $("#ytT1"),
+      insight: $("#insight"),
+      timeScaleInput: $("#timeScaleInput"), timeScaleOutput: $("#timeScaleOutput"),
+      markerInput: $("#markerInput"), markerOutput: $("#markerOutput"),
+      ampInput: $("#ampInput"), ampOutput: $("#ampOutput"),
+      widthInput: $("#widthInput"), widthOutput: $("#widthOutput"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"), phaseBtn: $("#phaseBtn"),
+      tabs: { travel: $("#tabTravel"), fixed: $("#tabFixed"), free: $("#tabFree"), pair: $("#tabPair") }
+    } : {};
+
+    /* ---------- stage coordinate mapping ---------- */
+    const X0 = 52, PX = 68, Y_REST = 232, PY = 92;
+    const xToPx = (x) => X0 + x * PX;
+    const yToPx = (y) => Y_REST - y * PY;
+
+    /* ---------- lifecycle ---------- */
+    function rearm() {
+      state.t = 0;
+      state.running = false;
+      state.ended = false;
+      state.lastTimestamp = null;
+      state.history = [{ t: 0, y: 0 }];
+    }
+
+    function init() {
+      if (!hasDom) return;
+      initGrid();
+      bindControls();
+      setScenario("travel");
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      if (state.ended) rearm();
+      state.running = true;
+      render();
+    }
+    function pause() {
+      state.running = false;
+      render();
+    }
+    function reset() { rearm(); render(); }
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t = finite(state.t + boundedDt * state.params.timeScale, state.t);
+      const comps = compsAt(state.scenarioKey, state.params, state.t);
+      if (activeComps(comps, state.t).length === 0 && state.t > 0.2) {
+        state.ended = true;
+        state.running = false;
+      }
+      const last = state.history[state.history.length - 1];
+      const yNow = yAt(comps, state.params.markerX, state.t);
+      if (state.t - last.t >= 0.04) {
+        state.history.push({ t: state.t, y: finite(yNow, 0) });
+        if (state.history.length > 1400) state.history.shift();
+      }
+    }
+
+    /* ---------- stage rendering ---------- */
+    function ropePoints(list, t) {
+      const pts = [];
+      for (let i = 0; i <= GRID_N; i += 1) {
+        const x = (i * L) / GRID_N;
+        pts.push(`${xToPx(x).toFixed(1)},${yToPx(finite(yAt(list, x, t), 0)).toFixed(1)}`);
+      }
+      return pts.join(" ");
+    }
+    function drawGhosts() {
+      const offsets = [0.9, 1.8, 2.7];
+      const els = [elements.ghost1, elements.ghost2, elements.ghost3];
+      for (let k = 0; k < 3; k += 1) {
+        const tg = state.t - offsets[k];
+        if (tg >= 0.15) {
+          els[k].setAttribute("points", ropePoints(compsAt(state.scenarioKey, state.params, tg), tg));
+          els[k].setAttribute("visibility", "visible");
+        } else {
+          els[k].setAttribute("visibility", "hidden");
+        }
+      }
+    }
+    function drawArrows(comps) {
+      const act = activeComps(comps, state.t);
+      const marks = [];
+      for (const c of act) {
+        const cx = clamp(xToPx(centerAt(c, state.t)), 70, 850);
+        marks.push({ cx, dir: c.dir });
+      }
+      marks.sort((a, b) => a.cx - b.cx);
+      let html = "";
+      marks.forEach((m, i) => {
+        // stack vertically when the two arrows would collide (pair overlap)
+        let y = 272;
+        for (let j = 0; j < i; j += 1) if (Math.abs(m.cx - marks[j].cx) < 46) y += 22;
+        const tip = m.cx + m.dir * 22;
+        html += `<g class="vel-arrow"><line x1="${m.cx - m.dir * 22}" y1="${y}" x2="${tip}" y2="${y}"></line>` +
+          `<polygon points="${tip + m.dir * 9},${y} ${tip - m.dir * 2},${y - 5.5} ${tip - m.dir * 2},${y + 5.5}"></polygon></g>` +
+          `<text class="vel-label" x="${m.cx}" y="${y - 9}" text-anchor="middle">v</text>`;
+      });
+      elements.arrows.innerHTML = html;
+    }
+    function drawEnds(comps) {
+      const scn = SCENARIOS[state.scenarioKey];
+      const yLeft = finite(yAt(comps, 0, state.t), 0);
+      elements.handLeft.setAttribute("transform", `translate(0 ${(yToPx(yLeft) - Y_REST).toFixed(1)})`);
+      elements.wallGroup.setAttribute("display", scn.rightEnd === "wall" ? "inline" : "none");
+      elements.ringGroup.setAttribute("display", scn.rightEnd === "ring" ? "inline" : "none");
+      elements.handRight.setAttribute("display", scn.rightEnd === "hand" ? "inline" : "none");
+      if (scn.rightEnd === "ring") {
+        elements.ringDot.setAttribute("cy", yToPx(finite(yAt(comps, L, state.t), 0)).toFixed(1));
+      } else if (scn.rightEnd === "hand") {
+        const yRight = finite(yAt(comps, L, state.t), 0);
+        elements.handRight.setAttribute("transform", `translate(0 ${(yToPx(yRight) - Y_REST).toFixed(1)})`);
+      }
+      const endName = scn.rightEnd === "wall" ? "右端：固定端（墙）" : scn.rightEnd === "ring" ? "右端：自由端（滑环）" : "右端：另一只手（对撞后接住）";
+      elements.stageHint.textContent = `${endName} · 深色＝当前波形 · 淡色＝残影 · 红点＝质点（可拖动）`;
+    }
+    function drawPointAndPeak(comps) {
+      const p = state.params;
+      const y = finite(yAt(comps, p.markerX, state.t), 0);
+      const px = xToPx(p.markerX);
+      elements.pointDot.setAttribute("cx", px.toFixed(1));
+      elements.pointDot.setAttribute("cy", yToPx(y).toFixed(1));
+      elements.pointHit.setAttribute("cx", px.toFixed(1));
+      elements.pointHit.setAttribute("cy", yToPx(y).toFixed(1));
+      elements.pointGuide.setAttribute("x1", px.toFixed(1));
+      elements.pointGuide.setAttribute("x2", px.toFixed(1));
+      elements.pointLabel.setAttribute("x", px.toFixed(1));
+      // peak tag at the largest-|y| sample
+      let bestAbs = 0, bestX = 0, bestY = 0;
+      for (let i = 0; i <= GRID_N; i += 2) {
+        const x = (i * L) / GRID_N;
+        const yv = finite(yAt(comps, x, state.t), 0);
+        if (Math.abs(yv) > bestAbs) { bestAbs = Math.abs(yv); bestX = x; bestY = yv; }
+      }
+      if (bestAbs >= 0.05) {
+        elements.peakTag.setAttribute("x", xToPx(bestX).toFixed(1));
+        elements.peakTag.setAttribute("y", (yToPx(bestY) + (bestY >= 0 ? -14 : 24)).toFixed(1));
+        elements.peakTag.textContent = `峰值 ${fmt(bestY, 2)} m`;
+        elements.peakTag.setAttribute("visibility", "visible");
+      } else {
+        elements.peakTag.setAttribute("visibility", "hidden");
+      }
+    }
+
+    /* ---------- y-t chart rendering ---------- */
+    function drawChart(comps) {
+      const p = state.params;
+      const yNow = finite(yAt(comps, p.markerX, state.t), 0);
+      const tHi = Math.max(8, state.t);
+      const tLo = Math.max(0, tHi - 16);
+      let yMax = 0.75;
+      for (const s of state.history) yMax = Math.max(yMax, Math.abs(s.y));
+      yMax = Math.max(yMax, Math.abs(yNow)) * 1.12;
+      const X = (t) => 40 + ((t - tLo) / (tHi - tLo)) * 268;
+      const Y = (y) => 172 - (y / yMax) * 152;
+      const verts = state.history.map((s) => `${X(s.t).toFixed(1)},${Y(s.y).toFixed(1)}`);
+      verts.push(`${X(state.t).toFixed(1)},${Y(yNow).toFixed(1)}`);
+      elements.ytTrace.setAttribute("points", verts.join(" "));
+      elements.ytDot.setAttribute("cx", X(state.t).toFixed(1));
+      elements.ytDot.setAttribute("cy", Y(yNow).toFixed(1));
+      elements.ytZero.setAttribute("y1", Y(0).toFixed(1));
+      elements.ytZero.setAttribute("y2", Y(0).toFixed(1));
+      const yTop = Math.ceil(yMax * 2) / 2;
+      elements.ytYmax.textContent = `+${yTop.toFixed(1)}`;
+      elements.ytYmin.textContent = `−${yTop.toFixed(1)}`;
+      elements.ytT0.textContent = tLo.toFixed(1);
+      elements.ytT1.textContent = tHi.toFixed(1);
+      const step = tHi - tLo > 12 ? 4 : 2;
+      const lines = [];
+      for (let tg = Math.ceil(tLo / step) * step; tg <= tHi + 1e-9; tg += step) {
+        lines.push(`<line class="yt-grid" x1="${X(tg).toFixed(1)}" y1="14" x2="${X(tg).toFixed(1)}" y2="172"></line>`);
+      }
+      lines.push(`<line class="yt-grid" x1="40" y1="${Y(yTop / 2).toFixed(1)}" x2="308" y2="${Y(yTop / 2).toFixed(1)}"></line>`);
+      lines.push(`<line class="yt-grid" x1="40" y1="${Y(-yTop / 2).toFixed(1)}" x2="308" y2="${Y(-yTop / 2).toFixed(1)}"></line>`);
+      elements.ytGrid.innerHTML = lines.join("");
+    }
+
+    /* ---------- state-aware insight ---------- */
+    function insightText(comps) {
+      const p = state.params;
+      const t = state.t;
+      const scn = SCENARIOS[state.scenarioKey];
+      const c0 = comps[0];
+      const mirror = comps[1] && comps[1].dir === -1 ? comps[1] : null;
+      const cInc = centerAt(c0, t);
+      const cMir = mirror ? centerAt(mirror, t) : null;
+      const flick = t < (1.5 * p.width) / V;
+      if (state.ended) {
+        if (state.scenarioKey === "pair") return "演示结束：对撞不是碰撞——两个波用「叠加」方式互相穿过，穿过后形状、振幅一点没变。按「开始」重演。";
+        return "演示结束：返回的脉冲被手接住，绳恢复平静。整个过程中红色质点只在原地上下振动，从未向右移动。按「开始」重演。";
+      }
+      if (state.scenarioKey === "travel") {
+        if (flick) return "手只抖一下：绳端完成一次上下运动，脉冲已离开手向右传播。盯住红点，看右侧 y–t 图。";
+        if (mirror && cMir < L - 3 * p.width) return "碰墙后翻转弹回的脉冲正沿绳向左返回——质点还会再振动一次，而且这次先向下（原因见演示②）。";
+        if (Math.abs(cInc - p.markerX) <= p.width) return "脉冲正经过红点：红点先升后降，即将回到原位——它只上下振动，并没有随波向右移动！";
+        if (cInc + p.width < p.markerX) return "脉冲向右传播中（淡色残影记录它刚才的位置）；红点还静止着，等脉冲到了才会振动。";
+        if (cInc < L - 1.6 * p.width) return "红点已完成一次上下振动回到原位；而波形（看残影的移动）仍在继续向右前进。";
+        return "脉冲接近固定端：入射与反相反射脉冲即将在墙上叠加（演示②专门观察这一刻）。";
+      }
+      if (state.scenarioKey === "fixed") {
+        if (flick) return "手抖一下，脉冲向右传播，即将碰到固定端（墙）。注意看墙上那一点。";
+        if (mirror && cMir < L - 2.6 * p.width) return "反射完成：脉冲形状、振幅不变，但上下翻转（反相），正沿绳向左传播。";
+        if (mirror) return "碰墙瞬间：墙上的点始终不动（y＝0）——向上的入射与向下的反射在此叠加抵消。";
+        return "脉冲向右传播中。墙上任意时刻位移恒为零，这是固定端的标志。";
+      }
+      if (state.scenarioKey === "free") {
+        if (flick) return "手抖一下，脉冲向右传播，即将碰到自由端（可上下滑动的环）。";
+        if (mirror && cMir < L - 2.6 * p.width) return "反射完成：脉冲不翻转（同相），正沿绳向左传播。与演示②对比：固定端翻、自由端不翻。";
+        if (mirror) return "自由端瞬间：环的位移达到 2A——两个同相脉冲在端点叠加相长！";
+        return "脉冲向右传播中。自由端（环）没有约束把它按住，端点位移可以自由变大。";
+      }
+      // pair scenario
+      const c1 = centerAt(comps[0], t);
+      const c2 = centerAt(comps[1], t);
+      const overlapping = Math.abs(c1 - c2) <= 2 * p.width + 0.2;
+      if (flick) return "两手同时各抖一下：两个相同的脉冲相向出发，即将迎面相遇。";
+      if (overlapping && p.pairSign < 0) return "反相叠加：每一点位移恰好抵消，绳瞬间变平！随后两个脉冲各自「穿墙而出」，形状不变。";
+      if (overlapping) return "叠加中：相遇区间每点位移＝两脉冲之和，峰值瞬间达到 2A。波不会弹开，而是互相穿过。";
+      if (t < (L - p.width) / (2 * V)) return p.pairSign < 0 ? "一个向上、一个向下的脉冲迎面而行，即将完全抵消。" : "两个相同脉冲迎面而行，即将在中点相遇。";
+      return "穿过彼此！两个脉冲形状、振幅一点没变，各走各的路——这就是波的独立叠加原理。";
+    }
+
+    /* ---------- render ---------- */
+    function render() {
+      if (!hasDom) return;
+      const comps = compsAt(state.scenarioKey, state.params, state.t);
+      elements.rope.setAttribute("points", ropePoints(comps, state.t));
+      drawGhosts();
+      drawEnds(comps);
+      drawPointAndPeak(comps);
+      drawArrows(comps);
+      drawChart(comps);
+      const p = state.params;
+      const y = finite(yAt(comps, p.markerX, state.t), 0);
+      const vy = finite(vyAt(comps, p.markerX, state.t), 0);
+      elements.tReadout.textContent = `${state.t.toFixed(2)} s`;
+      elements.xpReadout.textContent = `${p.markerX.toFixed(1)} m`;
+      elements.yReadout.textContent = `${fmt(y, 2)} m`;
+      elements.vyReadout.textContent = `${fmt(vy, 2)} m/s`;
+      elements.peakReadout.textContent = `${scanMaxAbs(comps, state.t).toFixed(2)} m`;
+      elements.insight.textContent = insightText(comps);
+      // status + button states
+      let statusText = "就绪", dataState = "ready";
+      if (state.ended) { statusText = "演示结束"; dataState = "ended"; }
+      else if (state.running) { statusText = "运行中"; dataState = "running"; }
+      else if (state.t > 0) { statusText = "已暂停"; dataState = "paused"; }
+      elements.status.textContent = statusText;
+      elements.status.setAttribute("data-state", dataState);
+      elements.startBtn.disabled = state.running;
+      elements.pauseBtn.disabled = !state.running;
+      // control outputs
+      elements.timeScaleOutput.textContent = `${p.timeScale.toFixed(2)}×`;
+      elements.markerOutput.textContent = `${p.markerX.toFixed(1)} m`;
+      elements.ampOutput.textContent = `${p.amp.toFixed(2)} m`;
+      elements.widthOutput.textContent = `${p.width.toFixed(2)} m`;
+    }
+
+    /* ---------- parameters and scenario ---------- */
+    function setParameters(values) {
+      const p = state.params;
+      let rearmNeeded = false;
+      for (const def of parameterSchema) {
+        if (values[def.key] === undefined) continue;
+        const next = clamp(finite(Number(values[def.key]), def.default), def.min, def.max);
+        if (def.key === "timeScale") { p.timeScale = next; continue; }
+        if (def.key === "markerX") {
+          if (Math.abs(next - p.markerX) < 1e-9) continue;
+          p.markerX = next;
+          // a fresh point gets a fresh y-t trace, but time keeps flowing
+          const comps = compsAt(state.scenarioKey, p, state.t);
+          state.history = [{ t: state.t, y: finite(yAt(comps, p.markerX, state.t), 0) }];
+          continue;
+        }
+        if (Math.abs(next - p[def.key]) > 1e-9) { p[def.key] = next; rearmNeeded = true; }
+      }
+      if (values.pairSign !== undefined) {
+        const sign = Number(values.pairSign) < 0 ? -1 : 1;
+        if (sign !== p.pairSign) { p.pairSign = sign; rearmNeeded = true; }
+        if (hasDom) {
+          elements.phaseBtn.setAttribute("aria-pressed", p.pairSign < 0 ? "true" : "false");
+          elements.phaseBtn.textContent = p.pairSign < 0 ? "脉冲相位：反向" : "脉冲相位：同向";
+        }
+      }
+      if (rearmNeeded) rearm();
+      syncInputs();
+      render();
+    }
+    function syncInputs() {
+      if (!hasDom) return;
+      const p = state.params;
+      elements.timeScaleInput.value = String(p.timeScale);
+      elements.markerInput.value = String(p.markerX);
+      elements.ampInput.value = String(p.amp);
+      elements.widthInput.value = String(p.width);
+    }
+    function setScenario(key) {
+      if (!SCENARIOS[key]) return;
+      state.scenarioKey = key;
+      for (const k of Object.keys(elements.tabs)) elements.tabs[k].setAttribute("aria-selected", k === key ? "true" : "false");
+      elements.phaseBtn.hidden = key !== "pair";
+      rearm();
+      syncInputs();
+      render();
+    }
+
+    /* ---------- DOM setup ---------- */
+    function initGrid() {
+      const lines = [];
+      for (let m = 0; m <= L; m += 2) {
+        const x = xToPx(m);
+        lines.push(`<line class="grid-line" x1="${x}" y1="126" x2="${x}" y2="338"></line>`);
+        lines.push(`<text class="tick-label" x="${x}" y="384" text-anchor="middle">${m}</text>`);
+      }
+      lines.push(`<text class="axis-note" x="868" y="404" text-anchor="end">位置 x / m</text>`);
+      elements.grid.innerHTML = lines.join("");
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.timeScaleInput.addEventListener("input", () => setParameters({ timeScale: elements.timeScaleInput.value }));
+      elements.markerInput.addEventListener("input", () => setParameters({ markerX: elements.markerInput.value }));
+      elements.ampInput.addEventListener("input", () => setParameters({ amp: elements.ampInput.value }));
+      elements.widthInput.addEventListener("input", () => setParameters({ width: elements.widthInput.value }));
+      elements.phaseBtn.addEventListener("click", () => setParameters({ pairSign: -state.params.pairSign }));
+      Object.keys(elements.tabs).forEach((key) => elements.tabs[key].addEventListener("click", () => setScenario(key)));
+      // drag the marked point directly on the stage
+      const svg = document.getElementById("scene");
+      const toRopeX = (evt) => {
+        const rect = svg.getBoundingClientRect();
+        const vx = ((evt.clientX - rect.left) / rect.width) * 920;
+        return clamp((vx - X0) / PX, 0.5, 11.5);
+      };
+      let dragging = false;
+      elements.pointHit.addEventListener("pointerdown", (evt) => {
+        dragging = true;
+        elements.pointHit.setPointerCapture(evt.pointerId);
+        setParameters({ markerX: toRopeX(evt) });
+      });
+      elements.pointHit.addEventListener("pointermove", (evt) => {
+        if (dragging) setParameters({ markerX: toRopeX(evt) });
+      });
+      elements.pointHit.addEventListener("pointerup", () => { dragging = false; });
+      elements.pointHit.addEventListener("pointercancel", () => { dragging = false; });
+      svg.addEventListener("keydown", (evt) => {
+        if (evt.key === "ArrowLeft" || evt.key === "ArrowRight") {
+          evt.preventDefault();
+          const dirKey = evt.key === "ArrowLeft" ? -1 : 1;
+          setParameters({ markerX: state.params.markerX + dirKey * 0.1 });
+        }
+      });
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    /* ---------- state access ---------- */
+    function getState() {
+      return {
+        scenarioKey: state.scenarioKey, running: state.running, ended: state.ended, t: state.t,
+        params: Object.assign({}, state.params), historyLength: state.history.length,
+        lastSample: state.history[state.history.length - 1]
+      };
+    }
+    function getReadouts() {
+      const comps = compsAt(state.scenarioKey, state.params, state.t);
+      const p = state.params;
+      return {
+        t: state.t, v: V, markerX: p.markerX,
+        y: yAt(comps, p.markerX, state.t), vy: vyAt(comps, p.markerX, state.t),
+        maxAbsY: scanMaxAbs(comps, state.t), activeCount: activeComps(comps, state.t).length
+      };
+    }
+
+    /* ---------- model checks (analytic oracle; tolerances fixed in advance) ---------- */
+    function runModelChecks() {
+      const P = { amp: 0.6, width: 1.0, pairSign: 1 };
+      const checks = [];
+      const near = (a, b, tol) => Math.abs(a - b) <= tol;
+      const gridMaxAbs = (list, t) => {
+        let best = 0;
+        for (let i = 0; i <= 400; i += 1) best = Math.max(best, Math.abs(yAt(list, (i * L) / 400, t)));
+        return best;
+      };
+
+      // 1. ordinary: wave advances at exactly v, peak amplitude preserved
+      {
+        const list = compsAt("travel", P, 0);
+        const y1 = yAt(list, 0.5 + V * 1, 1);
+        const y2 = yAt(list, 0.5 + V * 2, 2);
+        let argmax = 0, best = -1;
+        for (let i = 0; i <= 400; i += 1) {
+          const x = (i * L) / 400, yv = yAt(list, x, 1);
+          if (yv > best) { best = yv; argmax = x; }
+        }
+        checks.push({
+          name: "wave speed linear and amplitude preserved",
+          pass: near(y1, P.amp, 1e-12) && near(y2, P.amp, 1e-12) && Math.abs(argmax - (0.5 + V)) <= L / 400,
+          expected: `peaks = ${P.amp} m at x = 2.5 (t=1) and 4.5 (t=2)`,
+          actual: `t=1 peak ${y1.toFixed(12)} at x=${argmax.toFixed(3)}; t=2 peak ${y2.toFixed(12)}`,
+          tolerance: "1e-12 value, one grid step position"
+        });
+      }
+
+      // 2. ordinary: marked point starts at rest, peaks at A, returns exactly to zero
+      {
+        const list = compsAt("travel", P, 0);
+        const before = yAt(list, 4.8, 1.0);   // support ends at 3.5
+        const peak = yAt(list, 4.8, 2.15);    // center at 4.8
+        const after = yAt(list, 4.8, 3.4);    // support starts at 6.3
+        checks.push({
+          name: "point oscillates once and returns to zero",
+          pass: before === 0 && near(peak, P.amp, 1e-12) && after === 0,
+          expected: "y=0 before, +0.6 at pulse center, 0 after",
+          actual: `${before} / ${peak.toFixed(12)} / ${after}`,
+          tolerance: "1e-12"
+        });
+      }
+
+      // 3. boundary: fixed end displacement is identically zero
+      {
+        let worst = 0;
+        for (let t = 0; t <= 8.0001; t += 0.05) {
+          const list = compsAt("fixed", P, t);
+          worst = Math.max(worst, Math.abs(yAt(list, L, t)));
+        }
+        checks.push({
+          name: "fixed end holds y(L,t) = 0",
+          pass: worst <= 1e-12,
+          expected: "max |y(12,t)| = 0 for t in [0,8]",
+          actual: worst.toExponential(3),
+          tolerance: "1e-12"
+        });
+      }
+
+      // 4. boundary: fixed-end reflection is inverted and shape-exact
+      {
+        const t = 8.75; // mirror center at x=6
+        const list = compsAt("fixed", P, t);
+        let worst = 0;
+        for (let i = 0; i <= 400; i += 1) {
+          const x = (i * L) / 400;
+          worst = Math.max(worst, Math.abs(yAt(list, x, t) - (-P.amp * bump((x - 6) / P.width))));
+        }
+        checks.push({
+          name: "fixed-end reflection inverts pulse pointwise",
+          pass: worst <= 1e-9,
+          expected: "y(x, 8.75) = -0.6·b((x-6)/1) exactly",
+          actual: `max deviation ${worst.toExponential(3)}`,
+          tolerance: "1e-9"
+        });
+      }
+
+      // 5. boundary: free end reflects upright and doubles at the bounce instant
+      {
+        const tBounce = (L - 0.5 * P.width) / V; // both centers at x=12
+        const listB = compsAt("free", P, tBounce);
+        const doubled = yAt(listB, L, tBounce);
+        const tAfter = 8.75; // mirror center at x=6
+        const listA = compsAt("free", P, tAfter);
+        const peakAfter = gridMaxAbs(listA, tAfter);
+        checks.push({
+          name: "free end doubles (2A) then reflects upright",
+          pass: near(doubled, 2 * P.amp, 1e-12) && near(peakAfter, P.amp, 1e-9),
+          expected: "y(12,t_bounce)=1.2; reflected peak = 0.6",
+          actual: `${doubled.toFixed(12)} / ${peakAfter.toFixed(12)}`,
+          tolerance: "1e-12 / 1e-9"
+        });
+      }
+
+      // 6. boundary: free-end horizontal slope (even symmetry about the end)
+      {
+        let worst = 0;
+        for (let t = 4; t <= 7.0001; t += 0.1) {
+          const list = compsAt("free", P, t);
+          const h = 1e-5;
+          worst = Math.max(worst, Math.abs(yAt(list, L + h, t) - yAt(list, L - h, t)));
+        }
+        checks.push({
+          name: "free end slope is zero (y(L+h)=y(L-h))",
+          pass: worst <= 1e-7,
+          expected: "symmetric about x=12 through the bounce",
+          actual: `max asymmetry ${worst.toExponential(3)}`,
+          tolerance: "1e-7"
+        });
+      }
+
+      // 7. opposite: identical opposite-sign pulses cancel exactly at coincidence
+      {
+        const tStar = (L - P.width) / (2 * V);
+        const list = compsAt("pair", { amp: P.amp, width: P.width, pairSign: -1 }, tStar);
+        const flat = gridMaxAbs(list, tStar);
+        checks.push({
+          name: "opposite-sign pulses cancel exactly (flat rope)",
+          pass: flat <= 1e-12,
+          expected: "max |y| = 0 at coincide time",
+          actual: flat.toExponential(3),
+          tolerance: "1e-12"
+        });
+      }
+
+      // 8. superposition: 2A at overlap, then both shapes intact (FWHM = w)
+      {
+        const tStar = (L - P.width) / (2 * V);
+        const listO = compsAt("pair", P, tStar);
+        const overlapPeak = gridMaxAbs(listO, tStar);
+        const t2 = 4.5; // centers at 9.5 (rightward) and 2.5 (leftward), disjoint
+        const listS = compsAt("pair", P, t2);
+        const expectR = (x) => P.amp * bump((x - 9.5) / P.width);
+        const expectL = (x) => P.amp * bump((x - 2.5) / P.width);
+        let worst = 0;
+        for (let i = 0; i <= 400; i += 1) {
+          const x = (i * L) / 400;
+          const isR = x >= 8.4 && x <= 10.6, isL = x >= 1.4 && x <= 3.6;
+          if (isR) worst = Math.max(worst, Math.abs(yAt(listS, x, t2) - expectR(x)));
+          if (isL) worst = Math.max(worst, Math.abs(yAt(listS, x, t2) - expectL(x)));
+        }
+        const half1 = Math.abs(yAt(listS, 9.0, t2) - P.amp / 2);
+        const half2 = Math.abs(yAt(listS, 2.0, t2) - P.amp / 2);
+        checks.push({
+          name: "superposition: 2A overlap, shapes survive crossing",
+          pass: near(overlapPeak, 2 * P.amp, 1e-9) && worst <= 1e-12 && half1 <= 1e-12 && half2 <= 1e-12,
+          expected: "overlap peak 1.2; after: pointwise templates, half-max at ±0.5 m",
+          actual: `peak ${overlapPeak.toFixed(12)}; dev ${worst.toExponential(3)}; half-max dev ${(half1 + half2).toExponential(3)}`,
+          tolerance: "1e-9 / 1e-12"
+        });
+      }
+
+      // 9. time-scale invariance: accumulated time equals direct evaluation
+      {
+        const direct = compsAt("travel", P, 3);
+        let acc = 0;
+        for (let i = 0; i < 300; i += 1) acc += 0.01;
+        const stepped = compsAt("travel", P, acc);
+        let worst = 0;
+        for (let i = 0; i <= 100; i += 1) {
+          const x = (i * L) / 100;
+          worst = Math.max(worst, Math.abs(yAt(direct, x, 3) - yAt(stepped, x, acc)));
+        }
+        checks.push({
+          name: "time accumulation is frame-rate independent",
+          pass: worst <= 1e-9,
+          expected: "y(x,3) identical for 300×0.01 s and direct t=3",
+          actual: `max deviation ${worst.toExponential(3)}`,
+          tolerance: "1e-9"
+        });
+      }
+
+      // 10. lifecycle: pulse fully absorbed after the hand catches it
+      {
+        const t = 15; // mirror support [−7.5,−5.5] long gone
+        const list = compsAt("fixed", P, t);
+        const flat = gridMaxAbs(list, t);
+        checks.push({
+          name: "absorbed pulse leaves the rope exactly flat",
+          pass: flat === 0,
+          expected: "max |y| = 0 at t=15 s",
+          actual: flat.toExponential(3),
+          tolerance: "exact 0"
+        });
+      }
+
+      // 11. finiteness sweep across scenarios and times
+      {
+        let allFinite = true;
+        for (const key of ["travel", "fixed", "free", "pair"]) {
+          for (let t = 0; t <= 12.0001; t += 0.25) {
+            const list = compsAt(key, { amp: 1, width: 1.6, pairSign: -1 }, t);
+            for (let i = 0; i <= 40; i += 1) {
+              if (!Number.isFinite(yAt(list, (i * L) / 40, t))) { allFinite = false; }
+            }
+          }
+        }
+        checks.push({
+          name: "all scenario/time/grid values finite",
+          pass: allFinite,
+          expected: "no NaN/Infinity anywhere",
+          actual: allFinite ? "finite" : "non-finite value found",
+          tolerance: "strict"
+        });
+      }
+
+      return checks;
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    if (hasDom) init();
+  })();
+  </script>
+</body>
+</html>

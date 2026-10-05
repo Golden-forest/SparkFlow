@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>气体压强的微观解释 — 分子撞壁仿真</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121a29; --panel2:#0d1420; --line:#22304a;
+    --tx:#dbe7ff; --tx2:#8fa5c8; --acc:#4da3ff; --acc2:#ffb454; --good:#5dd39e;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--tx);
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:14px; padding:14px;
+  }
+  header{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:12px;}
+  header h1{font-size:19px; font-weight:700; letter-spacing:.5px;}
+  header h1 small{color:var(--tx2); font-weight:400; font-size:12px; margin-left:8px;}
+  .btns{display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;}
+  button{
+    background:linear-gradient(180deg,#2a3c5f,#1d2b46); color:var(--tx);
+    border:1px solid var(--line); border-radius:8px; padding:8px 18px;
+    font-size:14px; cursor:pointer; font-family:inherit;
+  }
+  button:hover{border-color:var(--acc);}
+  button.primary{background:linear-gradient(180deg,#2f6fd0,#22558f); border-color:#3f7fd8;}
+  .chk{display:flex; align-items:center; gap:6px; color:var(--tx2); cursor:pointer; user-select:none;}
+  .chk input{accent-color:var(--acc); width:15px; height:15px; cursor:pointer;}
+  main{display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;}
+  #stage{flex:1 1 560px; display:flex; gap:12px; flex-wrap:wrap; min-width:320px;}
+  .simBox{
+    flex:1 1 320px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:12px; padding:8px; min-width:300px;
+  }
+  .simBox h3{font-size:13px; color:var(--tx2); margin:2px 4px 6px; display:flex; gap:8px; align-items:center;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  canvas.sim{width:100%; height:400px; display:block; border-radius:8px; background:#070b12;}
+  #boxB{display:none;}
+  aside{
+    width:330px; flex:0 0 330px; display:flex; flex-direction:column; gap:10px;
+  }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px;}
+  .card h4{font-size:13px; color:var(--acc); margin-bottom:10px; font-weight:600;}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .row label{flex:0 0 118px; color:var(--tx2); font-size:12.5px;}
+  .row output{flex:0 0 66px; text-align:right; color:var(--tx); font-variant-numeric:tabular-nums; font-size:12.5px;}
+  input[type=range]{flex:1; accent-color:var(--acc); cursor:pointer;}
+  table.stats{width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums;}
+  table.stats td{padding:4px 2px; font-size:12.5px; border-bottom:1px dashed #1c2942;}
+  table.stats td:last-child{text-align:right; color:var(--tx);}
+  table.stats .k{color:var(--tx2);}
+  #rowNB{display:none;}
+  #ggA,#ggB{width:100%; height:130px; display:block;}
+  #ggB, #stB{display:none;}
+  #gph{width:100%; height:150px; display:block; background:#070b12; border-radius:8px;}
+  .legend{display:flex; gap:14px; margin-top:6px; font-size:11.5px; color:var(--tx2); flex-wrap:wrap;}
+  footer{margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px;}
+  footer h4{color:var(--acc2); font-size:13.5px; margin-bottom:8px;}
+  footer ul{padding-left:20px; line-height:1.9; color:var(--tx); font-size:13px;}
+  footer b{color:var(--acc2);}
+  .note{font-size:12px; color:var(--tx2); margin-top:8px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>气体压强的微观解释<small>大量分子撞壁冲量的统计平均</small></h1>
+  <div class="btns">
+    <label class="chk"><input type="checkbox" id="mol" checked>分子-分子碰撞</label>
+    <label class="chk"><input type="checkbox" id="dual">双容器对比</label>
+    <button id="btnReset">↺ 重置</button>
+    <button id="btnPlay" class="primary">⏸ 暂停</button>
+  </div>
+</header>
+
+<main>
+  <section id="stage">
+    <div class="simBox" id="boxA">
+      <h3><span class="dot" style="background:#4da3ff"></span>容器 A</h3>
+      <canvas id="cvA" class="sim"></canvas>
+    </div>
+    <div class="simBox" id="boxB">
+      <h3><span class="dot" style="background:#ffb454"></span>容器 B（对比组）</h3>
+      <canvas id="cvB" class="sim"></canvas>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h4>参数调节</h4>
+      <div class="row"><label>分子数 N<sub>A</sub></label><input type="range" id="nA" min="25" max="800" step="5" value="400"><output id="vNA">400</output></div>
+      <div class="row" id="rowNB"><label>分子数 N<sub>B</sub></label><input type="range" id="nB" min="25" max="800" step="5" value="80"><output id="vNB">80</output></div>
+      <div class="row"><label>体积 V（压缩比）</label><input type="range" id="vol" min="0.5" max="2" step="0.01" value="1"><output id="vVol">1.00×</output></div>
+      <div class="row"><label>速率缩放 s（温度）</label><input type="range" id="spd" min="0.5" max="1.5" step="0.01" value="1"><output id="vSpd">1.00×</output></div>
+      <div class="row"><label>统计窗口 Δt</label><input type="range" id="win" min="0.2" max="5" step="0.1" value="1"><output id="vWin">1.0 s</output></div>
+    </div>
+
+    <div class="card">
+      <h4>压强读数（模拟仪表盘）</h4>
+      <canvas id="ggA"></canvas>
+      <canvas id="ggB"></canvas>
+      <div class="note">指针由窗口压强驱动 → 单次撞击的脉冲使其抖动；量程自动调整。中心灯随撞壁事件闪烁。</div>
+    </div>
+
+    <div class="card">
+      <h4>统计量</h4>
+      <table class="stats">
+        <tr><td class="k" id="kA" style="color:#4da3ff">A</td><td></td></tr>
+        <tr><td class="k">窗口压强 P（抖动）</td><td id="pwA">—</td></tr>
+        <tr><td class="k">滑动平均 ⟨P⟩</td><td id="paA">—</td></tr>
+        <tr><td class="k">理论 N m⟨v²⟩/2A</td><td id="thA">—</td></tr>
+        <tr><td class="k">撞壁频率</td><td id="rtA">—</td></tr>
+        <tr><td class="k" id="kB" style="color:#ffb454; display:none">B</td><td></td></tr>
+        <tr id="stB"><td class="k">窗口压强 P（抖动）</td><td id="pwB">—</td></tr>
+        <tr id="stB2" style="display:none"><td class="k">滑动平均 ⟨P⟩</td><td id="paB">—</td></tr>
+        <tr id="stB3" style="display:none"><td class="k">理论 N m⟨v²⟩/2A</td><td id="thB">—</td></tr>
+        <tr id="stB4" style="display:none"><td class="k">撞壁频率</td><td id="rtB">—</td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h4>压强-时间曲线</h4>
+      <canvas id="gph"></canvas>
+      <div class="legend">
+        <span><span class="dot" style="background:#4da3ff"></span> A 窗口压强</span>
+        <span><span class="dot" style="background:#9ecbff"></span> A 滑动平均</span>
+        <span id="lgB" style="display:none"><span class="dot" style="background:#ffb454"></span> B 窗口压强</span>
+        <span id="lgB2" style="display:none"><span class="dot" style="background:#ffd9a0"></span> B 滑动平均</span>
+        <span>（最近 ≈30 s）</span>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <h4>教学要点</h4>
+  <ul>
+    <li><b>压强的微观本质：</b>单个分子撞壁只给器壁一个离散冲量（2m|v⊥|），压强是这些冲量在面积与时间上的统计平均：P = Σ 2m|v⊥| / (A·Δt)。观察窗口压强的"毛刺"与指针抖动，正是离散事件平均化的体现。</li>
+    <li><b>统计涨落：</b>把 N 调小（如 25）或把统计窗口 Δt 缩短，读数明显抖动；N 越大、Δt 越长，读数越稳定（相对涨落 ∝ 1/√N）。可用双容器对比 400 vs 80 个分子。</li>
+    <li><b>等温压缩：</b>推动活塞使 V 减小 → 数密度 n = N/V 增大 → 单位时间撞壁次数增多 → 压强增大（P ∝ 1/V），分子速率不变（等温）。</li>
+    <li><b>升温（速率整体增大）：</b>速率缩放 s 增大，不仅撞得更频繁，而且每次冲量更大 → 压强按 <b>平方量级</b> 增大（P ∝ ⟨v²⟩ ∝ s²）。试试 s 从 1.0 到 1.5：P 约 2.25 倍。</li>
+    <li><b>分子-分子碰撞开关：</b>关闭后分子互相穿过——两种情况的平均压强几乎相同（理想气体分子本身体积可忽略），说明压强主要来自撞壁，而非分子间斥力。</li>
+  </ul>
+</footer>
+
+<script>
+(() => {
+"use strict";
+const TAU = Math.PI * 2;
+const CFG = { H: 360, WFULL: 640, PAD: 28, R: 3.5, M: 1, SIG0: 85 };
+const g = { running: true, t: 0, r: 1, wr: 1, s: 1, prevS: 1, win: 1, mol: true, dual: false, gmax: 1e-6 };
+
+function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+const clamp = (x, a, b) => x < a ? a : (x > b ? b : x);
+const $ = id => document.getElementById(id);
+
+class Sim {
+  constructor(key, color) {
+    this.key = key; this.color = color;
+    this.cv = $("cv" + key); this.ctx = this.cv.getContext("2d");
+    this.gg = $("gg" + key); this.gtx = this.gg.getContext("2d");
+    this.N = 0; this.pw = 0; this.pa = null; this.pth = 0; this.rate = 0;
+    this.needle = 0; this.hist = []; this.ev = []; this.imp = [];
+    this.reset(key === "A" ? 400 : 80);
+  }
+  width() { return CFG.WFULL * g.wr / 2; }
+  area()  { return this.width() * CFG.H; }
+  reset(N) {
+    this.N = N; const W = this.width(), r = CFG.R; this.ps = [];
+    for (let i = 0; i < N; i++) this.ps.push({
+      x: r + Math.random() * Math.max(1, W - 2 * r),
+      y: r + Math.random() * (CFG.H - 2 * r),
+      vx: gauss() * CFG.SIG0 * g.s, vy: gauss() * CFG.SIG0 * g.s });
+    this.ev = []; this.imp = []; this.t0 = g.t;
+    this.pw = 0; this.pa = null; this.rate = 0; this.hist = []; this.needle = 0;
+  }
+  setN(n) {
+    const W = this.width(), r = CFG.R;
+    if (n > this.N) for (let i = this.N; i < n; i++) this.ps.push({
+      x: r + Math.random() * Math.max(1, W - 2 * r),
+      y: r + Math.random() * (CFG.H - 2 * r),
+      vx: gauss() * CFG.SIG0 * g.s, vy: gauss() * CFG.SIG0 * g.s });
+    else this.ps.length = n;
+    this.N = n;
+  }
+  scaleV(f) { for (const p of this.ps) { p.vx *= f; p.vy *= f; } }
+  hit(J, wall, x, y) { const e = { t: g.t, J, wall, x, y }; this.ev.push(e); this.imp.push(e); }
+  step(dt) {
+    const W = this.width(), r = CFG.R, m = CFG.M, H = CFG.H;
+    for (const p of this.ps) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.x < r)        { this.hit(2*m*Math.abs(p.vx), 0, r, p.y);        p.x = 2*r - p.x;       p.vx = -p.vx; }
+      else if (p.x > W-r) { this.hit(2*m*Math.abs(p.vx), 1, W-r, p.y);      p.x = 2*(W-r) - p.x;   p.vx = -p.vx; }
+      if (p.y < r)        { this.hit(2*m*Math.abs(p.vy), 2, p.x, r);        p.y = 2*r - p.y;       p.vy = -p.vy; }
+      else if (p.y > H-r) { this.hit(2*m*Math.abs(p.vy), 3, p.x, H-r);      p.y = 2*(H-r) - p.y;   p.vy = -p.vy; }
+    }
+    if (g.mol) this.collide();
+  }
+  collide() {
+    const W = this.width(), cs = 10;
+    const cols = Math.max(1, Math.ceil(W / cs)), rows = Math.ceil(CFG.H / cs);
+    const grid = new Array(cols * rows); for (let i = 0; i < grid.length; i++) grid[i] = [];
+    for (let i = 0; i < this.ps.length; i++) {
+      const p = this.ps[i];
+      const cx = clamp((p.x / cs) | 0, 0, cols - 1), cy = clamp((p.y / cs) | 0, 0, rows - 1);
+      grid[cy * cols + cx].push(i);
+    }
+    const d2m = (2 * CFG.R) * (2 * CFG.R);
+    const pairN = (i, list) => { for (let k = 0; k < list.length; k++) this.pair(i, list[k], d2m); };
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      const c = grid[cy * cols + cx];
+      for (let a = 0; a < c.length; a++) {
+        const i = c[a];
+        for (let b = a + 1; b < c.length; b++) this.pair(i, c[b], d2m);
+        if (cx + 1 < cols) pairN(i, grid[cy * cols + cx + 1]);
+        if (cy + 1 < rows) {
+          pairN(i, grid[(cy + 1) * cols + cx]);
+          if (cx + 1 < cols) pairN(i, grid[(cy + 1) * cols + cx + 1]);
+          if (cx > 0)       pairN(i, grid[(cy + 1) * cols + cx - 1]);
+        }
+      }
+    }
+  }
+  pair(i, j, d2m) {
+    const a = this.ps[i], b = this.ps[j];
+    const dx = a.x - b.x, dy = a.y - b.y, d2 = dx*dx + dy*dy;
+    if (d2 >= d2m || d2 === 0) return;
+    const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+    const un = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+    if (un < 0) { a.vx -= un*nx; a.vy -= un*ny; b.vx += un*nx; b.vy += un*ny; }
+    const ov = (2 * CFG.R - d) / 2;
+    a.x += nx*ov; a.y += ny*ov; b.x -= nx*ov; b.y -= ny*ov;
+  }
+  measure() {
+    const now = g.t, keep = Math.max(g.win, 1) + 0.05;
+    while (this.ev.length  && this.ev[0].t  < now - keep)   this.ev.shift();
+    while (this.imp.length && this.imp[0].t < now - 0.22)   this.imp.shift();
+    const W = this.width(), L = 2 * (W + CFG.H);
+    let sJ = 0, cnt = 0;
+    for (const e of this.ev) { if (e.t > now - g.win) sJ += e.J; if (e.t > now - 1) cnt++; }
+    const el = Math.max(0.05, Math.min(now - this.t0, g.win));
+    this.pw = sJ / (el * L);
+    this.rate = cnt / Math.max(0.05, Math.min(now - this.t0, 1));
+    let v2 = 0; for (const p of this.ps) v2 += p.vx*p.vx + p.vy*p.vy;
+    v2 /= Math.max(1, this.N);
+    this.pth = this.N * CFG.M * v2 / (2 * this.area());
+    if (this.pa == null) this.pa = this.pw;
+  }
+  view() {
+    const cw = this.cv.width, ch = this.cv.height;
+    const sc = Math.min(cw / (CFG.WFULL + 2*CFG.PAD), ch / (CFG.H + 2*CFG.PAD));
+    return { sc, ox: (cw - CFG.WFULL * sc) / 2, oy: (ch - CFG.H * sc) / 2, cw, ch };
+  }
+  render() {
+    const c = this.ctx, v = this.view(), W = this.width(), sc = v.sc;
+    const X = x => v.ox + x * sc, Y = y => v.oy + y * sc;
+    c.clearRect(0, 0, v.cw, v.ch);
+    // 活塞外区域（右侧）
+    c.fillStyle = "#080d16";
+    c.fillRect(X(W), Y(0), (CFG.WFULL - W) * sc, CFG.H * sc);
+    // 容器内部
+    c.fillStyle = "#0e1626";
+    c.fillRect(X(0), Y(0), W * sc, CFG.H * sc);
+    // 撞壁脉冲闪光
+    for (const e of this.imp) {
+      const age = (g.t - e.t) / 0.22; if (age >= 1) continue;
+      const len = (10 * (1 - age) + 3) * sc / 2.2;
+      const nx = e.wall === 0 ? 1 : e.wall === 1 ? -1 : 0;
+      const ny = e.wall === 2 ? 1 : e.wall === 3 ? -1 : 0;
+      c.strokeStyle = this.color; c.globalAlpha = (1 - age) * 0.9; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(X(e.x), Y(e.y)); c.lineTo(X(e.x) + nx*len*2.2, Y(e.y) + ny*len*2.2); c.stroke();
+      c.globalAlpha = 1;
+    }
+    // 分子（颜色按速率）
+    const vref = 150 * g.s * 1.6;
+    for (const p of this.ps) {
+      const sp = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+      const hue = 210 - 210 * clamp(sp / vref, 0, 1);
+      c.fillStyle = `hsl(${hue},80%,62%)`;
+      c.beginPath(); c.arc(X(p.x), Y(p.y), CFG.R * sc, 0, TAU); c.fill();
+    }
+    // 器壁
+    c.strokeStyle = "#5b87c9"; c.lineWidth = 3;
+    c.strokeRect(X(0), Y(0), W * sc, CFG.H * sc);
+    // 活塞 + 杆
+    c.fillStyle = "#8fa5c8"; c.fillRect(X(W) - 4, Y(0) - 5, 10, CFG.H * sc + 10);
+    c.fillStyle = "#3a4c6e"; c.fillRect(X(W) + 6, Y(CFG.H/2) - 6*sc, (CFG.WFULL - W) * sc, 12*sc);
+    c.fillStyle = "#8fa5c8"; c.font = `${11*sc+3}px sans-serif`; c.textAlign = "center";
+    if ((CFG.WFULL - W) * sc > 46) c.fillText("活塞", X((W + CFG.WFULL) / 2), Y(CFG.H/2) - 12*sc);
+  }
+  renderGauge(dt) {
+    this.needle += (this.pw - this.needle) * Math.min(1, dt / 0.08);
+    const c = this.gtx, cw = this.gg.width, ch = this.gg.height;
+    c.clearRect(0, 0, cw, ch);
+    const cx = cw / 2, cy = ch * 0.92, R = Math.min(cw / 2 - 12, ch * 0.82);
+    const a0 = Math.PI * 0.75, sweep = Math.PI * 1.5;
+    c.strokeStyle = "#22304a"; c.lineWidth = 9;
+    c.beginPath(); c.arc(cx, cy, R, a0, a0 + sweep); c.stroke();
+    for (let i = 0; i <= 10; i++) {
+      const a = a0 + sweep * i / 10;
+      const r1 = R - 12, r2 = i % 5 === 0 ? R - 24 : R - 18;
+      c.strokeStyle = i % 5 === 0 ? "#8fa5c8" : "#3a4c6e"; c.lineWidth = i % 5 === 0 ? 2 : 1;
+      c.beginPath();
+      c.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      c.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
+      c.stroke();
+    }
+    const frac = clamp(this.needle / g.gmax, 0, 1), an = a0 + sweep * frac;
+    c.strokeStyle = this.color; c.lineWidth = 3; c.lineCap = "round";
+    c.beginPath(); c.moveTo(cx, cy);
+    c.lineTo(cx + Math.cos(an) * (R - 26), cy + Math.sin(an) * (R - 26)); c.stroke();
+    // 撞壁脉冲指示灯
+    let glow = 0;
+    for (const e of this.imp) { const a = (g.t - e.t) / 0.22; if (a < 1) glow += (1 - a); }
+    c.fillStyle = this.color; c.globalAlpha = clamp(glow / 3, 0.06, 1);
+    c.beginPath(); c.arc(cx, cy, 7, 0, TAU); c.fill(); c.globalAlpha = 1;
+    c.fillStyle = "#dbe7ff"; c.textAlign = "center"; c.font = "12px sans-serif";
+    c.fillText(`P = ${this.pw.toFixed(2)}`, cx, cy - R * 0.32);
+    c.fillStyle = "#8fa5c8"; c.font = "10.5px sans-serif";
+    c.fillText(`量程 ${g.gmax.toFixed(1)}`, cx, cy - R * 0.32 + 15);
+  }
+}
+
+// ---------- 初始化 ----------
+const simA = new Sim("A", "#4da3ff");
+let simB = null;
+const sims = () => g.dual ? [simA, simB] : [simA];
+function ensureB() { if (!simB) simB = new Sim("B", "#ffb454"); }
+
+function fit(cv) {
+  const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  cv.width = Math.max(50, r.width * dpr); cv.height = Math.max(40, r.height * dpr);
+}
+function fitAll() {
+  fit(simA.cv); fit(simA.gg);
+  if (simB) { fit(simB.cv); fit(simB.gg); }
+  fit($("gph"));
+}
+window.addEventListener("resize", fitAll);
+fitAll();
+
+// ---------- 控件 ----------
+$("nA").addEventListener("input", e => { $("vNA").textContent = e.target.value; simA.setN(+e.target.value); });
+$("nB").addEventListener("input", e => { $("vNB").textContent = e.target.value; if (simB) simB.setN(+e.target.value); });
+$("vol").addEventListener("input", e => { g.r = +e.target.value; $("vVol").textContent = g.r.toFixed(2) + "×"; });
+$("spd").addEventListener("input", e => {
+  g.s = +e.target.value; $("vSpd").textContent = g.s.toFixed(2) + "×";
+  const f = g.s / g.prevS; g.prevS = g.s;
+  simA.scaleV(f); if (simB) simB.scaleV(f);
+});
+$("win").addEventListener("input", e => { g.win = +e.target.value; $("vWin").textContent = g.win.toFixed(1) + " s"; });
+$("mol").addEventListener("change", e => g.mol = e.target.checked);
+$("dual").addEventListener("change", e => {
+  g.dual = e.target.checked;
+  const d = g.dual ? "" : "none";
+  $("boxB").style.display = d; $("rowNB").style.display = d;
+  $("ggB").style.display = d; $("stB").style.display = d;
+  $("stB2").style.display = d; $("stB3").style.display = d; $("stB4").style.display = d;
+  $("lgB").style.display = d; $("lgB2").style.display = d; $("kB").style.display = d;
+  if (g.dual) { ensureB(); fitAll(); }
+});
+$("btnPlay").addEventListener("click", () => {
+  g.running = !g.running;
+  $("btnPlay").textContent = g.running ? "⏸ 暂停" : "▶ 继续";
+});
+$("btnReset").addEventListener("click", () => {
+  simA.reset(+$("nA").value); if (simB) simB.reset(+$("nB").value);
+  g.gmax = 1e-6;
+});
+
+// ---------- 图表 ----------
+function renderGraph() {
+  const cv = $("gph"), c = cv.getContext("2d"), w = cv.width, h = cv.height;
+  const l = 40, r = 8, t = 8, b = 18, MAXN = 260;
+  c.clearRect(0, 0, w, h);
+  let ymax = 1e-6;
+  for (const s of sims()) for (const p of s.hist) { if (p[0] > ymax) ymax = p[0]; if (p[1] > ymax) ymax = p[1]; }
+  ymax *= 1.12;
+  c.strokeStyle = "#1c2942"; c.lineWidth = 1; c.fillStyle = "#5c719a"; c.font = "10.5px sans-serif";
+  for (let i = 0; i <= 4; i++) {
+    const y = t + (h - t - b) * i / 4;
+    c.beginPath(); c.moveTo(l, y); c.lineTo(w - r, y); c.stroke();
+    c.textAlign = "right"; c.fillText((ymax * (1 - i / 4)).toFixed(1), l - 5, y + 3.5);
+  }
+  c.textAlign = "center"; c.fillText("时间 →（每格 ≈7.5 s）", (l + w - r) / 2, h - 4);
+  for (const s of sims()) {
+    if (s.hist.length < 2) continue;
+    const px = i => l + (i / (MAXN - 1)) * (w - l - r);
+    const py = v => t + (1 - clamp(v / ymax, 0, 1)) * (h - t - b);
+    c.strokeStyle = s.color; c.globalAlpha = 0.45; c.lineWidth = 1;
+    c.beginPath();
+    const off = MAXN - s.hist.length;
+    s.hist.forEach((p, i) => { const x = px(off + i), y = py(p[0]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.stroke();
+    c.globalAlpha = 1; c.lineWidth = 2.2;
+    c.beginPath();
+    s.hist.forEach((p, i) => { const x = px(off + i), y = py(p[1]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.stroke();
+  }
+}
+
+// ---------- 主循环 ----------
+const fmt = v => v.toFixed(2);
+let lastMs = performance.now(), sampleT = 0, domT = 0;
+function updateDOM() {
+  $("pwA").textContent = fmt(simA.pw); $("paA").textContent = fmt(simA.pa);
+  $("thA").textContent = fmt(simA.pth); $("rtA").textContent = simA.rate.toFixed(0) + " 次/s";
+  if (g.dual && simB) {
+    $("pwB").textContent = fmt(simB.pw); $("paB").textContent = fmt(simB.pa);
+    $("thB").textContent = fmt(simB.pth); $("rtB").textContent = simB.rate.toFixed(0) + " 次/s";
+  }
+}
+function frame(nowMs) {
+  const dt = Math.min(50, nowMs - lastMs) / 1000; lastMs = nowMs;
+  if (g.running) {
+    // 活塞平滑移动（等温：只改变体积，不改变分子速率）
+    const d = g.r - g.wr;
+    g.wr += Math.sign(d) * Math.min(Math.abs(d), 1.2 * dt);
+    const sub = 2, h = dt / sub;
+    for (let k = 0; k < sub; k++) for (const s of sims()) s.step(h);
+    g.t += dt;
+    let mx = 1e-6;
+    for (const s of sims()) {
+      s.measure();
+      s.pa += (s.pw - s.pa) * Math.min(1, dt / 4);
+      if (s.pw > mx) mx = s.pw;
+    }
+    g.gmax = Math.max(mx * 1.05, g.gmax * Math.exp(-0.12 * dt), 1e-6);
+    sampleT += dt;
+    if (sampleT > 0.12) {
+      sampleT = 0;
+      for (const s of sims()) { s.hist.push([s.pw, s.pa]); if (s.hist.length > 260) s.hist.shift(); }
+    }
+    domT += dt; if (domT > 0.15) { domT = 0; updateDOM(); }
+  }
+  simA.render(); simA.renderGauge(dt);
+  if (g.dual && simB) { simB.render(); simB.renderGauge(dt); }
+  renderGraph();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

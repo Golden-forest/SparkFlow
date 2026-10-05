@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>折射与全反射 · 交互式仿真</title>
+<style>
+  :root{--bg:#0b0f17;--card:#111a2b;--line:#223046;--txt:#dfe7f3;--dim:#8fa2bd;--red:#ff4d4f;--cyan:#58c7f3;--gold:#ffd54a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px}
+  header h1{margin:0 0 4px;font-size:22px}
+  header h1 span{color:var(--red)}
+  header p{margin:0 0 14px;color:var(--dim);font-size:13px}
+  .main{display:flex;gap:16px;flex-wrap:wrap;align-items:stretch}
+  .canvas-box{flex:1 1 620px;min-width:340px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0d1524}
+  canvas{display:block;width:100%;height:auto}
+  .panel{flex:0 0 340px;display:flex;flex-direction:column;gap:12px;min-width:300px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px}
+  .card h3{margin:0 0 10px;font-size:14px;color:#aebfd8}
+  .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px}
+  .row b{color:#fff}
+  input[type=range]{width:100%;accent-color:var(--red);cursor:pointer}
+  .seg{display:flex;gap:8px}
+  .seg button,.btn,.preset{flex:1;background:#1a2740;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:7px 6px;font-size:12.5px;cursor:pointer;transition:.15s}
+  .seg button.on{background:var(--red);border-color:var(--red);color:#fff;font-weight:600}
+  .preset{flex:0 0 23%}
+  .preset:hover,.btn:hover{background:#26375a}
+  .btnrow{display:flex;gap:8px;margin-top:8px}
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center}
+  .readout .cell{background:#0d1524;border:1px solid var(--line);border-radius:8px;padding:8px 4px}
+  .cell .k{font-size:11.5px;color:var(--dim)}
+  .cell .v{font-size:21px;font-weight:700;margin-top:2px}
+  .cell .v small{font-size:12px;font-weight:400;color:var(--dim)}
+  .tirv{color:var(--gold)}
+  .formula{background:#0d1524;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;line-height:1.75;font-family:ui-monospace,Consolas,monospace}
+  .formula .eq{color:#fff;font-weight:700}
+  .ok{color:#7be08a}.bad{color:var(--gold)}
+  .bars{margin-top:9px;font-size:12px}
+  .bar{height:12px;background:#0d1524;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:3px 0 7px}
+  .bar i{display:block;height:100%;transition:width .1s linear}
+  #reflBar i{background:linear-gradient(90deg,#ff8a8a,#ff4d4f)}
+  #refrBar i{background:linear-gradient(90deg,#ffd08a,#ff9a3d)}
+  .notes{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .notes .card{font-size:13px;line-height:1.8;color:#c3d1e6}
+  .notes b{color:#fff}
+  .notes .f{font-family:ui-monospace,Consolas,monospace;color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>折射与全反射 <span>交互式激光仿真</span></h1>
+    <p>拖动滑块改变入射角与介质折射率，观察反射 / 折射光束的能量（亮度）分配；当光从光密介质射向光疏介质且入射角超过临界角时，将发生全反射。</p>
+  </header>
+
+  <div class="main">
+    <div class="canvas-box"><canvas id="cv"></canvas></div>
+
+    <aside class="panel">
+      <div class="card">
+        <h3>光的方向（翻转）</h3>
+        <div class="seg">
+          <button id="dirDown" class="on">下 → 上（光密 → 光疏）</button>
+          <button id="dirUp">上 → 下（光疏 → 光密）</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>参数调节</h3>
+        <div class="row"><span>入射角 θ₁</span><b id="th1lab">30.0°</b></div>
+        <input type="range" id="th1s" min="0" max="90" step="0.5" value="30">
+        <div class="row" style="margin-top:10px"><span>下介质折射率 n</span><b id="nlab">1.50</b></div>
+        <input type="range" id="ns" min="1.30" max="1.90" step="0.01" value="1.50">
+        <div class="btnrow" style="margin-top:6px">
+          <button class="preset" data-n="1.33">水 1.33</button>
+          <button class="preset" data-n="1.52">玻璃 1.52</button>
+          <button class="preset" data-n="1.62">火石 1.62</button>
+          <button class="preset" data-n="1.77">蓝宝石 1.77</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>播放控制</h3>
+        <div class="btnrow" style="margin-top:0">
+          <button class="btn" id="playBtn">⏸ 暂停光脉冲</button>
+          <button class="btn" id="sweepBtn">▶ 扫角演示 0°→90°</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>实时数据</h3>
+        <div class="readout">
+          <div class="cell"><div class="k">入射角 θ₁</div><div class="v" id="th1v">30.0<small>°</small></div></div>
+          <div class="cell"><div class="k">折射角 θ₂</div><div class="v" id="th2v">19.5<small>°</small></div></div>
+        </div>
+        <div class="formula" style="margin-top:9px">
+          <div id="mediaLab" style="font-size:12px;color:var(--dim)"></div>
+          <div class="eq">n₁·sinθ₁ = n₂·sinθ₂</div>
+          <div id="snellNum"></div>
+          <div id="critLine"></div>
+        </div>
+        <div class="bars">
+          <div class="row" style="margin:0"><span>反射能量 R</span><b id="reflPct"></b></div>
+          <div class="bar" id="reflBar"><i></i></div>
+          <div class="row" style="margin:0"><span>折射能量 T</span><b id="refrPct"></b></div>
+          <div class="bar" id="refrBar"><i></i></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="notes">
+    <div class="card"><b>① 折射定律（Snell 定律）</b><br><span class="f">n₁·sinθ₁ = n₂·sinθ₂</span><br>光由光疏进入光密介质（n₂&gt;n₁）时，折射角 θ₂&lt;θ₁，光线<b>折向法线</b>；反之则<b>偏离法线</b>。</div>
+    <div class="card"><b>② 全反射的发生条件</b><br>必须同时满足：<br>1. 光从<b>光密介质</b>射向<b>光疏介质</b>（n₁ &gt; n₂）；<br>2. 入射角足够大：<b>θ₁ &gt; θC</b>（临界角）。<br>此时折射光消失，反射能量 = 100%。</div>
+    <div class="card"><b>③ 临界角公式</b><br>令 θ₂ = 90°，得 <span class="f">sinθC = n₂ / n₁</span><br>例：玻璃(n=1.50)→空气：<br><span class="f">θC = arcsin(1/1.5) ≈ 41.8°</span></div>
+    <div class="card"><b>④ 能量分配与应用</b><br>反射 + 折射 = 100%（由菲涅耳公式决定，随角度连续变化；θ₁→90° 或全反射时 R→100%）。<br>全反射应用：<b>光纤通信、内窥镜、钻石的火彩、水下全反射亮窗</b>。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const cv=$("cv"),ctx=cv.getContext("2d");
+const W=900,H=560,yI=252,xO=320,O={x:xO,y:yI};
+const dpr=Math.min(2,window.devicePixelRatio||1);
+cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+
+const st={th:30,thT:30,n:1.5,nT:1.5,fromBottom:true,playing:true,sweep:false,animT:0};
+
+/* ---------- 物理 ---------- */
+function physics(thDeg,nBot,fromBottom){
+  const th1=thDeg*Math.PI/180;
+  const n1=fromBottom?nBot:1.0, n2=fromBottom?1.0:nBot;
+  const s1=Math.sin(th1), s2v=n1*s1/n2;
+  const tir=s2v>1+1e-9, th2=tir?NaN:Math.asin(s2v);
+  let R,T;
+  if(tir){R=1;T=0;}
+  else{
+    const c1=Math.cos(th1),c2=Math.cos(th2);
+    const rs=Math.pow((n1*c1-n2*c2)/(n1*c1+n2*c2),2);
+    const rp=Math.pow((n2*c1-n1*c2)/(n2*c1+n1*c2),2);
+    R=(rs+rp)/2;T=1-R;
+  }
+  const hasC=n2<n1-1e-9, thC=hasC?Math.asin(n2/n1):NaN;
+  return{th1,n1,n2,s1,s2v,tir,th2,R,T,hasC,thC};
+}
+/* 射线与画布边界求交，返回长度 */
+function rayLen(dx,dy){
+  const m=18;let t=1e9;
+  if(dx>1e-9)t=Math.min(t,(W-m-O.x)/dx);else if(dx<-1e-9)t=Math.min(t,(m-O.x)/dx);
+  if(dy>1e-9)t=Math.min(t,(H-m-O.y)/dy);else if(dy<-1e-9)t=Math.min(t,(m-O.y)/dy);
+  return Math.max(t,0);
+}
+function beam(x1,y1,x2,y2,a,w){
+  if(a<=0.015)return;
+  ctx.save();
+  ctx.globalAlpha=a;ctx.strokeStyle="#ff3b30";ctx.lineCap="round";
+  ctx.shadowColor="rgba(255,60,50,.9)";ctx.shadowBlur=14;
+  ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.shadowBlur=0;ctx.globalAlpha=Math.min(1,a*1.9);ctx.lineWidth=w*0.4;
+  ctx.strokeStyle="#ffd9d5";ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+}
+function arrow(x,y,dx,dy,a){
+  if(a<=0.03)return;
+  ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(dy,dx));
+  ctx.globalAlpha=a;ctx.fillStyle="#ffb3ad";
+  ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(-5,4.5);ctx.lineTo(-5,-4.5);ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+function arcLabel(a1,a2,r,txt,color,fs){
+  let d=a2-a1;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+  ctx.save();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.globalAlpha=.9;
+  ctx.beginPath();ctx.arc(O.x,O.y,r,a1,a1+d,d<0);ctx.stroke();
+  const mid=a1+d/2;
+  ctx.globalAlpha=1;ctx.fillStyle=color;ctx.font=(fs||13)+"px ui-monospace,Consolas,monospace";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(txt,O.x+Math.cos(mid)*(r+17),O.y+Math.sin(mid)*(r+17));
+  ctx.restore();
+}
+function pulse(x,y,a){
+  if(a<=0.03)return;
+  ctx.save();ctx.globalAlpha=a;
+  ctx.shadowColor="rgba(255,70,60,1)";ctx.shadowBlur=18;ctx.fillStyle="#ff5045";
+  ctx.beginPath();ctx.arc(x,y,4.5,0,7);ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle="#fff";ctx.globalAlpha=Math.min(1,a*1.2);
+  ctx.beginPath();ctx.arc(x,y,2.2,0,7);ctx.fill();
+  ctx.restore();
+}
+/* ---------- 绘制 ---------- */
+function draw(p,time){
+  const th1=p.th1,n1=p.n1,n2=p.n2,fb=st.fromBottom,s=fb?-1:1;
+  const s1=Math.sin(th1),c1=Math.cos(th1);
+  const din={x:s1,y:s*c1};                 // 入射方向
+  const dref={x:s1,y:-s*c1};               // 反射方向
+  const dtr=p.tir?null:{x:Math.sin(p.th2),y:s*Math.cos(p.th2)}; // 折射方向
+
+  /* 介质背景 */
+  let g=ctx.createLinearGradient(0,0,0,yI);
+  g.addColorStop(0,"#12233c");g.addColorStop(1,"#0e1a2c");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,yI);
+  g=ctx.createLinearGradient(0,yI,0,H);
+  g.addColorStop(0,"#0c1626");g.addColorStop(1,"#132036");
+  ctx.fillStyle=g;ctx.fillRect(0,yI,W,H-yI);
+  ctx.strokeStyle="rgba(190,215,245,.55)";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,yI);ctx.lineTo(W,yI);ctx.stroke();
+
+  ctx.fillStyle="rgba(200,220,245,.75)";ctx.font="13px system-ui";ctx.textAlign="left";ctx.textBaseline="alphabetic";
+  ctx.fillText("上介质：空气  n = 1.000（光疏）",16,26);
+  ctx.fillText("下介质：n = "+st.n.toFixed(2)+"（光密）"+(fb?"  ← 入射方":"  ← 折射方"),16,H-14);
+
+  /* 法线（虚线） */
+  ctx.save();ctx.setLineDash([7,7]);ctx.strokeStyle="rgba(255,255,255,.4)";ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(O.x,26);ctx.lineTo(O.x,H-26);ctx.stroke();ctx.restore();
+  ctx.fillStyle="rgba(255,255,255,.65)";ctx.font="12px system-ui";
+  ctx.fillText("法线",O.x+8,38);
+
+  /* 临界角参考虚线 */
+  if(p.hasC){
+    const sC=Math.sin(p.thC),cC=Math.cos(p.thC),dc={x:-sC,y:-s*cC};
+    ctx.save();ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(88,199,243,.75)";ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(O.x,O.y);ctx.lineTo(O.x+dc.x*130,O.y+dc.y*130);ctx.stroke();ctx.restore();
+    ctx.fillStyle="#58c7f3";ctx.font="12.5px ui-monospace,Consolas,monospace";ctx.textAlign="left";
+    ctx.fillText("θC",O.x+dc.x*140-6,O.y+dc.y*140);
+  }
+
+  /* 角度弧 */
+  const up=-Math.PI/2,dn=Math.PI/2;
+  const angIn=Math.atan2(-din.y,-din.x), angRef=Math.atan2(dref.x?dref.y:dref.y,dref.x);
+  const nrmIn=fb?dn:up, nrmOut=fb?up:dn;   // 指向入射/折射介质的法线臂
+  if(th1*180/Math.PI>2.5)arcLabel(nrmIn,angIn,54,"θ₁","#ff8f8a");
+  if(!p.tir&&p.th2>0.045)arcLabel(nrmOut,Math.atan2(dtr.y,dtr.x),66,"θ₂","#ffc46b");
+  if(th1*180/Math.PI>2.5)arcLabel(nrmIn,Math.atan2(dref.y,dref.x),34,"θ₁′","rgba(255,160,155,.75)",11);
+
+  /* 光束 */
+  const Lin=rayLen(-din.x,-din.y), Lref=rayLen(dref.x,dref.y);
+  const Ltr=dtr?rayLen(dtr.x,dtr.y):0;
+  const tail={x:O.x-din.x*Lin,y:O.y-din.y*Lin};
+  const refEnd={x:O.x+dref.x*Lref,y:O.y+dref.y*Lref};
+  beam(tail.x,tail.y,O.x,O.y,1,3);                       // 入射（全亮）
+  beam(O.x,O.y,refEnd.x,refEnd.y,Math.max(.1,p.R),3);    // 反射 ∝ R
+  if(dtr){const tEnd={x:O.x+dtr.x*Ltr,y:O.y+dtr.y*Ltr};
+    beam(O.x,O.y,tEnd.x,tEnd.y,Math.max(.08,p.T),3);     // 折射 ∝ T
+    arrow(O.x+dtr.x*Ltr*.55,O.y+dtr.y*Ltr*.55,dtr.x,dtr.y,Math.max(.1,p.T));}
+  arrow(O.x+dref.x*Lref*.55,O.y+dref.y*Lref*.55,dref.x,dref.y,Math.max(.1,p.R));
+  arrow(tail.x+din.x*Lin*.45,tail.y+din.y*Lin*.45,din.x,din.y,1);
+
+  /* 激光器 */
+  ctx.save();ctx.translate(tail.x,tail.y);ctx.rotate(Math.atan2(din.y,din.x));
+  ctx.fillStyle="#39414f";ctx.strokeStyle="#59657a";ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(-56,-9,50,18,4);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#ff5045";ctx.fillRect(-8,-4,10,8);
+  ctx.fillStyle="#9aa7bb";ctx.font="9px system-ui";ctx.textAlign="center";
+  ctx.fillText("LASER",-31,3);ctx.restore();
+
+  /* 光脉冲动画（速度 ∝ c/n） */
+  const vB=190,v1=vB/p.n1,v2=vB/p.n2;
+  const tA=Lin/v1, tB=Math.max(Lref/v1,dtr?Ltr/v2:0), per=tA+tB+.3;
+  const tt=st.animT%per;
+  if(tt<tA){const q=tt/tA;pulse(O.x-din.x*Lin*(1-q),O.y-din.y*Lin*(1-q),1);}
+  else{const q=Math.min(1,(tt-tA)/tB);
+    pulse(O.x+dref.x*Lref*q,O.y+dref.y*Lref*q,.2+.8*p.R);
+    if(dtr)pulse(O.x+dtr.x*Ltr*q,O.y+dtr.y*Ltr*q,.15+.85*p.T);}
+
+  /* 全反射标注 */
+  if(p.tir){
+    const a=.55+.45*Math.abs(Math.sin(time/180));
+    ctx.save();ctx.globalAlpha=a;ctx.fillStyle="#ffd54a";
+    ctx.font="bold 20px system-ui";ctx.textAlign="center";
+    ctx.shadowColor="rgba(255,213,74,.8)";ctx.shadowBlur=12;
+    ctx.fillText("θ₁ > θC  全反射！",O.x+205,fb?yI-64:yI+74);
+    ctx.restore();
+  }
+}
+/* ---------- 面板刷新 ---------- */
+const D=x=>(x*180/Math.PI).toFixed(1);
+function panel(p){
+  $("th1lab").textContent=D(p.th1)+"°";
+  $("nlab").textContent=st.n.toFixed(2);
+  $("th1v").innerHTML=D(p.th1)+"<small>°</small>";
+  $("th2v").innerHTML=p.tir?'<span class="tirv">全反射</span>':D(p.th2)+"<small>°</small>";
+  $("mediaLab").textContent=(st.fromBottom?`n₁ = 下介质 ${p.n1.toFixed(3)}　n₂ = 空气 ${p.n2.toFixed(3)}`:`n₁ = 空气 ${p.n1.toFixed(3)}　n₂ = 下介质 ${p.n2.toFixed(3)}`);
+  let sn;
+  if(p.tir)sn=`${p.n1.toFixed(3)}×sin${D(p.th1)}° = ${p.n2.toFixed(3)}×sin θ₂<br>sinθ₂ = <span class="bad">${p.s2v.toFixed(3)} &gt; 1</span> → 无解，折射光消失`;
+  else sn=`${p.n1.toFixed(3)}×sin${D(p.th1)}° = ${p.n2.toFixed(3)}×sin${D(p.th2)}°<br>${(p.n1*p.s1).toFixed(3)} = ${p.s2v.toFixed(3)} <span class="ok">✓ 成立</span>`;
+  $("snellNum").innerHTML=sn;
+  const deg=+D(p.th1);
+  $("critLine").innerHTML=p.hasC
+    ?`θC = arcsin(n₂/n₁) = <b>${D(p.thC)}°</b>`+(p.tir?`　<span class="bad">θ₁ ${deg}° &gt; θC → 全反射中</span>`:`　<span class="ok">θ₁ ${deg}° &lt; θC → 有折射</span>`)
+    :`光疏 → 光密（n₁ &lt; n₂）：无临界角，不可能全反射`;
+  $("reflPct").textContent=(p.R*100).toFixed(1)+"%";
+  $("refrPct").textContent=p.tir?"0%":(p.T*100).toFixed(1)+"%";
+  $("reflBar").firstElementChild.style.width=(p.R*100)+"%";
+  $("refrBar").firstElementChild.style.width=(p.T*100)+"%";
+}
+/* ---------- 交互 ---------- */
+$("th1s").addEventListener("input",e=>{st.thT=+e.target.value;stopSweep();});
+$("ns").addEventListener("input",e=>{st.nT=+e.target.value;});
+document.querySelectorAll(".preset").forEach(b=>b.onclick=()=>{st.nT=+b.dataset.n;$("ns").value=st.nT;});
+$("dirDown").onclick=()=>setDir(true); $("dirUp").onclick=()=>setDir(false);
+function setDir(fb){st.fromBottom=fb;$("dirDown").classList.toggle("on",fb);$("dirUp").classList.toggle("on",!fb);}
+$("playBtn").onclick=()=>{st.playing=!st.playing;$("playBtn").textContent=st.playing?"⏸ 暂停光脉冲":"▶ 播放光脉冲";};
+function stopSweep(){st.sweep=false;$("sweepBtn").textContent="▶ 扫角演示 0°→90°";}
+$("sweepBtn").onclick=()=>{
+  if(st.sweep)stopSweep();
+  else{st.sweep=true;st.thT=0;$("th1s").value=0;$("sweepBtn").textContent="■ 停止扫角";}
+};
+/* ---------- 主循环 ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(st.sweep){st.thT+=dt*11;if(st.thT>=90){st.thT=90;stopSweep();}$("th1s").value=st.thT;}
+  st.th+=(st.thT-st.th)*Math.min(1,dt*9);
+  st.n+=(st.nT-st.n)*Math.min(1,dt*9);
+  if(st.playing)st.animT+=dt;
+  const p=physics(st.th,st.n,st.fromBottom);
+  ctx.clearRect(0,0,W,H);draw(p,now);panel(p);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

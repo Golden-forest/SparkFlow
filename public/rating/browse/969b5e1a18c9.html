@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>气垫导轨 · 验证动量守恒（虚拟实验）</title>
+<style>
+  :root{
+    --bg:#eef2f7; --card:#ffffff; --ink:#1e293b; --muted:#64748b;
+    --accent:#2563eb; --ok:#15803d; --warn:#b91c1c; --line:#e2e8f0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  header{background:linear-gradient(90deg,#1d4ed8,#0ea5e9);color:#fff;padding:14px 22px;}
+  header h1{margin:0;font-size:20px;}
+  header p{margin:4px 0 0;font-size:13px;opacity:.9;}
+  main{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(300px,1fr);gap:14px;padding:14px;max-width:1280px;margin:0 auto;}
+  @media (max-width:960px){main{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .stepno{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;flex:none;}
+  .locked{opacity:.45;pointer-events:none;}
+  canvas#cv{width:100%;display:block;background:#f8fafc;border:1px solid var(--line);border-radius:8px;}
+  .statusRow{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:8px;gap:10px;}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
+  button{border:1px solid #cbd5e1;background:#fff;color:var(--ink);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;}
+  button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  button.primary:hover:not(:disabled){background:#1d4ed8;color:#fff;}
+  label{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;}
+  select,input[type=number]{border:1px solid #cbd5e1;border-radius:6px;padding:4px 6px;font-size:13px;}
+  input[type=range]{width:140px;}
+  .val{color:var(--accent);font-weight:600;}
+  .hint{font-size:12.5px;color:var(--muted);line-height:1.6;margin:6px 0;}
+  .stateBox{font-size:13px;padding:8px 10px;border-radius:8px;background:#f1f5f9;display:inline-block;}
+  .stateBox.ok{background:#dcfce7;color:var(--ok);font-weight:600;}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:6px;}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center;}
+  th{background:#f1f5f9;font-weight:600;}
+  td.l,th.l{text-align:left;}
+  .ok{color:var(--ok);font-weight:600;}
+  .warn{color:var(--warn);font-weight:600;}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;background:#e0e7ff;color:#3730a3;margin-left:6px;}
+  .concl{margin-top:10px;padding:10px 12px;border-left:4px solid var(--accent);background:#f8fafc;font-size:13.5px;line-height:1.7;border-radius:0 8px 8px 0;}
+  .theory{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.7;}
+  #bubbleCv{display:block;margin:6px auto;background:#f8fafc;border:1px solid var(--line);border-radius:8px;}
+  footer{max-width:1280px;margin:0 auto;padding:0 14px 20px;color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>气垫导轨实验：验证动量守恒定律</h1>
+  <p>光电门计时（v = d / Δt）｜支持 弹性碰撞 与 完全非弹性碰撞（碰后粘合）｜含导轨调平步骤｜气泵已开，摩擦不计</p>
+</header>
+
+<main>
+  <!-- 左列：导轨与运行控制 -->
+  <section>
+    <div class="card">
+      <canvas id="cv" width="960" height="330"></canvas>
+      <div class="statusRow">
+        <span id="statusText">请先完成第 1 步：导轨调平</span>
+        <span id="clock">t = 0.00 s</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button id="btnStart" class="primary" disabled>▶ 开始实验</button>
+        <button id="btnPause" disabled>⏸ 暂停</button>
+        <button id="btnReset">↺ 复位（保留汇总数据）</button>
+        <label>倍速
+          <select id="tscale">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="snd" checked> 声音</label>
+      </div>
+      <div class="hint">光电门只能测出<b>速率</b>，方向由滑块运动情况判断（向左反弹时速度记为负值）。滑块 B 初始静止于两光电门之间：光电门 1 测碰前 A，光电门 2 测碰后滑块。</div>
+    </div>
+
+    <div class="card" id="resultCard">
+      <h2><span class="stepno">4</span>本次测量数据与结论</h2>
+      <div id="resultBody" class="hint">尚未测量。完成一次实验后，这里会给出 Δt、v、p 数据表，并自动对照碰前、碰后总动量。</div>
+    </div>
+  </section>
+
+  <!-- 右列：步骤面板 -->
+  <aside>
+    <div class="card" id="cardLevel">
+      <h2><span class="stepno">1</span>调平导轨</h2>
+      <div class="hint">先不放滑块：观察<b>水准仪气泡</b>（或点「放置检验滑块」看它是否漂移），调节导轨一端的高度，直到调平。这一步做不好，重力沿导轨方向的分力会成为主要误差来源。</div>
+      <canvas id="bubbleCv" width="240" height="46"></canvas>
+      <div class="hint" id="lvlHint"></div>
+      <div class="row">
+        <button data-adj="-1">◀ 调高左端</button>
+        <button data-adj="+1">调高右端 ▶</button>
+        <label>步长
+          <select id="stepSel">
+            <option value="0.05">粗调 0.05°</option>
+            <option value="0.005" selected>细调 0.005°</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="btnCheck">🧪 放置 / 收起检验滑块</button>
+        <button id="btnRelevel">🔀 换一根导轨（重新打乱）</button>
+      </div>
+      <div class="stateBox" id="lvlState">未调平</div>
+    </div>
+
+    <div class="card locked" id="cardSet">
+      <h2><span class="stepno">2</span>实验设置</h2>
+      <div class="row">
+        <label>碰撞类型：</label>
+        <label><input type="radio" name="ctype" value="elastic" checked> 弹性碰撞</label>
+        <label><input type="radio" name="ctype" value="sticky"> 完全非弹性（碰后粘合）</label>
+      </div>
+      <div class="row">
+        <label>滑块 A 质量
+          <select id="mA">
+            <option>100</option><option>150</option><option value="200" selected>200</option>
+            <option>250</option><option>300</option><option>350</option><option>400</option>
+          </select> g
+        </label>
+        <label>滑块 B 质量
+          <select id="mB">
+            <option>100</option><option>150</option><option value="200" selected>200</option>
+            <option>250</option><option>300</option><option>350</option><option>400</option>
+          </select> g
+        </label>
+      </div>
+      <div class="row">
+        <label>A 初速度 <input type="range" id="v0" min="0.40" max="1.00" step="0.05" value="0.60">
+          <span class="val" id="v0v">0.60</span> m/s</label>
+      </div>
+      <div class="row">
+        <label>挡光片宽度 d
+          <select id="dw">
+            <option value="0.01">10</option>
+            <option value="0.02" selected>20</option>
+            <option value="0.03">30</option>
+          </select> mm（两滑块相同）</label>
+      </div>
+      <div class="hint">计算公式：v = d / Δt，p = mv。粘合碰撞时 A 的挡光片被拆除，用 B 的挡光片给合体（质量 mA+mB）计时。</div>
+    </div>
+
+    <div class="card locked" id="cardRun">
+      <h2><span class="stepno">3</span>运行与观察</h2>
+      <div class="hint" id="runHint">调平完成后即可开始。观察：① A 经过光电门 1（记录碰前 Δt）；② 碰撞（弹性 / 粘合）；③ 碰后滑块经过光电门 2（或 A 反弹回光电门 1）。完成后自动填入第 4 步并记入汇总表，可改变质量、速度、碰撞类型多做几次。</div>
+    </div>
+  </aside>
+</main>
+
+<section style="max-width:1280px;margin:0 auto;padding:0 14px;">
+  <div class="card">
+    <h2>🧾 多次实验汇总（对照碰前 / 碰后总动量）</h2>
+    <table>
+      <thead><tr>
+        <th>次数</th><th>碰撞类型</th><th>mA /kg</th><th>mB /kg</th>
+        <th>碰前 Σp /(kg·m·s⁻¹)</th><th>碰后 Σp′ /(kg·m·s⁻¹)</th>
+        <th>相对偏差</th><th>动能损失</th>
+      </tr></thead>
+      <tbody id="sumBody"><tr><td colspan="8" class="hint">暂无数据</td></tr></tbody>
+    </table>
+    <div class="row">
+      <button id="btnClearSum">清空汇总</button>
+      <button id="btnCsv">导出 CSV</button>
+      <span class="hint">通常相对偏差在 2% 以内即可认为“在实验误差范围内动量守恒”。</span>
+    </div>
+  </div>
+</section>
+
+<footer>虚拟实验：光电门计时精度 0.1 ms；残余倾角 ≤0.02° 视为调平，其重力分量是数据中微小偏差的来源——可由此引导学生讨论误差。</footer>
+
+<script>
+(function(){
+"use strict";
+/* ---------- 常量与几何 ---------- */
+const L=2.2, GATE1={id:1,x:0.50}, GATE2={id:2,x:1.40};
+const GATES=[GATE1,GATE2];
+const LEN=0.12, START_A=0.22, START_B=0.95;
+const G=9.80, TOL=0.02*Math.PI/180, TIME_LIMIT=26, AFTER_LIMIT=25;
+
+/* ---------- 状态 ---------- */
+let tilt=(0.25+Math.random()*0.35)*(Math.random()<.5?-1:1)*Math.PI/180; // rad, >0 表示右端高
+let leveled=false, checkOn=false, demo={x:L/2,v:0};
+let mode='idle', paused=false, simT=0, timeScale=1;
+let A=null,B=null,records=[],collisionDone=false,collisionT=0,expected=[],aStopped=false;
+let finishAt=null, doneFlag=false, flashT=-9, cType='elastic';
+let summary=[], runN=0;
+const sndOn=()=>document.getElementById('snd').checked;
+
+/* ---------- DOM ---------- */
+const $=id=>document.getElementById(id);
+const cv=$('cv'), ctx=cv.getContext('2d');
+const bcv=$('bubbleCv'), bctx=bcv.getContext('2d');
+const dpr=window.devicePixelRatio||1;
+function fit(){
+  const w=cv.clientWidth||960, h=w*330/960;
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  ctx.setTransform(dpr*w/960,0,0,dpr*w/960,0,0);
+  bcv.width=240*dpr; bcv.height=46*dpr; bctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',fit);
+
+/* ---------- 声音 ---------- */
+let actx=null;
+function beep(f,d){
+  if(!sndOn())return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.frequency.value=f; o.type='sine'; g.gain.value=0.05;
+    o.connect(g); g.connect(actx.destination); o.start();
+    g.gain.exponentialRampToValue_atTime?0:0;
+    g.gain.setTargetAtTime(0.0001,actx.currentTime,d);
+    o.stop(actx.currentTime+d*3+0.05);
+  }catch(e){}
+}
+
+/* ---------- 调平 ---------- */
+function adjust(dir){
+  tilt+=dir*parseFloat($('stepSel').value)*Math.PI/180;
+  tilt=Math.max(-0.8*Math.PI/180,Math.min(0.8*Math.PI/180,tilt));
+  if(checkOn){demo.x=L/2;demo.v=0;}
+  updateLevel();
+}
+function updateLevel(){
+  leveled=Math.abs(tilt)<=TOL;
+  drawBubble();
+  const st=$('lvlState');
+  if(leveled){
+    st.textContent='✔ 已调平（残余倾角 ≤ 0.02°）'; st.className='stateBox ok';
+    $('lvlHint').innerHTML='气泡居中、检验滑块不再漂移。可以进行第 2 步了。';
+  }else{
+    st.textContent='未调平'; st.className='stateBox';
+    if(tilt>0) $('lvlHint').innerHTML='气泡偏<b>右</b> / 检验滑块向<b>左</b>漂移 ⇒ <b>右端偏高</b> → 按「◀ 调高左端」';
+    else $('lvlHint').innerHTML='气泡偏<b>左</b> / 检验滑块向<b>右</b>漂移 ⇒ <b>左端偏高</b> → 按「调高右端 ▶」';
+  }
+  $('cardSet').classList.toggle('locked',!leveled||mode==='running');
+  $('cardRun').classList.toggle('locked',!leveled||mode==='running');
+  $('btnStart').disabled=!(leveled&&mode==='idle');
+}
+function drawBubble(){
+  bctx.clearRect(0,0,240,46);
+  rr(bctx,10,8,220,30,15); bctx.fillStyle='#eef6ff'; bctx.fill();
+  bctx.strokeStyle='#94a3b8'; bctx.lineWidth=1.5; bctx.stroke();
+  bctx.fillStyle='rgba(34,197,94,.18)';
+  bctx.fillRect(108,9,24,28);            // 合格区
+  bctx.strokeStyle='#22c55e'; bctx.strokeRect(108,9,24,28);
+  const off=Math.max(-100,Math.min(100,tilt/(0.5*Math.PI/180)*90));
+  bctx.beginPath(); bctx.arc(120+off,23,8,0,7); bctx.fillStyle='#ffffff';
+  bctx.shadowColor='#94a3b8'; bctx.shadowBlur=3; bctx.fill(); bctx.shadowBlur=0;
+  bctx.strokeStyle='#cbd5e1'; bctx.stroke();
+}
+
+/* ---------- 实验设置读取 ---------- */
+function readSettings(){
+  cType=document.querySelector('input[name=ctype]:checked').value;
+  const mA=parseFloat($('mA').value)/1000, mB=parseFloat($('mB').value)/1000;
+  const v0=parseFloat($('v0').value), d=parseFloat($('dw').value);
+  A={id:'A',label:'A',m:mA,x:START_A,v:v0,flagW:d,hasFlag:true};
+  B={id:'B',label:'B',m:mB,x:START_B,v:0,flagW:d,hasFlag:true};
+}
+function setInputs(dis){
+  ['mA','mB','v0','dw'].forEach(i=>$(i).disabled=dis);
+  document.querySelectorAll('input[name=ctype]').forEach(r=>r.disabled=dis);
+  $('cardSet').classList.toggle('locked',dis||!leveled);
+  $('btnRelevel').disabled=dis; $('btnCheck').disabled=dis;
+}
+function resetRun(){
+  mode='idle'; paused=false; simT=0; records=[]; collisionDone=false;
+  expected=[]; aStopped=false; finishAt=null; doneFlag=false;
+  GATES.forEach(g=>{g.block={};g.last=null;});
+  readSettings(); setInputs(false); updateLevel();
+  $('btnStart').disabled=!leveled; $('btnStart').textContent='▶ 开始实验';
+  $('btnPause').disabled=true; $('btnPause').textContent='⏸ 暂停';
+  $('clock').textContent='t = 0.00 s';
+  setStatus(checkOn?'调平检验中：观察滑块是否漂移':'就绪，可开始实验');
+}
+function setStatus(s){$('statusText').textContent=s;}
+
+/* ---------- 物理推进 ---------- */
+function sub(h){
+  simT+=h;
+  const a=-G*Math.sin(tilt);
+  A.v+=a*h; A.x+=A.v*h;
+  if(B.stuck){ B.x=A.x+LEN; B.v=A.v; }
+  else{ B.v+=a*h; B.x+=B.v*h; }
+  if(!collisionDone){
+    const gap=B.x-A.x-LEN;
+    if(gap<=0 && A.v>B.v) resolve(-gap);
+  }else{
+    if(finishAt==null && expected.every(e=>e.got)) finishAt=simT+0.8;
+    if(finishAt!=null && simT>=finishAt){ finishRun(); return; }
+    if(expected.some(e=>!e.got) && simT-collisionT>AFTER_LIMIT){ finishRun(); return; }
+  }
+  checkGate(GATE1); checkGate(GATE2);
+  if(!collisionDone && simT>TIME_LIMIT){
+    setStatus('超时：滑块未发生碰撞，已复位（可适当增大初速度）'); resetRun(); return;
+  }
+}
+function resolve(overlap){
+  const M=A.m+B.m;
+  if(cType==='elastic'){
+    const v1=A.v;
+    A.v=((A.m-B.m)*v1)/M;  B.v=(2*A.m*v1)/M;
+    A.x-=overlap/2; B.x+=overlap/2;
+    expected=[{id:'B',got:null}];
+    if(Math.abs(A.v)>0.02) expected.push({id:'A',got:null}); else aStopped=true;
+  }else{
+    const v=(A.m*A.v+B.m*B.v)/M;
+    A.v=v; B.v=v; B.stuck=true; A.hasFlag=false;
+    B.x=A.x+LEN;
+    expected=[{id:'B',got:null}];
+  }
+  collisionDone=true; collisionT=simT; flashT=simT; beep(220,.09);
+  setStatus(cType==='elastic'?'发生弹性碰撞！':'碰撞后粘合为一体！');
+}
+function checkGate(g){
+  for(const b of [A,B]){
+    if(!b.hasFlag)continue;
+    const inb=g.x>b.x-b.flagW/2 && g.x<b.x+b.flagW/2;
+    const st=g.block[b.id];
+    if(inb&&!st){ g.block[b.id]={t0:simT}; beep(1300,.05); }
+    else if(!inb&&st){
+      const dt=simT-st.t0; delete g.block[b.id];
+      if(doneFlag)continue;
+      const v=b.flagW/dt*(b.v<0?-1:1);
+      const r={gate:g.id,body:b.id,phase:collisionDone?'after':'before',dt,v,m:b.m,flagW:b.flagW};
+      records.push(r); g.last={dt,body:b.id};
+      const e=expected.find(e=>!e.got&&e.id===b.id);
+      if(collisionDone&&e)e.got=r;
+    }
+  }
+}
+
+/* ---------- 结果计算 ---------- */
+const fmtV=v=>Math.abs(v).toFixed(3)+' m/s'+(v<0?'（向左）':'');
+function finishRun(){
+  doneFlag=true; mode='done'; setInputs(true);
+  $('btnPause').disabled=true;
+  const mA=A.m,mB=B.m,M=mA+mB;
+  const rA1=records.find(r=>r.body==='A'&&r.phase==='before');
+  const aft=records.filter(r=>r.phase==='after');
+  const rA=aft.find(r=>r.body==='A')||null, rB=aft.find(r=>r.body==='B')||null;
+  const pBef=mA*rA1.v, EBef=.5*mA*rA1.v*rA1.v;
+  let pAft=0,EAft=0,rows='';
+  const row=(lbl,gate,dt,dd,v,p)=>`<tr><td>${lbl}</td><td>${gate}</td><td>${dt}</td><td>${dd}</td><td>${v}</td><td>${p}</td></tr>`;
+  rows+=row('滑块 A（碰前）','光电门1',(rA1.dt*1000).toFixed(1),(rA1.flagW*1000).toFixed(0),fmtV(rA1.v),(mA*rA1.v).toFixed(4));
+  rows+=row('滑块 B（碰前，静止）','—','—','—','0.000 m/s','0.0000');
+  if(cType==='elastic'){
+    if(rB)rows+=row('滑块 B（碰后）','光电门'+rB.gate,(rB.dt*1000).toFixed(1),(rB.flagW*1000).toFixed(0),fmtV(rB.v),(mB*rB.v).toFixed(4));
+    else rows+=row('滑块 B（碰后）','—','—','—','未过门，按 0','0.0000');
+    if(rA)rows+=row('滑块 A（碰后）','光电门'+rA.gate,(rA.dt*1000).toFixed(1),(rA.flagW*1000).toFixed(0),fmtV(rA.v),(mA*rA.v).toFixed(4));
+    else if(aStopped)rows+=row('滑块 A（碰后静止）','—','—','—','0.000 m/s','0.0000');
+    else rows+=row('滑块 A（碰后）','—','—','—','未过门，按 0','0.0000');
+    pAft=(rA?mA*rA.v:0)+(rB?mB*rB.v:0);
+    EAft=.5*mA*Math.pow(rA?rA.v:0,2)+.5*mB*Math.pow(rB?rB.v:0,2);
+  }else{
+    if(rB)rows+=row('A+B 合体（碰后）','光电门'+rB.gate,(rB.dt*1000).toFixed(1),(rB.flagW*1000).toFixed(0),fmtV(rB.v),(M*rB.v).toFixed(4));
+    else rows+=row('A+B 合体（碰后）','—','—','—','未过门，按 0','0.0000');
+    pAft=M*(rB?rB.v:0); EAft=.5*M*Math.pow(rB?rB.v:0,2);
+  }
+  const dev=Math.abs(pAft-pBef)/Math.abs(pBef)*100;
+  const keLoss=(EBef-EAft)/EBef*100;
+  const v1=rA1.v;
+  let theo;
+  if(cType==='elastic'){
+    const vAt=(mA-mB)/M*v1, vBt=2*mA/M*v1;
+    theo=`理论（导轨完全水平时）：v<sub>A</sub>′=${vAt.toFixed(3)} m/s，v<sub>B</sub>′=${vBt.toFixed(3)} m/s，Σp′=${(mA*vAt+mB*vBt).toFixed(4)} kg·m/s${Math.abs(mA-mB)<1e-9?'（质量相等 ⇒ A 碰后静止，速度交换）':''}`;
+  }else{
+    const vt=mA/M*v1;
+    theo=`理论（导轨完全水平时）：合体速度 v′=${vt.toFixed(3)} m/s，Σp′=${(M*vt).toFixed(4)} kg·m/s`;
+  }
+  let concl=`碰前总动量 Σp = <b>${pBef.toFixed(4)}</b> kg·m/s，碰后 Σp′ = <b>${pAft.toFixed(4)}</b> kg·m/s，相对偏差 <b class="${dev<=2?'ok':'warn'}">${dev.toFixed(2)}%</b>。`;
+  concl+=dev<=2?`${cType==='elastic'?'弹性':'完全非弹性'}碰撞：在实验误差范围内，<b>总动量守恒</b>。`
+              :'偏差偏大——残余倾角的重力分量、挡光计时都会带来误差，可重新调平或多次测量取平均。';
+  concl+=` 动能损失 ${keLoss.toFixed(1)}%：${cType==='elastic'?'弹性碰撞动能近似守恒。':'完全非弹性碰撞动能明显不守恒（但动量仍守恒）。'}`;
+  $('resultBody').innerHTML=
+    `<table><thead><tr><th>对象</th><th>光电门</th><th>Δt /ms</th><th>d /mm</th><th>v /(m/s)</th><th>p = mv /(kg·m/s)</th></tr></thead><tbody>${rows}</tbody></table>`+
+    `<div class="theory">${theo}</div><div class="concl">${concl}</div>`;
+  runN++; summary.push({n:runN,type:cType==='elastic'?'弹性':'完全非弹性',mA,mB,pB:pBef,pA:pAft,dev,keLoss});
+  renderSummary();
+  setStatus('实验完成：请对照碰前、碰后总动量。复位后可改变条件再做。');
+}
+function renderSummary(){
+  $('sumBody').innerHTML=summary.length?summary.map(r=>
+    `<tr><td>${r.n}</td><td>${r.type}</td><td>${r.mA.toFixed(2)}</td><td>${r.mB.toFixed(2)}</td>`+
+    `<td>${r.pB.toFixed(4)}</td><td>${r.pA.toFixed(4)}</td>`+
+    `<td class="${r.dev<=2?'ok':'warn'}">${r.dev.toFixed(2)}%</td><td>${r.keLoss.toFixed(1)}%</td></tr>`).join('')
+    :'<tr><td colspan="8" class="hint">暂无数据</td></tr>';
+}
+
+/* ---------- 绘图 ---------- */
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+const PPM=(960-80)/L, X=m=>40+m*PPM, EX=tilt*12, TY=m=>215-Math.tan(EX)*(m-L/2)*PPM;
+function draw(){
+  ctx.clearRect(0,0,960,330);
+  /* 地面与标尺 */
+  ctx.strokeStyle='#cbd5e1';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(30,292);ctx.lineTo(930,292);ctx.stroke();
+  ctx.fillStyle='#94a3b8';ctx.font='10px sans-serif';ctx.textAlign='center';
+  for(let m=0;m<=L+1e-9;m+=0.1){
+    const x=X(m),big=Math.abs(m*10%5)<1e-6;
+    ctx.beginPath();ctx.moveTo(x,292);ctx.lineTo(x,big?300:296);ctx.strokeStyle='#94a3b8';ctx.stroke();
+    if(big)ctx.fillText((m*100).toFixed(0),x,312);
+  }
+  /* 支脚 */
+  [0.06,2.14].forEach(m=>{
+    const x=X(m),y=TY(m)+14;
+    ctx.strokeStyle='#94a3b8';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,292);ctx.stroke();
+    ctx.fillStyle='#64748b';ctx.fillRect(x-9,288,18,6);
+  });
+  /* 导轨 */
+  ctx.beginPath();
+  for(let m=0;m<=L;m+=0.05){const x=X(m),y=TY(m);m===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}
+  for(let m=L;m>=0;m-=0.05)ctx.lineTo(X(m),TY(m)+14);
+  ctx.closePath();ctx.fillStyle='#475569';ctx.fill();
+  ctx.fillStyle='#cbd5e1';
+  for(let m=0.05;m<L;m+=0.1){ctx.beginPath();ctx.arc(X(m),TY(m)+3.5,1.3,0,7);ctx.fill();}
+  /* 光电门 */
+  GATES.forEach(g=>drawGate(g,mode==='idle'));
+  /* 碰撞闪光 */
+  if(simT-flashT<0.25){
+    const cx=X((A? A.x:1)+LEN/2),cy=TY(A.x)-10;
+    ctx.fillStyle=`rgba(250,204,21,${1-(simT-flashT)/0.25})`;
+    ctx.beginPath();ctx.arc(cx,cy,14,0,7);ctx.fill();
+  }
+  /* 滑块 */
+  if(mode==='idle'&&checkOn){ drawGlider(demo.x,0,'#94a3b8','检验',null); drawArrow(demo.x,demo.v,'#475569'); }
+  else if(A&&B){ drawGlider(A.x,A.v,'#e11d48','A '+(A.m*1000).toFixed(0)+'g',A.hasFlag?A.flagW:null);
+    drawGlider(B.x,B.v,'#2563eb','B '+(B.m*1000).toFixed(0)+'g',B.hasFlag?B.flagW:null);
+    if(B.stuck){ctx.fillStyle='#334155';ctx.font='11px sans-serif';ctx.fillText('≡粘合≡',X((A.x+B.x)/2),TY(A.x)-30);}
+  }
+}
+function drawGate(g,dim){
+  const x=X(g.x),yt=TY(g.x);
+  ctx.save();if(dim)ctx.globalAlpha=.35;
+  ctx.strokeStyle='#334155';ctx.lineWidth=5;
+  ctx.beginPath();ctx.moveTo(x-16,yt-2);ctx.lineTo(x-16,yt-80);ctx.moveTo(x+16,yt-2);ctx.lineTo(x+16,yt-80);ctx.stroke();
+  ctx.fillStyle='#334155';rr(ctx,x-20,yt-84,40,8,3);ctx.fill();
+  const blocked=Object.keys(g.block||{}).length>0;
+  ctx.setLineDash([3,3]);ctx.strokeStyle=blocked?'#ef4444':'#94a3b8';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(x-14,yt-56);ctx.lineTo(x+14,yt-56);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=blocked?'#ef4444':'#22c55e';
+  ctx.beginPath();ctx.arc(x,yt-76,4,0,7);ctx.fill();
+  rr(ctx,x-52,yt-120,104,30,4);ctx.fillStyle='#052e16';ctx.fill();ctx.strokeStyle='#334155';ctx.stroke();
+  ctx.fillStyle='#4ade80';ctx.font='13px monospace';ctx.textAlign='left';
+  let txt='--.-';
+  if(blocked){const k=Object.keys(g.block)[0];txt=((simT-g.block[k].t0)*1000).toFixed(1);}
+  else if(g.last)txt=(g.last.dt*1000).toFixed(1);
+  ctx.fillText('P'+g.id,x-46,yt-100);ctx.textAlign='right';ctx.fillText(txt+'ms',x+46,yt-100);
+  ctx.fillStyle='#334155';ctx.font='11px sans-serif';ctx.textAlign='center';
+  ctx.fillText('光电门'+g.id,x,yt+28);
+  ctx.restore();
+}
+function drawGlider(x,v,color,label,flagW){
+  const px=X(x),yt=TY(x),w=LEN*PPM;
+  rr(ctx,px-w/2,yt-26,w,26,5);ctx.fillStyle=color;ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.25)';ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 11px sans-serif';ctx.textAlign='center';
+  ctx.fillText(label,px,yt-9);
+  if(flagW){ctx.fillStyle='#0f172a';ctx.fillRect(px-flagW*PPM/2,yt-50,flagW*PPM,24);}
+  drawArrow(x,v,color);
+}
+function drawArrow(x,v,color){
+  if(Math.abs(v)<0.01)return;
+  const px=X(x),yt=TY(x)-62,len=Math.min(60,Math.abs(v)*65),s=Math.sign(v);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(px-s*len/2,yt);ctx.lineTo(px+s*len/2,yt);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(px+s*len/2,yt);ctx.lineTo(px+s*len/2-s*8,yt-4);ctx.lineTo(px+s*len/2-s*8,yt+4);ctx.closePath();ctx.fill();
+  ctx.font='11px sans-serif';ctx.textAlign='center';
+  ctx.fillText(Math.abs(v).toFixed(2)+' m/s',px,yt-8);
+}
+
+/* ---------- 主循环 ---------- */
+let last=performance.now(),acc=0;
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;
+  if(mode==='running'&&!paused){
+    acc+=dt*timeScale;const H=0.0002;
+    while(acc>H&&mode==='running'){sub(H);acc-=H;}
+    $('clock').textContent='t = '+simT.toFixed(2)+' s';
+  }else if(mode==='idle'&&checkOn&&Math.abs(tilt)>0){
+    const a=-G*Math.sin(tilt);
+    demo.v+=a*dt;demo.x+=demo.v*dt;
+    if(demo.x<0.12){demo.x=0.12;demo.v=0;}if(demo.x>L-0.12){demo.x=L-0.12;demo.v=0;}
+  }
+  draw();requestAnimationFrame(frame);
+}
+
+/* ---------- 事件绑定 ---------- */
+document.querySelectorAll('[data-adj]').forEach(b=>b.addEventListener('click',()=>adjust(+b.dataset.adj)));
+$('v0').addEventListener('input',e=>$('v0v').textContent=(+e.target.value).toFixed(2));
+$('tscale').addEventListener('change',e=>timeScale=+e.target.value);
+$('btnCheck').addEventListener('click',()=>{
+  if(mode!=='idle')return;
+  checkOn=!checkOn;demo={x:L/2,v:0};
+  $('btnCheck').textContent=checkOn?'🧪 收起检验滑块':'🧪 放置 / 收起检验滑块';
+  setStatus(checkOn?'调平检验中：滑块若漂移，说明两端不等高':'就绪，可开始实验');
+});
+$('btnRelevel').addEventListener('click',()=>{
+  if(mode==='running')return;
+  tilt=(0.25+Math.random()*0.35)*(Math.random()<.5?-1:1)*Math.PI/180;
+  checkOn=false;$('btnCheck').textContent='🧪 放置 / 收起检验滑块';
+  updateLevel();setStatus('换了一根新导轨，请重新调平');
+});
+$('btnStart').addEventListener('click',()=>{
+  if(mode!=='idle')return;
+  readSettings();records=[];collisionDone=false;expected=[];aStopped=false;
+  finishAt=null;doneFlag=false;simT=0;acc=0;
+  GATES.forEach(g=>{g.block={};g.last=null;});
+  mode='running';paused=false;setInputs(true);
+  $('btnStart').disabled=true;$('btnPause').disabled=false;
+  setStatus('实验中：滑块 A 前进，经过光电门 1 记录碰前遮光时间…');
+});
+$('btnPause').addEventListener('click',()=>{
+  if(mode!=='running')return;
+  paused=!paused;
+  $('btnPause').textContent=paused?'▶ 继续':'⏸ 暂停';
+  setStatus(paused?'已暂停':'继续运行');
+});
+$('btnReset').addEventListener('click',resetRun);
+$('btnClearSum').addEventListener('click',()=>{summary=[];runN=0;renderSummary();});
+$('btnCsv').addEventListener('click',()=>{
+  let s='\uFEFF次数,碰撞类型,mA/kg,mB/kg,碰前总动量,碰后总动量,相对偏差%,动能损失%\n';
+  summary.forEach(r=>{s+=[r.n,r.type,r.mA.toFixed(3),r.mB.toFixed(3),r.pB.toFixed(4),r.pA.toFixed(4),r.dev.toFixed(2),r.keLoss.toFixed(2)].join(',')+'\n';});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([s],{type:'text/csv'}));
+  a.download='动量守恒实验数据.csv';a.click();URL.revokeObjectURL(a.href);
+});
+
+/* ---------- 启动 ---------- */
+fit();resetRun();updateLevel();renderSummary();
+requestAnimationFrame(t=>{last=t;requestAnimationFrame(frame);});
+})();
+</script>
+</body>
+</html>

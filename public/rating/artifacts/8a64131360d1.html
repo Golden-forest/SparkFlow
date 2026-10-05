@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>理想气体等温变化仿真（玻意耳定律）</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:#eef2f7;margin:0;padding:14px;color:#1e293b}
+  .wrap{max-width:1220px;margin:auto}
+  h1{font-size:20px;margin:4px 0 12px}
+  .grid{display:grid;grid-template-columns:400px 1fr;gap:14px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:#fff;border-radius:10px;box-shadow:0 2px 10px rgba(15,40,90,.10);padding:12px;margin-bottom:14px}
+  .panel h2{font-size:15px;margin:0 0 8px;color:#0f3d8c}
+  canvas{display:block;width:100%;border-radius:6px;background:#fbfdff;touch-action:none}
+  #scene{cursor:default}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  .btn{padding:7px 16px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-size:14px;cursor:pointer}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.red{background:#dc2626}.btn.gray{background:#64748b}
+  .slider{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:14px}
+  .slider label{width:150px;white-space:nowrap}
+  .slider input{flex:1}
+  .slider b{width:120px;text-align:right;font-variant-numeric:tabular-nums}
+  .read{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chip{flex:1;min-width:100px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:6px 8px;text-align:center;font-size:13px}
+  .chip b{display:block;font-size:17px;color:#1d4ed8;font-variant-numeric:tabular-nums}
+  .chip.hot b{color:#c2410c}
+  .formula{font-family:Consolas,Menlo,monospace;background:#f8fafc;border:1px dashed #94a3b8;border-radius:8px;padding:8px 10px;font-size:14px;line-height:1.7;white-space:pre}
+  .notes{font-size:13px;color:#334155;line-height:1.7}
+  .notes b{color:#b91c1c}
+  .legend{font-size:12px;color:#475569;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>理想气体等温变化仿真 —— 玻意耳定律 p·V = 恒量</h1>
+  <div class="grid">
+    <!-- ============ 左：注射器场景 ============ -->
+    <div>
+      <div class="panel">
+        <h2>① 注射器 / 气缸（拖动活塞改变体积 V）</h2>
+        <canvas id="scene"></canvas>
+        <div class="read">
+          <div class="chip">压强 p<b id="rP">100.0</b>kPa</div>
+          <div class="chip">体积 V<b id="rV">100.0</b>mL</div>
+          <div class="chip hot">温度 T<b id="rT">300</b>K / <span id="rC">27</span>℃</div>
+          <div class="chip">p·V / T<b id="rK">3333</b>kPa·mL/K</div>
+        </div>
+        <div class="slider"><label>温度 T（100–600 K）</label><input id="sT" type="range" min="100" max="600" step="1" value="300"><b id="sTv">300 K</b></div>
+        <div class="slider"><label>活塞位置 → 体积 V</label><input id="sV" type="range" min="20" max="200" step="0.5" value="100"><b id="sVv">100 mL</b></div>
+        <div class="controls">
+          <button class="btn" id="btnPlay">⏸ 暂停</button>
+          <button class="btn gray" id="btnReset">↺ 重置</button>
+          <button class="btn red" id="btnClear">✕ 清除轨迹/数据</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>② 公式面板</h2>
+        <div class="formula" id="fml"></div>
+      </div>
+    </div>
+    <!-- ============ 右：数据分析 ============ -->
+    <div>
+      <div class="panel">
+        <h2>③ p–V 图：一族等温线（双曲线）</h2>
+        <canvas id="pv"></canvas>
+        <div class="legend">灰点线 = 当前状态留下的轨迹；温度越高等温线离原点越远。</div>
+      </div>
+      <div class="panel">
+        <h2>④ p–(1/V) 图：验证玻意耳定律（需保持温度不变）</h2>
+        <canvas id="p1v"></canvas>
+        <div class="legend">红点 = 逐点采集的实验数据；虚线 = 过原点直线 p = (nRT)·(1/V)。改变温度会清空数据点（玻意耳定律要求等温）。</div>
+      </div>
+      <div class="panel notes">
+        <h2>⑤ 教学要点</h2>
+        ① 等温过程中，一定质量气体的 p 与 V 成<b>反比</b>：p·V = 恒量，等温线是双曲线。<br>
+        ② p–(1/V) 图为<b>过原点的直线</b>，斜率 k = nRT；斜率越大说明温度越高。<br>
+        ③ 温度越高，等温线位置越<b>远离原点</b>（p·V/T = 恒量，T 增大则 p·V 增大）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- 物理常量与状态 ---------- */
+const C = 100*100/300;          // nR = 33.33 kPa·mL/K，使 T=300K,V=100mL 时 p=100kPa
+const VMIN=20, VMAX=200;        // mL
+const TMIN=100, TMAX=600;       // K
+let T=300, V=100;               // 当前状态
+let playing=true;
+let trail=[];                   // p-V 轨迹 {V,p,T}
+let data=[];                    // p-1/V 数据点 {x,y}
+let lastColV=null, lastTrailV=null, lastTrailT=null;
+
+const pOf=(t,v)=>C*t/v;
+
+/* ---------- 画布初始化（高分屏适配） ---------- */
+function setup(id,w,h){
+  const c=document.getElementById(id), dpr=window.devicePixelRatio||1;
+  c.style.height=h+"px"; c.width=w*dpr; c.height=h*dpr;
+  const x=c.getContext("2d"); x.scale(dpr,dpr); c._w=w; c._h=h; return x;
+}
+const ctxS=setup("scene",376,470),
+      ctxP=setup("pv",470,330),
+      ctxQ=setup("p1v",470,250);
+
+/* ---------- 分子热运动 ---------- */
+const NMOL=72, mols=[];
+function resetMols(){
+  mols.length=0;
+  const zone=gasRect();
+  for(let i=0;i<NMOL;i++){
+    const a=Math.random()*Math.PI*2, s=speedBase()*(0.5+Math.random());
+    mols.push({x:zone.x+6+Math.random()*(zone.w-12), y:zone.y+6+Math.random()*(zone.h-12),
+               vx:Math.cos(a)*s, vy:Math.sin(a)*s});
+  }
+}
+function speedBase(){ return 0.55*Math.sqrt(T/300); }        // 速率 ∝ √T
+function rescaleSpeeds(){
+  for(const m of mols){const f=speedBase()/Math.hypot(m.vx,m.vy); m.vx*=f; m.vy*=f;}
+}
+function stepMols(){
+  const z=gasRect();
+  for(const m of mols){
+    m.x+=m.vx; m.y+=m.vy;
+    if(m.x<z.x+3){m.x=z.x+3;m.vx=Math.abs(m.vx);}
+    if(m.x>z.x+z.w-3){m.x=z.x+z.w-3;m.vx=-Math.abs(m.vx);}
+    if(m.y<z.y+3){m.y=z.y+3;m.vy=Math.abs(m.vy);}
+    if(m.y>z.y+z.h-3){m.y=z.y+z.h-3;m.vy=-Math.abs(m.vy);}
+  }
+}
+/* ---------- 场景几何 ---------- */
+const BAR={x:108,w:160,top:38,bottom:432};           // 针筒内壁
+const HMIN=42, HMAX=340;                              // 气柱高（对应 V）
+function gasRect(){
+  const h=HMIN+(V-VMIN)/(VMAX-VMIN)*(HMAX-HMIN);
+  return {x:BAR.x,y:BAR.bottom-h,w:BAR.w,h:h,py:BAR.bottom-h}; // py=活塞下沿
+}
+const tColor=t=>{ // 低温蓝 → 高温红
+  const u=(t-TMIN)/(TMAX-TMIN);
+  return `hsl(${210-185*u},75%,${45+10*u}%)`;
+};
+
+/* ---------- 绘制：场景 ---------- */
+function drawScene(){
+  const W=ctxS.canvas._w,H=ctxS.canvas._h,z=gasRect();
+  ctxS.clearRect(0,0,W,H);
+  // 气体区域
+  const g=ctxS.createLinearGradient(0,z.y,0,z.y+z.h);
+  g.addColorStop(0,tColor(T)+"33"); g.addColorStop(1,tColor(T)+"18");
+  ctxS.fillStyle=g; ctxS.fillRect(z.x,z.y,z.w,z.h);
+  // 分子
+  ctxS.fillStyle=tColor(T);
+  for(const m of mols){ctxS.beginPath();ctxS.arc(m.x,m.y,3.2,0,7);ctxS.fill();}
+  // 刻度
+  ctxS.strokeStyle="#94a3b8"; ctxS.fillStyle="#475569"; ctxS.font="10px sans-serif"; ctxS.textAlign="right";
+  for(let v=VMIN;v<=VMAX;v+=20){
+    const y=BAR.bottom-(HMIN+(v-VMIN)/(VMAX-VMIN)*(HMAX-HMIN));
+    ctxS.beginPath();ctxS.moveTo(z.x-2,y);ctxS.lineTo(z.x-10,y);ctxS.stroke();
+    ctxS.fillText(v+"",z.x-13,y+3);
+  }
+  ctxS.fillText("V/mL",z.x-13,BAR.bottom-HMAX-10);
+  // 针筒壁
+  ctxS.strokeStyle="#334155"; ctxS.lineWidth=5;
+  ctxS.beginPath();ctxS.moveTo(z.x-2,BAR.top);ctxS.lineTo(z.x-2,BAR.bottom+14);
+  ctxS.moveTo(z.x+z.w+2,BAR.top);ctxS.lineTo(z.x+z.w+2,BAR.bottom+14);ctxS.stroke();
+  ctxS.lineWidth=7;
+  ctxS.beginPath();ctxS.moveTo(z.x-8,BAR.bottom+16);ctxS.lineTo(z.x+z.w+8,BAR.bottom+16);ctxS.stroke();
+  ctxS.lineWidth=1;
+  // 活塞
+  ctxS.fillStyle=dragging?"#f59e0b":"#64748b";
+  ctxS.fillRect(z.x-3,z.py-2,z.w+6,16);
+  ctxS.fillStyle="#475569";ctxS.fillRect(z.x+z.w/2-5,10,10,z.py-10);
+  ctxS.fillStyle=dragging?"#b45309":"#334155";
+  ctxS.fillRect(z.x+z.w/2-46,2,92,10);
+  // 读数标注
+  ctxS.textAlign="left";ctxS.font="bold 13px sans-serif";
+  ctxS.fillStyle="#0f3d8c";
+  ctxS.fillText("p = "+pOf(T,V).toFixed(1)+" kPa",z.x+z.w+12,z.py+10);
+  ctxS.fillStyle="#1e293b";
+  ctxS.fillText("V = "+V.toFixed(1)+" mL",z.x+8,z.py+z.h-8);
+  ctxS.fillStyle=tColor(T);
+  ctxS.fillText("T = "+T+" K ("+(T-273)+"℃)",z.x+8,z.py+18);
+  ctxS.fillStyle="#94a3b8";ctxS.font="11px sans-serif";
+  ctxS.fillText(dragging?"↕ 拖动中…":"↕ 上下拖动活塞改变 V",z.x+8,z.py-12);
+  // 压强计
+  ctxS.textAlign="center";ctxS.font="11px sans-serif";ctxS.fillStyle="#475569";
+  ctxS.fillText("压强计 p（由 p=nRT/V 实时计算）",W/2,H-8);
+}
+
+/* ---------- 绘图工具 ---------- */
+function axes(ctx,X0,Y1,W,H,xTicks,yTicks,fmtX,fmtY,xLab,yLab){
+  ctx.strokeStyle="#334155";ctx.lineWidth=1;ctx.beginPath();
+  ctx.moveTo(X0,Y1-H);ctx.lineTo(X0,Y1);ctx.lineTo(X0+W,Y1);ctx.stroke();
+  ctx.fillStyle="#475569";ctx.font="10px sans-serif";ctx.textAlign="center";
+  for(const [v,l] of xTicks){const x=X0+v[1]*W/ (xTicks[xTicks.length-1][0][1]===undefined?1:1);}
+}
+/* 简化：直接在两个绘图函数内写坐标变换 */
+function drawPV(){
+  const ctx=ctxP,W=ctx.canvas._w,H=ctx.canvas._h;
+  const X0=52,YB=H-34,WW=W-X0-16,HH=YB-16;
+  const VAX=210,PAX=700;
+  const X=v=>X0+v/VAX*WW, Y=p=>YB-p/PAX*HH;
+  ctx.clearRect(0,0,W,H);
+  // 网格
+  ctx.strokeStyle="#e2e8f0";ctx.beginPath();
+  for(let v=0;v<=200;v+=20){ctx.moveTo(X(v),YB-HH);ctx.lineTo(X(v),YB);}
+  for(let p=0;p<=PAX;p+=100){ctx.moveTo(X0,Y(p));ctx.lineTo(X0+WW,Y(p));}
+  ctx.stroke();
+  // 坐标轴与刻度
+  ctx.strokeStyle="#334155";ctx.beginPath();ctx.moveTo(X0,YB-HH);ctx.lineTo(X0,YB);ctx.lineTo(X0+WW,YB);ctx.stroke();
+  ctx.fillStyle="#475569";ctx.font="10px sans-serif";ctx.textAlign="center";
+  for(let v=0;v<=200;v+=40){ctx.fillText(v,X(v),YB+13);ctx.strokeStyle="#334155";ctx.beginPath();ctx.moveTo(X(v),YB);ctx.lineTo(X(v),YB+3);ctx.stroke();}
+  ctx.textAlign="right";
+  for(let p=0;p<=PAX;p+=100){ctx.fillText(p,X0-5,Y(p)+3);ctx.beginPath();ctx.moveTo(X0-3,Y(p));ctx.lineTo(X0,Y(p));ctx.stroke();}
+  ctx.font="bold 12px sans-serif";ctx.fillStyle="#0f172a";
+  ctx.textAlign="center";ctx.fillText("V / mL",X0+WW/2,H-6);
+  ctx.save();ctx.translate(14,YB-HH/2);ctx.rotate(-Math.PI/2);ctx.fillText("p / kPa",0,0);ctx.restore();
+  // 一族等温线
+  ctx.font="10px sans-serif";ctx.textAlign="left";
+  for(let t=100;t<=600;t+=100){
+    ctx.strokeStyle=tColor(t);ctx.lineWidth=t===T?2.4:1.3;
+    ctx.setLineDash(t===T?[]:[4,3]);
+    ctx.beginPath();let started=false;
+    for(let v=VMIN;v<=VMAX;v+=1){
+      const p=pOf(t,v); if(p>PAX+40)break;
+      const px=X(v),py=Y(Math.min(p,PAX));
+      started?ctx.lineTo(px,py):(ctx.moveTo(px,py),started=true);
+    }
+    ctx.stroke();ctx.setLineDash([]);
+    const pEnd=pOf(t,VMAX); ctx.fillStyle=tColor(t);
+    ctx.fillText(t+"K",X(VMAX)+3,Y(Math.min(pEnd,PAX))+3);
+  }
+  // 轨迹
+  if(trail.length>1){
+    ctx.strokeStyle="#64748b";ctx.lineWidth=1.2;ctx.globalAlpha=.65;ctx.beginPath();
+    trail.forEach((q,i)=>{const px=X(q.V),py=Y(Math.min(q.p,PAX)); i?ctx.lineTo(px,py):ctx.moveTo(px,py);});
+    ctx.stroke();ctx.globalAlpha=1;
+    ctx.fillStyle="#64748b";
+    for(const q of trail){ctx.beginPath();ctx.arc(X(q.V),Y(Math.min(q.p,PAX)),1.6,0,7);ctx.fill();}
+  }
+  // 当前状态点
+  const p=pOf(T,V);
+  ctx.fillStyle="#dc2626";ctx.beginPath();ctx.arc(X(V),Y(Math.min(p,PAX)),6,0,7);ctx.fill();
+  ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle="#dc2626";ctx.font="bold 11px sans-serif";
+  ctx.fillText("当前 ("+V.toFixed(0)+", "+p.toFixed(0)+")",X(V)+9,Y(Math.min(p,PAX))-8);
+}
+function drawQ(){
+  const ctx=ctxQ,W=ctx.canvas._w,H=ctx.canvas._h;
+  const X0=56,YB=H-32,WW=W-X0-16,HH=YB-18;
+  const XMAX=0.055,PAX=700;
+  const X=x=>X0+x/XMAX*WW, Y=p=>YB-p/PAX*HH;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle="#e2e8f0";ctx.beginPath();
+  for(let i=0;i<=5;i++){const x=i/100;ctx.moveTo(X(x),YB-HH);ctx.lineTo(X(x),YB);}
+  for(let p=0;p<=PAX;p+=100){ctx.moveTo(X0,Y(p));ctx.lineTo(X0+WW,Y(p));}
+  ctx.stroke();
+  ctx.strokeStyle="#334155";ctx.beginPath();ctx.moveTo(X0,YB-HH);ctx.lineTo(X0,YB);ctx.lineTo(X0+WW,YB);ctx.stroke();
+  ctx.fillStyle="#475569";ctx.font="10px sans-serif";ctx.textAlign="center";
+  for(let i=0;i<=5;i++){ctx.fillText(i,X(i/100),YB+13);ctx.beginPath();ctx.moveTo(X(i/100),YB);ctx.lineTo(X(i/100),YB+3);ctx.stroke();}
+  ctx.textAlign="right";
+  for(let p=0;p<=PAX;p+=100){ctx.fillText(p,X0-5,Y(p)+3);ctx.beginPath();ctx.moveTo(X0-3,Y(p));ctx.lineTo(X0,Y(p));ctx.stroke();}
+  ctx.font="bold 12px sans-serif";ctx.fillStyle="#0f172a";ctx.textAlign="center";
+  ctx.fillText("1/V  (×10⁻² mL⁻¹)",X0+WW/2,H-6);
+  ctx.save();ctx.translate(14,YB-HH/2);ctx.rotate(-Math.PI/2);ctx.fillText("p / kPa",0,0);ctx.restore();
+  // 理论直线（过原点，斜率 nRT）
+  ctx.strokeStyle=tColor(T);ctx.setLineDash([6,4]);ctx.lineWidth=1.6;ctx.beginPath();
+  ctx.moveTo(X(0),Y(0));ctx.lineTo(X(XMAX),Y(Math.min(C*T*XMAX,PAX)));ctx.stroke();ctx.setLineDash([]);
+  // 数据点及连线
+  if(data.length){
+    ctx.strokeStyle="#dc2626";ctx.lineWidth=1.4;ctx.globalAlpha=.8;ctx.beginPath();
+    data.forEach((q,i)=>{i?ctx.lineTo(X(q.x),Y(Math.min(q.y,PAX))):ctx.moveTo(X(q.x),Y(Math.min(q.y,PAX)));});
+    ctx.stroke();ctx.globalAlpha=1;
+    for(const q of data){ctx.fillStyle="#dc2626";ctx.beginPath();ctx.arc(X(q.x),Y(Math.min(q.y,PAX)),3.4,0,7);ctx.fill();
+      ctx.strokeStyle="#fff";ctx.lineWidth=1;ctx.stroke();}
+  }
+  // 物理意义标注
+  ctx.fillStyle="#0f172a";ctx.font="11px sans-serif";ctx.textAlign="left";
+  ctx.fillText("直线过原点 ⇒ p ∝ 1/V（玻意耳定律）",X0+8,YB-HH+14);
+  ctx.fillStyle=tColor(T);ctx.font="bold 11px sans-serif";
+  ctx.fillText("斜率 k = nR·T = "+(C*T).toFixed(0)+" kPa·mL（T="+T+"K）",X0+8,YB-HH+30);
+  ctx.fillStyle="#64748b";ctx.font="10px sans-serif";
+  ctx.fillText("已采集 "+data.length+" 个数据点（等温）",X0+8,YB-HH+46);
+}
+
+/* ---------- 读数 / 公式面板 ---------- */
+function updateText(){
+  const p=pOf(T,V);
+  document.getElementById("rP").textContent=p.toFixed(1);
+  document.getElementById("rV").textContent=V.toFixed(1);
+  document.getElementById("rT").textContent=T;
+  document.getElementById("rC").textContent=T-273;
+  document.getElementById("rK").textContent=(p*V/T).toFixed(0);
+  document.getElementById("sTv").textContent=T+" K（"+(T-273)+"℃）";
+  document.getElementById("sVv").textContent=V.toFixed(1)+" mL";
+  document.getElementById("fml").textContent=
+    "等温过程（T 不变）： p · V = 恒量\n"+
+    "  当前 p·V = "+p.toFixed(1)+" × "+V.toFixed(1)+" = "+(p*V).toFixed(0)+" kPa·mL\n"+
+    "理想气体状态方程： p · V / T = 恒量  （nR 一定）\n"+
+    "  当前 p·V/T = "+(p*V/T).toFixed(1)+" kPa·mL/K\n"+
+    "p = nRT / V = "+C.toFixed(2)+" × "+T+" / "+V.toFixed(1)+" = "+p.toFixed(1)+" kPa";
+}
+
+/* ---------- 数据采集与轨迹 ---------- */
+function collect(){
+  const p=pOf(T,V);
+  if(lastTrailV===null||Math.abs(V-lastTrailV)>=1||Math.abs(T-lastTrailT)>=2){
+    trail.push({V:V,p:p,T:T}); if(trail.length>500)trail.shift();
+    lastTrailV=V; lastTrailT=T;
+  }
+  if(lastColV===null||Math.abs(V-lastColV)>=5){
+    data.push({x:1/V,y:p}); if(data.length>200)data.shift();
+    lastColV=V;
+  }
+}
+
+/* ---------- 交互 ---------- */
+const sc=document.getElementById("scene");
+let dragging=false;
+function ptY(e){const r=sc.getBoundingClientRect();return (e.clientY-r.top)*sc._h/r.height;}
+function ptX(e){const r=sc.getBoundingClientRect();return (e.clientX-r.left)*sc._w/r.width;}
+function nearPiston(x,y){const z=gasRect();return x>z.x-20&&x<z.x+z.w+20&&Math.abs(y-(z.py+6))<22;}
+sc.addEventListener("pointerdown",e=>{if(nearPiston(ptX(e),ptY(e))){dragging=true;sc.setPointerCapture(e.pointerId);sc.style.cursor="grabbing";}});
+sc.addEventListener("pointermove",e=>{
+  if(dragging){
+    const py=ptY(e);
+    const frac=Math.min(1,Math.max(0,(BAR.bottom-py-HMIN)/(HMAX-HMIN)));
+    V=VMIN+frac*(VMAX-VMIN);
+    document.getElementById("sV").value=V; sync();
+  }else sc.style.cursor=nearPiston(ptX(e),ptY(e))?"grab":"default";
+});
+window.addEventListener("pointerup",()=>{dragging=false;sc.style.cursor="default";});
+
+document.getElementById("sT").addEventListener("input",e=>{
+  T=+e.target.value;
+  trail=[];data=[];lastColV=null;lastTrailV=null;   // 玻意耳定律要求等温 → 清空
+  rescaleSpeeds(); sync();
+});
+document.getElementById("sV").addEventListener("input",e=>{V=+e.target.value;sync();});
+document.getElementById("btnPlay").onclick=function(){
+  playing=!playing; this.textContent=playing?"⏸ 暂停":"▶ 开始";
+};
+document.getElementById("btnReset").onclick=()=>{
+  T=300;V=100;playing=true;
+  document.getElementById("sT").value=T;document.getElementById("sV").value=V;
+  document.getElementById("btnPlay").textContent="⏸ 暂停";
+  trail=[];data=[];lastColV=null;lastTrailV=null;resetMols();sync();
+};
+document.getElementById("btnClear").onclick=()=>{trail=[];data=[];lastColV=null;lastTrailV=null;};
+
+function sync(){updateText();}
+
+/* ---------- 主循环 ---------- */
+resetMols();updateText();
+(function loop(){
+  if(playing){stepMols();collect();}
+  drawScene();drawPV();drawQ();
+  requestAnimationFrame(loop);
+})();
+})();
+</script>
+</body>
+</html>

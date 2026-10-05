@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>气体分子速率分布 · 麦克斯韦分布交互演示</title>
+<style>
+:root{
+  --ink:#1f2933; --sub:#52606d; --bg:#f2f5f9; --card:#ffffff;
+  --line:#d9e2ec; --accent:#1d6fd6; --warn:#b23a48;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; padding:18px 14px 40px;}
+.wrap{max-width:1000px; margin:0 auto;}
+header{margin-bottom:14px;}
+header h1{font-size:22px; letter-spacing:.5px;}
+header p{color:var(--sub); font-size:14px;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:12px;
+  padding:14px 16px; margin-bottom:14px; box-shadow:0 1px 3px rgba(31,41,51,.05);}
+.row{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px;}
+.row:last-child{margin-bottom:0;}
+label.small, .hint{font-size:13px; color:var(--sub);}
+.chip{border:1.5px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
+  padding:4px 12px; font-size:14px; cursor:pointer; transition:all .15s; user-select:none;}
+.chip.on{color:#fff; border-color:transparent; font-weight:600;}
+button.act{border:1.5px solid var(--line); background:#fff; border-radius:8px; padding:5px 10px;
+  font-size:13px; cursor:pointer; transition:all .15s;}
+button.act:hover{border-color:var(--accent); color:var(--accent);}
+button.act.pinned{background:#fff8e6; border-color:#e0b94f; color:#8a6d1a;}
+input[type=range]{flex:1; min-width:160px; accent-color:var(--accent);}
+#tval{font-size:18px; font-weight:700; color:var(--accent); min-width:86px; text-align:right;}
+canvas{display:block; width:100%; touch-action:none;}
+#chart{height:420px; cursor:crosshair;}
+@media (max-width:640px){ #chart{height:340px;} }
+#bandInfo{font-size:14px; margin-top:6px; min-height:24px;}
+#bandInfo b{color:var(--accent);}
+.stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px;}
+.stat{background:#f7fafc; border:1px solid var(--line); border-radius:10px; padding:8px 12px; text-align:center;}
+.stat .k{font-size:12px; color:var(--sub);}
+.stat .v{font-size:20px; font-weight:700; color:var(--ink);}
+.stat .v small{font-size:12px; font-weight:400; color:var(--sub);}
+.note{font-size:13.5px; color:var(--sub); margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
+.tails{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+.tail{font-size:13px; background:#fff; border:1px dashed var(--line); border-radius:8px; padding:4px 10px;}
+ol.pts{padding-left:20px; font-size:14.5px;}
+ol.pts li{margin:6px 0;}
+ol.pts b{color:var(--warn);}
+#mol{height:150px;}
+.formula{font-family:Georgia,'Times New Roman',serif; font-style:italic; color:var(--sub); font-size:13px;}
+#toast{position:fixed; left:50%; transform:translateX(-50%); bottom:26px; background:#1f2933; color:#fff;
+  padding:8px 16px; border-radius:8px; font-size:13px; opacity:0; pointer-events:none; transition:opacity .25s; z-index:9;}
+#toast.show{opacity:.95;}
+h2.sec{font-size:15px; margin-bottom:8px; color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>气体分子速率分布（麦克斯韦–玻尔兹曼分布）</h1>
+    <p>同一温度下"中间多、两头少"；升温峰右移、变矮变宽；同温度下轻气体（H₂）峰更靠高速端。</p>
+  </header>
+
+  <div class="card">
+    <div class="row" id="gasRow"><span class="hint">气体：</span></div>
+    <div class="row">
+      <span class="hint">温度</span>
+      <input type="range" id="tSlider" min="100" max="1500" step="10" value="300">
+      <span id="tval">300 K</span>
+    </div>
+    <div class="row">
+      <button class="act" data-t="300">常温 300K</button>
+      <button class="act" data-t="600">升温 600K</button>
+      <button class="act" data-t="1000">高温 1000K</button>
+      <button class="act" id="btnCompare">对比：H₂ vs O₂</button>
+      <button class="act" id="btnGhost">📌 固定当前曲线作对比</button>
+      <button class="act" id="btnReset">重置</button>
+      <label class="hint"><input type="checkbox" id="ckMark" checked> 标出 vp / v̄ / vrms</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <canvas id="chart"></canvas>
+    <div id="bandInfo"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="sec">三种特征速率（当前所选气体）</h2>
+    <div class="stats-grid" id="statGrid"></div>
+    <div class="tails" id="tails"></div>
+    <div class="note" id="statNote"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="sec">分子运动会：抽样出的一群"真实"分子 <button class="act" id="btnSample" style="margin-left:8px;">🔁 重新抽样</button></h2>
+    <canvas id="mol"></canvas>
+    <p class="hint" style="margin-top:4px;">每个小圆点的速率都从上图分布中随机抽取 —— 升温重新抽样后，依然有慢分子（蓝）也有快分子（红）。放开滑块或点"重新抽样"可重新抽取。</p>
+  </div>
+
+  <div class="card">
+    <h2 class="sec">三个容易搞错的地方</h2>
+    <ol class="pts">
+      <li><b>升温 ≠ 所有分子都变快。</b>曲线只是整体右移、峰变矮变宽。选中最左侧的低速区间再看：升温后那里分子占比变小，但<b>从不为零</b>。</li>
+      <li><b>任何温度下，慢分子与快分子都同时存在。</b>分布永远"中间多、两头少"，两头只是比例小，不是没有。</li>
+      <li><b>最概然速率 vp ≠ 平均速率 v̄。</b>vp 只是"分子数最多的那个速率"，由于高速端拖尾，平均速率 v̄ 总比 vp 大约 13%。</li>
+    </ol>
+  </div>
+
+  <p class="formula" style="text-align:center">f(v) = 4π (M / 2πRT)<sup>3/2</sup> v² e<sup>−Mv²/2RT</sup>　　vp=√(2RT/M)，v̄=√(8RT/πM)，v<sub|rms</sub>=√(3RT/M)</p>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const R = 8.314462618;
+const GASES = {
+  H2 : {name:'H₂ 氢气',    M:0.002016,  color:'#e63946'},
+  He : {name:'He 氦气',    M:0.0040026, color:'#9b5de5'},
+  H2O: {name:'水蒸气',     M:0.018015,  color:'#00b4d8'},
+  N2 : {name:'N₂ 氮气',   M:0.028014,  color:'#2a9d8f'},
+  O2 : {name:'O₂ 氧气',   M:0.032,     color:'#1d7fd6'},
+  CO2: {name:'CO₂',       M:0.044009,  color:'#f4a261'},
+};
+const state = { T:300, selected:['N2'], showMarkers:true, ghost:null, band:null, hover:null };
+
+/* ---------- 物理公式 ---------- */
+const vp   = (M,T)=>Math.sqrt(2*R*T/M);
+const vbar = (M,T)=>Math.sqrt(8*R*T/(Math.PI*M));
+const vrms = (M,T)=>Math.sqrt(3*R*T/M);
+function f(v,M,T){ const a=M/(2*R*T); return 4*Math.PI*Math.pow(a/Math.PI,1.5)*v*v*Math.exp(-a*v*v); }
+function erf(x){ const s=x<0?-1:1; x=Math.abs(x); const t=1/(1+0.3275911*x);
+  const y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y; }
+function cdf(v,M,T){ const z=v*Math.sqrt(M/(2*R*T)); return erf(z)-2/Math.sqrt(Math.PI)*z*Math.exp(-z*z); }
+const fm = v=>Math.round(v).toLocaleString('zh-CN');
+
+/* ---------- 画布初始化 ---------- */
+function setupCanvas(id, onResize){
+  const el=document.getElementById(id), ctx=el.getContext('2d');
+  const o={el,ctx,cssW:0,cssH:0};
+  function resize(){ const r=el.getBoundingClientRect(), d=window.devicePixelRatio||1;
+    o.cssW=r.width; o.cssH=r.height; el.width=Math.round(r.width*d); el.height=Math.round(r.height*d);
+    ctx.setTransform(d,0,0,d,0,0); }
+  resize(); new ResizeObserver(()=>{resize(); onResize();}).observe(el);
+  return o;
+}
+const chart = setupCanvas('chart', ()=>update());
+const molCv = setupCanvas('mol', ()=>{});
+let map=null;   // 主图坐标映射
+
+function niceStep(range,n){ const raw=range/n, p=Math.pow(10,Math.floor(Math.log10(raw)));
+  for(const m of [1,2,2.5,5,10]) if(raw<=m*p) return m*p; return 10*p; }
+
+/* ---------- 主图绘制 ---------- */
+function drawChart(){
+  const {ctx,cssW:W,cssH:H}=chart;
+  const pad={l:70,r:16,t:26,b:50};
+  const acts=state.selected.map(k=>({key:k,...GASES[k]}));
+  const sets=[{T:state.T,gases:acts,ghost:false}];
+  if(state.ghost) sets.push({T:state.ghost.T,gases:state.ghost.keys.map(k=>({key:k,...GASES[k]})),ghost:true});
+
+  // 坐标范围
+  let rawX=0,rawY=0;
+  for(const s of sets) for(const g of s.gases){
+    rawX=Math.max(rawX, vp(g.M,s.T)*3.4);
+    const n=240; for(let i=1;i<=n;i++) rawY=Math.max(rawY, f(rawX*i/n,g.M,s.T));
+  }
+  const xs=niceStep(rawX,8), xMax=Math.ceil(rawX/xs)*xs;
+  const ys=niceStep(rawY*1.06,5), yMax=Math.ceil(rawY*1.06/ys)*ys;
+  const X=v=>pad.l+(v/xMax)*(W-pad.l-pad.r);
+  const Y=p=>H-pad.b-(p/yMax)*(H-pad.t-pad.b);
+  map={pad,xMax,yMax,X,Y,W,H};
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+
+  // 网格与刻度
+  ctx.strokeStyle='#e6ecf2'; ctx.lineWidth=1; ctx.font='11px sans-serif'; ctx.fillStyle='#7b8794';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let v=0;v<=xMax+1;v+=xs){ ctx.beginPath(); ctx.moveTo(X(v)+.5,pad.t); ctx.lineTo(X(v)+.5,H-pad.b); ctx.stroke();
+    ctx.fillText(fm(v),X(v),H-pad.b+7); }
+  ctx.textAlign='right'; ctx.textBaseline='middle';
+  for(let p=0;p<=yMax+1e-12;p+=ys){ ctx.beginPath(); ctx.moveTo(pad.l,Y(p)+.5); ctx.lineTo(W-pad.r,Y(p)+.5); ctx.stroke();
+    ctx.fillText(Number(p.toPrecision(2)),pad.l-8,Y(p)); }
+  // 轴
+  ctx.strokeStyle='#9aa5b1'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,H-pad.b); ctx.lineTo(W-pad.r,H-pad.b); ctx.stroke();
+  ctx.fillStyle='#52606d'; ctx.font='12.5px sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillText('速率 v（m/s）',(pad.l+W-pad.r)/2,H-22);
+  ctx.save(); ctx.translate(16,(pad.t+H-pad.b)/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('概率密度 f(v)（每 m/s 的分子比例）',0,0); ctx.restore();
+  ctx.textAlign='left'; ctx.fillText('曲线下总面积 = 1',pad.l+8,pad.t+2);
+
+  // 曲线
+  const N=420;
+  for(const s of sets){
+    for(const g of s.gases){
+      ctx.beginPath();
+      for(let i=0;i<=N;i++){ const v=xMax*i/N, y=Y(Math.min(f(v,g.M,s.T),yMax));
+        i?ctx.lineTo(X(v),y):ctx.moveTo(X(v),y); }
+      if(s.ghost){ ctx.setLineDash([6,4]); ctx.strokeStyle=g.color; ctx.globalAlpha=.45; ctx.lineWidth=1.8; ctx.stroke(); }
+      else{ ctx.lineTo(X(xMax),H-pad.b); ctx.lineTo(X(0),H-pad.b); ctx.closePath();
+        ctx.fillStyle=g.color+'1f'; ctx.fill();
+        ctx.setLineDash([]); ctx.strokeStyle=g.color; ctx.globalAlpha=1; ctx.lineWidth=2.6; ctx.stroke(); }
+      ctx.setLineDash([]); ctx.globalAlpha=1;
+    }
+  }
+
+  // 区间选取着色（对第一种气体）
+  const prim=acts[0];
+  if(state.band){
+    let a=Math.min(state.band.a,state.band.b), b=Math.max(state.band.a,state.band.b);
+    a=Math.max(0,a); b=Math.min(xMax,b);
+    if(b-a>xMax*0.004){
+      ctx.beginPath(); ctx.moveTo(X(a),H-pad.b);
+      for(let i=0;i<=120;i++){ const v=a+(b-a)*i/120; ctx.lineTo(X(v),Y(f(v,prim.M,state.T))); }
+      ctx.lineTo(X(b),H-pad.b); ctx.closePath();
+      ctx.fillStyle=prim.color+'55'; ctx.fill();
+      ctx.setLineDash([4,3]); ctx.strokeStyle='#52606d'; ctx.lineWidth=1.2;
+      for(const v of [a,b]){ ctx.beginPath(); ctx.moveTo(X(v),pad.t); ctx.lineTo(X(v),H-pad.b); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
+  }
+
+  // 特征速率标记
+  const tag=(x,txt,col,dy)=>{ ctx.strokeStyle=col; ctx.lineWidth=1.4; ctx.setLineDash([5,3]);
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font='11.5px sans-serif'; const w=ctx.measureText(txt).width+10;
+    const tx=Math.min(Math.max(x-w/2,pad.l+2),W-pad.r-w-2);
+    ctx.fillStyle='#fff'; ctx.strokeStyle=col; ctx.globalAlpha=.95;
+    ctx.beginPath(); ctx.roundRect(tx,pad.t+6+dy,w,17,4); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=col; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(txt,tx+w/2,pad.t+14.5+dy); ctx.globalAlpha=1; };
+  if(state.showMarkers){
+    acts.forEach((g,i)=>{ tag(X(vp(g.M,state.T)),'vp='+fm(vp(g.M,state.T)),g.color, i*20); });
+    if(acts.length===1){ const g=acts[0];
+      tag(X(vbar(g.M,state.T)),'平均 v̄='+fm(vbar(g.M,state.T)),'#456',20);
+      tag(X(vrms(g.M,state.T)),'vrms='+fm(vrms(g.M,state.T)),'#999',40); }
+  }
+
+  // 图例
+  ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.font='12px sans-serif';
+  let lx=W-pad.r-10, ly=pad.t+14;
+  const items=[];
+  for(const s of sets) for(const g of s.gases)
+    items.push({col:g.color, txt:g.name+(s.ghost?'（旧 T='+s.ghost?'':'')});
+  // 简化图例文本
+  ctx.textAlign='right';
+  let ly2=pad.t+14;
+  for(const s of sets) for(const g of s.gases){
+    const txt=g.name+' '+s.T+'K'+(s.ghost?'（固定）':'');
+    ctx.fillStyle='#52606d'; ctx.fillText(txt,lx,ly2);
+    ctx.strokeStyle=g.color; ctx.lineWidth=3; ctx.setLineDash(s.ghost?[5,4]:[]);
+    ctx.beginPath(); ctx.moveTo(lx-ctx.measureText(txt).width-14,ly2); ctx.lineTo(lx-ctx.measureText(txt).width-4,ly2); ctx.stroke();
+    ctx.setLineDash([]); ly2+=18;
+  }
+
+  // 悬停读数线
+  if(state.hover!=null && !state.band){
+    const x=X(Math.min(Math.max(state.hover,0),xMax));
+    ctx.strokeStyle='#b8c2cc'; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke(); ctx.setLineDash([]);
+    const txt='v≈'+fm(state.hover)+' m/s';
+    ctx.font='11.5px sans-serif'; const w=ctx.measureText(txt).width+10;
+    const tx=Math.min(Math.max(x-w/2,pad.l+2),W-pad.r-w-2);
+    ctx.fillStyle='#1f2933'; ctx.beginPath(); ctx.roundRect(tx,pad.t+4,w,17,4); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.fillText(txt,tx+w/2,pad.t+13);
+  }
+}
+
+/* ---------- 读数面板 ---------- */
+function updateStats(){
+  const grid=document.getElementById('statGrid');
+  const acts=state.selected.map(k=>({key:k,...GASES[k]}));
+  const row=(g)=>`<div class="stat"><div class="k">${g.name} 最概然 vp</div><div class="v">${fm(vp(g.M,state.T))} <small>m/s</small></div></div>
+    <div class="stat"><div class="k">${g.name} 平均 v̄</div><div class="v">${fm(vbar(g.M,state.T))} <small>m/s</small></div></div>
+    <div class="stat"><div class="k">${g.name} 方均根 vrms</div><div class="v">${fm(vrms(g.M,state.T))} <small>m/s</small></div></div>`;
+  grid.innerHTML=acts.map(row).join('');
+
+  const g0=acts[0], p=vp(g0.M,state.T);
+  const slow=cdf(p/2,g0.M,state.T), fast=1-cdf(2*p,g0.M,state.T);
+  document.getElementById('tails').innerHTML=
+    `<span class="tail">🐢 比 ½vp 还慢：<b>${(slow*100).toFixed(1)}%</b></span>`+
+    `<span class="tail">🏎 超过 2vp 的快分子：<b>${(fast*100).toFixed(1)}%</b></span>`+
+    `<span class="tail">这两个比例对<b>任何气体、任何温度</b>都一样（分布形状相似），且永不为零</span>`;
+
+  const note=document.getElementById('statNote');
+  note.innerHTML = acts.length===1
+    ? `v̄ ≈ 1.13·vp，vrms ≈ 1.22·vp —— 因为高速端有长尾巴，把"平均"拉高了。<b>最概然速率 ≠ 平均速率。</b>`
+    : `同温度下摩尔质量 M 越小，vp=√(2RT/M) 越大：<b>${acts[0].name} 的峰更靠高速端</b>，而且更高更窄（两条曲线下面积都是 1，"面积守恒"让峰变窄就必须变高）。`;
+
+  const bi=document.getElementById('bandInfo');
+  if(state.band){
+    let a=Math.min(state.band.a,state.band.b), b=Math.max(state.band.a,state.band.b);
+    if(b-a>1){
+      const parts=acts.map(g=>`${g.name} <b>${((cdf(b,g.M,state.T)-cdf(a,g.M,state.T))*100).toFixed(1)}%</b>`);
+      bi.innerHTML=`选中区间 <b>${fm(a)} – ${fm(b)} m/s</b> 的分子占比：${parts.join('　｜　')}　<span class="hint">（单击图像可取消选择）</span>`;
+      return;
+    }
+  }
+  bi.innerHTML=`<span class="hint">提示：在图上按住并左右拖动可框选速率区间，查看该区间内的分子占比 —— 试试框住最左边的低速区，然后升温看占比变化。</span>`;
+}
+
+let queued=false;
+function update(){ if(queued)return; queued=true;
+  requestAnimationFrame(()=>{queued=false; drawChart(); updateStats();}); }
+
+/* ---------- 分子运动会 ---------- */
+const vRef=vbar(GASES.N2.M,300);      // 固定视觉比例尺：升温后看得见变快
+const lanes=[];
+function speedColor(r){ return r<0.6?'#4a7bd0': r<1.0?'#2a9d8f': r<1.5?'#f4a261':'#e63946'; }
+function rebuildLanes(){
+  lanes.length=0;
+  for(const k of state.selected.slice(0,2)){
+    const g=GASES[k], p=vp(g.M,state.T), vmax=p*3.2, fpk=f(p,g.M,state.T), mols=[];
+    let guard=0;
+    while(mols.length<46 && guard<30000){
+      const v=Math.random()*vmax;
+      if(Math.random()<=f(v,g.M,state.T)/fpk) mols.push({x:Math.random(),v});
+      guard++;
+    }
+    lanes.push({key:k,mols});
+  }
+}
+let lastT=performance.now();
+function tick(now){
+  const dt=Math.min((now-lastT)/1000,.05); lastT=now;
+  const {ctx,cssW:W,cssH:H}=molCv;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fbfdfe'; ctx.fillRect(0,0,W,H);
+  const lh=H/lanes.length, k=W/(5*vRef);   // px per (m/s)
+  lanes.forEach((ln,i)=>{
+    const g=GASES[ln.key], p=vp(g.M,state.T), cy=lh*i+lh/2;
+    if(i){ ctx.strokeStyle='#e6ecf2'; ctx.beginPath(); ctx.moveTo(0,lh*i+.5); ctx.lineTo(W,lh*i+.5); ctx.stroke(); }
+    ctx.font='12px sans-serif'; ctx.fillStyle=g.color; ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(`${g.name}　v̄≈${fm(vbar(g.M,state.T))} m/s`,8,lh*i+5);
+    for(const m of ln.mols){
+      m.x+=m.v*k*dt/W; if(m.x>1.03) m.x-=1.06;
+      ctx.beginPath(); ctx.arc(m.x*W,cy+4,3.6,0,Math.PI*2);
+      ctx.fillStyle=speedColor(m.v/p); ctx.fill();
+    }
+  });
+  ctx.font='11px sans-serif'; ctx.fillStyle='#7b8794'; ctx.textAlign='right'; ctx.textBaseline='bottom';
+  ctx.fillText('蓝=慢　绿≈vp　橙=较快　红=很快',W-6,H-4);
+  requestAnimationFrame(tick);
+}
+
+/* ---------- 交互 ---------- */
+const slider=document.getElementById('tSlider');
+slider.addEventListener('input',e=>{ state.T=+e.target.value;
+  document.getElementById('tval').textContent=state.T+' K'; update(); });
+slider.addEventListener('change',rebuildLanes);
+
+document.querySelectorAll('button.act[data-t]').forEach(b=>
+  b.addEventListener('click',()=>{ state.T=+b.dataset.t; slider.value=state.T;
+    document.getElementById('tval').textContent=state.T+' K'; update(); rebuildLanes(); }));
+
+document.getElementById('btnCompare').addEventListener('click',()=>{
+  state.selected=['H2','O2']; state.ghost=null; state.band=null; syncChips(); ghostBtn(); update(); rebuildLanes(); });
+document.getElementById('btnReset').addEventListener('click',()=>{
+  state.selected=['N2']; state.T=300; state.ghost=null; state.band=null; state.hover=null;
+  slider.value=300; document.getElementById('tval').textContent='300 K';
+  syncChips(); ghostBtn(); update(); rebuildLanes(); });
+document.getElementById('btnSample').addEventListener('click',rebuildLanes);
+document.getElementById('ckMark').addEventListener('change',e=>{ state.showMarkers=e.target.checked; update(); });
+
+const bg=document.getElementById('btnGhost');
+function ghostBtn(){
+  if(state.ghost){ bg.classList.add('pinned'); bg.textContent='📌 已固定 T='+state.ghost.T+'K 曲线（点击取消）'; }
+  else{ bg.classList.remove('pinned'); bg.textContent='📌 固定当前曲线作对比'; }
+}
+bg.addEventListener('click',()=>{
+  state.ghost = state.ghost ? null : {T:state.T, keys:[...state.selected]};
+  ghostBtn(); update(); });
+
+/* 气体选择 chips */
+const gasRow=document.getElementById('gasRow');
+function syncChips(){
+  gasRow.querySelectorAll('.chip').forEach(c=>{
+    const on=state.selected.includes(c.dataset.k);
+    c.classList.toggle('on',on);
+    c.style.background=on?GASES[c.dataset.k].color:'#fff';
+  });
+}
+for(const k in GASES){
+  const b=document.createElement('button'); b.className='chip'; b.dataset.k=k;
+  b.textContent=GASES[k].name;
+  b.addEventListener('click',()=>{
+    const i=state.selected.indexOf(k);
+    if(i>=0){ if(state.selected.length===1){ toast('至少保留一种气体'); return; }
+      state.selected.splice(i,1); }
+    else state.selected.push(k);
+    state.band=null; syncChips(); update(); rebuildLanes();
+  });
+  gasRow.appendChild(b);
+}
+syncChips();
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg;
+  t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1600); }
+
+/* 图上框选 & 悬停 */
+let dragging=false;
+const vAt=x=> (x-map.pad.l)/(map.W-map.pad.l-map.pad.r)*map.xMax;
+chart.el.addEventListener('pointerdown',e=>{
+  chart.el.setPointerCapture(e.pointerId); dragging=true;
+  state.band={a:vAt(e.offsetX),b:vAt(e.offsetX)}; state.hover=null; update(); });
+chart.el.addEventListener('pointermove',e=>{
+  if(dragging){ state.band.b=vAt(e.offsetX); }
+  else state.hover=vAt(e.offsetX);
+  update(); });
+chart.el.addEventListener('pointerup',e=>{
+  dragging=false;
+  if(Math.abs(state.band.b-state.band.a)<map.xMax*0.004) state.band=null;
+  update(); });
+chart.el.addEventListener('pointerleave',()=>{ if(!dragging){state.hover=null; update();} });
+
+/* 启动 */
+rebuildLanes(); ghostBtn(); update(); requestAnimationFrame(tick);
+</script>
+</body>
+</html>

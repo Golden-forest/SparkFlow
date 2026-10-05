@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>牛顿冷却定律 · 交互仿真</title>
+<style>
+:root{
+  --bg:#0f141b; --panel:#171e28; --panel2:#1d2634; --line:#2a3547;
+  --text:#dbe4f0; --dim:#8b98ab; --accent:#ff8c42; --cyan:#4dd0e1; --green:#7ee787;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.65 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+header{padding:16px 20px 4px;max-width:1400px;margin:0 auto}
+h1{font-size:20px;margin:0}
+header p{margin:2px 0 0;color:var(--dim);font-size:13px}
+code{color:var(--cyan)}
+.layout{display:grid;grid-template-columns:280px 1fr;gap:14px;
+  padding:10px 16px 26px;max-width:1400px;margin:0 auto;
+  grid-template-areas:"ctrl right"}
+@media(max-width:960px){.layout{grid-template-columns:1fr;grid-template-areas:"ctrl" "right"}}
+.controls{grid-area:ctrl}
+.right{grid-area:right;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+h2{font-size:14px;margin:8px 0 8px;color:var(--accent);letter-spacing:.05em}
+h3{font-size:14px;margin:0 0 8px;color:var(--accent)}
+label.sl{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);margin-top:8px}
+label.sl span{color:var(--text);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0 6px}
+.hint{font-size:12px;color:var(--dim);background:var(--panel2);border-radius:6px;
+  padding:6px 8px;margin-top:6px}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0;align-items:center}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:7px;padding:7px 12px;font-size:13px;cursor:pointer;user-select:none}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#1a1206;font-weight:600}
+button.on{background:var(--accent);border-color:var(--accent);color:#1a1206;font-weight:600}
+.row.top{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}
+@media(max-width:720px){.row.top{grid-template-columns:1fr}}
+.row.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.row.charts{grid-template-columns:1fr}}
+canvas{display:block}
+#scene{width:100%;height:auto}
+#tt,#lg{width:100%;height:255px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;font-size:12px;color:var(--dim)}
+.legend .lg{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.legend .lg.cur{color:var(--text)}
+.caption{margin-top:6px;font-size:12.5px;color:var(--dim)}
+.caption b{color:var(--green)}
+.bigT{display:flex;align-items:baseline;gap:6px;justify-content:center;margin:4px 0 8px}
+.bigT #vT{font-size:52px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1}
+.bigT .unit{font-size:18px;color:var(--dim)}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mini>div{background:var(--panel2);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--dim)}
+.mini b{display:block;font-size:15px;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.formula{text-align:center;font-size:12px;color:var(--dim);margin-top:8px}
+.teach ul{margin:6px 0;padding-left:20px;font-size:13.5px}
+.teach li{margin:3px 0}
+#dyn{font-size:13px;color:var(--cyan);background:var(--panel2);border-radius:6px;padding:7px 10px;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>牛顿冷却定律仿真：一杯热水的降温之旅</h1>
+  <p>模型：<code>dT/dt = −k(T − T<sub>env</sub>)</code>，<code>k = 1/τ</code>（τ 体现杯子保温性能）；冷却速率与瞬时温差成正比。空格=开始/暂停，S=单步，R=重置。</p>
+</header>
+
+<div class="layout">
+  <!-- ============ 控制区 ============ -->
+  <aside class="panel controls">
+    <h2>参数设置</h2>
+    <label class="sl">初始温度 T₀ <span id="vT0"></span></label>
+    <input type="range" id="t0" min="40" max="95" step="0.5" value="80">
+    <label class="sl">室温 T_env <span id="vTenv"></span></label>
+    <input type="range" id="tenv" min="5" max="35" step="0.5" value="20">
+    <label class="sl">时间常数 τ（保温性能）<span id="vTau"></span></label>
+    <input type="range" id="tau" min="2" max="30" step="0.5" value="10">
+    <div class="hint">运行中修改 τ、室温立即生效；修改 T₀ 需重置后生效。改变参数后“重置”会自动把上一条曲线存为对比。</div>
+
+    <h2>播放控制</h2>
+    <div class="btns">
+      <button id="bStart" class="primary">开始</button>
+      <button id="bStep">单步 +0.5 min</button>
+      <button id="bReset">重置</button>
+    </div>
+    <div class="btns">
+      <span style="font-size:13px;color:var(--dim)">倍速</span>
+      <button class="spd" data-v="0.5">0.5×</button>
+      <button class="spd on" data-v="1">1×</button>
+      <button class="spd" data-v="2">2×</button>
+      <button class="spd" data-v="4">4×</button>
+      <button class="spd" data-v="8">8×</button>
+    </div>
+    <div class="btns">
+      <button id="bSnap">保留当前曲线</button>
+      <button id="bClear">清除对比</button>
+    </div>
+    <div class="hint">1× 时每真实秒 = 1 仿真分钟。最多叠加 5 组对比曲线。</div>
+  </aside>
+
+  <!-- ============ 主区 ============ -->
+  <section class="right">
+    <div class="row top">
+      <div class="panel">
+        <h3>恒温房间中的一杯热水</h3>
+        <canvas id="scene" width="690" height="510"></canvas>
+      </div>
+      <div class="panel">
+        <h3>温度计读数 / 数值面板</h3>
+        <div class="bigT"><span id="vT">80.00</span><span class="unit">°C</span></div>
+        <div class="mini">
+          <div>温差 ΔT = T − T_env<b id="vD"></b></div>
+          <div>冷却速率 dT/dt<b id="vR"></b></div>
+          <div>已历时 t<b id="vTm"></b></div>
+          <div>k = 1/τ<b id="vK"></b></div>
+          <div>剩余温差比 ΔT/ΔT₀<b id="vP"></b></div>
+          <div>状态<b id="vS"></b></div>
+        </div>
+        <div class="formula">T(t) = T<sub>env</sub> + (T₀ − T<sub>env</sub>)·e<sup>−t/τ</sup>　ΔT/ΔT₀ = e<sup>−t/τ</sup></div>
+      </div>
+    </div>
+
+    <div class="row charts">
+      <div class="panel">
+        <h3>T–t 曲线（多组对比）</h3>
+        <canvas id="tt"></canvas>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="panel">
+        <h3>半对数图：ln(T − T_env) – t（应为直线）</h3>
+        <canvas id="lg"></canvas>
+        <div class="caption" id="fitLine"></div>
+      </div>
+    </div>
+
+    <div class="panel teach">
+      <h3>教学要点</h3>
+      <ul>
+        <li><b>温差越大，降温越快</b>：dT/dt = −ΔT/τ，刚开始降温最猛，随后随温差减小而变慢。</li>
+        <li><b>指数式逼近室温</b>：每过一个 τ，温差缩小到原来的 36.8%；半对数图上 ln ΔT 是直线，斜率 = −1/τ。</li>
+        <li><b>永远不会降到室温以下</b>：室温是渐近线，T 只能无限接近而达不到（更不会穿过）。</li>
+      </ul>
+      <div id="dyn"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const cvS=$('scene'),cvA=$('tt'),cvB=$('lg');
+const PAL=['#4dd0e1','#7ee787','#c792ea','#ffd54f','#ff5370'];
+const MPS=1; // 1× 时：每真实秒 = 1 仿真分钟
+
+const state={T:80,t:0,running:false,speed:1,points:[],dT0:60,
+  runs:[],_rT0:80,_rTau:10,_rEnv:20,lastTs:0,wall:0};
+
+const P={
+  get T0(){return +$('t0').value},
+  get Tenv(){return +$('tenv').value},
+  get tau(){return +$('tau').value}
+};
+
+/* ---------- 参数 ---------- */
+function onParam(){
+  $('vT0').textContent=P.T0.toFixed(1)+' °C';
+  $('vTenv').textContent=P.Tenv.toFixed(1)+' °C';
+  $('vTau').textContent=P.tau.toFixed(1)+' min';
+  if(state.t===0){ // 未开跑：随时可改初始状态
+    state.T=P.T0; state.dT0=P.T0-P.Tenv;
+    state._rT0=P.T0; state._rTau=P.tau; state._rEnv=P.Tenv;
+    state.points=[{t:0,T:state.T,d:state.dT0}];
+  }
+}
+['t0','tenv','tau'].forEach(id=>$(id).addEventListener('input',onParam));
+
+/* ---------- 播放控制 ---------- */
+function setRunning(r){state.running=r;$('bStart').textContent=r?'暂停':'开始';}
+$('bStart').onclick=()=>setRunning(!state.running);
+$('bStep').onclick=()=>{setRunning(false);stepSim(0.5);};
+$('bReset').onclick=reset;
+$('bSnap').onclick=()=>snapshot();
+$('bClear').onclick=()=>{state.runs=[];renderLegend();};
+document.querySelectorAll('.spd').forEach(b=>b.onclick=()=>{
+  state.speed=+b.dataset.v;
+  document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on',x===b));
+});
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  if(e.code==='Space'){e.preventDefault();setRunning(!state.running);}
+  else if(e.key==='s'||e.key==='S'){$('bStep').click();}
+  else if(e.key==='r'||e.key==='R'){$('bReset').click();}
+});
+
+function snapshot(){
+  if(state.points.length<8)return;
+  state.runs.push({pts:state.points.slice(),T0:state._rT0,tau:state._rTau,
+    Tenv:state._rEnv,color:PAL[state.runs.length%PAL.length]});
+  if(state.runs.length>5)state.runs.shift();
+  renderLegend();
+}
+function reset(){
+  snapshot();
+  setRunning(false);
+  state.t=0;state.T=P.T0;state.dT0=P.T0-P.Tenv;
+  state._rT0=P.T0;state._rTau=P.tau;state._rEnv=P.Tenv;
+  state.points=[{t:0,T:state.T,d:state.dT0}];
+  renderLegend();
+}
+
+/* ---------- 物理步进（解析解，绝对稳定、永不越界） ---------- */
+function stepSim(dt){
+  const d=state.T-P.Tenv;
+  state.T=P.Tenv+d*Math.exp(-dt/P.tau);
+  state.t+=dt;
+  const last=state.points[state.points.length-1];
+  if(!last||state.t-last.t>=0.0995)
+    state.points.push({t:state.t,T:state.T,d:state.T-P.Tenv});
+}
+
+/* ---------- 画布适配 ---------- */
+function fitCanvas(cv){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth,h=cv.clientHeight;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  }
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function tCol(T,a){const h=Math.max(0,210-2.1*T);
+  return `hsla(${h.toFixed(0)},85%,58%,${a===undefined?1:a})`;}
+
+/* ---------- 场景：房间 + 温度计 + 水杯 ---------- */
+function drawScene(){
+  const ctx=cvS.getContext('2d');
+  ctx.setTransform(1.5,0,0,1.5,0,0);
+  ctx.clearRect(0,0,460,340);
+  // 墙色随室温微调（冷蓝→暖黄）
+  const f=(P.Tenv-5)/30;
+  const r=Math.round(40+50*f),g=Math.round(58+34*f),b=Math.round(92+22*f);
+  const grd=ctx.createLinearGradient(0,0,0,340);
+  grd.addColorStop(0,`rgb(${r+12},${g+12},${b+14})`);
+  grd.addColorStop(1,`rgb(${Math.max(0,r-18)},${Math.max(0,g-16)},${b-8})`);
+  ctx.fillStyle=grd;ctx.fillRect(0,0,460,340);
+  // 桌子
+  ctx.fillStyle='#33261e';ctx.fillRect(0,290,460,50);
+  ctx.fillStyle='#4a372b';ctx.fillRect(0,286,460,6);
+  // 房间标注
+  ctx.fillStyle='rgba(255,255,255,.8)';ctx.font='13px system-ui';ctx.textAlign='right';
+  ctx.fillText(`恒温房间  T_env = ${P.Tenv.toFixed(1)} °C`,450,24);
+  ctx.textAlign='left';
+
+  drawThermo(ctx);
+  drawCup(ctx);
+}
+function drawThermo(ctx){
+  const x=80,bot=250,bulbY=272;
+  const yT=T=>bot-T*(bot-56)/100;
+  // 玻璃管
+  ctx.fillStyle='rgba(225,235,245,.12)';ctx.strokeStyle='rgba(255,255,255,.4)';
+  ctx.lineWidth=1.5;roundRect(ctx,x-9,44,18,bot-44+16,9);ctx.fill();ctx.stroke();
+  // 刻度
+  ctx.font='10px system-ui';
+  for(let T=0;T<=100;T+=10){
+    const y=yT(T);
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x+9,y);ctx.lineTo(x+(T%20===0?17:13),y);ctx.stroke();
+    if(T%20===0){
+      ctx.fillStyle='rgba(255,255,255,.75)';ctx.textAlign='right';
+      ctx.fillText(T,x-13,y+3);
+    }
+  }
+  ctx.textAlign='center';
+  ctx.fillStyle=tCol(state.T);ctx.font='bold 15px system-ui';
+  ctx.fillText(state.T.toFixed(1)+' °C',x,34);
+  ctx.textAlign='left';
+  // 水银柱与球泡
+  const y=yT(state.T);
+  ctx.fillStyle=tCol(state.T);
+  ctx.fillRect(x-4,y,8,bot-y+8);
+  ctx.beginPath();ctx.arc(x,bulbY,17,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.35)';
+  ctx.beginPath();ctx.arc(x-5,bulbY-5,5,0,7);ctx.fill();
+}
+function drawCup(ctx){
+  const cx=268,top=150,bot=288,wT=118,wB=92;
+  // 蒸汽（越热越旺）
+  const hot=Math.max(0,Math.min(1,(state.T-40)/50));
+  if(hot>0){
+    ctx.lineCap='round';
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      for(let y=0;y<=58;y+=4){
+        const x=cx-26+i*26+Math.sin(y*0.12+state.wall*2.4+i*2.1)*(4+y*0.10);
+        const yy=top-8-y;
+        y===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);
+      }
+      ctx.strokeStyle=`rgba(255,255,255,${(0.30*hot*(1-i*0.2)).toFixed(3)})`;
+      ctx.lineWidth=3.2-i*0.6;ctx.stroke();
+    }
+  }
+  // 杯子投影
+  ctx.fillStyle='rgba(0,0,0,.28)';
+  ctx.beginPath();ctx.ellipse(cx,bot+2,wB/2+10,6,0,0,7);ctx.fill();
+  // 把手（画在杯身后面）
+  ctx.beginPath();ctx.arc(cx+wT/2+8,208,20,-1.15,1.15);
+  ctx.strokeStyle='#d8d1c4';ctx.lineWidth=8;ctx.stroke();
+  // 杯身
+  ctx.beginPath();
+  ctx.moveTo(cx-wT/2,top);ctx.lineTo(cx+wT/2,top);
+  ctx.lineTo(cx+wB/2,bot);ctx.lineTo(cx-wB/2,bot);ctx.closePath();
+  ctx.fillStyle='#e8e2d8';ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=2;ctx.stroke();
+  // 水（颜色随温度）
+  const inset=7,lvl=top+22;
+  ctx.beginPath();
+  ctx.moveTo(cx-wT/2+inset,lvl);ctx.lineTo(cx+wT/2-inset,lvl);
+  ctx.lineTo(cx+wB/2-4,bot-4);ctx.lineTo(cx-wB/2+4,bot-4);ctx.closePath();
+  ctx.fillStyle=tCol(state.T,0.9);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx,lvl,wT/2-inset,7,0,0,7);
+  ctx.fillStyle=tCol(state.T,1);ctx.fill();
+  // 杯口
+  ctx.beginPath();ctx.ellipse(cx,top,wT/2,10,0,0,7);
+  ctx.fillStyle='#f4efe6';ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.25)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+/* ---------- T–t 曲线 ---------- */
+function traceRun(ctx,pts,X,Y,val){
+  ctx.beginPath();let st=false;
+  for(const p of pts){
+    const x=X(p.t),y=Y(val(p));
+    st?ctx.lineTo(x,y):(ctx.moveTo(x,y),st=true);
+  }
+  ctx.stroke();
+}
+function xMaxOf(){return Math.max(60,Math.ceil((state.t+6)/10)*10);}
+function xStep(xm){return xm<=60?10:xm<=120?20:xm<=300?30:60;}
+
+function drawTT(){
+  const ctx=fitCanvas(cvA);
+  const W=cvA.clientWidth,H=cvA.clientHeight;
+  ctx.clearRect(0,0,W,H);
+  const mL=44,mR=12,mT=14,mB=28,pw=W-mL-mR,ph=H-mT-mB;
+  const xm=xMaxOf(),X=t=>mL+t/xm*pw,Y=T=>mT+(100-T)/100*ph;
+  ctx.font='11px system-ui';
+  for(let T=0;T<=100;T+=10){
+    ctx.strokeStyle=T===0?'#3a465c':'#232e40';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mL,Y(T));ctx.lineTo(W-mR,Y(T));ctx.stroke();
+    ctx.fillStyle='#8b98ab';ctx.textAlign='right';ctx.fillText(T,mL-6,Y(T)+4);
+  }
+  const xs=xStep(xm);
+  for(let t=0;t<=xm;t+=xs){
+    ctx.strokeStyle='#232e40';
+    ctx.beginPath();ctx.moveTo(X(t),mT);ctx.lineTo(X(t),H-mB);ctx.stroke();
+    ctx.fillStyle='#8b98ab';ctx.textAlign='center';ctx.fillText(t,X(t),H-mB+16);
+  }
+  ctx.textAlign='left';
+  ctx.fillStyle='#8b98ab';ctx.fillText('T/°C',4,mT+8);
+  ctx.fillText('t/min',W-mR-42,H-3);
+  // 室温渐近线
+  const Ye=Y(P.Tenv);
+  ctx.setLineDash([6,4]);ctx.strokeStyle='#4dd0e1';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(mL,Ye);ctx.lineTo(W-mR,Ye);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#4dd0e1';ctx.textAlign='right';
+  ctx.fillText(`室温 ${P.Tenv.toFixed(1)}（渐近线）`,W-mR-4,Ye-6);
+  ctx.textAlign='left';
+  // t=τ 参考线
+  if(P.tau<=xm*0.92){
+    ctx.setLineDash([3,4]);ctx.strokeStyle='rgba(255,140,66,.55)';
+    ctx.beginPath();ctx.moveTo(X(P.tau),mT);ctx.lineTo(X(P.tau),H-mB);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,160,90,.95)';
+    ctx.fillText('t=τ：ΔT→36.8%',X(P.tau)+4,mT+11);
+  }
+  // 对比曲线
+  for(const run of state.runs){
+    ctx.globalAlpha=.9;ctx.strokeStyle=run.color;ctx.lineWidth=1.6;
+    traceRun(ctx,run.pts,X,Y,p=>p.T);ctx.globalAlpha=1;
+  }
+  // 当前曲线
+  ctx.strokeStyle='#ff8c42';ctx.lineWidth=2.6;
+  traceRun(ctx,state.points,X,Y,p=>p.T);
+  const lp=state.points[state.points.length-1];
+  if(lp){ctx.fillStyle='#ff8c42';ctx.beginPath();
+    ctx.arc(X(lp.t),Y(lp.T),4.5,0,7);ctx.fill();}
+}
+
+/* ---------- 半对数图 ---------- */
+function fmtD(v){
+  if(v>=10)return v.toFixed(0);
+  if(v>=1)return v.toFixed(1);
+  if(v>=0.1)return v.toFixed(2);
+  if(v>=0.01)return v.toFixed(3);
+  return v.toExponential(0);
+}
+function drawLG(){
+  const ctx=fitCanvas(cvB);
+  const W=cvB.clientWidth,H=cvB.clientHeight;
+  ctx.clearRect(0,0,W,H);
+  const mL=44,mR=56,mT=14,mB=28,pw=W-mL-mR,ph=H-mT-mB;
+  const xm=xMaxOf(),LMIN=-5,LMAX=5;
+  const X=t=>mL+t/xm*pw,Y=L=>mT+(LMAX-L)/(LMAX-LMIN)*ph;
+  ctx.font='11px system-ui';
+  for(let L=LMAX;L>=LMIN;L--){
+    const y=Y(L);
+    ctx.strokeStyle=L===0?'#3a465c':'#232e40';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(mL,y);ctx.lineTo(W-mR,y);ctx.stroke();
+    ctx.fillStyle='#8b98ab';ctx.textAlign='right';ctx.fillText(L,mL-6,y+4);
+    ctx.textAlign='left';ctx.fillStyle='#5f6c80';
+    ctx.fillText(fmtD(Math.exp(L)),W-mR+6,y+4);
+  }
+  const xs=xStep(xm);
+  for(let t=0;t<=xm;t+=xs){
+    ctx.strokeStyle='#232e40';
+    ctx.beginPath();ctx.moveTo(X(t),mT);ctx.lineTo(X(t),H-mB);ctx.stroke();
+    ctx.fillStyle='#8b98ab';ctx.textAlign='center';ctx.fillText(t,X(t),H-mB+16);
+  }
+  ctx.textAlign='left';
+  ctx.fillStyle='#8b98ab';ctx.fillText('ln(ΔT/°C)',4,mT+8);
+  ctx.fillText('ΔT/°C',W-mR+4,10);
+  ctx.fillText('t/min',W-mR-42,H-3);
+  // 理论参考线：ln ΔT = ln ΔT0 − t/τ
+  if(state.dT0>0.01){
+    const l0=Math.log(state.dT0),tau=P.tau;
+    const t0v=Math.max(0,(l0-LMAX)*tau),t1v=Math.min(xm,(l0-LMIN)*tau);
+    if(t1v>t0v){
+      ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(126,231,135,.6)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(X(t0v),Y(l0-t0v/tau));
+      ctx.lineTo(X(t1v),Y(l0-t1v/tau));ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='rgba(126,231,135,.95)';
+      const ly=Math.min(LMAX-0.4,l0-0.2);
+      ctx.fillText(`参考直线  斜率 = −1/τ = −${(1/tau).toFixed(3)} min⁻¹`,mL+6,Y(ly)-5);
+    }
+  }
+  // 数据点（ln ΔT）
+  const plot=(pts,color,w)=>{
+    ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();let st=false;
+    for(const p of pts){
+      if(p.d<=Math.exp(LMIN))break;      // 低于绘图下限即止
+      const x=X(p.t),y=Y(Math.log(p.d));
+      st?ctx.lineTo(x,y):(ctx.moveTo(x,y),st=true);
+    }
+    ctx.stroke();
+  };
+  for(const run of state.runs){ctx.globalAlpha=.9;plot(run.pts,run.color,1.6);ctx.globalAlpha=1;}
+  plot(state.points,'#ff8c42',2.6);
+}
+
+/* ---------- 斜率拟合（ln ΔT 对 t 线性回归） ---------- */
+function fitSlope(){
+  let n=0,sx=0,sy=0,sxx=0,sxy=0;
+  for(const p of state.points){
+    if(p.d<0.004)continue;
+    const L=Math.log(p.d);
+    n++;sx+=p.t;sy+=L;sxx+=p.t*p.t;sxy+=p.t*L;
+  }
+  if(n<3)return null;
+  const den=n*sxx-sx*sx;
+  return den?(n*sxy-sx*sy)/den:null;
+}
+function updateFit(){
+  const m=fitSlope();
+  if(m===null){
+    $('fitLine').innerHTML='等待数据…（ΔT 取对数后随 t 线性下降，斜率 ≈ −1/τ）';
+    return;
+  }
+  $('fitLine').innerHTML=
+    `线性回归：实测斜率 m ≈ <b>${m.toFixed(4)}</b> min⁻¹　⇒　τ = −1/m ≈ <b>${(-1/m).toFixed(2)}</b> min`+
+    `　（当前设置 1/τ = ${(1/P.tau).toFixed(4)} min⁻¹）`;
+}
+
+/* ---------- 数值面板 / 图例 / 动态提示 ---------- */
+function updatePanel(){
+  const d=state.T-P.Tenv,rate=-d/P.tau;
+  const fr=state.dT0>0?Math.max(0,Math.min(1,d/state.dT0)):0;
+  $('vT').textContent=state.T.toFixed(2);
+  $('vD').textContent=(d>=0?'+':'')+d.toFixed(2)+' °C';
+  $('vR').textContent=(rate>=0?'+':'')+rate.toFixed(3)+' °C/min';
+  $('vTm').textContent=state.t.toFixed(1)+' min';
+  $('vK').textContent=(1/P.tau).toFixed(4)+' min⁻¹';
+  $('vP').textContent=(fr*100).toFixed(1)+'%';
+  $('vS').textContent=state.running?`运行中 ${state.speed}×`:(state.t>0?'已暂停':'就绪');
+  const dyn=$('dyn');
+  if(state.t<0.05){
+    dyn.textContent='调好 T₀、室温与 τ 后点击“开始”，观察温差如何随时间指数衰减。';
+  }else if(fr>0.02){
+    dyn.textContent=`当前温差 ${d.toFixed(2)} °C，冷却速率 ${rate.toFixed(2)} °C/min —— 温差越大，降温越快。`;
+  }else{
+    dyn.textContent=`温差只剩初始的 ${(fr*100).toFixed(1)}%：指数式逼近室温，越来越慢，且永远不会低于室温。`;
+  }
+}
+function renderLegend(){
+  let h=`<span class="lg cur"><i style="background:#ff8c42"></i>当前：T₀=${state._rT0.toFixed(1)}°C，τ=${state._rTau.toFixed(1)}min，T_env=${state._rEnv.toFixed(1)}°C</span>`;
+  for(const r of state.runs)
+    h+=`<span class="lg"><i style="background:${r.color}"></i>T₀=${r.T0.toFixed(1)}°C，τ=${r.tau.toFixed(1)}min，T_env=${r.Tenv.toFixed(1)}°C</span>`;
+  $('legend').innerHTML=h;
+}
+
+/* ---------- 主循环 ---------- */
+function loop(ts){
+  const dt=Math.min(0.1,(ts-state.lastTs)/1000||0);
+  state.lastTs=ts;state.wall+=dt;
+  if(state.running){
+    stepSim(dt*state.speed*MPS);
+    if(Math.abs(state.T-P.Tenv)<1e-3)setRunning(false); // 数值上已到室温
+  }
+  drawScene();drawTT();drawLG();updatePanel();updateFit();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- 启动 ---------- */
+onParam();
+reset();
+requestAnimationFrame(ts=>{state.lastTs=ts;requestAnimationFrame(loop);});
+})();
+</script>
+</body>
+</html>

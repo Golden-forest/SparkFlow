@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>平抛运动演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-freefall: #7a5af8;
+      --sim-vec-result: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(122, 90, 248, 0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; }
+    .status.landed { background: rgba(220,38,38,.10); border-color: rgba(220,38,38,.20); color: var(--sim-danger); }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 12px 14px 8px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f2f8fb 55%, #f8f5fd 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .readouts { padding: 14px 16px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.7rem; }
+    .metric strong { font-size: 1.15rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.vx strong { color: var(--sim-accent-deep); }
+    .metric.vy strong { color: var(--sim-warning); }
+    .landing-strip { display: none; margin-top: 10px; padding: 10px 12px; border-radius: 13px; border: 1px dashed rgba(220,38,38,.35); background: rgba(220,38,38,.05); color: var(--sim-text); font-size: 0.8rem; line-height: 1.7; }
+    .landing-strip.show { display: block; }
+    .landing-strip b { font-variant-numeric: tabular-nums; color: var(--sim-danger); }
+    .chart-card { padding: 12px 14px 8px; min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr); }
+    #vchart { width: 100%; height: 100%; min-height: 150px; display: block; }
+    .model-note { padding: 14px 16px; display: grid; align-content: start; gap: 10px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 640; font-size: 0.86rem !important; }
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) auto auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover:not(:disabled) { border-color: #c7d2e2; background: #eef3f9; }
+    button:active:not(:disabled) { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: default; }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .speed-group, .toggle-group { display: flex; align-items: center; gap: 6px; }
+    .speed-group .group-label, .toggle-group .group-label { color: var(--sim-muted); font-size: 0.75rem; font-weight: 700; margin-right: 2px; white-space: nowrap; }
+    .speed-btn, .toggle-group button { padding: 7px 10px; font-size: 0.8rem; }
+    .speed-btn.active { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.4); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 1px rgba(15,159,186,.25); }
+    .toggle-group button[aria-pressed="true"] { background: #ece8fd; border-color: rgba(122,90,248,.4); color: #5736d6; box-shadow: inset 0 0 0 1px rgba(122,90,248,.22); }
+
+    /* ---- scene drawing ---- */
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .grid-label { fill: #93a0b4; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .platform { fill: #2f3542; }
+    .platform-stand { fill: #c3cedd; }
+    .scene-tag { fill: #52607a; font-size: 12px; font-weight: 700; }
+    #guideB { stroke: var(--sim-freefall); stroke-width: 2; stroke-dasharray: 5 6; opacity: .55; }
+    #trailA { fill: none; stroke: var(--sim-accent); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px rgba(15,159,186,.20)); }
+    .strobe-a { fill: #ffffff; stroke: var(--sim-accent); stroke-width: 2; }
+    .strobe-b { fill: #ffffff; stroke: var(--sim-freefall); stroke-width: 2; }
+    #sameHeightLine { stroke: var(--sim-warning); stroke-width: 1.8; stroke-dasharray: 7 6; opacity: .85; }
+    #sameHeightText { fill: var(--sim-warning); font-size: 12px; font-weight: 750; }
+    .vec { stroke-width: 3.5; stroke-linecap: round; }
+    .vec-vx { stroke: var(--sim-accent); }
+    .vec-vy { stroke: var(--sim-warning); }
+    .vec-v { stroke: var(--sim-vec-result); stroke-width: 2.6; stroke-dasharray: 8 5; }
+    .vec-head-vx { fill: var(--sim-accent); }
+    .vec-head-vy { fill: var(--sim-warning); }
+    .vec-head-v { fill: var(--sim-vec-result); }
+    .vec-text-vx { fill: var(--sim-accent-deep); font-size: 12.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .vec-text-vy { fill: var(--sim-warning); font-size: 12.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .vec-text-v { fill: var(--sim-vec-result); font-size: 12.5px; font-weight: 750; }
+    #ballA { fill: var(--sim-accent); stroke: #ffffff; stroke-width: 3; filter: drop-shadow(0 3px 5px rgba(15,159,186,.35)); }
+    #ballB { fill: var(--sim-freefall); stroke: #ffffff; stroke-width: 3; filter: drop-shadow(0 3px 5px rgba(122,90,248,.35)); }
+    .impact-mark { fill: none; stroke-width: 2.5; }
+    .impact-a { stroke: var(--sim-accent); }
+    .impact-b { stroke: var(--sim-freefall); }
+    .impact-flash { fill: none; stroke-width: 3; opacity: 0; }
+    #impactG.landed .impact-flash { animation: impactPulse 1.1s ease-out 2; }
+    #impactG.landed .impact-flash { opacity: .8; }
+    @keyframes impactPulse {
+      0% { stroke-width: 2; opacity: .9; }
+      100% { stroke-width: 10; opacity: 0; }
+    }
+    .impact-text { fill: var(--sim-danger); font-size: 13px; font-weight: 800; }
+    #impactG { display: none; }
+    #impactG.landed { display: block; }
+    .chart-axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .chart-grid { stroke: var(--sim-grid); stroke-width: 1; }
+    .chart-zero { stroke: #b8c2d2; stroke-width: 1.2; stroke-dasharray: 4 4; }
+    .chart-label { fill: var(--sim-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+    .chart-legend { fill: var(--sim-muted); font-size: 11px; font-weight: 700; }
+    #vxLine { fill: none; stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; }
+    #vyLine { fill: none; stroke: var(--sim-warning); stroke-width: 3; stroke-linecap: round; }
+    #vxDot { fill: var(--sim-accent); stroke: #fff; stroke-width: 2; }
+    #vyDot { fill: var(--sim-warning); stroke: #fff; stroke-width: 2; }
+
+    @media (max-width: 940px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .actions { grid-column: 1 / -1; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 920 / 560; }
+      .side { grid-template-rows: auto auto auto; }
+    }
+    @media (max-width: 640px) {
+      .controls { grid-template-columns: 1fr; }
+      .readout-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+      #impactG.landed .impact-flash { animation: none; opacity: .5; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>平抛运动演示</h1>
+        <p>水平方向匀速直线运动，竖直方向自由落体，两个方向相互独立——调节 v₀ 与抛出高度，对照同一高度自由下落的小球。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">实验台 · 平抛 vs 自由落体</h2><span>调节参数后点击「开始」；虚线为两球的同高线</span></div>
+        <svg id="scene" viewBox="0 0 920 560" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">同一高度上，一颗小球沿水平方向抛出并描出抛物线轨迹，另一颗小球同时自由下落；两球每一时刻同高，并同时落地。</desc>
+          <g id="gridG"></g>
+          <g id="platformG"></g>
+          <line id="guideB" x1="0" y1="0" x2="0" y2="0"></line>
+          <polyline id="trailA" points=""></polyline>
+          <g id="strobeG"></g>
+          <line id="sameHeightLine" x1="0" y1="0" x2="0" y2="0" visibility="hidden"></line>
+          <text id="sameHeightText" x="0" y="0" text-anchor="middle" visibility="hidden">同高</text>
+          <g id="vecG"></g>
+          <g id="impactG"></g>
+          <circle id="ballB" cx="0" cy="0" r="9"></circle>
+          <circle id="ballA" cx="0" cy="0" r="9"></circle>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="panel-head"><h2>实时数据</h2><span>同一解析模型</span></div>
+          <div class="readout-grid">
+            <div class="metric"><small>时间 t / s</small><strong id="tReadout">0.00</strong></div>
+            <div class="metric"><small>水平距离 x / m</small><strong id="xReadout">0.00</strong></div>
+            <div class="metric"><small>高度 y / m</small><strong id="yReadout">5.00</strong></div>
+            <div class="metric vx"><small>水平分速度 vₓ</small><strong id="vxReadout">6.00</strong></div>
+            <div class="metric vy"><small>竖直分速度 vᵧ</small><strong id="vyReadout">0.00</strong></div>
+            <div class="metric"><small>合速度 v / (m/s)</small><strong id="vReadout">6.00</strong></div>
+          </div>
+          <div id="landingStrip" class="landing-strip">
+            两球<b>同时落地</b>：理论落地时间 T=√(2h/g)=<b id="theoryTReadout">—</b> s，
+            实际用时 <b id="actualTReadout">—</b> s；水平射程 R=v₀T=<b id="rangeReadout">—</b> m。
+          </div>
+        </section>
+
+        <section class="panel chart-card" aria-label="分速度时间图">
+          <div class="panel-head"><h2>分速度 – 时间</h2><span>vₓ 恒定 · vᵧ 均匀增大</span></div>
+          <svg id="vchart" viewBox="0 0 320 190" role="img" aria-label="分速度随时间变化图：水平分速度保持不变，竖直分速度大小随时间均匀增大">
+            <g id="chartAxes"></g>
+            <polyline id="vxLine" points=""></polyline>
+            <polyline id="vyLine" points=""></polyline>
+            <circle id="vxDot" cx="0" cy="0" r="4.5"></circle>
+            <circle id="vyDot" cx="0" cy="0" r="4.5"></circle>
+            <text id="legendVx" class="chart-legend" x="0" y="0"></text>
+            <text id="legendVy" class="chart-legend" x="0" y="0"></text>
+          </svg>
+        </section>
+
+        <section class="panel model-note" data-zone="insight">
+          <p id="insight" class="insight">两球已在同一高度就位：点击「开始」，一颗水平抛出，一颗同时自由下落。</p>
+          <p>教学模型：忽略空气阻力，g = 9.8 m/s²，小球视为质点。轨迹、频闪点、分矢量与图表均由同一解析模型实时生成：x=v₀t，y=h−½gt²，vₓ=v₀，vᵧ=−gt。分矢量长度按速度等比例绘制。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="v0Input">初速度 v₀ <output id="v0Output">6.0 m/s</output></label>
+        <input id="v0Input" type="range" min="1" max="20" step="0.5" value="6">
+      </div>
+      <div class="control">
+        <label for="hInput">抛出高度 h <output id="hOutput">5.0 m</output></label>
+        <input id="hInput" type="range" min="1" max="20" step="0.5" value="5">
+      </div>
+      <div class="speed-group" role="group" aria-label="演示速度">
+        <span class="group-label">演示速度</span>
+        <button class="speed-btn" type="button" data-scale="0.25">0.25×</button>
+        <button class="speed-btn" type="button" data-scale="0.5">0.5×</button>
+        <button class="speed-btn active" type="button" data-scale="1">1×</button>
+      </div>
+      <div class="toggle-group" role="group" aria-label="显示开关">
+        <button id="dropToggle" type="button" aria-pressed="true">自由落体对照</button>
+        <button id="vectorToggle" type="button" aria-pressed="true">速度分矢量</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ---------- physics kernel (pure, DOM-free) ---------- */
+    const G = 9.8;                 // m/s², textbook value
+    const DT = 1 / 240;            // fixed physical step (s)
+    const DT_CLAMP = 2.0;          // max real seconds absorbed by one update() call
+    const MAX_STEPS = 520;         // iteration guard per update() call (not a time cap)
+    const XB = 0.9;                // world x of the free-fall reference ball (m)
+    const STROBE_N = 8;            // equal-time strobe intervals per flight
+
+    const parameterSchema = [
+      { key: "v0", label: "初速度 v₀", type: "slider", min: 1, max: 20, step: 0.5, default: 6, unit: "m/s" },
+      { key: "h", label: "抛出高度 h", type: "slider", min: 1, max: 20, step: 0.5, default: 5, unit: "m" }
+    ];
+
+    function flightTime(h) { return Math.sqrt((2 * h) / G); }
+    function posAt(p, t) { return { x: p.v0 * t, y: p.h - 0.5 * G * t * t }; }
+    function velAt(p, t) { return { vx: p.v0, vy: -G * t }; }
+
+    // Advance a flight from rest to tStop (or exact landing) using fixed steps of dt.
+    // Returns the authoritative analytic state at the final step time.
+    function simulateFlight(p, dt, tStop) {
+      const T = flightTime(p.h);
+      const limit = Math.min(tStop, T);
+      let t = 0;
+      let steps = 0;
+      const maxSteps = Math.ceil(limit / dt) + 2;  // safety bound; never a time cap
+      while (steps < maxSteps) {
+        if (t + dt >= limit - 1e-12) { t = limit; break; }
+        t += dt;
+        steps += 1;
+      }
+      const pos = posAt(p, t);
+      const vel = velAt(p, t);
+      return { t, x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy, landed: t >= T - 1e-12 };
+    }
+
+    /* ---------- authoritative run state ---------- */
+    const state = {
+      running: false,
+      mode: "ready",            // ready | flying | landed
+      t: 0,                     // simulated time (s), advanced by fixed steps only
+      acc: 0,                   // sub-step accumulator remainder (s)
+      v0: 6, h: 5,
+      timeScale: 1,
+      showDrop: true,
+      showVectors: true,
+      T: flightTime(5),
+      lastTimestamp: null
+    };
+
+    /* ---------- view fit (recomputed on parameter change) ---------- */
+    const view = { scale: 30, x0: 64, groundY: 500, topY: 34, rightX: 894 };
+    function worldToScreen(x, y) { return [view.x0 + x * view.scale, view.groundY - y * view.scale]; }
+
+    const elements = {
+      status: document.querySelector("#status"),
+      gridG: document.querySelector("#gridG"), platformG: document.querySelector("#platformG"),
+      guideB: document.querySelector("#guideB"), trailA: document.querySelector("#trailA"),
+      strobeG: document.querySelector("#strobeG"), sameHeightLine: document.querySelector("#sameHeightLine"),
+      sameHeightText: document.querySelector("#sameHeightText"), vecG: document.querySelector("#vecG"),
+      impactG: document.querySelector("#impactG"), ballA: document.querySelector("#ballA"),
+      ballB: document.querySelector("#ballB"),
+      tReadout: document.querySelector("#tReadout"), xReadout: document.querySelector("#xReadout"),
+      yReadout: document.querySelector("#yReadout"), vxReadout: document.querySelector("#vxReadout"),
+      vyReadout: document.querySelector("#vyReadout"), vReadout: document.querySelector("#vReadout"),
+      landingStrip: document.querySelector("#landingStrip"), theoryTReadout: document.querySelector("#theoryTReadout"),
+      actualTReadout: document.querySelector("#actualTReadout"), rangeReadout: document.querySelector("#rangeReadout"),
+      chartAxes: document.querySelector("#chartAxes"), vxLine: document.querySelector("#vxLine"),
+      vyLine: document.querySelector("#vyLine"), vxDot: document.querySelector("#vxDot"),
+      vyDot: document.querySelector("#vyDot"), legendVx: document.querySelector("#legendVx"),
+      legendVy: document.querySelector("#legendVy"), insight: document.querySelector("#insight"),
+      v0Input: document.querySelector("#v0Input"), v0Output: document.querySelector("#v0Output"),
+      hInput: document.querySelector("#hInput"), hOutput: document.querySelector("#hOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"), dropToggle: document.querySelector("#dropToggle"),
+      vectorToggle: document.querySelector("#vectorToggle")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+    function svgEl(name, attrs, textContent) {
+      const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const key in attrs) node.setAttribute(key, String(attrs[key]));
+      if (textContent !== undefined) node.textContent = textContent;
+      return node;
+    }
+
+    /* ---------- scene construction (rebuilt when parameters change) ---------- */
+    function fitView() {
+      const T = flightTime(state.h);
+      const range = state.v0 * T;
+      const worldXMax = Math.max(range * 1.08, XB + 1.6, 4);
+      const worldYMax = Math.max(state.h * 1.16, 2);
+      view.scale = Math.min((view.rightX - view.x0) / worldXMax, (view.groundY - view.topY) / worldYMax);
+    }
+
+    function buildGrid() {
+      const parts = [];
+      const stepChoices = [0.25, 0.5, 1, 2, 4, 5, 10, 20];
+      let step = stepChoices[stepChoices.length - 1];
+      for (let i = 0; i < stepChoices.length; i += 1) {
+        if (stepChoices[i] * view.scale >= 46) { step = stepChoices[i]; break; }
+      }
+      const xMax = (view.rightX - view.x0) / view.scale;
+      const yMax = (view.groundY - view.topY) / view.scale;
+      for (let gx = 0; gx <= xMax + 1e-9; gx += step) {
+        const sx = view.x0 + gx * view.scale;
+        parts.push(`<line class="grid-line" x1="${sx.toFixed(1)}" y1="${view.topY}" x2="${sx.toFixed(1)}" y2="${view.groundY}"></line>`);
+        parts.push(`<text class="grid-label" x="${sx.toFixed(1)}" y="${(view.groundY + 18).toFixed(1)}" text-anchor="middle">${(Math.round(gx * 100) / 100)}</text>`);
+      }
+      for (let gy = 0; gy <= yMax + 1e-9; gy += step) {
+        const sy = view.groundY - gy * view.scale;
+        parts.push(`<line class="grid-line" x1="${view.x0}" y1="${sy.toFixed(1)}" x2="${view.rightX}" y2="${sy.toFixed(1)}"></line>`);
+        parts.push(`<text class="grid-label" x="${(view.x0 - 8).toFixed(1)}" y="${(sy + 4).toFixed(1)}" text-anchor="end">${(Math.round(gy * 100) / 100)}</text>`);
+      }
+      parts.push(`<line class="axis" x1="8" y1="${view.groundY}" x2="${view.rightX}" y2="${view.groundY}"></line>`);
+      parts.push(`<text class="axis-label" x="${view.rightX - 4}" y="${view.groundY + 34}" text-anchor="end">x / m</text>`);
+      parts.push(`<text class="axis-label" x="10" y="${view.topY - 12}">y / m</text>`);
+      parts.push(`<text class="scene-tag" x="${view.rightX - 4}" y="${(view.groundY - 10).toFixed(1)}" text-anchor="end">地面</text>`);
+      elements.gridG.innerHTML = parts.join("");
+    }
+
+    function buildPlatform() {
+      const topY = worldToScreen(0, state.h)[1];
+      const parts = [];
+      parts.push(`<rect class="platform-stand" x="34" y="${topY + 12}" width="10" height="${Math.max(0, view.groundY - topY - 12)}"></rect>`);
+      parts.push(`<path class="platform" d="M8 ${topY + 13} H ${view.x0} Q ${view.x0 + 5} ${topY + 13} ${view.x0 + 5} ${topY + 6.5} Q ${view.x0 + 5} ${topY} ${view.x0} ${topY} H 8 Z"></path>`);
+      parts.push(`<text class="scene-tag" x="12" y="${(topY - 8).toFixed(1)}">平台 · 抛出点高度 h=${state.h.toFixed(1)} m</text>`);
+      elements.platformG.innerHTML = parts.join("");
+    }
+
+    function buildGuide() {
+      const top = worldToScreen(XB, state.h);
+      const bottom = worldToScreen(XB, 0);
+      elements.guideB.setAttribute("x1", top[0].toFixed(1));
+      elements.guideB.setAttribute("y1", top[1].toFixed(1));
+      elements.guideB.setAttribute("x2", bottom[0].toFixed(1));
+      elements.guideB.setAttribute("y2", bottom[1].toFixed(1));
+    }
+
+    function buildImpact() {
+      const T = flightTime(state.h);
+      const a = worldToScreen(state.v0 * T, 0);
+      const b = worldToScreen(XB, 0);
+      elements.impactG.innerHTML = [
+        `<line class="impact-mark impact-a" x1="${a[0].toFixed(1)}" y1="${(view.groundY - 16).toFixed(1)}" x2="${a[0].toFixed(1)}" y2="${(view.groundY - 4).toFixed(1)}"></line>`,
+        `<line class="impact-mark impact-b" x1="${b[0].toFixed(1)}" y1="${(view.groundY - 16).toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${(view.groundY - 4).toFixed(1)}"></line>`,
+        `<circle class="impact-flash impact-a" cx="${a[0].toFixed(1)}" cy="${view.groundY}" r="16"></circle>`,
+        `<circle class="impact-flash impact-b" cx="${b[0].toFixed(1)}" cy="${view.groundY}" r="16"></circle>`,
+        `<text class="impact-text" x="${((a[0] + b[0]) / 2).toFixed(1)}" y="${(view.groundY - 26).toFixed(1)}" text-anchor="middle">两球同时落地 · T = ${T.toFixed(2)} s</text>`
+      ].join("");
+    }
+
+    function buildChart() {
+      const T = flightTime(state.h);
+      const left = 42, right = 306, top = 16, bottom = 158;
+      const vMax = state.v0 * 1.15;
+      const vMin = -G * T * 1.15;
+      const chartView = { left, right, top, bottom, vMax, vMin, T };
+      const parts = [];
+      const vTicks = [vMax, (vMax + vMin) / 2, 0, vMin];
+      for (const v of vTicks) {
+        const sy = bottom - ((v - vMin) / (vMax - vMin)) * (bottom - top);
+        parts.push(`<line class="${v === 0 ? "chart-zero" : "chart-grid"}" x1="${left}" y1="${sy.toFixed(1)}" x2="${right}" y2="${sy.toFixed(1)}"></line>`);
+        parts.push(`<text class="chart-label" x="${left - 5}" y="${(sy + 3.5).toFixed(1)}" text-anchor="end">${v.toFixed(1)}</text>`);
+      }
+      for (let k = 0; k <= 4; k += 1) {
+        const sx = left + (k / 4) * (right - left);
+        parts.push(`<line class="chart-grid" x1="${sx.toFixed(1)}" y1="${top}" x2="${sx.toFixed(1)}" y2="${bottom}"></line>`);
+        parts.push(`<text class="chart-label" x="${sx.toFixed(1)}" y="${bottom + 13}" text-anchor="middle">${(k / 4 * T).toFixed(2)}</text>`);
+      }
+      parts.push(`<line class="chart-axis" x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}"></line>`);
+      parts.push(`<line class="chart-axis" x1="${left}" y1="${top}" x2="${left}" y2="${bottom}"></line>`);
+      parts.push(`<text class="chart-label" x="${right}" y="${bottom + 25}" text-anchor="end">t / s</text>`);
+      parts.push(`<text class="chart-label" x="${left - 5}" y="${top - 4}" text-anchor="end">m/s</text>`);
+      elements.chartAxes.innerHTML = parts.join("");
+      const vxY = bottom - ((state.v0 - vMin) / (vMax - vMin)) * (bottom - top);
+      const vy0Y = bottom - ((0 - vMin) / (vMax - vMin)) * (bottom - top);
+      const vyTY = bottom - ((-G * T - vMin) / (vMax - vMin)) * (bottom - top);
+      elements.vxLine.setAttribute("points", `${left},${vxY.toFixed(1)} ${right},${vxY.toFixed(1)}`);
+      elements.vyLine.setAttribute("points", `${left},${vy0Y.toFixed(1)} ${right},${vyTY.toFixed(1)}`);
+      elements.legendVx.setAttribute("x", right - 4);
+      elements.legendVx.setAttribute("y", clamp(vxY - 8, top + 10, bottom - 6).toFixed(1));
+      elements.legendVx.setAttribute("text-anchor", "end");
+      elements.legendVx.textContent = `vₓ = v₀ = ${state.v0.toFixed(1)}`;
+      elements.legendVy.setAttribute("x", right - 4);
+      elements.legendVy.setAttribute("y", clamp(vyTY - 8, top + 10, bottom - 6).toFixed(1));
+      elements.legendVy.setAttribute("text-anchor", "end");
+      elements.legendVy.textContent = "vᵧ = −g·t";
+      return chartView;
+    }
+    let chartView = null;
+
+    function rebuildScene() {
+      fitView();
+      buildGrid();
+      buildPlatform();
+      buildGuide();
+      buildImpact();
+      chartView = buildChart();
+    }
+
+    /* ---------- lifecycle ---------- */
+    function init() {
+      bindControls();
+      setParameters({ v0: parameterSchema[0].default, h: parameterSchema[1].default });
+      reset();
+      const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : null;
+      if (raf) raf(frame);
+    }
+    function start() {
+      if (state.mode === "landed") { state.t = 0; state.acc = 0; state.mode = "flying"; }
+      else if (state.mode === "ready") { state.mode = "flying"; }
+      state.running = true;
+      render();
+    }
+    function pause() {
+      state.running = false;
+      state.lastTimestamp = null;
+      render();
+    }
+    function reset() {
+      state.running = false;
+      state.mode = "ready";
+      state.t = 0;
+      state.acc = 0;
+      state.lastTimestamp = null;
+      render();
+    }
+    function land() {
+      state.t = state.T;
+      state.mode = "landed";
+      state.running = false;
+      state.acc = 0;
+      state.lastTimestamp = null;
+    }
+    function update(dt) {
+      if (!state.running || state.mode !== "flying") { state.acc = 0; return; }
+      const bounded = clamp(finite(Number(dt), 0), 0, DT_CLAMP) * state.timeScale;
+      state.acc += bounded;
+      let steps = 0;
+      while (state.acc >= DT && steps < MAX_STEPS) {
+        state.acc -= DT;
+        steps += 1;
+        const tNext = state.t + DT;
+        if (tNext >= state.T - 1e-12) { land(); break; }
+        state.t = tNext;
+      }
+      if (state.acc > DT_CLAMP) state.acc = 0;  // discard impossible backlog
+    }
+
+    /* ---------- rendering (derives everything from authoritative state) ---------- */
+    function arrowParts(cx, cy, dx, dy, cls, headCls, label, labelCls, labelDx, labelDy) {
+      const parts = [];
+      const len = Math.hypot(dx, dy);
+      if (len < 2) return parts;
+      const ux = dx / len, uy = dy / len;
+      const hx = cx + dx, hy = cy + dy;
+      parts.push(svgEl("line", { class: `vec ${cls}`, x1: cx.toFixed(1), y1: cy.toFixed(1), x2: hx.toFixed(1), y2: hy.toFixed(1) }));
+      const head = 9;
+      parts.push(svgEl("polygon", {
+        class: headCls,
+        points: `${hx.toFixed(1)},${hy.toFixed(1)} ${(hx - ux * head - uy * head * 0.45).toFixed(1)},${(hy - uy * head + ux * head * 0.45).toFixed(1)} ${(hx - ux * head + uy * head * 0.45).toFixed(1)},${(hy - uy * head - ux * head * 0.45).toFixed(1)}`
+      }));
+      parts.push(svgEl("text", { class: labelCls, x: (hx + labelDx).toFixed(1), y: (hy + labelDy).toFixed(1) }, label));
+      return parts;
+    }
+
+    function render() {
+      const p = { v0: state.v0, h: state.h };
+      const t = state.t;
+      const pos = posAt(p, t);
+      const vel = velAt(p, t);
+      const T = state.T;
+      const flying = state.mode === "flying";
+
+      // balls
+      const sa = worldToScreen(pos.x, pos.y);
+      elements.ballA.setAttribute("cx", sa[0].toFixed(1));
+      elements.ballA.setAttribute("cy", sa[1].toFixed(1));
+      elements.ballB.setAttribute("visibility", state.showDrop ? "visible" : "hidden");
+      elements.guideB.style.display = state.showDrop ? "" : "none";
+      const sb = worldToScreen(XB, pos.y);
+      elements.ballB.setAttribute("cx", sb[0].toFixed(1));
+      elements.ballB.setAttribute("cy", sb[1].toFixed(1));
+
+      // trajectory (analytic samples from 0..t)
+      const samples = Math.max(2, Math.ceil(120 * (t / T)));
+      const pts = [];
+      for (let i = 0; i <= samples; i += 1) {
+        const ti = (t * i) / samples;
+        const q = worldToScreen(p.v0 * ti, p.h - 0.5 * G * ti * ti);
+        pts.push(`${q[0].toFixed(1)},${q[1].toFixed(1)}`);
+      }
+      elements.trailA.setAttribute("points", pts.join(" "));
+
+      // equal-time strobe dots
+      const strobeParts = [];
+      const dtS = T / STROBE_N;
+      for (let k = 1; k <= STROBE_N; k += 1) {
+        const tk = k * dtS;
+        if (tk > t + 1e-12) break;
+        const qa = worldToScreen(p.v0 * tk, p.h - 0.5 * G * tk * tk);
+        strobeParts.push(svgEl("circle", { class: "strobe-a", cx: qa[0].toFixed(1), cy: qa[1].toFixed(1), r: 4 }));
+        if (state.showDrop) {
+          const qb = worldToScreen(XB, p.h - 0.5 * G * tk * tk);
+          strobeParts.push(svgEl("circle", { class: "strobe-b", cx: qb[0].toFixed(1), cy: qb[1].toFixed(1), r: 4 }));
+        }
+      }
+      elements.strobeG.replaceChildren(...strobeParts);
+
+      // same-height cue line
+      const showSame = state.showDrop && (flying || state.mode === "landed") && pos.y > 0.05;
+      elements.sameHeightLine.setAttribute("visibility", showSame ? "visible" : "hidden");
+      elements.sameHeightText.setAttribute("visibility", showSame ? "visible" : "hidden");
+      if (showSame) {
+        elements.sameHeightLine.setAttribute("x1", sa[0].toFixed(1));
+        elements.sameHeightLine.setAttribute("y1", sa[1].toFixed(1));
+        elements.sameHeightLine.setAttribute("x2", sb[0].toFixed(1));
+        elements.sameHeightLine.setAttribute("y2", sb[1].toFixed(1));
+        elements.sameHeightText.setAttribute("x", ((sa[0] + sb[0]) / 2).toFixed(1));
+        elements.sameHeightText.setAttribute("y", (sa[1] - 8).toFixed(1));
+      }
+
+      // velocity component vectors on ball A
+      const vecParts = [];
+      if (state.showVectors && state.mode !== "ready") {
+        const vLand = Math.hypot(p.v0, G * T);
+        const kv = 96 / vLand;
+        vecParts.push(...arrowParts(sa[0], sa[1], vel.vx * kv, 0, "vec-vx", "vec-head-vx", `vₓ ${vel.vx.toFixed(1)}`, "vec-text-vx", 4, -6));
+        vecParts.push(...arrowParts(sa[0], sa[1], 0, vel.vy * kv, "vec-vy", "vec-head-vy", `vᵧ ${vel.vy.toFixed(1)}`, "vec-text-vy", 8, 0));
+        vecParts.push(...arrowParts(sa[0], sa[1], vel.vx * kv, vel.vy * kv, "vec-v", "vec-head-v", "v", "vec-text-v", 8, -6));
+      }
+      elements.vecG.replaceChildren(...vecParts);
+
+      // landing evidence
+      elements.impactG.setAttribute("class", state.mode === "landed" ? "landed" : "");
+      elements.guideB.setAttribute("visibility", state.showDrop ? "visible" : "hidden");
+      elements.landingStrip.setAttribute("class", state.mode === "landed" ? "landing-strip show" : "landing-strip");
+      if (state.mode === "landed") {
+        elements.theoryTReadout.textContent = T.toFixed(3);
+        elements.actualTReadout.textContent = t.toFixed(3);
+        elements.rangeReadout.textContent = (p.v0 * T).toFixed(2);
+      }
+
+      // readouts
+      const speed = Math.hypot(vel.vx, vel.vy);
+      elements.tReadout.textContent = t.toFixed(2);
+      elements.xReadout.textContent = pos.x.toFixed(2);
+      elements.yReadout.textContent = Math.max(0, pos.y).toFixed(2);
+      elements.vxReadout.textContent = vel.vx.toFixed(2);
+      elements.vyReadout.textContent = vel.vy.toFixed(2);
+      elements.vReadout.textContent = speed.toFixed(2);
+
+      // chart moving dots
+      if (chartView) {
+        const cx = chartView.left + (t / chartView.T) * (chartView.right - chartView.left);
+        const mapV = (v) => chartView.bottom - ((v - chartView.vMin) / (chartView.vMax - chartView.vMin)) * (chartView.bottom - chartView.top);
+        elements.vxDot.setAttribute("cx", cx.toFixed(1));
+        elements.vxDot.setAttribute("cy", mapV(vel.vx).toFixed(1));
+        elements.vyDot.setAttribute("cx", cx.toFixed(1));
+        elements.vyDot.setAttribute("cy", mapV(vel.vy).toFixed(1));
+      }
+
+      renderNarration(pos, vel, T, speed);
+      renderControls();
+    }
+
+    function renderNarration(pos, vel, T, speed) {
+      const p = { v0: state.v0, h: state.h };
+      let text;
+      if (state.mode === "ready") {
+        text = `两球已在同一高度 h=${state.h.toFixed(1)} m 就位：点击「开始」，一颗以 v₀=${state.v0.toFixed(1)} m/s 水平抛出，一颗同时自由下落。`;
+      } else if (state.mode === "landed") {
+        text = `两球同时落地！T=√(2h/g)=${T.toFixed(3)} s 只由高度决定，与 v₀ 无关；水平射程 R=v₀T=${(p.v0 * T).toFixed(2)} m，落地速度 v=${speed.toFixed(2)} m/s。`;
+      } else if (!state.running) {
+        text = `已暂停：此刻高度 y=${Math.max(0, pos.y).toFixed(2)} m，vₓ=${vel.vx.toFixed(2)} m/s，vᵧ=${vel.vy.toFixed(2)} m/s。点击「继续」恢复运动。`;
+      } else if (state.t < 0.22 * T) {
+        text = state.showDrop
+          ? "盯住橙色「同高线」：无论水平方向飞多快，两球每一时刻都处于同一高度。"
+          : "轨迹是抛物线：水平方向匀速前进，竖直方向越落越快。";
+      } else {
+        text = "水平方向匀速（vₓ=v₀ 不变），竖直方向匀加速（vᵧ=−g·t 均匀增大）；频闪点水平等距、竖直间隔越来越大。";
+      }
+      elements.insight.textContent = text;
+
+      let statusText;
+      if (state.mode === "ready") statusText = "就绪";
+      else if (state.mode === "landed") statusText = `已落地 · T=${state.t.toFixed(2)} s`;
+      else if (state.running) statusText = `运行中 ${state.timeScale === 1 ? "" : `· ${state.timeScale}× 慢放`} · t=${state.t.toFixed(2)} s`;
+      else statusText = "已暂停";
+      elements.status.textContent = statusText;
+      elements.status.setAttribute("class", state.mode === "landed" ? "status landed" : "status");
+    }
+
+    function renderControls() {
+      elements.startBtn.textContent = state.mode === "ready" ? "开始" : (state.mode === "landed" ? "重新开始" : (state.running ? "运行中" : "继续"));
+      elements.startBtn.setAttribute("aria-pressed", state.running ? "true" : "false");
+      elements.startBtn.disabled = state.running;
+      elements.pauseBtn.disabled = !state.running;
+      elements.v0Output.textContent = `${state.v0.toFixed(1)} m/s`;
+      elements.hOutput.textContent = `${state.h.toFixed(1)} m`;
+    }
+
+    /* ---------- parameters ---------- */
+    function setParameters(values) {
+      const v0Def = parameterSchema[0];
+      const hDef = parameterSchema[1];
+      const nextV0 = clamp(finite(Number(values && values.v0), v0Def.default), v0Def.min, v0Def.max);
+      const nextH = clamp(finite(Number(values && values.h), hDef.default), hDef.min, hDef.max);
+      const changed = nextV0 !== state.v0 || nextH !== state.h;
+      state.v0 = nextV0;
+      state.h = nextH;
+      state.T = flightTime(state.h);
+      if (changed) {
+        state.running = false;
+        state.mode = "ready";
+        state.t = 0;
+        state.acc = 0;
+        state.lastTimestamp = null;
+        rebuildScene();
+      }
+      elements.v0Input.value = String(state.v0);
+      elements.hInput.value = String(state.h);
+      render();
+    }
+    function getState() {
+      const p = { v0: state.v0, h: state.h };
+      const pos = posAt(p, state.t);
+      const vel = velAt(p, state.t);
+      return {
+        running: state.running, mode: state.mode, t: state.t, acc: state.acc,
+        v0: state.v0, h: state.h, T: state.T, timeScale: state.timeScale,
+        showDrop: state.showDrop, showVectors: state.showVectors,
+        ballA: { x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy },
+        ballB: { x: XB, y: pos.y, vx: 0, vy: vel.vy },
+        landed: state.mode === "landed"
+      };
+    }
+    function getReadouts() {
+      const p = { v0: state.v0, h: state.h };
+      const pos = posAt(p, state.t);
+      const vel = velAt(p, state.t);
+      return { t: state.t, x: pos.x, y: pos.y, vx: vel.vx, vy: vel.vy, v: Math.hypot(vel.vx, vel.vy), T: state.T };
+    }
+
+    /* ---------- model checks (analytic oracle suite, DOM-free) ---------- */
+    function runModelChecks() {
+      const results = [];
+      const check = (name, pass, expected, actual, tolerance) => results.push({ name, pass, expected, actual, tolerance });
+      const close = (a, b, tol) => Math.abs(a - b) <= tol;
+
+      // 1-2. ordinary cases against independent closed-form results
+      const ordinary = [
+        { v0: 6, h: 5 }, { v0: 10, h: 20 }
+      ];
+      for (const p of ordinary) {
+        const T = Math.sqrt((2 * p.h) / G);
+        const fin = simulateFlight(p, DT, Infinity);
+        check(
+          `常规工况 v0=${p.v0} m/s, h=${p.h} m`,
+          close(fin.t, T, 1e-12) && close(fin.x, p.v0 * T, 1e-12) && Math.abs(fin.y) <= 1e-12 && fin.landed,
+          `T=${T}, x=${p.v0 * T}, y=0`,
+          `T=${fin.t}, x=${fin.x}, y=${fin.y}`,
+          "1e-12"
+        );
+      }
+
+      // 3. legal-range boundaries
+      const bounds = [{ v0: 1, h: 1 }, { v0: 20, h: 20 }];
+      let boundsOk = true;
+      let boundsActual = "";
+      for (const p of bounds) {
+        const T = Math.sqrt((2 * p.h) / G);
+        const fin = simulateFlight(p, DT, Infinity);
+        const ok = Number.isFinite(fin.x) && Number.isFinite(fin.y) && close(fin.t, T, 1e-12) && fin.landed;
+        boundsOk = boundsOk && ok;
+        boundsActual += `[v0=${p.v0},h=${p.h}: T=${fin.t.toFixed(6)}] `;
+      }
+      check("参数边界 v0=1,h=1 与 v0=20,h=20", boundsOk, "落地时间与 √(2h/g) 一致且状态有限", boundsActual.trim(), "1e-12");
+
+      // 4. flight time independent of v0
+      const slow = simulateFlight({ v0: 2, h: 5 }, DT, Infinity);
+      const fast = simulateFlight({ v0: 18, h: 5 }, DT, Infinity);
+      check(
+        "落地时间与初速度无关（h=5 m）",
+        close(slow.t, fast.t, 1e-12) && close(slow.t, Math.sqrt(10 / G), 1e-12),
+        `T(v0=2)=T(v0=18)=${Math.sqrt(10 / G)}`,
+        `T(v0=2)=${slow.t}, T(v0=18)=${fast.t}`,
+        "1e-12"
+      );
+
+      // 5. projectile vs free fall: identical vertical motion at samples
+      const pRef = { v0: 6, h: 5 };
+      const drop = { v0: 0, h: 5 };
+      let maxDy = 0;
+      for (let k = 0; k <= 10; k += 1) {
+        const tk = (k / 10) * flightTime(5);
+        const dy = Math.abs(posAt(pRef, tk).y - posAt(drop, tk).y);
+        if (dy > maxDy) maxDy = dy;
+      }
+      check("平抛与自由落体竖直方向等价", maxDy <= 1e-12, "采样点上 y 相同", `最大高度差 ${maxDy}`, "1e-12");
+
+      // 6. vx invariance + vertical monotonicity across samples
+      let vxOk = true;
+      let monoOk = true;
+      let prevY = pRef.h;
+      for (let k = 0; k <= 12; k += 1) {
+        const tk = (k / 12) * flightTime(5);
+        if (velAt(pRef, tk).vx !== pRef.v0) vxOk = false;
+        const y = posAt(pRef, tk).y;
+        if (y > prevY + 1e-15) monoOk = false;
+        prevY = y;
+      }
+      check("水平分速度恒等于 v₀ 且高度单调下降", vxOk && monoOk, "vx=v₀（精确），y 不回升", `vxOk=${vxOk}, monoOk=${monoOk}`, "精确");
+
+      // 7. mechanical energy conservation per unit mass
+      const e0 = 0.5 * pRef.v0 * pRef.v0 + G * pRef.h;
+      let maxE = 0;
+      for (let k = 0; k <= 10; k += 1) {
+        const tk = (k / 10) * flightTime(5);
+        const vel = velAt(pRef, tk);
+        const e = 0.5 * (vel.vx * vel.vx + vel.vy * vel.vy) + G * posAt(pRef, tk).y;
+        const d = Math.abs(e - e0);
+        if (d > maxE) maxE = d;
+      }
+      check("机械能守恒（单位质量）", maxE <= 1e-9, `${e0} J/kg`, `最大偏差 ${maxE}`, "1e-9");
+
+      // 8. step-halving convergence
+      const coarse = simulateFlight(pRef, 1 / 120, 1.0);
+      const fine = simulateFlight(pRef, 1 / 240, 1.0);
+      check(
+        "步长减半收敛（推进到 t=1 s）",
+        close(coarse.t, fine.t, 1e-12) && close(coarse.y, fine.y, 1e-12) && close(coarse.x, fine.x, 1e-12),
+        "两种步长结果一致（解析步进）",
+        `Δt=${Math.abs(coarse.t - fine.t)}, Δx=${Math.abs(coarse.x - fine.x)}, Δy=${Math.abs(coarse.y - fine.y)}`,
+        "1e-12"
+      );
+
+      // 9-10. runtime-path checks through the real fixed-step accumulator
+      // (mutate live state temporarily, then restore — update() is DOM-free)
+      const saved = {
+        running: state.running, mode: state.mode, t: state.t, acc: state.acc,
+        v0: state.v0, h: state.h, T: state.T, timeScale: state.timeScale,
+        lastTimestamp: state.lastTimestamp
+      };
+      const restore = () => Object.assign(state, saved);
+
+      // 9. time-scale invariance: one 2 s advance vs eight 0.25 s advances
+      state.v0 = 6; state.h = 20; state.T = flightTime(20);
+      state.mode = "flying"; state.running = true; state.t = 0; state.acc = 0; state.timeScale = 1;
+      update(2.0);
+      const oneShotT = state.t;
+      state.t = 0; state.acc = 0; state.running = true; state.mode = "flying";
+      for (let i = 0; i < 8; i += 1) update(0.25);
+      const chunkedT = state.t;
+      const STEP_TOL = DT + 1e-9;  // one physical step + fp summation drift
+      check(
+        "时间缩放不变性（单次 2 s 与 8×0.25 s）",
+        close(oneShotT, chunkedT, STEP_TOL) && close(oneShotT, 2.0, STEP_TOL) && close(chunkedT, 2.0, STEP_TOL) && oneShotT <= state.T + 1e-12,
+        `两种调度均到达 2.0 s，偏差不超过一个物理步长 DT=${DT.toFixed(6)} s（未超过落地时间 ${state.T.toFixed(6)} s）`,
+        `oneShot=${oneShotT}, chunked=${chunkedT}`,
+        "≤ DT+1e-9（1/240 s 量化步长）"
+      );
+
+      // 10. landing event clamps exactly at T with y=0 through the runtime path
+      state.v0 = 6; state.h = 5; state.T = flightTime(5);
+      state.mode = "flying"; state.running = true; state.t = 0; state.acc = 0;
+      update(2.0);
+      const fin = posAt({ v0: 6, h: 5 }, state.t);
+      check(
+        "长推进一次到位：落地时刻精确钳位于 T",
+        state.mode === "landed" && state.running === false && state.t === state.T && Math.abs(fin.y) <= 1e-12,
+        `t=T=${state.T}, y=0, mode=landed`,
+        `t=${state.t}, y=${fin.y}, mode=${state.mode}`,
+        "精确（t===T）"
+      );
+      restore();
+
+      return results;
+    }
+
+    /* ---------- wiring ---------- */
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.v0Input.addEventListener("input", () => setParameters({ v0: elements.v0Input.value, h: state.h }));
+      elements.hInput.addEventListener("input", () => setParameters({ v0: state.v0, h: elements.hInput.value }));
+      document.querySelectorAll(".speed-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.timeScale = finite(Number(btn.getAttribute("data-scale")), 1);
+          document.querySelectorAll(".speed-btn").forEach((b) => b.setAttribute("class", b === btn ? "speed-btn active" : "speed-btn"));
+          render();
+        });
+      });
+      elements.dropToggle.addEventListener("click", () => {
+        state.showDrop = !state.showDrop;
+        elements.dropToggle.setAttribute("aria-pressed", state.showDrop ? "true" : "false");
+        render();
+      });
+      elements.vectorToggle.addEventListener("click", () => {
+        state.showVectors = !state.showVectors;
+        elements.vectorToggle.setAttribute("aria-pressed", state.showVectors ? "true" : "false");
+        render();
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : null;
+      if (raf) raf(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>水波槽 · 干涉与衍射演示</title>
+<style>
+:root{--bg:#0a1120;--card:#101a2e;--line:rgba(255,255,255,.09);--tx:#dbe7f5;--dim:#8ea3bd;--acc:#4cc9f0;--gold:#ffd166}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 700px at 50% -10%,#16233f 0%,#0a1120 55%) fixed,var(--bg);color:var(--tx);
+font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;min-height:100vh;padding:26px 14px 60px}
+.wrap{max-width:1020px;margin:0 auto}
+h1{font-size:24px;letter-spacing:.5px}
+.sub{color:var(--dim);font-size:13px;margin:6px 0 18px;line-height:1.6}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tab{border:1px solid var(--line);background:#0b1425;color:var(--dim);padding:7px 14px;border-radius:999px;cursor:pointer;font-size:13px}
+.tab.on{background:linear-gradient(135deg,#1b3a5c,#123055);color:#fff;border-color:#2e5f8f}
+#scenDesc{font-size:12.5px;color:var(--dim);margin-bottom:10px;line-height:1.7}
+#view{width:100%;border-radius:10px;display:block;cursor:crosshair;border:1px solid var(--line)}
+#tip{font-size:12px;color:var(--dim);margin:8px 2px 0}
+#chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#0b1425;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px}
+.chip .dot{width:9px;height:9px;border-radius:50%;flex:none}
+#chart{width:100%;margin-top:10px;border-radius:10px;border:1px solid var(--line);display:block}
+.ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px 18px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.ctl>label{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;margin-bottom:4px}
+.ctl>label b{color:var(--tx);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+button.act{background:#123055;border:1px solid #2e5f8f;color:#eaf4ff;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px}
+button.act:hover{background:#1b4470}
+button.ghost{background:#0b1425;border:1px solid var(--line);color:var(--dim);padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px}
+button.ghost:hover{color:var(--tx)}
+label.tog{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;background:#0b1425;border:1px solid var(--line);padding:8px 12px;border-radius:10px}
+label.tog.gold{border-color:#6d5a1e;color:#ffe9b0}
+label.tog input{accent-color:var(--gold)}
+.notes{margin-top:18px;padding:14px 16px;background:#0c1526;border:1px solid var(--line);border-radius:12px}
+.notes h3{font-size:14px;margin-bottom:8px;color:var(--gold)}
+.notes li{font-size:13px;color:#b9c9dd;line-height:1.8;margin-left:18px}
+#flash{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1b2b47;border:1px solid #2e5f8f;color:#eaf4ff;padding:9px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>水波槽 · 干涉与衍射</h1>
+<p class="sub">两个同步波源的稳定干涉图样 —— 加强区 / 减弱区的位置始终不动；波遇到小孔与障碍物时的绕射（衍射）。</p>
+<div class="card">
+<div class="tabs" id="tabs">
+<button class="tab on" data-s="two">双源干涉</button>
+<button class="tab" data-s="single">单个波源</button>
+<button class="tab" data-s="slit">单缝衍射</button>
+<button class="tab" data-s="dslit">双缝</button>
+<button class="tab" data-s="obstacle">障碍物绕射</button>
+</div>
+<div id="scenDesc"></div>
+<canvas id="view" width="1008" height="672"></canvas>
+<p id="tip">🖱 点击水面放置探针（最多 4 个，再点探针可移除）。把探针放到暗带上，看它是不是一直不动。</p>
+<div id="chips"></div>
+<canvas id="chart" width="1008" height="150"></canvas>
+<div class="ctrls">
+<div class="ctl" data-for="two single slit dslit obstacle"><label>波长 λ <b id="lambdaVal"></b></label><input id="lambda" type="range" min="10" max="30" step="1" value="18"></div>
+<div class="ctl" data-for="two"><label>两波源间距 d <b id="sepVal"></b></label><input id="sep" type="range" min="20" max="64" step="2" value="48"></div>
+<div class="ctl" data-for="slit dslit"><label>缝宽 w <b id="slitwVal"></b></label><input id="slitw" type="range" min="6" max="70" step="2" value="22"></div>
+<div class="ctl" data-for="dslit"><label>双缝中心间距 <b id="gapcVal"></b></label><input id="gapc" type="range" min="28" max="80" step="2" value="44"></div>
+<div class="ctl" data-for="obstacle"><label>障碍物高度 <b id="obsthVal"></b></label><input id="obsth" type="range" min="16" max="110" step="2" value="60"></div>
+<div class="ctl" data-for="two single slit dslit obstacle"><label>慢动作（传播速度）<b id="speedVal"></b></label><input id="speed" type="range" min="0.25" max="1.25" step="0.05" value="1"></div>
+</div>
+<div class="btnrow">
+<button class="act" id="pauseBtn">⏸ 暂停</button>
+<button class="ghost" id="resetBtn">↺ 重置</button>
+<button class="ghost" id="clearBtn">清除探针</button>
+<label class="tog gold"><input type="checkbox" id="intTog"> 稳定强度图（时间平均，不动的明暗带）</label>
+<label class="tog" data-for="two" id="lineTogWrap"><input type="checkbox" id="lineTog" checked> 显示加强线 / 减弱线</label>
+</div>
+</div>
+<div class="notes">
+<h3>课堂要点：为什么"加强区"不是时强时弱？</h3>
+<ul>
+<li><b>图案确实会"闪"，但位置从不移动。</b>两个同相波源叠加后，整个水面同步起伏：波峰变波谷、半个周期互换一次 —— 这正是学生误以为"时强时弱"的来源。但每条加强带 / 减弱带的位置由<b>程差</b>决定，永久固定。</li>
+<li><b>打开「稳定强度图」</b>：对很多个周期做时间平均，得到完全静止的亮带（加强区，振幅始终最大）与暗带（减弱区）。</li>
+<li><b>用探针做裁决</b>：探针放在亮带 → 示波器上是大振幅持续振动；放在暗带（节线）→ 一条水平直线，<b>那个点真的全程不动</b>。</li>
+<li><b>程差判据</b>：Δr = nλ → 加强；Δr = (n+½)λ → 减弱。探针信息里实时显示 Δr/λ。</li>
+<li><b>衍射</b>：切到"单缝 / 障碍物"，波在边缘处拐弯绕进阴影区。缝宽越接近波长，绕得越厉害；缝很宽时接近直线传播。</li>
+<li><b>用「慢动作」</b>放慢播放，让学生同时看到：波峰在前进，而条纹图案原地不动。</li>
+</ul>
+</div>
+</div>
+<div id="flash"></div>
+
+<script>
+"use strict";
+/* ---------- 基本常量与网格 ---------- */
+const W=252, H=168, S=4, N=W*H;
+const CS=0.45, CW=Math.sqrt(CS);          // 格点波动方程稳定系数；CW≈每步传播的格数
+let u=new Float32Array(N), up=new Float32Array(N), inten=new Float32Array(N);
+let damp=new Float32Array(N), solid=new Uint8Array(N);
+(function(){const PAD=12,BULK=0.9985;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){let f=BULK;const e=Math.min(x,y,W-1-x,H-1-y);
+  if(e<PAD){const t=(PAD-e)/PAD;f*=1-0.14*t*t;} damp[y*W+x]=f;}})();
+
+/* ---------- 状态 ---------- */
+let scen='two', lambda=18, sep=48, slitW=22, gapC=44, obstH=60, speed=1;
+let running=true, showInt=false, showLines=true;
+let sources=[], planeSrc=false, phase=0;
+let fieldMax=0.5, iMax=1e-4;
+let linesAnti=[], linesNode=[];
+let probes=[], autop=false;
+const PCOLORS=['#ffd166','#4cc9f0','#f4845f','#90e0a0'];
+const BUFL=500;
+
+const DESC={
+ two:'两个同步（同频同相）的点波源。注意看：整个水面同步起伏、图案在"闪"—— 但加强带与减弱带的位置<b>始终不动</b>。打开下方"稳定强度图"即可看到静止的明暗带。',
+ single:'单个点波源：一圈圈圆形波纹，作为对照（没有干涉）。',
+ slit:'左侧平面波打到挡板的单缝上：波绕过缝的边缘向外扩散（衍射）。缝宽 w 越接近波长 λ，扩散越明显。',
+ dslit:'两条缝相当于两个同步的"新波源"：缝后同时出现干涉与衍射。',
+ obstacle:'平面波遇到障碍物：边缘处波"拐弯"绕进背后的阴影区 —— 波会绕过去。'};
+
+/* ---------- 场景搭建 ---------- */
+function buildScene(reset){
+ solid.fill(0); sources=[]; planeSrc=false;
+ const cx=W/2, cy=H/2, sy=Math.round(H*0.32);
+ const addS=(fx,fy)=>sources.push({fx,fy,ix:Math.round(fx),iy:Math.round(fy)});
+ if(scen==='two'){ addS(cx-sep/2,sy); addS(cx+sep/2,sy); }
+ else if(scen==='single'){ addS(cx,sy); }
+ else{
+  planeSrc=true;
+  const bx=Math.round(W*0.34);
+  if(scen==='slit'){ for(let x=bx;x<bx+4;x++)for(let y=6;y<H-6;y++) if(Math.abs(y-cy)>slitW/2) solid[y*W+x]=1; }
+  else if(scen==='dslit'){ for(let x=bx;x<bx+4;x++)for(let y=6;y<H-6;y++){ if(Math.abs(Math.abs(y-cy)-gapC/2)>=slitW/2) solid[y*W+x]=1; } }
+  else{ for(let x=bx;x<bx+10;x++)for(let y=Math.round(cy-obstH/2);y<=Math.round(cy+obstH/2);y++) solid[y*W+x]=1; }
+ }
+ if(reset){ u.fill(0); up.fill(0); inten.fill(0); phase=0; fieldMax=0.5; iMax=1e-4; probes.forEach(p=>p.buf.length=0); }
+ computeLines();
+}
+function computeLines(){
+ linesAnti=[]; linesNode=[];
+ if(scen!=='two'||sources.length<2) return;
+ const s1=sources[0], s2=sources[1];
+ const d=(x,y,q)=>Math.hypot(x-q.fx,y-q.fy);
+ function trace(target){
+  const segs=[]; let cur=null;
+  for(let y=sy0();y<H-6;y+=2){
+   const f=x=>d(x,y,s1)-d(x,y,s2)-target;
+   const lo=6, hi=W-6, flo=f(lo), fhi=f(hi);
+   if(flo*fhi<0){ let a=lo,b=hi,fa=flo;
+    for(let k=0;k<26;k++){ const m=(a+b)/2, fm=f(m); if(fa*fm<=0){b=m;}else{a=m;fa=fm;} }
+    const xr=(a+b)/2;
+    if(cur && xr-cur[cur.length-1][0]>30){segs.push(cur);cur=null;}
+    if(!cur)cur=[]; cur.push([xr,y]);
+   } else if(cur){ segs.push(cur); cur=null; }
+  }
+  if(cur)segs.push(cur);
+  return segs.filter(s=>s.length>3);
+ }
+ function sy0(){ return Math.round(Math.max(s1.fy,s2.fy))+8; }
+ let n=0;
+ while(n*lambda<=sep*0.98 && n<7){ const a=n*lambda;
+  if(a===0) linesAnti.push(...trace(0)); else { linesAnti.push(...trace(a)); linesAnti.push(...trace(-a)); } n++; }
+ n=0;
+ while((n+0.5)*lambda<=sep*0.98 && n<7){ const a=(n+0.5)*lambda;
+  linesNode.push(...trace(a)); linesNode.push(...trace(-a)); n++; }
+}
+
+/* ---------- 波动方程求解（每步） ---------- */
+function step(){
+ for(let y=1;y<H-1;y++){ const o=y*W;
+  for(let x=1;x<W-1;x++){ const i=o+x;
+   if(solid[i]){ up[i]=0; continue; }
+   const ui=u[i];
+   const lap=u[i-1]+u[i+1]+u[i-W]+u[i+W]-4*ui;
+   up[i]=(2*ui-up[i]+CS*lap)*damp[i];
+ }}
+ const t=u; u=up; up=t;
+ phase+=2*Math.PI*CW/lambda;
+ const s=Math.sin(phase);
+ if(planeSrc){ const a=0.55*s; for(let y=5;y<H-5;y++){ u[y*W+2]+=a; u[y*W+3]+=a; } }
+ else{ const a=1.0*s; for(const q of sources){ const i=q.iy*W+q.ix;
+   u[i]+=0.5*a; u[i-1]+=0.125*a; u[i+1]+=0.125*a; u[i-W]+=0.125*a; u[i+W]+=0.125*a; } }
+}
+function updInten(){ const a=0.045;
+ for(let i=0;i<N;i++){ const v=u[i]; inten[i]+=a*(v*v-inten[i]); } }
+
+/* ---------- 探针 ---------- */
+function addProbe(x,y,silent){
+ if(probes.length>=4){ flash('最多 4 个探针：点击已有探针可移除'); return; }
+ probes.push({x,y,ix:Math.round(x),iy:Math.round(y),c:PCOLORS[probes.length],buf:[]});
+ autop=false; if(!silent) flash('已放置探针 P'+probes.length);
+}
+function autoProbes(){
+ if(scen!=='two'||sources.length<2){probes=[];autop=false;return;}
+ probes=[]; const cx=W/2, y=H-30, s1=sources[0], s2=sources[1];
+ addProbe(cx,y,true);                                   // 中央加强线：Δr=0
+ let bx=cx+6, best=1e9;                                 // 右侧第一条节线：Δr=λ/2
+ for(let x=cx+6;x<W-14;x++){ const dd=Math.hypot(x-s1.fx,y-s1.fy)-Math.hypot(x-s2.fx,y-s2.fy);
+  const e=Math.abs(dd-lambda/2); if(e<best){best=e;bx=x;} }
+ addProbe(bx,y,true); autop=true;
+}
+function sampleProbes(){ for(const p of probes){ p.buf.push(u[p.iy*W+p.ix]); if(p.buf.length>BUFL)p.buf.shift(); } }
+function peakOf(p){ let m=0, s=Math.max(0,p.buf.length-200);
+ for(let i=s;i<p.buf.length;i++){ const v=Math.abs(p.buf[i]); if(v>m)m=v; } return m; }
+function pathDiff(p){ const s1=sources[0],s2=sources[1];
+ return Math.hypot(p.x-s1.fx,p.y-s1.fy)-Math.hypot(p.x-s2.fx,p.y-s2.fy); }
+
+/* ---------- 渲染 ---------- */
+const view=document.getElementById('view'), ctx=view.getContext('2d');
+const chart=document.getElementById('chart'), ctx2=chart.getContext('2d');
+const off=document.createElement('canvas'); off.width=W; off.height=H;
+const octx=off.getContext('2d'), img=octx.createImageData(W,H);
+const LUTd=new Uint8Array(512*3), LUTi=new Uint8Array(512*3);
+(function(){
+ const mix=(A,B,t)=>[A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t, A[2]+(B[2]-A[2])*t];
+ const Da=[8,18,46], Dm=[13,58,92], Db=[235,250,255];        // 位移：暗谷-水色-亮峰
+ const Ia=[4,8,20], Im=[186,80,24], Ib=[255,236,196];        // 强度：黑-琥珀-白
+ for(let k=0;k<512;k++){ const t=k/511;
+  const c1=t<0.5?mix(Da,Dm,t*2):mix(Dm,Db,t*2-1);
+  const c2=t<0.5?mix(Ia,Im,t*2):mix(Im,Ib,t*2-1);
+  LUTd[k*3]=c1[0];LUTd[k*3+1]=c1[1];LUTd[k*3+2]=c1[2];
+  LUTi[k*3]=c2[0];LUTi[k*3+1]=c2[1];LUTi[k*3+2]=c2[2]; }
+})();
+function render(){
+ let fm=0.1, im=1e-4; const ex=(!planeSrc)&&sources.length>0;
+ for(let y=2;y<H-2;y+=2){ const o=y*W;
+  for(let x=2;x<W-2;x+=2){ const i=o+x; if(solid[i])continue;
+   if(ex){ let ok=true; for(const q of sources){ const dx=x-q.fx,dy=y-q.fy; if(dx*dx+dy*dy<324){ok=false;break;} } if(!ok)continue; }
+   const v=u[i]; const av=v<0?-v:v; if(av>fm)fm=av;
+   const iv=inten[i]; if(iv>im)im=iv; } }
+ fieldMax+=(fm-fieldMax)*0.03; iMax+=(im-iMax)*0.05;
+ const mixI=showInt?0.82:0, data=img.data;
+ for(let i=0,p=0;i<N;i++,p+=4){
+  let v=u[i]/fieldMax; if(v>1)v=1; else if(v<-1)v=-1;
+  let j=((v+1)*255.5|0)*3, r=LUTd[j],g=LUTd[j+1],b=LUTd[j+2];
+  if(mixI>0){ let t=inten[i]/iMax; if(t>1)t=1; const k=(t*511|0)*3;
+   r+=(LUTi[k]-r)*mixI; g+=(LUTi[k+1]-g)*mixI; b+=(LUTi[k+2]-b)*mixI; }
+  data[p]=r; data[p+1]=g; data[p+2]=b; data[p+3]=255;
+ }
+ octx.putImageData(img,0,0);
+ ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='medium';
+ ctx.drawImage(off,0,0,W*S,H*S);
+ drawOverlay();
+}
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+ ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function drawLabel(txt,x,y,color,font){
+ ctx.font=font||'12px system-ui,sans-serif';
+ const w=ctx.measureText(txt).width+14;
+ let lx=x; if(lx+w>view.width-8)lx=view.width-w-8; if(lx<8)lx=8;
+ let ly=y-9; if(ly<22)ly=y+18;
+ ctx.fillStyle='rgba(5,10,20,.74)'; rr(lx,ly-13,w,20,9); ctx.fill();
+ ctx.fillStyle=color; ctx.fillText(txt,lx+7,ly);
+}
+function drawOverlay(){
+ // 挡板 / 障碍物
+ ctx.fillStyle='#5f6a7a';
+ for(let y=0;y<H;y++){ const o=y*W; for(let x=0;x<W;x++) if(solid[o+x]) ctx.fillRect(x*S,y*S,S,S); }
+ // 波源标记
+ if(!planeSrc){ ctx.font='bold 13px system-ui,sans-serif';
+  const nm=['S₁','S₂'];
+  sources.forEach((q,i)=>{ const px=q.fx*S, py=q.fy*S, r=6+2.2*Math.sin(phase);
+   ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1.5;
+   ctx.beginPath(); ctx.arc(px,py,Math.max(3,r),0,7); ctx.stroke();
+   ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(px,py,4,0,7); ctx.fill();
+   ctx.fillStyle='#ffe9b0'; ctx.fillText(nm[i]||'S',px+9,py-8); });
+  drawLabel('S₁、S₂ 同步振动（同频同相）', sources[0]?sources[0].fx*S+40:40, (sources[0]?sources[0].fy:40)*S-14,'#ffe9b0');
+ } else {
+  drawLabel('平面波 →', 14, 26, '#cfe6ff');
+ }
+ // 加强线 / 减弱线（双源）
+ if(scen==='two'&&showLines){
+  ctx.lineWidth=1.6;
+  ctx.setLineDash([8,7]); ctx.strokeStyle='rgba(255,214,102,.55)';
+  for(const L of linesAnti){ ctx.beginPath(); L.forEach((p,i)=>{ const X=p[0]*S,Y=p[1]*S; i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }); ctx.stroke(); }
+  ctx.setLineDash([3,6]); ctx.strokeStyle='rgba(255,255,255,.85)';
+  for(const L of linesNode){ ctx.beginPath(); L.forEach((p,i)=>{ const X=p[0]*S,Y=p[1]*S; i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }); ctx.stroke(); }
+  ctx.setLineDash([]);
+  const bottom=L=>L.reduce((a,b)=>b[1]>a[1]?b:a,L[0]);
+  const antiC=linesAnti.find(L=>Math.abs(L.reduce((a,p)=>a+p[0],0)/L.length-W/2)<8)||linesAnti[0];
+  if(antiC){ const p=bottom(antiC); drawLabel('加强线：振幅始终最大', p[0]*S-70, p[1]*S-6, '#ffd166'); }
+  const nodeC=linesNode.find(L=>L.length>8)||linesNode[0];
+  if(nodeC){ const p=bottom(nodeC); drawLabel('减弱线（节线）：水面一直不动', p[0]*S+6, p[1]*S-6, '#eef7ff'); }
+ }
+ if(showInt) drawLabel('亮度 = 时间平均强度（稳定不动）', view.width-260, 26, '#ffdf9e','bold 12px system-ui,sans-serif');
+ // 探针
+ ctx.font='bold 12px system-ui,sans-serif';
+ probes.forEach((p,i)=>{ const px=p.x*S, py=p.y*S;
+  ctx.strokeStyle=p.c; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(px,py,7,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px-12,py); ctx.lineTo(px-8,py); ctx.moveTo(px+8,py); ctx.lineTo(px+12,py);
+  ctx.moveTo(px,py-12); ctx.lineTo(px,py-8); ctx.moveTo(px,py+8); ctx.lineTo(px,py+12); ctx.stroke();
+  ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(px,py,2,0,7); ctx.fill();
+  ctx.fillText('P'+(i+1), px+10, py-10); });
+}
+function drawChart(){
+ const cw=chart.width, ch=chart.height;
+ ctx2.fillStyle='#0b1220'; ctx2.fillRect(0,0,cw,ch);
+ const mid=ch/2, gain=(ch/2-12)/Math.max(fieldMax,0.05);
+ ctx2.strokeStyle='rgba(255,255,255,.22)'; ctx2.setLineDash([5,6]); ctx2.lineWidth=1;
+ ctx2.beginPath(); ctx2.moveTo(0,mid); ctx2.lineTo(cw,mid); ctx2.stroke(); ctx2.setLineDash([]);
+ ctx2.fillStyle='rgba(255,255,255,.4)'; ctx2.font='11px system-ui,sans-serif';
+ ctx2.fillText('0', 6, mid-5); ctx2.fillText('+峰值', 6, 14); ctx2.fillText('−峰值', 6, ch-6);
+ ctx2.fillText('时间 →（最近约 8 秒的探针位移记录）', cw-250, ch-8);
+ if(!probes.length){ ctx2.fillStyle='rgba(255,255,255,.45)'; ctx2.font='13px system-ui,sans-serif';
+  ctx2.fillText('点击上方水面放置探针：放在暗带（节线）上，会看到一条完全平的直线 —— 那个点真的不动。', 24, mid+4); return; }
+ for(const p of probes){
+  ctx2.strokeStyle=p.c; ctx2.lineWidth=1.6; ctx2.beginPath();
+  const pad=BUFL-p.buf.length;
+  for(let i=0;i<p.buf.length;i++){ const X=(i+pad)*(cw/(BUFL-1)), Y=mid-p.buf[i]*gain;
+   i?ctx2.lineTo(X,Y):ctx2.moveTo(X,Y); }
+  ctx2.stroke();
+  const pk=peakOf(p);
+  ctx2.strokeStyle=p.c; ctx2.globalAlpha=0.3; ctx2.setLineDash([4,5]);
+  ctx2.beginPath(); ctx2.moveTo(cw*0.55,mid-pk*gain); ctx2.lineTo(cw,mid-pk*gain);
+  ctx2.moveTo(cw*0.55,mid+pk*gain); ctx2.lineTo(cw,mid+pk*gain); ctx2.stroke();
+  ctx2.setLineDash([]); ctx2.globalAlpha=1;
+ }
+}
+const chips=document.getElementById('chips');
+function updateChips(){
+ chips.innerHTML='';
+ probes.forEach((p,i)=>{
+  const pct=Math.round(peakOf(p)/fieldMax*100);
+  let extra='';
+  if(scen==='two'&&sources.length>2-1){
+   const dpr=pathDiff(p)/lambda, pred=Math.abs(Math.cos(Math.PI*pathDiff(p)/lambda));
+   const tag=pred>0.7?'加强区':pred<0.15?'减弱区 · 不动':'中间状态';
+   extra=`程差 ${dpr>=0?'+':''}${dpr.toFixed(2)}λ · ${tag}`;
+  } else extra=pct<12?'几乎不动':pct>40?'大振幅':'中等振幅';
+  const el=document.createElement('span'); el.className='chip';
+  el.innerHTML=`<span class="dot" style="background:${p.c}"></span>P${i+1} · 峰值 ${pct}% · ${extra}`;
+  chips.appendChild(el);
+ });
+}
+
+/* ---------- 交互 ---------- */
+let flashT=null;
+function flash(msg){ const f=document.getElementById('flash');
+ f.textContent=msg; f.style.opacity=1; clearTimeout(flashT);
+ flashT=setTimeout(()=>f.style.opacity=0,2200); }
+view.addEventListener('pointerdown',e=>{
+ const r=view.getBoundingClientRect();
+ const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+ const hit=probes.find(p=>Math.hypot(p.x-x,p.y-y)<9);
+ if(hit){ probes.splice(probes.indexOf(hit),1); autop=false; flash('已移除探针'); }
+ else addProbe(x,y);
+});
+document.getElementById('tabs').addEventListener('click',e=>{
+ const b=e.target.closest('.tab'); if(!b)return;
+ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t===b));
+ scen=b.dataset.s;
+ document.getElementById('scenDesc').innerHTML=DESC[scen];
+ document.querySelectorAll('[data-for]').forEach(el=>{
+  el.style.display=el.dataset.for.split(' ').includes(scen)?'':'none'; });
+ buildScene(true); autoProbes();
+});
+function onParam(){ buildScene(false); inten.fill(0); iMax=Math.max(iMax*0.4,1e-4); if(autop)autoProbes(); }
+function bind(id,varName,valFn){
+ const el=document.getElementById(id), lab=document.getElementById(id+'Val');
+ const f=()=>{ window[varName]=+el.value; lab.textContent=valFn(window[varName]); onParam(); };
+ el.addEventListener('input',f); lab.textContent=valFn(+el.value);
+}
+bind('lambda','lambda',v=>v+' 格');
+bind('sep','sep',v=>v+' 格');
+bind('slitw','slitW',v=>v+' 格 ≈ '+(v/lambda).toFixed(1)+'λ');
+bind('gapc','gapC',v=>v+' 格');
+bind('obsth','obsth',v=>v+' 格');
+bind('speed','speed',v=>v.toFixed(2)+' ×');
+document.getElementById('pauseBtn').addEventListener('click',function(){
+ running=!running; this.textContent=running?'⏸ 暂停':'▶ 继续'; });
+document.getElementById('resetBtn').addEventListener('click',()=>{ buildScene(true); flash('已重置'); });
+document.getElementById('clearBtn').addEventListener('click',()=>{ probes=[]; autop=false; });
+document.getElementById('intTog').addEventListener('change',function(){
+ showInt=this.checked;
+ if(showInt&&iMax<1e-3) iMax=Math.max(fieldMax*fieldMax*0.2,1e-3);
+ if(showInt) flash('这就是时间平均的稳定图样：亮带=加强区，暗带=减弱区 —— 它们不动'); });
+document.getElementById('lineTog').addEventListener('change',function(){ showLines=this.checked; });
+
+/* ---------- 主循环 ---------- */
+let acc=0, fc=0;
+function frame(){
+ if(running){
+  acc+=2*speed; const n=Math.floor(acc); acc-=n;
+  for(let k=0;k<n;k++) step();
+  if(n>0){ updInten(); sampleProbes(); }
+ }
+ render(); drawChart();
+ if(fc%8===0) updateChips();
+ fc++; requestAnimationFrame(frame);
+}
+document.getElementById('scenDesc').innerHTML=DESC.two;
+buildScene(true); autoProbes(); frame();
+</script>
+</body>
+</html>

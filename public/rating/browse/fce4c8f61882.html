@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>弦上驻波：两端固定的弦</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* 学科语义色：入射（向右）行波 / 反射（向左）行波 */
+      --sim-incident: #2563eb;
+      --sim-reflected: #ea580c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Inter, sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.86rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .status.near { background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.3); color: #a35d00; }
+    .status.off { background: #eef2f7; border-color: var(--sim-border); color: #536071; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.1fr) minmax(300px, 0.62fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { flex: 1.35 1 0; min-height: 0; width: 100%; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 16px; background: linear-gradient(150deg, #fbfdff 0%, #f3f9fa 60%, #fff9ed 100%); }
+    .decomp-wrap { flex: 1 1 0; min-height: 150px; display: flex; flex-direction: column; gap: 6px; }
+    .decomp-wrap[hidden] { display: none; }
+    .decomp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .decomp-head h2 { margin: 0; font-size: 0.92rem; }
+    .decomp-head span { color: var(--sim-muted); font-size: 0.72rem; }
+    #decomp { flex: 1 1 0; min-height: 0; width: 100%; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 16px; background: linear-gradient(150deg, #fbfdff 0%, #f6f9fc 100%); }
+    .side { min-height: 0; display: grid; grid-auto-rows: min-content; gap: 12px; overflow-y: auto; padding-right: 2px; }
+    .readouts, .curve-panel, .model-note { padding: 15px 16px; }
+    .readouts h2, .curve-panel h2, .model-note h2 { margin: 0 0 10px; font-size: 0.95rem; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.18rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric strong.ok { color: var(--sim-accent-deep); }
+    .metric strong.warn { color: #a35d00; }
+    .relation { margin-top: 10px; padding: 11px 13px; border-radius: 13px; border: 1px dashed rgba(15,159,186,.4); background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 720; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
+    .relation.off { border-color: var(--sim-border); background: #f1f4f8; color: var(--sim-muted); }
+    #curveSvg { width: 100%; height: auto; display: block; cursor: crosshair; touch-action: none; }
+    .curve-hint { margin-top: 6px; color: var(--sim-muted); font-size: 0.72rem; text-align: center; }
+    .model-note { display: grid; align-content: start; gap: 10px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.78rem; }
+    .insight { padding: 12px 13px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 640; font-size: 0.87rem; line-height: 1.55; }
+    .controls { padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control { min-width: 250px; flex: 1 1 250px; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .group { display: flex; align-items: center; gap: 8px; }
+    .group-label { color: var(--sim-muted); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+    .harmony-btn, .speed-btn { padding: 8px 10px; font-size: 0.85rem; }
+    .harmony-btn.active, .speed-btn.active { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.55); color: var(--sim-accent-deep); }
+    .chip[aria-pressed="true"] { background: var(--sim-accent-soft); border-color: rgba(15,159,186,.55); color: var(--sim-accent-deep); }
+    .dock-note { color: var(--sim-muted); font-size: 0.72rem; white-space: nowrap; }
+    .svg-label { font-size: 12px; fill: var(--sim-muted); }
+    .svg-label-strong { font-size: 12px; font-weight: 700; }
+    @media (max-width: 880px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { flex: none; height: auto; aspect-ratio: 980 / 460; }
+      .decomp-wrap { flex: none; }
+      #decomp { flex: none; height: auto; aspect-ratio: 980 / 312; }
+      .side { overflow: visible; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: preserve data-zone structure unless the confirmed wireframe changes it. -->
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>弦上驻波：两端固定的弦</h1>
+        <p>一端由振动源驱动——把频率调到合适的值，弦就稳定地分成几段跳动，波节一动不动。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">运行中 · 共振 n=2</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">① 弦与振动源</h2>
+          <span>● 波节（始终不动）　◇ 波腹　虚线：包络（最大位移界）</span>
+        </div>
+        <svg id="scene" viewBox="0 0 980 460" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="scene-title scene-desc">
+          <title id="scene-desc">两端固定的弦在左端振动源驱动下形成驻波：可数波节与波腹，虚线包络，波长标注与位置标尺。</title>
+          <defs>
+            <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="#c3cdd9" stroke-width="3"></line>
+            </pattern>
+            <marker id="arrowUp" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 10 L5 0 L10 10 z" fill="#d97706"></path>
+            </marker>
+          </defs>
+          <!-- 固定端（右） -->
+          <rect x="880" y="120" width="26" height="180" fill="url(#hatch)" stroke="#9aa7ba" stroke-width="2"></rect>
+          <text class="svg-label" x="893" y="110" text-anchor="middle">固定端</text>
+          <!-- 振动源（左） -->
+          <rect x="38" y="150" width="74" height="120" rx="10" fill="#ffffff" stroke="#9aa7ba" stroke-width="2"></rect>
+          <text class="svg-label-strong" x="75" y="192" text-anchor="middle" fill="#334155">振动源</text>
+          <text class="svg-label" id="driverFreq" x="75" y="212" text-anchor="middle">40.0 Hz</text>
+          <text class="svg-label" x="75" y="256" text-anchor="middle">振幅极小</text>
+          <text class="svg-label" x="75" y="272" text-anchor="middle">≈ 波节</text>
+          <circle id="driverPin" cx="112" cy="210" r="5.5" fill="#334155"></circle>
+          <line id="driverLink" x1="112" y1="210" x2="120" y2="210" stroke="#334155" stroke-width="3" stroke-linecap="round"></line>
+          <!-- 弦的平衡位置 -->
+          <line x1="120" y1="210" x2="880" y2="210" stroke="#c9d3df" stroke-width="1.5" stroke-dasharray="3 6"></line>
+          <!-- 包络 / 弦 / 标记（动态） -->
+          <polyline id="envTop" fill="none" stroke="#0f9fba" stroke-width="1.8" stroke-dasharray="7 6" opacity="0.7"></polyline>
+          <polyline id="envBottom" fill="none" stroke="#0f9fba" stroke-width="1.8" stroke-dasharray="7 6" opacity="0.7"></polyline>
+          <polyline id="stringLine" fill="none" stroke="#172033" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+          <g id="markers"></g>
+          <!-- 质点追踪 -->
+          <line id="traceGuide" stroke="#d97706" stroke-width="1.2" stroke-dasharray="4 5" opacity="0.65"></line>
+          <line id="traceArrow" stroke="#d97706" stroke-width="2.2" marker-start="url(#arrowUp)" marker-end="url(#arrowUp)" opacity="0.75"></line>
+          <text id="traceLabel" class="svg-label" fill="#b45309" font-weight="700" text-anchor="middle">质点只上下振动</text>
+          <circle id="traceDot" r="7" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5"></circle>
+          <!-- 状态徽标 -->
+          <text id="sceneBadge" x="876" y="36" text-anchor="end" font-size="14" font-weight="750"></text>
+          <!-- 波长标注（动态绘制于 #markers 中） -->
+          <!-- 位置标尺 -->
+          <g id="ruler"></g>
+          <text class="svg-label" x="880" y="432" text-anchor="end">位置 x / m</text>
+        </svg>
+
+        <div class="decomp-wrap" id="decompWrap">
+          <div class="decomp-head">
+            <h2>② 两列反向行波的叠加</h2>
+            <span id="decompNote">三行同一比例：向右的 y₁ 与向左的 y₂ 相加，就得到下面的驻波</span>
+          </div>
+          <svg id="decomp" viewBox="0 0 980 312" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="decomp-title decomp-desc">
+            <title id="decomp-desc">三行对齐的波形：向右行波 y1、向左行波 y2，以及它们的叠加——驻波。</title>
+            <g id="nodeVerticals" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"></g>
+            <line x1="120" y1="58" x2="880" y2="58" stroke="#dbe3ec" stroke-width="1.2" stroke-dasharray="3 5"></line>
+            <polyline id="waveRight" fill="none" stroke="#2563eb" stroke-width="3.2" stroke-linecap="round"></polyline>
+            <text x="6" y="62" font-size="13" font-weight="700" fill="#2563eb">向右 y₁</text>
+            <text x="892" y="62" font-size="12" font-weight="700" fill="#2563eb">向右传播 ▶▶</text>
+            <line x1="120" y1="142" x2="880" y2="142" stroke="#dbe3ec" stroke-width="1.2" stroke-dasharray="3 5"></line>
+            <polyline id="waveLeft" fill="none" stroke="#ea580c" stroke-width="3.2" stroke-linecap="round"></polyline>
+            <text x="6" y="146" font-size="13" font-weight="700" fill="#ea580c">向左 y₂</text>
+            <text x="892" y="146" font-size="12" font-weight="700" fill="#ea580c">◀◀ 向左传播</text>
+            <line x1="120" y1="238" x2="880" y2="238" stroke="#dbe3ec" stroke-width="1.2" stroke-dasharray="3 5"></line>
+            <polyline id="waveSum" fill="none" stroke="#172033" stroke-width="4" stroke-linecap="round"></polyline>
+            <text x="6" y="242" font-size="13" font-weight="700" fill="#172033">y₁+y₂</text>
+            <text x="892" y="242" font-size="12" font-weight="700" fill="#172033">= 驻波：原地起伏</text>
+            <circle id="nodeRing" cx="0" cy="238" r="10" fill="none" stroke="#d97706" stroke-width="2.6" stroke-dasharray="4 4"></circle>
+            <text id="nodeRingLabel" x="500" y="196" font-size="12.5" font-weight="750" fill="#b45309" text-anchor="middle">◯ 这个点始终不动 —— 它就是波节</text>
+          </svg>
+        </div>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <h2>实时读数</h2>
+          <div class="readout-grid">
+            <div class="metric"><small>驱动频率 f</small><strong id="freqReadout">40.0 Hz</strong></div>
+            <div class="metric"><small>共振状态</small><strong id="stateReadout" class="ok">共振 · n=2</strong></div>
+            <div class="metric"><small>波长 λ = 2L/n</small><strong id="lambdaReadout">1.00 m</strong></div>
+            <div class="metric"><small>每段长 λ/2</small><strong id="segmentReadout">0.50 m</strong></div>
+            <div class="metric"><small>波腹数</small><strong id="antinodeReadout">2</strong></div>
+            <div class="metric"><small>波节数（含两端）</small><strong id="nodeReadout">3</strong></div>
+          </div>
+          <div class="relation" id="relationReadout">L = n·λ/2　→　1.00 m = 2 × 0.50 m</div>
+        </section>
+
+        <section class="panel curve-panel" aria-label="共振曲线">
+          <h2>共振曲线（响应–频率）</h2>
+          <svg id="curveSvg" viewBox="0 0 340 196" role="img" aria-label="弦的响应幅度随驱动频率变化的曲线，五个峰对应五个谐波">
+            <g id="curveAxes"></g>
+            <polyline id="curveLine" fill="none" stroke="#0f9fba" stroke-width="2.6" stroke-linejoin="round"></polyline>
+            <g id="curvePeaks"></g>
+            <line id="curveCursor" y1="18" y2="162" stroke="#08758a" stroke-width="1.6" stroke-dasharray="4 4"></line>
+            <circle id="curveDot" r="5" fill="#0f9fba" stroke="#ffffff" stroke-width="2"></circle>
+            <text id="curveLabel" x="326" y="14" text-anchor="end" font-size="11" font-weight="750" fill="#08758a">f = 40.0 Hz</text>
+          </svg>
+          <p class="curve-hint">点击或左右拖动曲线调节频率（滑块同步）</p>
+        </section>
+
+        <section class="panel model-note" data-zone="insight" aria-label="当前观察与模型说明">
+          <h2>当前观察</h2>
+          <p id="insight" class="insight">共振锁定：f 恰好等于 2 次谐波，弦稳定分成 2 段，波节始终不动。</p>
+          <p>教学视图说明：弦按两端固定的受迫振动<b>稳态</b>求解（模态叠加，前 8 个模式，品质因数 Q=40）；振动源一端振幅远小于共振振幅，近似为波节。动画慢放 50×，频率读数为真实值。分解图 ② 为理想化的等幅双向行波（以最接近的谐波为例），它在共振时与主图驻波严格相等。弦上质点只上下振动，不随波移动。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button" aria-pressed="true">▶ 开始</button>
+        <button id="pauseBtn" type="button">‖ 暂停</button>
+        <button id="resetBtn" type="button">↻ 重置</button>
+      </div>
+      <div class="control">
+        <label for="freqInput">驱动频率 f（fₙ = n×20 Hz）<output id="freqOutput">40.0 Hz</output></label>
+        <input id="freqInput" type="range" min="10" max="110" step="0.5" value="40">
+      </div>
+      <div class="group" role="group" aria-label="谐波快捷键">
+        <span class="group-label">谐波快捷</span>
+        <button class="harmony-btn" data-n="1" type="button">n=1</button>
+        <button class="harmony-btn" data-n="2" type="button">n=2</button>
+        <button class="harmony-btn" data-n="3" type="button">n=3</button>
+        <button class="harmony-btn" data-n="4" type="button">n=4</button>
+        <button class="harmony-btn" data-n="5" type="button">n=5</button>
+      </div>
+      <div class="group" role="group" aria-label="显示开关">
+        <button id="decompToggle" class="chip" type="button" aria-pressed="true">叠加分解 · 开</button>
+        <button id="envelopeToggle" class="chip" type="button" aria-pressed="true">包络 · 开</button>
+      </div>
+      <div class="group" role="group" aria-label="播放速度">
+        <span class="group-label">速度</span>
+        <button class="speed-btn" data-speed="0.5" type="button">0.5×</button>
+        <button class="speed-btn active" data-speed="1" type="button">1×</button>
+        <button class="speed-btn" data-speed="2" type="button">2×</button>
+      </div>
+      <span class="dock-note">动画慢放 50×，频率为真实值</span>
+    </section>
+  </div>
+
+  <script>
+  /* PHYSICS-KERNEL-START */
+  /* DOM-free analytic kernel: steady-state driven damped string, modal superposition.
+     y(x,t) = sum_n A_n(f) * sin(n*pi*x/L) * cos(phi - delta_n),  phi = drive phase. */
+  const SimKernel = (() => {
+    "use strict";
+    const L = 1.0;                 // string length (m)
+    const V = 40.0;                // wave speed (m/s)
+    const N_MODES = 8;             // modes kept in the superposition
+    const F1 = V / (2 * L);        // 20 Hz fundamental
+    const FN = (n) => n * F1;
+    const Q = 40;                  // modal quality factor
+    const BETA = (2 * Math.PI * F1) / (2 * Q);  // damping constant (rad/s)
+    const X_DRIVE = 0.03 * L;      // drive point -> mode coupling sin(n*pi*x0/L)
+    const F_MIN = 10, F_MAX = 110; // legal drive-frequency range (Hz)
+    const OMEGA_N = [];
+    const G_N = [];
+    for (let n = 1; n <= N_MODES; n++) {
+      OMEGA_N.push(2 * Math.PI * F1 * n);
+      G_N.push(Math.sin((n * Math.PI * X_DRIVE) / L));
+    }
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finiteOr = (v, fb) => (Number.isFinite(v) ? v : fb);
+
+    function modalResponse(f) {
+      const w = 2 * Math.PI * finiteOr(clamp(f, F_MIN, F_MAX), F1 * 2);
+      const amps = new Array(N_MODES);
+      const phases = new Array(N_MODES);
+      for (let i = 0; i < N_MODES; i++) {
+        const det = OMEGA_N[i] * OMEGA_N[i] - w * w;
+        const damp = 2 * BETA * w;
+        amps[i] = G_N[i] / Math.sqrt(det * det + damp * damp);
+        phases[i] = Math.atan2(damp, det);
+      }
+      return { omega: w, amps, phases };
+    }
+
+    function sampleString(x, phi, resp) {
+      let y = 0;
+      for (let i = 0; i < N_MODES; i++) {
+        y += resp.amps[i] * Math.sin(((i + 1) * Math.PI * x) / L) * Math.cos(phi - resp.phases[i]);
+      }
+      return finiteOr(y, 0);
+    }
+
+    function envelopeAt(x, resp) {
+      let e = 0;
+      for (let i = 0; i < N_MODES; i++) {
+        e += Math.abs(resp.amps[i] * Math.sin(((i + 1) * Math.PI * x) / L));
+      }
+      return finiteOr(e, 0);
+    }
+
+    function peakModalAmplitude() {
+      let m = 0;
+      for (let n = 1; n <= 5; n++) m = Math.max(m, G_N[n - 1] / (2 * BETA * OMEGA_N[n - 1]));
+      return m;
+    }
+
+    function nearestMode(f) {
+      let best = 1, bestAbs = Infinity;
+      for (let n = 1; n <= 5; n++) {
+        const d = Math.abs(f - FN(n));
+        if (d < bestAbs) { bestAbs = d; best = n; }
+      }
+      return { n: best, detune: f - FN(best), absDetune: bestAbs };
+    }
+
+    function resonanceState(f) {
+      const near = nearestMode(f);
+      const bandwidth = FN(near.n) / Q;
+      if (near.absDetune <= 0.26) return { level: "resonant", n: near.n, detune: near.detune };
+      if (near.absDetune <= Math.max(1.0, bandwidth)) return { level: "near", n: near.n, detune: near.detune };
+      return { level: "off", n: near.n, detune: near.detune };
+    }
+
+    function nodePositions(n) {
+      const xs = [];
+      for (let m = 0; m <= n; m++) xs.push((m * L) / n);
+      return xs;
+    }
+    function antinodePositions(n) {
+      const xs = [];
+      for (let m = 0; m < n; m++) xs.push(((m + 0.5) * L) / n);
+      return xs;
+    }
+    function wavelength(n) { return (2 * L) / n; }
+
+    /* Idealized decomposition pair for harmonic n: y1 right-running, y2 left-running,
+       y1 + y2 = 2*half*sin(kx)*cos(phi) — the pure standing wave of that mode. */
+    function decomposeSample(row, x, phi, n, half) {
+      const k = (n * Math.PI) / L;
+      if (row === 1) return finiteOr(half * Math.sin(k * x - phi), 0);
+      if (row === 2) return finiteOr(half * Math.sin(k * x + phi), 0);
+      return finiteOr(2 * half * Math.sin(k * x) * Math.cos(phi), 0);
+    }
+
+    function runModelChecks() {
+      const results = [];
+      const add = (name, pass, expected, actual, tolerance) =>
+        results.push({ name, pass: !!pass, expected: String(expected), actual: String(actual), tolerance: String(tolerance) });
+
+      { // 1 ordinary: superposition identity of the decomposition pair
+        let maxDev = 0;
+        const n = 3, half = 1.7e-4, k = (n * Math.PI) / L;
+        for (let xi = 0; xi <= 200; xi++) {
+          const x = (xi / 200) * L;
+          for (let ti = 0; ti < 80; ti++) {
+            const phi = (ti / 80) * 2 * Math.PI;
+            const y1 = half * Math.sin(k * x - phi);
+            const y2 = half * Math.sin(k * x + phi);
+            const ys = 2 * half * Math.sin(k * x) * Math.cos(phi);
+            maxDev = Math.max(maxDev, Math.abs(y1 + y2 - ys));
+          }
+        }
+        add("叠加恒等式 y1+y2 = 2A·sin(kx)·cos(phi)", maxDev < 1e-9, "max|y1+y2-y_sum| < 1e-9", maxDev.toExponential(3), "1e-9");
+      }
+      { // 2 ordinary: fixed-end boundary conditions at an arbitrary frequency
+        const resp = modalResponse(47.3);
+        let m = 0;
+        for (let ti = 0; ti < 60; ti++) {
+          const phi = (ti / 60) * 2 * Math.PI;
+          m = Math.max(m, Math.abs(sampleString(0, phi, resp)), Math.abs(sampleString(L, phi, resp)));
+        }
+        add("边界条件 y(0)=y(L)=0（任意频率）", m < 1e-9, "< 1e-9 m", m.toExponential(3) + " m", "1e-9");
+      }
+      { // 3 threshold: theory nodes are still at exact resonance of mode 3
+        const resp = modalResponse(FN(3));
+        const dom = resp.amps[2];
+        let m = 0;
+        for (const x of nodePositions(3)) {
+          for (let ti = 0; ti < 120; ti++) {
+            m = Math.max(m, Math.abs(sampleString(x, (ti / 120) * 2 * Math.PI, resp)));
+          }
+        }
+        add("共振时波节静止（f=f3, n=3）", m < 0.04 * dom, "max|y(node)| < 4% 主模振幅", (m / dom).toFixed(4) + " ×主模", "4%");
+      }
+      { // 4 threshold: resonance contrast between harmonic peak and inter-harmonic valley
+        const peak = modalResponse(FN(2)).amps[1];
+        let valley = 0;
+        const mid = modalResponse(50);
+        for (let i = 0; i < N_MODES; i++) valley += mid.amps[i];
+        add("共振峰/谷响应比（f2 与 50 Hz）", valley > 0 && peak / valley > 8, "A(f2)/A(50) > 8", (peak / valley).toFixed(2), "8");
+      }
+      { // 5 ordinary: wavelength relation exact
+        let m = 0;
+        for (let n = 1; n <= 5; n++) {
+          const k = (n * Math.PI) / L;
+          const lambda = (2 * Math.PI) / k;
+          m = Math.max(m, Math.abs(lambda - (2 * L) / n), Math.abs(k * lambda - 2 * Math.PI));
+        }
+        add("波长关系 lambda = 2L/n（n=1..5）", m < 1e-9, "|λ-2L/n| 与 |kλ-2π| < 1e-9", m.toExponential(3), "1e-9");
+      }
+      { // 6 invariant: modal bound |y| <= sum |A_m sin(m pi x / L)|
+        let ok = true, worst = -Infinity;
+        for (const f of [FN(2), 37.0]) {
+          const resp = modalResponse(f);
+          for (let xi = 0; xi <= 160; xi++) {
+            const x = (xi / 160) * L;
+            const env = envelopeAt(x, resp);
+            for (let ti = 0; ti < 40; ti++) {
+              const y = Math.abs(sampleString(x, (ti / 40) * 2 * Math.PI, resp));
+              if (!(y <= env + 1e-12)) ok = false;
+              worst = Math.max(worst, y - env);
+            }
+          }
+        }
+        add("包络上界 |y| <= Σ|A_m·sin(mπx/L)|", ok, "所有采样点满足解析上界", worst <= 0 ? "满足（最紧处 " + worst.toExponential(2) + "）" : "超出 " + worst.toExponential(2), "0（解析界）");
+      }
+      { // 7 opposite/symmetry: n=2 center is a node, n=3 center is an antinode
+        const resp2 = modalResponse(FN(2));
+        let m2 = 0;
+        for (let ti = 0; ti < 120; ti++) m2 = Math.max(m2, Math.abs(sampleString(L / 2, (ti / 120) * 2 * Math.PI, resp2)));
+        const resp3 = modalResponse(FN(3));
+        const env3 = envelopeAt(L / 2, resp3);
+        const pass = m2 < 0.04 * resp2.amps[1] && env3 > 0.9 * resp3.amps[2];
+        add("中点对称性：n=2 中点为波节，n=3 中点为波腹", pass,
+          "n=2: |y(L/2)| < 4%主模；n=3: 包络(L/2) > 90%主模",
+          "n=2: " + (m2 / resp2.amps[1]).toFixed(4) + "；n=3: " + (env3 / resp3.amps[2]).toFixed(3), "4% / 90%");
+      }
+      { // 8 step/time-scale: phase accumulation equals direct evaluation at same simulated time
+        const f = 63.0, w = 2 * Math.PI * f, resp = modalResponse(f);
+        let phiA = 0, phiB = 0;
+        for (let i = 0; i < 600; i++) phiA += w * (1 / 60);
+        for (let i = 0; i < 2400; i++) phiB += w * (1 / 240);
+        const ya = sampleString(0.37, phiA, resp);
+        const yb = sampleString(0.37, phiB, resp);
+        const yd = sampleString(0.37, w * 10, resp);
+        const dev = Math.max(Math.abs(ya - yd), Math.abs(yb - yd));
+        add("相位累加与直接求值一致（步长 1/60 与 1/240）", dev < 1e-6, "同时刻位移差 < 1e-6 m", dev.toExponential(3) + " m", "1e-6");
+      }
+      { // 9 stability: finiteness across the whole legal frequency range
+        let ok = true;
+        for (let fi = F_MIN; fi <= F_MAX + 1e-9; fi += 0.25) {
+          const resp = modalResponse(fi);
+          for (let i = 0; i < N_MODES; i++) {
+            if (!Number.isFinite(resp.amps[i]) || !Number.isFinite(resp.phases[i])) ok = false;
+          }
+          for (let xi = 0; xi <= 20; xi++) {
+            if (!Number.isFinite(sampleString((xi / 20) * L, 1.234, resp))) ok = false;
+          }
+        }
+        add("全频段有限性（10–110 Hz 扫描）", ok, "所有响应与位移均为有限值", ok ? "全部有限" : "存在非有限值", "Number.isFinite");
+      }
+      return results;
+    }
+
+    return {
+      L, V, F1, FN, N_MODES, F_MIN, F_MAX, Q, BETA,
+      modalResponse, sampleString, envelopeAt, peakModalAmplitude,
+      nearestMode, resonanceState, nodePositions, antinodePositions,
+      wavelength, decomposeSample, runModelChecks
+    };
+  })();
+  if (typeof globalThis !== "undefined") globalThis.SimKernel = SimKernel;
+  /* PHYSICS-KERNEL-END */
+  </script>
+
+  <script>
+  (() => {
+    "use strict";
+    const K = globalThis.SimKernel;
+    const parameterSchema = [
+      { key: "frequency", label: "驱动频率", type: "slider", min: 10, max: 110, step: 0.5, default: 40, unit: "Hz" },
+      { key: "speed", label: "速度", type: "segmented", options: [0.5, 1, 2], default: 1, unit: "×" },
+      { key: "showDecomposition", label: "叠加分解", type: "toggle", default: true, unit: "" },
+      { key: "showEnvelope", label: "包络", type: "toggle", default: true, unit: "" }
+    ];
+    const SLOW = 50; // slow-motion factor: animation runs 50x slower than real time
+    const PX_PER_M_STRING = 112 / K.peakModalAmplitude();      // main scene amplitude scale
+    const ROW_PX_PER_M = 40 / K.peakModalAmplitude();          // decomposition row scale
+    const X0 = 120, X1 = 880, Y_REST = 210;                    // main scene mapping
+    const DECOMP_X0 = 120, DECOMP_X1 = 880;                    // decomposition mapping
+    const ROW_Y = { 1: 58, 2: 142, 3: 238 };
+    const SAMPLES_STRING = 240, SAMPLES_ROW = 200;
+
+    const state = {
+      running: false, f: 40, phi: 0, t: 0, speed: 1,
+      showDecomposition: true, showEnvelope: true, lastTs: null
+    };
+    const $ = (sel) => document.querySelector(sel);
+    const els = {
+      status: $("#status"), stringLine: $("#stringLine"), envTop: $("#envTop"), envBottom: $("#envBottom"),
+      markers: $("#markers"), ruler: $("#ruler"), driverPin: $("#driverPin"), driverLink: $("#driverLink"),
+      driverFreq: $("#driverFreq"), traceDot: $("#traceDot"), traceGuide: $("#traceGuide"),
+      traceArrow: $("#traceArrow"), traceLabel: $("#traceLabel"), sceneBadge: $("#sceneBadge"),
+      decompWrap: $("#decompWrap"), waveRight: $("#waveRight"), waveLeft: $("#waveLeft"), waveSum: $("#waveSum"),
+      nodeVerticals: $("#nodeVerticals"), nodeRing: $("#nodeRing"), nodeRingLabel: $("#nodeRingLabel"),
+      decompNote: $("#decompNote"), freqInput: $("#freqInput"), freqOutput: $("#freqOutput"),
+      freqReadout: $("#freqReadout"), stateReadout: $("#stateReadout"), lambdaReadout: $("#lambdaReadout"),
+      segmentReadout: $("#segmentReadout"), antinodeReadout: $("#antinodeReadout"), nodeReadout: $("#nodeReadout"),
+      relationReadout: $("#relationReadout"), insight: $("#insight"),
+      curveSvg: $("#curveSvg"), curveLine: $("#curveLine"), curvePeaks: $("#curvePeaks"),
+      curveAxes: $("#curveAxes"), curveCursor: $("#curveCursor"), curveDot: $("#curveDot"), curveLabel: $("#curveLabel"),
+      startBtn: $("#startBtn"), pauseBtn: $("#pauseBtn"), resetBtn: $("#resetBtn"),
+      decompToggle: $("#decompToggle"), envelopeToggle: $("#envelopeToggle")
+    };
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finiteOr = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const px = (x) => X0 + x * (X1 - X0);                 // meters -> main-scene px
+    const py = (yMeters) => Y_REST - yMeters * PX_PER_M_STRING;
+    const rowPx = (x) => DECOMP_X0 + x * (DECOMP_X1 - DECOMP_X0);
+    const rowPy = (row, yMeters) => ROW_Y[row] - yMeters * ROW_PX_PER_M;
+
+    /* ---------- static scene construction ---------- */
+    function buildRuler() {
+      const parts = [];
+      for (let m = 0; m <= 10; m++) {
+        const x = X0 + m * ((X1 - X0) / 10);
+        const major = m % 2 === 0;
+        parts.push(`<line x1="${x}" y1="396" x2="${x}" y2="${major ? 408 : 403}" stroke="#9aa7ba" stroke-width="${major ? 1.6 : 1.1}"></line>`);
+        if (major) parts.push(`<text class="svg-label" x="${x}" y="426" text-anchor="middle">${(m / 10).toFixed(1)}</text>`);
+      }
+      parts.push(`<line x1="${X0}" y1="396" x2="${X1}" y2="396" stroke="#9aa7ba" stroke-width="1.6"></line>`);
+      els.ruler.innerHTML = parts.join("");
+    }
+
+    function buildCurve() {
+      const fToX = (f) => 44 + ((f - 10) / 100) * (326 - 44);
+      const aToY = (a) => 162 - (a / 2.6e-4) * (162 - 18);
+      const axes = [];
+      for (const f of [20, 40, 60, 80, 100]) {
+        const x = fToX(f);
+        axes.push(`<line x1="${x}" y1="162" x2="${x}" y2="167" stroke="#9aa4b2" stroke-width="1.2"></line>`);
+        axes.push(`<text x="${x}" y="180" text-anchor="middle" font-size="10" fill="#657188">${f}</text>`);
+      }
+      axes.push(`<line x1="44" y1="162" x2="326" y2="162" stroke="#9aa4b2" stroke-width="1.3"></line>`);
+      axes.push(`<line x1="44" y1="18" x2="44" y2="162" stroke="#9aa4b2" stroke-width="1.3"></line>`);
+      axes.push(`<text x="326" y="192" text-anchor="end" font-size="10" fill="#657188">f / Hz</text>`);
+      axes.push(`<text x="46" y="14" font-size="10" fill="#657188">响应幅度</text>`);
+      els.curveAxes.innerHTML = axes.join("");
+      const pts = [];
+      for (let i = 0; i <= 240; i++) {
+        const f = 10 + (i / 240) * 100;
+        let a = 0;
+        const resp = K.modalResponse(f);
+        for (let j = 0; j < K.N_MODES; j++) a += resp.amps[j];
+        pts.push(`${fToX(f).toFixed(1)},${aToY(a).toFixed(1)}`);
+      }
+      els.curveLine.setAttribute("points", pts.join(" "));
+      const peaks = [];
+      for (let n = 1; n <= 5; n++) {
+        const a = K.modalResponse(K.FN(n)).amps[n - 1];
+        peaks.push(`<circle cx="${fToX(K.FN(n))}" cy="${aToY(a)}" r="3" fill="#08758a"></circle>`);
+        peaks.push(`<text x="${fToX(K.FN(n))}" y="${aToY(a) - 7}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#08758a">n=${n}</text>`);
+      }
+      els.curvePeaks.innerHTML = peaks.join("");
+      els.curveSvg.__fToX = fToX;
+      els.curveSvg.__xToF = (xPx) => 10 + ((xPx - 44) / (326 - 44)) * 100;
+    }
+
+    /* ---------- cached marker groups (depend on resonance state, not on time) ---------- */
+    let markerCacheKey = "";
+    function buildMarkers(level, n) {
+      const parts = [];
+      const segHalf = K.L / n;
+      // wavelength brackets above the string
+      const bracket = (xa, xb, y, label) => {
+        const tick = 7;
+        return `<line x1="${px(xa)}" y1="${y + tick}" x2="${px(xa)}" y2="${y - tick}" stroke="#657188" stroke-width="1.4"></line>` +
+               `<line x1="${px(xb)}" y1="${y + tick}" x2="${px(xb)}" y2="${y - tick}" stroke="#657188" stroke-width="1.4"></line>` +
+               `<line x1="${px(xa)}" y1="${y}" x2="${px(xb)}" y2="${y}" stroke="#657188" stroke-width="1.4"></line>` +
+               `<text x="${px((xa + xb) / 2)}" y="${y - 9}" text-anchor="middle" font-size="12" font-weight="700" fill="#4b5566">${label}</text>`;
+      };
+      if (level === "resonant") {
+        for (let m = 0; m < n; m++) {
+          parts.push(bracket(m * segHalf, (m + 1) * segHalf, 64, n === 1 ? "λ/2 = L" : "λ/2"));
+        }
+        if (n >= 2) parts.push(bracket(0, 2 * segHalf, 38, `λ = ${K.wavelength(n).toFixed(2)} m`));
+        // nodes and antinodes
+        for (const x of K.nodePositions(n)) {
+          parts.push(`<circle cx="${px(x)}" cy="${Y_REST}" r="6" fill="#172033" stroke="#ffffff" stroke-width="2.5"></circle>`);
+        }
+        for (const x of K.antinodePositions(n)) {
+          const cx = px(x), cy = Y_REST, r = 7;
+          parts.push(`<rect x="${cx - r / 1.41}" y="${cy - r / 1.41}" width="${r * 1.414}" height="${r * 1.414}" transform="rotate(45 ${cx} ${cy})" fill="#d9f4f7" stroke="#08758a" stroke-width="2.2"></rect>`);
+        }
+        const firstNode = n >= 2 ? px(segHalf) : X1 - 4;
+        const anchorNode = n >= 2 ? "middle" : "end";
+        parts.push(`<text x="${firstNode}" y="88" text-anchor="${anchorNode}" font-size="12.5" font-weight="750" fill="#172033">● 波节</text>`);
+        parts.push(`<text x="${px(segHalf / 2)}" y="88" text-anchor="middle" font-size="12.5" font-weight="750" fill="#08758a">◇ 波腹</text>`);
+      }
+      els.markers.innerHTML = parts.join("");
+    }
+    function buildNodeVerticals(level, n) {
+      if (level !== "resonant") { els.nodeVerticals.innerHTML = ""; return; }
+      const parts = [];
+      for (let m = 1; m < n; m++) {
+        parts.push(`<line x1="${px((m * K.L) / n)}" y1="30" x2="${px((m * K.L) / n)}" y2="288"></line>`);
+      }
+      els.nodeVerticals.innerHTML = parts.join("");
+    }
+
+    /* ---------- lifecycle ---------- */
+    function init() {
+      buildRuler();
+      buildCurve();
+      bindControls();
+      setParameters({ frequency: 40, speed: 1, showDecomposition: true, showEnvelope: true });
+      start();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      els.status.textContent = "运行中";
+      els.startBtn.setAttribute("aria-pressed", "true");
+      render();
+    }
+    function pause() {
+      state.running = false;
+      els.startBtn.setAttribute("aria-pressed", "false");
+      render();
+    }
+    function reset() {
+      pause();
+      state.phi = 0;
+      state.t = 0;
+      setParameters({ frequency: 40, speed: 1, showDecomposition: true, showEnvelope: true });
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const bounded = clamp(finiteOr(dt, 0), 0, 0.05) * state.speed;
+      state.phi = finiteOr(state.phi + 2 * Math.PI * state.f * (bounded / SLOW), 0);
+      state.t = finiteOr(state.t + bounded, 0);
+    }
+    function render() {
+      const resp = K.modalResponse(state.f);
+      const rs = K.resonanceState(state.f);
+      const matched = rs.level === "resonant";
+
+      /* main string */
+      const pts = [];
+      for (let i = 0; i <= SAMPLES_STRING; i++) {
+        const x = (i / SAMPLES_STRING) * K.L;
+        pts.push(`${px(x).toFixed(1)},${py(K.sampleString(x, state.phi, resp)).toFixed(1)}`);
+      }
+      els.stringLine.setAttribute("points", pts.join(" "));
+
+      /* envelope */
+      els.envTop.style.display = els.envBottom.style.display = state.showEnvelope ? "" : "none";
+      if (state.showEnvelope) {
+        const top = [], bottom = [];
+        for (let i = 0; i <= 120; i++) {
+          const x = (i / 120) * K.L;
+          const e = K.envelopeAt(x, resp);
+          top.push(`${px(x).toFixed(1)},${py(e).toFixed(1)}`);
+          bottom.push(`${px(x).toFixed(1)},${py(-e).toFixed(1)}`);
+        }
+        els.envTop.setAttribute("points", top.join(" "));
+        els.envBottom.setAttribute("points", bottom.join(" "));
+      }
+
+      /* markers cache */
+      const key = `${rs.level}|${rs.n}|${state.showEnvelope}`;
+      if (key !== markerCacheKey) {
+        markerCacheKey = key;
+        buildMarkers(rs.level, rs.n);
+        buildNodeVerticals(rs.level, rs.n);
+      }
+
+      /* driver pin */
+      const pinY = Y_REST - 5 * Math.cos(state.phi);
+      els.driverPin.setAttribute("cy", pinY.toFixed(1));
+      els.driverLink.setAttribute("y1", pinY.toFixed(1));
+      els.driverFreq.textContent = `${state.f.toFixed(1)} Hz`;
+
+      /* traced particle: rides the string, moves only vertically */
+      const xTrace = matched ? K.antinodePositions(rs.n)[0] : 0.35;
+      const yTrace = K.sampleString(xTrace, state.phi, resp);
+      const envTrace = K.envelopeAt(xTrace, resp) * PX_PER_M_STRING;
+      const tx = px(xTrace), ty = py(yTrace);
+      els.traceDot.setAttribute("cx", tx.toFixed(1));
+      els.traceDot.setAttribute("cy", ty.toFixed(1));
+      els.traceGuide.setAttribute("x1", tx.toFixed(1));
+      els.traceGuide.setAttribute("x2", tx.toFixed(1));
+      els.traceGuide.setAttribute("y1", (Y_REST - envTrace - 12).toFixed(1));
+      els.traceGuide.setAttribute("y2", (Y_REST + envTrace + 12).toFixed(1));
+      const ax = Math.min(tx + 26, X1 - 6);
+      els.traceArrow.setAttribute("x1", ax.toFixed(1));
+      els.traceArrow.setAttribute("x2", ax.toFixed(1));
+      els.traceArrow.setAttribute("y1", (Y_REST - envTrace - 4).toFixed(1));
+      els.traceArrow.setAttribute("y2", (Y_REST + envTrace + 4).toFixed(1));
+      els.traceLabel.setAttribute("x", Math.min(tx, X1 - 60).toFixed(0));
+      els.traceLabel.setAttribute("y", (Y_REST + envTrace + 30).toFixed(1));
+
+      /* scene badge */
+      const badge = els.sceneBadge;
+      if (matched) {
+        badge.textContent = `共振 n=${rs.n}｜波腹 ${rs.n}｜波节 ${rs.n + 1}`;
+        badge.setAttribute("fill", "#08758a");
+      } else if (rs.level === "near") {
+        badge.textContent = `接近共振（n=${rs.n}）`;
+        badge.setAttribute("fill", "#a35d00");
+      } else {
+        badge.textContent = "未共振：无稳定花纹";
+        badge.setAttribute("fill", "#8a94a6");
+      }
+
+      /* decomposition rows */
+      els.decompWrap.hidden = !state.showDecomposition;
+      if (state.showDecomposition) {
+        const nStar = rs.n;
+        let half = resp.amps[nStar - 1] / 2;
+        const minHalf = 0.22 * (K.peakModalAmplitude() / 2);
+        const clamped = half < minHalf;
+        if (clamped) half = minHalf;
+        const rows = [els.waveRight, els.waveLeft, els.waveSum];
+        rows.forEach((el, rowIdx) => {
+          const row = rowIdx + 1;
+          const rPts = [];
+          for (let i = 0; i <= SAMPLES_ROW; i++) {
+            const x = (i / SAMPLES_ROW) * K.L;
+            rPts.push(`${rowPx(x).toFixed(1)},${rowPy(row, K.decomposeSample(row, x, state.phi, nStar, half)).toFixed(1)}`);
+          }
+          el.setAttribute("points", rPts.join(" "));
+        });
+        const ringX = nStar >= 2 ? px(K.L / nStar) : DECOMP_X0;
+        els.nodeRing.style.display = matched ? "" : "none";
+        els.nodeRingLabel.style.display = matched ? "" : "none";
+        els.nodeRing.setAttribute("cx", ringX.toFixed(1));
+        els.nodeRingLabel.setAttribute("x", Math.min(Math.max(ringX, 180), 640).toFixed(0));
+        els.decompNote.textContent = matched
+          ? `三行同一比例：向右的 y₁ 与向左的 y₂ 相加 = 驻波（当前 n=${nStar}）`
+          : `理想化示意（最接近的 n=${nStar}）${clamped ? "，行波幅度已放大显示" : ""}：两列等幅反向行波相加才形成驻波`;
+      }
+
+      /* resonance curve cursor */
+      const fToX = els.curveSvg.__fToX;
+      const cx = fToX(state.f);
+      let aSum = 0;
+      for (let i = 0; i < K.N_MODES; i++) aSum += resp.amps[i];
+      els.curveCursor.setAttribute("x1", cx.toFixed(1));
+      els.curveCursor.setAttribute("x2", cx.toFixed(1));
+      els.curveDot.setAttribute("cx", cx.toFixed(1));
+      els.curveDot.setAttribute("cy", (162 - (aSum / 2.6e-4) * (162 - 18)).toFixed(1));
+      els.curveLabel.textContent = `f = ${state.f.toFixed(1)} Hz`;
+
+      /* readouts */
+      els.freqReadout.textContent = `${state.f.toFixed(1)} Hz`;
+      els.freqOutput.textContent = `${state.f.toFixed(1)} Hz`;
+      const stateEl = els.stateReadout;
+      if (matched) {
+        stateEl.textContent = `共振 · n=${rs.n}`;
+        stateEl.className = "ok";
+      } else if (rs.level === "near") {
+        stateEl.textContent = `接近共振 · n=${rs.n}`;
+        stateEl.className = "warn";
+      } else {
+        stateEl.textContent = "未共振";
+        stateEl.className = "";
+      }
+      if (matched) {
+        const lambda = K.wavelength(rs.n);
+        const seg = lambda / 2;
+        els.lambdaReadout.textContent = `${lambda.toFixed(2)} m`;
+        els.segmentReadout.textContent = `${seg.toFixed(2)} m`;
+        els.antinodeReadout.textContent = `${rs.n}`;
+        els.nodeReadout.textContent = `${rs.n + 1}`;
+        els.relationReadout.textContent = `L = n·λ/2　→　${K.L.toFixed(2)} m = ${rs.n} × ${seg.toFixed(2)} m`;
+        els.relationReadout.className = "relation";
+      } else {
+        els.lambdaReadout.textContent = "—";
+        els.segmentReadout.textContent = "—";
+        els.antinodeReadout.textContent = "—";
+        els.nodeReadout.textContent = "—";
+        els.relationReadout.textContent = "未共振：λ 与波节/波腹关系不成立（先调到 20 Hz 整数倍）";
+        els.relationReadout.className = "relation off";
+      }
+
+      /* status pill */
+      const pill = els.status;
+      pill.className = "status" + (matched ? "" : rs.level === "near" ? " near" : " off");
+      const runText = state.running ? "运行中" : "已暂停";
+      pill.textContent = matched ? `${runText} · 共振 n=${rs.n}` : rs.level === "near" ? `${runText} · 接近共振` : `${runText} · 未共振`;
+
+      /* insight */
+      const fn = K.FN(rs.n);
+      if (matched && state.showDecomposition) {
+        els.insight.textContent = "看下方：蓝色 y₁ 向右跑、橙色 y₂ 向左跑，相加得到的驻波却原地起伏、节点定住——驻波不是往前跑的波。";
+      } else if (matched) {
+        els.insight.textContent = `共振锁定：f = ${state.f.toFixed(1)} Hz 恰好是 ${rs.n} 次谐波（fₙ = n×20 Hz）。弦稳定分成 ${rs.n} 段：波腹 ${rs.n} 个、波节 ${rs.n + 1} 个（含两端），λ = 2L/n = ${K.wavelength(rs.n).toFixed(2)} m。`;
+      } else if (rs.level === "near") {
+        els.insight.textContent = `接近共振：花纹已经出现，但节点还在游移。微调到 ${fn.toFixed(0)} Hz（n=${rs.n}）就能锁住。`;
+      } else if (!state.running && state.t === 0) {
+        els.insight.textContent = "已重置：按“开始”或直接调频。把 f 调到 20 Hz 的整数倍（20/40/60/80/100 Hz）试试。";
+      } else {
+        els.insight.textContent = `f = ${state.f.toFixed(1)} Hz 不在谐波频率上：来回反射的波无法同相增强，弦上找不到不动的点。`;
+      }
+
+      /* control active states */
+      document.querySelectorAll(".harmony-btn").forEach((b) => {
+        b.classList.toggle("active", matched && Number(b.dataset.n) === rs.n);
+      });
+      document.querySelectorAll(".speed-btn").forEach((b) => {
+        b.classList.toggle("active", Number(b.dataset.speed) === state.speed);
+      });
+      els.decompToggle.textContent = `叠加分解 · ${state.showDecomposition ? "开" : "关"}`;
+      els.decompToggle.setAttribute("aria-pressed", String(state.showDecomposition));
+      els.envelopeToggle.textContent = `包络 · ${state.showEnvelope ? "开" : "关"}`;
+      els.envelopeToggle.setAttribute("aria-pressed", String(state.showEnvelope));
+    }
+
+    function setParameters(values) {
+      const fd = parameterSchema[0];
+      const f = Number(values.frequency);
+      if (Number.isFinite(f)) state.f = clamp(Math.round(f * 2) / 2, fd.min, fd.max);
+      const sp = Number(values.speed);
+      if (Number.isFinite(sp)) state.speed = clamp(sp, 0.5, 2);
+      if (typeof values.showDecomposition === "boolean") state.showDecomposition = values.showDecomposition;
+      if (typeof values.showEnvelope === "boolean") state.showEnvelope = values.showEnvelope;
+      if (state.phi === null || !Number.isFinite(state.phi)) state.phi = 0;
+      els.freqInput.value = String(state.f);
+      render();
+    }
+    function getState() {
+      return { running: state.running, f: state.f, phi: state.phi, t: state.t, speed: state.speed,
+        showDecomposition: state.showDecomposition, showEnvelope: state.showEnvelope,
+        resonance: K.resonanceState(state.f) };
+    }
+    function getReadouts() {
+      const rs = K.resonanceState(state.f);
+      const matched = rs.level === "resonant";
+      return {
+        frequency: state.f,
+        level: rs.level,
+        modeN: matched ? rs.n : null,
+        wavelength: matched ? K.wavelength(rs.n) : null,
+        antinodes: matched ? rs.n : null,
+        nodes: matched ? rs.n + 1 : null,
+        segmentLength: matched ? K.L / rs.n : null
+      };
+    }
+
+    /* ---------- controls ---------- */
+    function bindControls() {
+      els.startBtn.addEventListener("click", () => start());
+      els.pauseBtn.addEventListener("click", () => pause());
+      els.resetBtn.addEventListener("click", () => reset());
+      els.freqInput.addEventListener("input", () => setParameters({ frequency: els.freqInput.value }));
+      document.querySelectorAll(".harmony-btn").forEach((btn) => {
+        btn.addEventListener("click", () => setParameters({ frequency: K.FN(Number(btn.dataset.n)) }));
+      });
+      document.querySelectorAll(".speed-btn").forEach((btn) => {
+        btn.addEventListener("click", () => setParameters({ speed: Number(btn.dataset.speed) }));
+      });
+      els.decompToggle.addEventListener("click", () => setParameters({ showDecomposition: !state.showDecomposition }));
+      els.envelopeToggle.addEventListener("click", () => setParameters({ showEnvelope: !state.showEnvelope }));
+
+      const svg = els.curveSvg;
+      const applyPointer = (evt) => {
+        const rect = svg.getBoundingClientRect();
+        const xView = ((evt.clientX - rect.left) / rect.width) * 340;
+        setParameters({ frequency: clamp(svg.__xToF(xView), 10, 110) });
+      };
+      svg.addEventListener("pointerdown", (evt) => {
+        svg.setPointerCapture(evt.pointerId);
+        applyPointer(evt);
+      });
+      svg.addEventListener("pointermove", (evt) => {
+        if (evt.pressure > 0 || evt.buttons > 0) applyPointer(evt);
+      });
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = (ts - state.lastTs) / 1000;
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks: K.runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>一维碰撞演示：弹性 · 非弹性 · 完全非弹性</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#131c2e; --card2:#0f1727; --line:#24334d;
+    --text:#e9effc; --muted:#93a7cc;
+    --red:#ff6b6b; --blue:#4dabf7; --teal:#2dd4bf; --amber:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+    background:radial-gradient(1100px 500px at 15% -10%,#182742 0%,var(--bg) 55%) fixed;
+    color:var(--text); min-height:100vh; padding:22px 14px 46px;
+  }
+  .wrap{max-width:1060px;margin:0 auto}
+  header{text-align:center;margin-bottom:16px}
+  header h1{font-size:clamp(20px,3.4vw,27px);letter-spacing:.5px}
+  header p{color:var(--muted);margin-top:6px;font-size:14px}
+
+  .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+        border-radius:16px;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h2{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h2::before{content:'';width:4px;height:16px;border-radius:2px;background:linear-gradient(180deg,var(--teal),#0ea5e9)}
+  .stage{margin-bottom:14px}
+  canvas{display:block;width:100%;height:auto;border-radius:12px;
+         background:linear-gradient(180deg,#0d1526 0%,#0a1120 100%)}
+
+  /* 画布下方实时读数 */
+  .stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .stat{background:#0d1626;border:1px solid var(--line);border-radius:10px;padding:6px 10px;
+        font-size:12.5px;color:var(--muted)}
+  .stat b{color:var(--text);font-variant-numeric:tabular-nums;margin-left:6px}
+  .dotA{color:var(--red)} .dotB{color:var(--blue)}
+  .note{font-size:12.5px;color:var(--muted);line-height:1.75;margin-top:10px}
+  .note.warn{color:#ffd166}
+
+  /* 参数区 */
+  .grid{display:grid;grid-template-columns:350px 1fr;gap:14px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .ctl{display:grid;grid-template-columns:88px 1fr 76px;gap:10px;align-items:center;margin:11px 0}
+  .ctl label{font-size:13px;color:var(--muted)}
+  .ctl .val{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text)}
+  input[type=range]{width:100%;accent-color:#2dd4bf;cursor:pointer}
+  input[type=checkbox]{accent-color:#2dd4bf;cursor:pointer}
+
+  .chipE{display:inline-block;font-size:12px;padding:3px 10px;border-radius:99px;margin-top:2px;
+         border:1px solid;font-weight:600}
+  .chipE.ok{color:var(--teal);border-color:rgba(45,212,191,.5);background:rgba(45,212,191,.08)}
+  .chipE.mid{color:var(--amber);border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.08)}
+  .chipE.zero{color:var(--red);border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.08)}
+
+  .rowopt{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;font-size:13px;color:var(--muted)}
+  .segs{display:flex;gap:6px}
+  .segs button{cursor:pointer;font-family:inherit;font-size:12.5px;padding:5px 11px;border-radius:8px;
+               border:1px solid var(--line);background:#182339;color:var(--text)}
+  .segs button.on{background:linear-gradient(135deg,#2dd4bf,#0ea5e9);color:#05202b;font-weight:700;border-color:transparent}
+
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .chip{background:#182339;border:1px solid var(--line);color:var(--text);border-radius:99px;
+        padding:6px 13px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .chip:hover{border-color:var(--teal);color:var(--teal)}
+
+  .actions{display:flex;gap:10px;margin-top:14px}
+  .btn{cursor:pointer;border:none;border-radius:10px;padding:10px 18px;font-size:14px;font-family:inherit;font-weight:700}
+  .btn.primary{flex:1;background:linear-gradient(135deg,#2dd4bf,#0ea5e9);color:#04222b}
+  .btn.ghost{background:#1a2438;color:var(--text);border:1px solid var(--line)}
+  .btn:hover{filter:brightness(1.12)}
+
+  /* 数据表 */
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  th,td{padding:7px 10px;border-bottom:1px solid #1d2a42;font-variant-numeric:tabular-nums}
+  thead th{color:var(--muted);font-weight:600;font-size:12.5px}
+  tbody th{text-align:left;color:var(--muted);font-weight:400}
+  tbody td{text-align:right}
+  td:last-child{font-weight:600;background:rgba(255,255,255,.03)}
+  tr.hl td{background:rgba(45,212,191,.055)}
+  tr.delta th,tr.delta td{color:var(--amber)}
+  tr.delta td:last-child{background:rgba(251,191,36,.06)}
+  .empty{color:var(--muted);text-align:center !important;padding:20px 8px;font-size:13px}
+
+  #summary{padding:11px 13px;border-radius:10px;font-size:13.5px;line-height:1.85;
+           background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.25)}
+  #summary div{margin:1px 0}
+
+  /* 对比条形图 */
+  .bars{display:grid;gap:14px;margin-top:16px}
+  .btitle{font-size:13px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .tag{font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid}
+  .tag.t1{color:var(--teal);border-color:rgba(45,212,191,.45)}
+  .tag.t2{color:var(--amber);border-color:rgba(251,191,36,.45)}
+  .bline{display:grid;grid-template-columns:36px 1fr 88px;gap:10px;align-items:center;margin:5px 0}
+  .blab{font-size:12px;color:var(--muted)}
+  .zone{position:relative;height:18px;background:#0d1626;border:1px solid var(--line);
+        border-radius:6px;overflow:hidden}
+  .zone i{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:4px;
+          background:linear-gradient(90deg,#34d399,#2dd4bf);transition:width .35s,background .35s}
+  .zone.signed::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:#3b4d6b}
+  .zone i.neg{left:auto;right:0;background:linear-gradient(270deg,#f87171,#ef4444)}
+  .zone.ke i{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+  .bval{font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+
+  footer.card{margin-top:14px;font-size:13px;color:var(--muted);line-height:2}
+  footer.card b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>⚗️ 一维碰撞演示台</h1>
+    <p>调节质量、初速度与恢复系数 e —— 观察弹性 / 非弹性 / 完全非弹性碰撞中动量与动能的守恒与损失</p>
+  </header>
+
+  <!-- 舞台：轨道 + 小球 -->
+  <section class="card stage">
+    <canvas id="cv" width="1000" height="300"></canvas>
+    <div class="stats">
+      <span class="stat">状态<b id="stState">○ 待开始</b></span>
+      <span class="stat">时间<b id="stT">0.0 s</b></span>
+      <span class="stat"><span class="dotA">●</span> vA<b id="stVA">0.00 m/s</b></span>
+      <span class="stat"><span class="dotB">●</span> vB<b id="stVB">0.00 m/s</b></span>
+      <span class="stat">总动量 p<b id="stP">0.00</b></span>
+      <span class="stat">总动能 Ek<b id="stEk">0.00 J</b></span>
+      <span class="stat">碰撞次数<b id="stN">0</b></span>
+    </div>
+    <p class="note" id="hint"></p>
+    <p class="note">※ 上方箭头为速度矢量（长度∝速度大小）。表格与结论针对<b>两球之间的碰撞</b>：该过程动量守恒；小球撞到左右挡板时挡板施加外力冲量，会使总动量改变。「慢放」只改变演示快慢，不改变物理数值。</p>
+  </section>
+
+  <div class="grid">
+    <!-- 左：参数控制 -->
+    <section class="card">
+      <h2>参数设置</h2>
+      <div class="ctl"><label>红球质量</label><input type="range" id="inMA" min="0.5" max="5" step="0.1" value="1"><span class="val" id="labMA"></span></div>
+      <div class="ctl"><label>蓝球质量</label><input type="range" id="inMB" min="0.5" max="5" step="0.1" value="1"><span class="val" id="labMB"></span></div>
+      <div class="ctl"><label>红球初速</label><input type="range" id="inVA" min="-5" max="5" step="0.1" value="2"><span class="val" id="labVA"></span></div>
+      <div class="ctl"><label>蓝球初速</label><input type="range" id="inVB" min="-5" max="5" step="0.1" value="0"><span class="val" id="labVB"></span></div>
+      <div class="ctl"><label>恢复系数 e</label><input type="range" id="inE" min="0" max="1" step="0.01" value="1" list="eTicks">
+        <datalist id="eTicks"><option value="0" label="0"></option><option value="0.5"></option><option value="1"></option></datalist>
+        <span class="val" id="labE"></span></div>
+      <span class="chipE ok" id="eChip"></span>
+
+      <div class="rowopt">
+        <span>演示速度</span>
+        <div class="segs">
+          <button class="spd" data-s="0.25">0.25×</button>
+          <button class="spd" data-s="0.5">0.5×</button>
+          <button class="spd on" data-s="1">1×</button>
+        </div>
+        <label style="cursor:pointer"><input type="checkbox" id="inSound" checked> 碰撞音效</label>
+      </div>
+
+      <div class="presets" id="presets"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="btnRun">▶ 开始演示</button>
+        <button class="btn ghost" id="btnReset">↺ 复位</button>
+      </div>
+      <p class="note">提示：修改任意参数会自动复位。快捷键：空格 = 开始/暂停，R = 复位。</p>
+    </section>
+
+    <!-- 右：数据对比 -->
+    <section class="card">
+      <h2 id="collTitle">碰撞数据对比</h2>
+      <div id="summary"></div>
+      <table>
+        <thead><tr><th></th><th><span class="dotA">●</span> 小球 A（红）</th><th><span class="dotB">●</span> 小球 B（蓝）</th><th>系统总计</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <div class="bars">
+        <div class="bgroup">
+          <div class="btitle">总动量 p（kg·m/s）<span class="tag t1">碰撞前后守恒</span></div>
+          <div class="bline"><span class="blab">碰前</span><div class="zone signed"><i id="pBarPre"></i></div><span class="bval" id="pValPre">—</span></div>
+          <div class="bline"><span class="blab">碰后</span><div class="zone signed"><i id="pBarPost"></i></div><span class="bval" id="pValPost">—</span></div>
+        </div>
+        <div class="bgroup">
+          <div class="btitle">总动能 Ek（J）<span class="tag t2">非弹性时损失</span></div>
+          <div class="bline"><span class="blab">碰前</span><div class="zone ke"><i id="kBarPre"></i></div><span class="bval" id="kValPre">—</span></div>
+          <div class="bline"><span class="blab">碰后</span><div class="zone ke"><i id="kBarPost"></i></div><span class="bval" id="kValPost">—</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="card">
+    <b>📖 背后的公式</b><br>
+    v₁′ = [ (m₁ − e·m₂)v₁ + (1+e)m₂v₂ ] ÷ (m₁+m₂)　　v₂′ = [ (1+e)m₁v₁ + (m₂ − e·m₁)v₂ ] ÷ (m₁+m₂)<br>
+    e = 分离速度 ÷ 接近速度 = |v₂′ − v₁′| ÷ |v₁ − v₂|（由材料与结构决定，0 ≤ e ≤ 1）<br>
+    <b>e = 1</b> 弹性碰撞：动量守恒、动能守恒　｜　<b>0 &lt; e &lt; 1</b> 非弹性碰撞：动量守恒、动能部分损失　｜　<b>e = 0</b> 完全非弹性碰撞：碰后合为一体共同运动，动能损失最大
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ================= 常量与画布 ================= */
+const W=1000, H=300, L=12, MARGIN=26;          // 逻辑画布 / 轨道长（米）
+const TRACK_Y=235, ARROW_Y=150, PHYS_DT=1/480; // 轨道纵坐标 / 箭头纵坐标 / 物理步长
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+function sizeCanvas(){
+  const d=window.devicePixelRatio||1;
+  cv.width=W*d; cv.height=H*d; ctx.setTransform(d,0,0,d,0,0);
+}
+sizeCanvas(); window.addEventListener('resize',sizeCanvas);
+
+const pxPerM=(W-2*MARGIN)/L;
+const px=x=>MARGIN+x*pxPerM;
+const radiusOf=m=>0.22*Math.cbrt(m);            // 半径 ∝ 质量^(1/3)
+const COLORS={A:{c1:'#ff8787',c2:'#c92a2a',main:'#ff6b6b'},
+              B:{c1:'#74c0fc',c2:'#1864ab',main:'#4dabf7'}};
+
+/* ================= 工具 ================= */
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function fmt(x,d=2){ const r=Math.abs(x)<0.005?0:x; return r.toFixed(d); }
+function typeName(e){ return e>=0.999?'弹性碰撞':(e<=0.001?'完全非弹性碰撞':'非弹性碰撞'); }
+
+/* ================= 状态 ================= */
+const params={mA:1,mB:1,vA:2,vB:0,e:1,speed:1,sound:true};
+let balls=[], running=false, simTime=0, collN=0, collData=null;
+let flashes=[], trails=[[],[]], acc=0, audioCtx=null;
+
+const IN={mA:$('inMA'),mB:$('inMB'),vA:$('inVA'),vB:$('inVB'),e:$('inE')};
+const LAB={mA:$('labMA'),mB:$('labMB'),vA:$('labVA'),vB:$('labVB'),e:$('labE')};
+
+function readInputs(){
+  for(const k in IN) params[k]=+IN[k].value;
+}
+function syncLabels(){
+  LAB.mA.textContent=params.mA.toFixed(1)+' kg';
+  LAB.mB.textContent=params.mB.toFixed(1)+' kg';
+  LAB.vA.textContent=(params.vA>0?'+':'')+params.vA.toFixed(1)+' m/s';
+  LAB.vB.textContent=(params.vB>0?'+':'')+params.vB.toFixed(1)+' m/s';
+  LAB.e.textContent=(+params.e).toFixed(2);
+  const chip=$('eChip'), e=+params.e;
+  chip.textContent='当前：'+typeName(e);
+  chip.className='chipE '+(e>=0.999?'ok':(e<=0.001?'zero':'mid'));
+}
+function updateHint(){
+  const h=$('hint');
+  if(params.vA<=params.vB){
+    h.className='note warn';
+    h.textContent='⚠ 当前 vA ≤ vB：两球不会迎面相撞（可能要先经挡板反弹才会相遇）。建议设置 vA > vB，碰撞数据更直观。';
+  }else{ h.className='note'; h.textContent=''; }
+}
+
+/* ================= 物理 ================= */
+function resetSim(){
+  balls=[
+    {m:params.mA, r:radiusOf(params.mA), x:L*0.28, v:params.vA},
+    {m:params.mB, r:radiusOf(params.mB), x:L*0.72, v:params.vB}
+  ];
+  running=false; simTime=0; collN=0; collData=null; flashes=[]; trails=[[],[]]; acc=0;
+  $('btnRun').textContent='▶ 开始演示';
+  updateHint();
+}
+
+function resolve(A,B,e){                         // 一维碰撞（恢复系数法）
+  const m1=A.m,m2=B.m,v1=A.v,v2=B.v,M=m1+m2;
+  A.v=((m1-e*m2)*v1+(1+e)*m2*v2)/M;
+  B.v=((1+e)*m1*v1+(m2-e*m1)*v2)/M;
+}
+
+function stepPhysics(dt){
+  const A=balls[0], B=balls[1];
+  A.x+=A.v*dt; B.x+=B.v*dt;
+  // 弹性挡板
+  for(const b of balls){
+    if(b.x-b.r<0 && b.v<0){ b.x=b.r; b.v=-b.v; addFlash(0.25,0.15); }
+    if(b.x+b.r>L && b.v>0){ b.x=L-b.r; b.v=-b.v; addFlash(0.25,L-0.15); }
+  }
+  // 两球碰撞
+  const gap=(B.x-A.x)-(A.r+B.r);
+  if(gap<=0 && (A.v-B.v)>1e-9){
+    const pre ={vA:A.v,vB:B.v,pA:A.m*A.v,pB:B.m*B.v,kA:.5*A.m*A.v*A.v,kB:.5*B.m*B.v*B.v};
+    resolve(A,B,params.e);
+    const post={vA:A.v,vB:B.v,pA:A.m*A.v,pB:B.m*B.v,kA:.5*A.m*A.v*A.v,kB:.5*B.m*B.v*B.v};
+    const ov=(A.r+B.r)-(B.x-A.x);               // 去除重叠
+    if(ov>0){ A.x-=ov/2; B.x+=ov/2; }
+    A.x=clamp(A.x,A.r,L-A.r); B.x=clamp(B.x,B.r,L-B.r);
+    collN++; collData={n:collN,pre,post};
+    addFlash(1,(A.x+A.r+B.x-B.r)/2);
+    ping(clamp(Math.abs(pre.vA-pre.vB)/6,.25,1));
+    updateDataUI();
+  }
+  simTime+=dt;
+}
+
+function simulate(dtReal){
+  acc+=Math.min(dtReal,0.05)*params.speed;
+  let guard=0;
+  while(acc>=PHYS_DT && guard++<4000){ stepPhysics(PHYS_DT); acc-=PHYS_DT; }
+}
+
+/* ================= 音效 ================= */
+function ensureAudio(){
+  if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+}
+function ping(strength){
+  if(!params.sound || !audioCtx) return;
+  const t=audioCtx.currentTime, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(660,t);
+  o.frequency.exponentialRampToValueAtTime(180,t+0.08);
+  g.gain.setValueAtTime(0.12*strength,t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+  o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t+0.18);
+}
+
+/* ================= 绘制 ================= */
+function addFlash(s,xM){ flashes.push({x:px(xM),age:0,s}); }
+
+function drawWall(x0,x1){
+  const g=ctx.createLinearGradient(x0,0,x1,0);
+  g.addColorStop(0,'#3a4f74'); g.addColorStop(1,'#1d2c47');
+  ctx.fillStyle=g; ctx.fillRect(x0,TRACK_Y-72,x1-x0,80);
+  ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+  for(let y=TRACK_Y-70;y<TRACK_Y+6;y+=8){
+    ctx.beginPath(); ctx.moveTo(x0,y+6); ctx.lineTo(x1,y); ctx.stroke();
+  }
+}
+function drawTrail(tr,main){
+  for(let i=0;i<tr.length;i++){
+    ctx.globalAlpha=(i/tr.length)*0.28; ctx.fillStyle=main;
+    ctx.beginPath(); ctx.arc(px(tr[i]),TRACK_Y-8,3,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function drawArrow(x,y,len,color,label){
+  if(Math.abs(len)>4){
+    const dir=Math.sign(len), hl=9, tip=x+dir*Math.abs(len), x1=x+dir*Math.max(Math.abs(len)-hl,2);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x1,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tip,y); ctx.lineTo(tip-dir*hl,y-5); ctx.lineTo(tip-dir*hl,y+5); ctx.closePath(); ctx.fill();
+  }
+  ctx.font='12px system-ui'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle=color; ctx.fillText(label,x,y-10);
+}
+function drawBall(i){
+  const b=balls[i], c=COLORS[i?'B':'A'];
+  const x=px(b.x), rp=b.r*pxPerM, y=TRACK_Y-rp;
+  ctx.fillStyle='rgba(0,0,0,.35)';                                   // 阴影
+  ctx.beginPath(); ctx.ellipse(x,TRACK_Y+4,rp*.85,4,0,0,7); ctx.fill();
+  const g=ctx.createRadialGradient(x-rp*.35,y-rp*.45,rp*.12,x,y,rp); // 球体
+  g.addColorStop(0,c.c1); g.addColorStop(1,c.c2);
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,rp,0,7); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.35)';                             // 高光
+  ctx.beginPath(); ctx.ellipse(x-rp*.35,y-rp*.45,rp*.22,rp*.13,-.6,0,7); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='bold '+Math.round(clamp(rp*.55,10,17))+'px system-ui';
+  ctx.fillText(b.m.toFixed(1)+(rp>22?' kg':''),x,y);
+  drawArrow(x,ARROW_Y,b.v*26,c.main,(i?'vB':'vA')+' = '+fmt(b.v)+' m/s');
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 轨道 + 米尺
+  ctx.strokeStyle='#2c3d5c'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(px(0),TRACK_Y); ctx.lineTo(px(L),TRACK_Y); ctx.stroke();
+  ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  for(let m=0;m<=L;m++){
+    const x=px(m), big=m%2===0;
+    ctx.strokeStyle='#33476b'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,TRACK_Y+3); ctx.lineTo(x,TRACK_Y+(big?11:7)); ctx.stroke();
+    if(big){ ctx.fillStyle='#7f93b8'; ctx.fillText(m+' m',x,TRACK_Y+26); }
+  }
+  drawWall(px(0)-11,px(0)-2); drawWall(px(L)+2,px(L)+11);
+  // 轨迹 / 闪光
+  drawTrail(trails[0],COLORS.A.main); drawTrail(trails[1],COLORS.B.main);
+  for(const f of flashes){
+    const t=f.age/0.5;
+    ctx.globalAlpha=(1-t)*0.8*f.s;
+    ctx.strokeStyle='#ffd166'; ctx.lineWidth=3-2*t;
+    ctx.beginPath(); ctx.arc(f.x,TRACK_Y-24,(10+t*110)*Math.max(f.s,.3),0,7); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  // 小球与箭头
+  drawBall(0); drawBall(1);
+  // 完全非弹性：粘合提示
+  const A=balls[0],B=balls[1];
+  if(collN>0 && Math.abs(A.v-B.v)<1e-6 && (B.x-A.x)-(A.r+B.r)<0.003){
+    const cx=px((A.x+B.x)/2), y=TRACK_Y-(A.r+B.r)/2*pxPerM;
+    if(px(B.x-B.r)>px(A.x+A.r)){
+      ctx.fillStyle='#8fa3c8';
+      ctx.fillRect(px(A.x+A.r)-2,y-4,px(B.x-B.r)-px(A.x+A.r)+4,8);
+    }
+    ctx.fillStyle='#9fb3d9'; ctx.font='12px system-ui'; ctx.textAlign='center';
+    ctx.fillText('🔒 已粘合 · 共同运动',cx,112);
+  }
+}
+
+/* ================= UI 更新 ================= */
+function updateLive(){
+  const A=balls[0],B=balls[1];
+  $('stVA').textContent=fmt(A.v)+' m/s'; $('stVB').textContent=fmt(B.v)+' m/s';
+  $('stP').textContent=fmt(A.m*A.v+B.m*B.v)+' kg·m/s';
+  $('stEk').textContent=fmt(.5*A.m*A.v*A.v+.5*B.m*B.v*B.v)+' J';
+  $('stT').textContent=simTime.toFixed(1)+' s';
+  $('stN').textContent=collN;
+  $('stState').textContent=running?'● 运行中':(simTime>0?'❚❚ 已暂停':'○ 待开始');
+}
+
+function setSignedBar(el,v,maxAbs){
+  el.style.width=Math.min(Math.abs(v)/maxAbs*50,50)+'%';
+  el.classList.toggle('neg',v<-0.005);
+}
+function setBars(d){
+  if(!d){
+    ['pBarPre','pBarPost','kBarPre','kBarPost'].forEach(id=>$(id).style.width='0');
+    ['pValPre','pValPost','kValPre','kValPost'].forEach(id=>$(id).textContent='—');
+    return;
+  }
+  const mP=Math.max(Math.abs(d.pPre),Math.abs(d.pPost),0.5);
+  const mK=Math.max(d.kPre,d.kPost,0.5);
+  setSignedBar($('pBarPre'),d.pPre,mP);  setSignedBar($('pBarPost'),d.pPost,mP);
+  $('pValPre').textContent=fmt(d.pPre);  $('pValPost').textContent=fmt(d.pPost);
+  $('kBarPre').style.width=Math.min(d.kPre/mK*100,100)+'%';
+  $('kBarPost').style.width=Math.min(d.kPost/mK*100,100)+'%';
+  $('kValPre').textContent=fmt(d.kPre)+' J'; $('kValPost').textContent=fmt(d.kPost)+' J';
+}
+
+function setSummaryPlanned(){
+  const e=+params.e, t=typeName(e);
+  let extra='';
+  if(e<=0.001)      extra='两球碰后会<b>粘合为一体</b>，以共同速度运动，动能损失最大。';
+  else if(e>=0.999) extra='碰撞过程<b>动量守恒、动能守恒</b>，能量不损失。';
+  else              extra='碰撞过程<b>动量守恒，动能部分损失</b>（转化为内能：形变、热、声音）。';
+  $('summary').innerHTML='尚未碰撞 ｜ 当前设置 e = '+e.toFixed(2)+'（<b>'+t+'</b>）。'+extra+
+    '<br>点击「开始」后，两球相撞时将自动记录并对比碰前 / 碰后的动量与动能。';
+}
+
+function updateDataUI(){
+  const tb=$('tbody'), title=$('collTitle');
+  if(!collData){
+    title.textContent='碰撞数据对比（尚未碰撞）';
+    tb.innerHTML='<tr><td colspan="4" class="empty">调整左侧参数，点击「开始」——两球相撞后，这里会显示碰前 / 碰后的动量与动能对比。</td></tr>';
+    setBars(null); setSummaryPlanned(); return;
+  }
+  const {pre,post}=collData, d=collData;
+  const pPre=pre.pA+pre.pB, pPost=post.pA+post.pB;
+  const kPre=pre.kA+pre.kB, kPost=post.kA+post.kB;
+  const dp=pPost-pPre, dk=kPost-kPre;
+  title.textContent='碰撞数据对比（第 '+d.n+' 次碰撞）';
+  const row=(l,a,b,t,cls)=>'<tr class="'+(cls||'')+'"><th>'+l+'</th><td>'+a+'</td><td>'+b+'</td><td>'+t+'</td></tr>';
+  tb.innerHTML=
+    row('碰前速度 v（m/s）',   fmt(pre.vA),  fmt(pre.vB),  '—')+
+    row('碰后速度 v′（m/s）',  fmt(post.vA), fmt(post.vB), '—','hl')+
+    row('碰前动量 p（kg·m/s）',fmt(pre.pA),  fmt(pre.pB),  fmt(pPre))+
+    row('碰后动量 p′（kg·m/s）',fmt(post.pA),fmt(post.pB), fmt(pPost),'hl')+
+    row('碰前动能 Ek（J）',    fmt(pre.kA),  fmt(pre.kB),  fmt(kPre))+
+    row('碰后动能 Ek′（J）',   fmt(post.kA), fmt(post.kB), fmt(kPost),'hl')+
+    row('Δ 动量（kg·m/s）',    fmt(post.pA-pre.pA), fmt(post.pB-pre.pB), '<b>'+fmt(dp)+'</b>','delta')+
+    row('Δ 动能（J）',         fmt(post.kA-pre.kA), fmt(post.kB-pre.kB), '<b>'+fmt(dk)+'</b>','delta');
+  setBars({pPre,pPost,kPre,kPost});
+
+  // 结论
+  const e=+params.e;
+  const rel=Math.abs(pre.vA-pre.vB), sep=Math.abs(post.vB-post.vA);
+  const eAct=rel>1e-9?sep/rel:0, loss=-dk;
+  const pct=kPre>1e-9?(loss/kPre*100).toFixed(1):'0.0';
+  let html='<div>✅ <b>动量守恒</b>：'+fmt(pPre)+' → '+fmt(pPost)+' kg·m/s（Δp = '+fmt(dp)+'）</div>';
+  if(loss>0.005)
+    html+='<div>⚡ <b>动能损失</b>：'+fmt(kPre)+' J → '+fmt(kPost)+' J，损失 '+fmt(loss)+' J（'+pct+'%），转化为内能（形变、热、声）</div>';
+  else
+    html+='<div>⚡ <b>动能守恒</b>：'+fmt(kPre)+' J → '+fmt(kPost)+' J（ΔEk = '+fmt(dk)+' J）</div>';
+  html+='<div>🔎 检验恢复系数：分离速度 '+sep.toFixed(2)+' ÷ 接近速度 '+rel.toFixed(2)+' = '+fmt(eAct)+'（设定 e = '+e.toFixed(2)+'）</div>';
+  const t=typeName(e);
+  if(e<=0.001)     html+='<div>🧲 <b>'+t+'</b>：两球合为一体，以共同速度 v = '+fmt(post.vA)+' m/s 运动（动能损失最大）</div>';
+  else if(e>=0.999)html+='<div>🎱 <b>'+t+'</b>：动量与动能都守恒</div>';
+  else             html+='<div>💫 <b>'+t+'</b>：动量守恒，动能部分损失</div>';
+  $('summary').innerHTML=html;
+}
+
+/* ================= 预设场景 ================= */
+const PRESETS=[
+  {label:'弹性 · 等质量换速',  p:{mA:1,mB:1,vA:2, vB:0,   e:1}},
+  {label:'弹性 · 重碰轻',      p:{mA:3,mB:1,vA:2, vB:0,   e:1}},
+  {label:'非弹性 e=0.5',       p:{mA:2,mB:1,vA:3, vB:0,   e:0.5}},
+  {label:'完全非弹性 e=0',     p:{mA:2,mB:1,vA:3, vB:0,   e:0}},
+  {label:'对向 · 碰后合体静止',p:{mA:1,mB:1,vA:2, vB:-2,  e:0}},
+  {label:'对向 · 弹性反弹',    p:{mA:1,mB:2,vA:3, vB:-1.5,e:1}}
+];
+PRESETS.forEach(pr=>{
+  const b=document.createElement('button');
+  b.className='chip'; b.type='button'; b.textContent=pr.label;
+  b.onclick=()=>{
+    for(const k of ['mA','mB','vA','vB','e']){ params[k]=pr.p[k]; IN[k].value=pr.p[k]; }
+    syncLabels(); resetSim(); updateDataUI();
+  };
+  $('presets').appendChild(b);
+});
+
+/* ================= 事件 ================= */
+for(const k in IN){
+  IN[k].addEventListener('input',()=>{ readInputs(); syncLabels(); resetSim(); updateDataUI(); });
+}
+$('btnRun').onclick=()=>{
+  ensureAudio();
+  running=!running;
+  $('btnRun').textContent=running?'⏸ 暂停':(simTime>0?'▶ 继续':'▶ 开始演示');
+};
+$('btnReset').onclick=()=>{ resetSim(); updateDataUI(); };
+document.querySelectorAll('.spd').forEach(b=>{
+  b.onclick=()=>{
+    params.speed=+b.dataset.s;
+    document.querySelectorAll('.spd').forEach(x=>x.classList.toggle('on',x===b));
+  };
+});
+$('inSound').onchange=e=>params.sound=e.target.checked;
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON') return;
+  if(e.code==='Space'){ e.preventDefault(); $('btnRun').click(); }
+  if(e.key==='r'||e.key==='R'){ $('btnReset').click(); }
+});
+
+/* ================= 主循环 ================= */
+let lastT=performance.now();
+function frame(now){
+  const dtr=Math.min((now-lastT)/1000,0.06); lastT=now;
+  if(running){
+    simulate(dtr);
+    trails[0].push(balls[0].x); trails[1].push(balls[1].x);
+    if(trails[0].length>90) trails[0].shift();
+    if(trails[1].length>90) trails[1].shift();
+  }
+  for(const f of flashes) f.age+=dtr;
+  flashes=flashes.filter(f=>f.age<0.5);
+  draw(); updateLive();
+  requestAnimationFrame(frame);
+}
+
+/* ================= 初始化 ================= */
+readInputs(); syncLabels(); resetSim(); updateDataUI();
+requestAnimationFrame(t=>{ lastT=t; frame(t); });
+})();
+</script>
+</body>
+</html>

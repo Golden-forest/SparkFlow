@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RC放电测电容：半衰期法与 lnU–t 直线化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* subject-specific semantic colors (extend the base set) */
+      --sim-charge: #0e9cb8;
+      --sim-discharge: #d97706;
+      --sim-wire: #2f3542;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(14, 156, 184, 0.10), transparent 26%),
+        radial-gradient(circle at 94% 4%, rgba(217, 119, 6, 0.08), transparent 24%),
+        var(--sim-bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+    }
+    button, input, table { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.35); outline-offset: 2px; }
+    .app { width: min(1600px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 50px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.4rem, 2.1vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.05; font-weight: 780; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+    .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 9px 15px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 760; white-space: nowrap; font-size: 0.92rem; }
+    .status.charging { background: rgba(14,156,184,.14); color: #07677b; }
+    .status.discharging { background: rgba(217,119,6,.14); color: #9a5405; }
+    .status.done { background: #e8f6ee; color: #106b43; border-color: #bfe4d0; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(340px, 0.88fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.2); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .stage-panel { min-height: 420px; padding: 12px 14px 8px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 1.02rem; font-weight: 760; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border-radius: var(--sim-radius-md); background: linear-gradient(150deg, #fbfdff 0%, #f1f8fa 55%, #fdf8ef 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto auto; gap: 12px; }
+    .side-note { display: grid; gap: 8px; align-content: start; }
+    .chart-card { padding: 10px 12px 8px; min-height: 170px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px; }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .chart-title h3 { margin: 0; font-size: 0.95rem; font-weight: 750; }
+    .chart-title span { font-size: 0.72rem; color: var(--sim-muted); }
+    canvas { width: 100%; height: 100%; min-height: 120px; display: block; }
+    .chart-foot { font-size: 0.74rem; color: var(--sim-muted); font-variant-numeric: tabular-nums; min-height: 1.1em; }
+    .chart-foot strong { color: var(--sim-text); }
+    .data-panel { padding: 12px 14px; display: grid; gap: 8px; align-content: start; }
+    .data-panel h3 { margin: 0; font-size: 0.95rem; font-weight: 750; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td { padding: 6px 6px; text-align: right; border-bottom: 1px solid var(--sim-grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    th { color: var(--sim-muted); font-weight: 700; font-size: 0.74rem; }
+    th:first-child, td:first-child { text-align: left; }
+    td.pending { color: var(--sim-muted); }
+    tr.filled td { font-weight: 700; }
+    tr.active-row td { background: rgba(15,159,186,.06); }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0; background: #fff8e8; color: #7a4d08; font-weight: 640; font-size: 0.86rem; line-height: 1.5; }
+    .model-note { margin: 0; color: var(--sim-muted); font-size: 0.72rem; line-height: 1.5; }
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto auto minmax(150px, 1fr) minmax(160px, 1fr) auto; gap: 14px; align-items: center; border-radius: var(--sim-radius-md); }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 720; font-size: 0.88rem; transition: transform .15s ease, background .15s ease, border-color .15s ease, opacity .15s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.2); }
+    button.amber { border-color: #b4650a; color: #fff; background: linear-gradient(135deg, #c96d08, var(--sim-discharge)); box-shadow: 0 8px 18px rgba(217,119,6,.2); }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .seg { display: flex; gap: 0; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); overflow: hidden; }
+    .seg button { border: none; border-radius: 0; padding: 8px 12px; background: var(--sim-surface-soft); font-size: 0.84rem; }
+    .seg button + button { border-left: 1px solid var(--sim-border); }
+    .seg button[aria-pressed="true"] { background: var(--sim-accent-soft); color: var(--sim-accent-deep); box-shadow: inset 0 0 0 2px rgba(15,159,186,.35); }
+    .seg.speed button[aria-pressed="true"] { background: #eef3f9; color: var(--sim-text); box-shadow: inset 0 0 0 2px rgba(23,32,51,.22); }
+    .control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 720; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .dock-readouts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    .metric { min-width: 86px; padding: 7px 10px; border: 1px solid rgba(15,159,186,.12); border-radius: var(--sim-radius-sm); background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; color: var(--sim-muted); font-size: 0.66rem; margin-bottom: 2px; }
+    .metric strong { font-size: 0.98rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .wire { fill: none; stroke: var(--sim-wire); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; transition: stroke .25s, filter .25s, opacity .25s; }
+    .wire.dim { opacity: .22; }
+    .wire.charge-on { stroke: var(--sim-charge); filter: drop-shadow(0 0 5px rgba(14,156,184,.55)); }
+    .wire.discharge-on { stroke: var(--sim-discharge); filter: drop-shadow(0 0 5px rgba(217,119,6,.5)); }
+    .meter-wire { stroke: #8a97ab; stroke-width: 2.4; fill: none; }
+    .symbol { stroke: var(--sim-wire); stroke-width: 4.5; fill: none; stroke-linecap: round; }
+    .contact { fill: #fff; stroke: #222c3b; stroke-width: 3.5; cursor: pointer; }
+    .contact:hover { fill: #eef3f9; }
+    .lever { stroke: #222c3b; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 2px 3px rgba(0,0,0,.14)); }
+    .pivot { fill: #222c3b; }
+    .scene-label { fill: #334155; font-size: 17px; font-weight: 680; }
+    .scene-sub { fill: #657188; font-size: 13px; font-weight: 520; }
+    .scene-value { fill: #657188; font-size: 14px; font-weight: 640; font-variant-numeric: tabular-nums; }
+    .big-read { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; fill: var(--sim-text); }
+    .big-read-label { font-size: 13px; fill: var(--sim-muted); font-weight: 640; }
+    .charge-sign { font-size: 19px; font-weight: 800; }
+    .particle { pointer-events: none; }
+    .vm-face { fill: #fff; stroke: #2f3542; stroke-width: 4; }
+    .vm-needle { stroke: #c2410c; stroke-width: 4; stroke-linecap: round; }
+    .vm-tick { stroke: #9aa7ba; stroke-width: 2; }
+    .tank-bg { fill: #eef3f7; stroke: #c9d4e0; stroke-width: 1.5; }
+    #capFill { transition: none; }
+    .cap-plate { stroke: var(--sim-wire); stroke-width: 5; }
+    @media (max-width: 920px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .stage-panel { min-height: 0; }
+      #scene { height: auto; aspect-ratio: 900 / 540; min-height: 0; }
+      .side { grid-template-rows: 260px 260px auto; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .dock-readouts { justify-content: flex-start; }
+    }
+    @media (max-height: 760px) and (min-width: 921px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+      .particle { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="experiment" data-model-tier="analytic">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>RC 放电测电容</h1>
+        <p>先把电容充满，再只通过电阻放电：用半衰期法与 ln U–t 直线化把电容 C 算出来，换大电阻再放一次，看半衰期怎么变。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已断开 · 电容空</div>
+    </header>
+
+    <main class="main">
+      <section class="panel stage-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">电路实验台</h2>
+          <span>点击开关触点切换「充电 / 放电」，或使用下方按钮</span>
+        </div>
+        <svg id="scene" viewBox="0 0 900 540" role="img" aria-label="RC 放电测电容电路：电源、单刀双掷开关、电容、放电电阻和电压表">
+          <!-- 充电支路：电池正极 → 上触点 A -->
+          <path id="wBattTop" class="wire" d="M140 225 V60 H330" />
+          <line class="symbol" x1="118" y1="225" x2="162" y2="225" />
+          <line class="symbol" x1="128" y1="245" x2="152" y2="245" />
+          <path id="wBattBot" class="wire" d="M140 245 V420 H330" />
+          <text class="scene-label" x="96" y="150" text-anchor="middle">电源</text>
+          <text class="scene-value" id="u0Label" x="96" y="172" text-anchor="middle">U₀ 6.0 V</text>
+          <text class="scene-sub" x="172" y="220" text-anchor="middle">+</text>
+          <text class="scene-sub" x="172" y="254" text-anchor="middle">−</text>
+
+          <!-- 公共顶轨：P → 电容上极板 -->
+          <path id="wP" class="wire" d="M400 105 H540" />
+          <path id="wCT" class="wire" d="M540 105 V320" />
+
+          <!-- 放电支路：下触点 B → 电阻 R → 底轨 -->
+          <path id="wB" class="wire" d="M330 150 V198" />
+          <path id="wR" class="wire" d="M330 198 l-17 12 34 22 -34 22 34 22 -34 22 34 22 -17 12 V420" />
+          <text class="scene-label" x="358" y="248">放电电阻</text>
+          <text class="scene-value" id="rLabel" x="358" y="270">R₁ = 10 kΩ</text>
+
+          <!-- 底轨与电容下引线 -->
+          <path id="wBottom" class="wire" d="M330 420 H540" />
+          <path id="wCB" class="wire" d="M540 352 V420" />
+
+          <!-- 单刀双掷开关 -->
+          <circle id="contactA" class="contact" cx="330" cy="60" r="7" tabindex="0" role="button" aria-label="充电触点"></circle>
+          <circle id="contactB" class="contact" cx="330" cy="150" r="7" tabindex="0" role="button" aria-label="放电触点"></circle>
+          <circle class="pivot" cx="400" cy="105" r="8" />
+          <line id="lever" class="lever" x1="400" y1="105" x2="400" y2="76" />
+          <text class="scene-sub" x="308" y="46" text-anchor="end">① 充电</text>
+          <text class="scene-sub" x="308" y="170" text-anchor="end">② 放电</text>
+          <text class="scene-sub" x="400" y="58" text-anchor="middle">断开</text>
+
+          <!-- 电容：极板 + 电荷量示意槽 -->
+          <rect class="tank-bg" x="500" y="322" width="80" height="28" rx="3" />
+          <rect id="capFill" x="501" y="349" width="78" height="0" rx="2" fill="#0e9cb8" />
+          <line class="cap-plate" x1="492" y1="320" x2="588" y2="320" />
+          <line class="cap-plate" x1="492" y1="352" x2="588" y2="352" />
+          <g id="plusSigns"></g>
+          <g id="minusSigns"></g>
+          <text class="scene-label" x="478" y="334" text-anchor="end">电容 C</text>
+          <text class="scene-value" x="478" y="356" text-anchor="end">待测 · 标称 220 μF</text>
+
+          <!-- 电压表（并联在电容两端） -->
+          <path class="meter-wire" d="M540 168 H690 V192" />
+          <path class="meter-wire" d="M690 292 V380 H540" />
+          <circle class="vm-face" cx="690" cy="242" r="50" />
+          <g id="vmTicks"></g>
+          <line id="vmNeedle" class="vm-needle" x1="690" y1="242" x2="646" y2="268" />
+          <circle cx="690" cy="242" r="5" fill="#222c3b" />
+          <text class="scene-label" x="690" y="318" text-anchor="middle">电压表</text>
+          <text class="scene-value" id="vmRead" x="690" y="338" text-anchor="middle">0.00 V</text>
+
+          <!-- 大字读数 -->
+          <text class="big-read-label" id="tReadLabel" x="150" y="474" text-anchor="middle">时间 t</text>
+          <text class="big-read" id="tRead" x="150" y="504" text-anchor="middle">0.0 s</text>
+          <text class="big-read-label" x="420" y="474" text-anchor="middle">电容电压 U</text>
+          <text class="big-read" id="uRead" x="420" y="504" text-anchor="middle">0.00 V</text>
+          <text class="big-read-label" x="690" y="474" text-anchor="middle">放电电流 i</text>
+          <text class="big-read" id="iRead" x="690" y="504" text-anchor="middle">0.00 mA</text>
+
+          <!-- 电流粒子 -->
+          <g id="particles"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence" aria-label="数据与记录">
+        <section class="panel chart-card">
+          <div class="chart-title"><h3>U–t 放电曲线</h3><span>横虚线：U₀/2、U₀/4；竖虚线：每次减半的时刻</span></div>
+          <canvas id="uChart" aria-label="电容电压随时间变化曲线"></canvas>
+          <div class="chart-foot" id="halfFoot">开始放电后，这里显示半衰期 T½。</div>
+        </section>
+        <section class="panel chart-card">
+          <div class="chart-title"><h3>直线化：ln U – t</h3><span>若为直线，则 U = U₀e^(−t/RC)</span></div>
+          <canvas id="lnChart" aria-label="电压自然对数随时间变化及拟合直线"></canvas>
+          <div class="chart-foot" id="lnFoot">开始放电后，这里显示拟合斜率 k 与 C。</div>
+        </section>
+        <section class="panel data-panel">
+          <h3>试验记录</h3>
+          <table aria-label="两次放电试验的测量结果">
+            <thead>
+              <tr><th scope="col">试验</th><th scope="col">R</th><th scope="col">T½ 实测</th><th scope="col">C=T½/(R·ln2)</th><th scope="col">直线法 C</th></tr>
+            </thead>
+            <tbody id="trialBody">
+              <tr id="rowR1" class="pending"><td>R₁</td><td>10 kΩ</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr id="rowR2" class="pending"><td>R₂</td><td>100 kΩ</td><td>—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <div class="side-note">
+          <p class="insight" id="insight" data-zone="insight">先把电容充满（开关拨到①），再拨到②只通过电阻放电。</p>
+          <p class="model-note">教学视图：理想 RC 电路，放电 U(t)=U₀e^(−t/RC)；充电经电源支路（τ≈0.8 s）快速完成。极板电荷条与电流粒子为示意放大，电压、时间与图表均由同一模型状态驱动。</p>
+        </div>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="chargeBtn" class="primary" type="button">① 充满电容</button>
+        <button id="dischargeBtn" class="amber" type="button" disabled>② 开始放电</button>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label id="rGroupLabel">放电电阻</label>
+        <div class="seg" role="group" aria-labelledby="rGroupLabel">
+          <button id="btnR1" type="button" aria-pressed="true">R₁ 10 kΩ</button>
+          <button id="btnR2" type="button" aria-pressed="false">R₂ 100 kΩ</button>
+        </div>
+      </div>
+      <div class="control">
+        <label for="u0Input">电源电压 <output id="u0Output">6.0 V</output></label>
+        <input id="u0Input" type="range" min="3" max="12" step="0.5" value="6">
+      </div>
+      <div class="control">
+        <label id="speedLabel">时间倍率</label>
+        <div class="seg speed" role="group" aria-labelledby="speedLabel">
+          <button class="speed-btn" type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+          <button class="speed-btn" type="button" data-speed="1" aria-pressed="true">1×</button>
+          <button class="speed-btn" type="button" data-speed="2" aria-pressed="false">2×</button>
+          <button class="speed-btn" type="button" data-speed="4" aria-pressed="false">4×</button>
+        </div>
+      </div>
+      <div class="dock-readouts">
+        <div class="metric"><small>τ = RC</small><strong id="dockTau">2.20 s</strong></div>
+        <div class="metric"><small>已测 T½</small><strong id="dockTh">—</strong></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    /* ============================================================
+       Physics kernel (pure, DOM-free). The authoritative state is
+       advanced ONLY here; scene, charts, readouts and the trial
+       table all derive from it. RC discharge has a closed form,
+       so every step is exact regardless of step size:
+         discharge: U(t+dt) = U * exp(-dt / (R*C))
+         charge:    U(t+dt) = U0 - (U0 - U) * exp(-dt / TAU_CH)
+       ============================================================ */
+    const C_TRUE = 220e-6;            // F, nominal capacitance being "measured"
+    const R_VALUES = [10e3, 100e3];   // ohm, R1 / R2 (larger resistor)
+    const TAU_CH = 0.8;               // s, source-branch charge time constant
+    const SAMPLE_DT = 0.04;           // s, data-logger cadence in simulated time
+    const TRIAL_FLOOR = 0.05;         // stop discharge at 5% of U0
+    const FIT_FLOOR = 0.06;           // use samples with U >= 6% U0 for ln-fit
+    const R_CH = TAU_CH / C_TRUE;     // ohm, implied source-branch resistance
+    const LN2 = Math.LN2;
+    const MAX_POINTS = 8000;
+
+    const kTau = (R, C) => R * C;
+    const kHalfLife = (tau) => tau * LN2;
+    const kDischarge = (u, dt, tau) => u * Math.exp(-dt / tau);
+    const kCharge = (u, dt, u0, tauCh) => u0 - (u0 - u) * Math.exp(-dt / tauCh);
+    const kSynthSamples = (u0, tau, dt, tEnd) => {
+      const out = [];
+      for (let t = 0; t <= tEnd + 1e-12; t += dt) out.push({ t, u: u0 * Math.exp(-t / tau) });
+      return out;
+    };
+    // First downward threshold crossing, linear interpolation between samples.
+    const kInterpCross = (samples, thr) => {
+      for (let i = 1; i < samples.length; i += 1) {
+        const a = samples[i - 1], b = samples[i];
+        if (a.u > thr && b.u <= thr && a.u - b.u > 1e-15) {
+          return a.t + (a.u - thr) / (a.u - b.u) * (b.t - a.t);
+        }
+      }
+      return null;
+    };
+    // Least-squares fit of ln(U) vs t. Returns slope in 1/s.
+    const kFitLn = (samples, uFloor) => {
+      let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+      for (const s of samples) {
+        if (s.u < uFloor || s.u <= 0) continue;
+        const x = s.t, y = Math.log(s.u);
+        n += 1; sx += x; sy += y; sxx += x * x; sxy += x * y;
+      }
+      const denom = n * sxx - sx * sx;
+      if (n < 2 || Math.abs(denom) < 1e-12) return null;
+      const slope = (n * sxy - sx * sy) / denom;
+      const intercept = (sy - slope * sx) / n;
+      return { slope, intercept, n };
+    };
+
+    /* ---------------- Oracle checks (tolerances fixed a priori) -------------- */
+    function runModelChecks() {
+      const checks = [];
+      const add = (name, pass, expected, actual, tolerance) =>
+        checks.push({ name, pass: !!pass, expected, actual, tolerance });
+      const rel = (a, b) => Math.abs(a - b) / Math.max(1e-30, Math.abs(b));
+
+      // 1. Ordinary: closed form halves exactly at one half-life.
+      {
+        const U0 = 6, R = R_VALUES[0], tau = kTau(R, C_TRUE), Th = kHalfLife(tau);
+        const u = kDischarge(U0, Th, tau);
+        add("closed form: U(T½) = U₀/2", rel(u, U0 / 2) < 1e-12,
+          "U₀/2 = " + (U0 / 2), u.toFixed(12), "rel < 1e-12");
+      }
+      // 2. Threshold: sampled-data crossing of U₀/2 recovers T½ within one sample interval.
+      {
+        const U0 = 6, tau = kTau(R_VALUES[0], C_TRUE), Th = kHalfLife(tau);
+        const t1 = kInterpCross(kSynthSamples(U0, tau, SAMPLE_DT, 6 * Th), U0 / 2);
+        add("sampled crossing recovers T½", t1 !== null && Math.abs(t1 - Th) <= SAMPLE_DT,
+          "T½ = " + Th.toFixed(6) + " s", t1 === null ? "null" : t1.toFixed(6) + " s", "|Δt| ≤ 0.04 s");
+      }
+      // 3. Opposite direction: charge rises monotonically to U0 without overshoot.
+      {
+        const U0 = 9; let u = 0, mono = true, bounded = true;
+        for (let i = 0; i < 1200; i += 1) {
+          const prev = u; u = kCharge(u, 1 / 60, U0, TAU_CH);
+          if (u < prev - 1e-15) mono = false;
+          if (u > U0 + 1e-12) bounded = false;
+        }
+        add("charge: monotone ↑, no overshoot", mono && bounded && rel(u, U0) < 0.01,
+          "U → " + U0 + " V (≥99%)", u.toFixed(9) + " V", "rel < 1e-2, bounded by U₀");
+      }
+      // 4. Symmetry: half-life independent of starting voltage U0.
+      {
+        const tau = kTau(R_VALUES[0], C_TRUE), Th = kHalfLife(tau);
+        const ta = kInterpCross(kSynthSamples(3, tau, SAMPLE_DT, 6 * Th), 1.5);
+        const tb = kInterpCross(kSynthSamples(12, tau, SAMPLE_DT, 6 * Th), 6);
+        add("T½ independent of U₀", ta !== null && tb !== null &&
+          Math.abs(ta - Th) <= SAMPLE_DT && Math.abs(tb - Th) <= SAMPLE_DT,
+          "T½(3 V) = T½(12 V) = " + Th.toFixed(4) + " s",
+          ta.toFixed(4) + " s / " + tb.toFixed(4) + " s", "|Δt| ≤ 0.04 s");
+      }
+      // 5. Scaling: R ×10 ⇒ T½ ×10 (closed form exact; sampled within 1%).
+      {
+        const t1 = kHalfLife(kTau(R_VALUES[0], C_TRUE)), t2 = kHalfLife(kTau(R_VALUES[1], C_TRUE));
+        const exact = rel(t2 / t1, 10) < 1e-12;
+        const U0 = 6;
+        const m1 = kInterpCross(kSynthSamples(U0, kTau(R_VALUES[0], C_TRUE), SAMPLE_DT, 6 * t1), U0 / 2);
+        const m2 = kInterpCross(kSynthSamples(U0, kTau(R_VALUES[1], C_TRUE), SAMPLE_DT, 6 * t2), U0 / 2);
+        const sampled = m1 && m2 && rel(m2 / m1, 10) < 0.01;
+        add("R×10 ⇒ T½×10", exact && sampled,
+          "ratio = 10", "exact " + (t2 / t1).toPrecision(15) + ", sampled " + (m2 / m1).toFixed(5),
+          "exact rel < 1e-12; sampled rel < 1e-2");
+      }
+      // 6. Step-robustness: many variable steps equal the direct closed form.
+      {
+        const U0 = 6, tau = kTau(R_VALUES[0], C_TRUE); let u = U0, tSum = 0, seed = 12345;
+        for (let i = 0; i < 137; i += 1) {
+          seed = (1103515245 * seed + 12345) % 2147483648;
+          const dt = 0.005 + (seed / 2147483648) * 0.06;
+          u = kDischarge(u, dt, tau); tSum += dt;
+        }
+        const direct = U0 * Math.exp(-tSum / tau);
+        add("multi-step = closed form", rel(u, direct) < 1e-9,
+          direct.toPrecision(12), u.toPrecision(12), "rel < 1e-9");
+      }
+      // 7. Time-scale invariance: coarse vs fine steps at equal simulated time.
+      {
+        const U0 = 6, tau = kTau(R_VALUES[0], C_TRUE);
+        let coarse = U0, fine = U0;
+        for (let t = 0; t < 3.7 - 1e-12; t += 1 / 60) coarse = kDischarge(coarse, 1 / 60, tau);
+        for (let t = 0; t < 3.7 - 1e-12; t += 1 / 240) fine = kDischarge(fine, 1 / 240, tau);
+        add("time-scale invariance", rel(coarse, fine) < 1e-12,
+          fine.toPrecision(12), coarse.toPrecision(12), "rel < 1e-12");
+      }
+      // 8. Linearization oracle: ln U–t fit recovers τ and C from synthetic data.
+      {
+        const R = R_VALUES[0], tau = kTau(R, C_TRUE);
+        const fit = kFitLn(kSynthSamples(6, tau, 0.05, 4 * tau), 6 * FIT_FLOOR * 0.01);
+        const cFit = -1 / fit.slope / R;
+        add("ln U–t fit recovers C", fit !== null && rel(cFit, C_TRUE) < 1e-6,
+          "C = " + (C_TRUE * 1e6).toFixed(1) + " μF", (cFit * 1e6).toFixed(6) + " μF", "rel < 1e-6");
+      }
+      // 9. Bounds: discharge stays in (0, U₀], non-increasing, finite.
+      {
+        const U0 = 6, tau = kTau(R_VALUES[1], C_TRUE); let u = U0, ok = true;
+        for (let i = 0; i < 5000; i += 1) {
+          const prev = u; u = kDischarge(u, 0.02, tau);
+          if (!(u > 0 && u <= U0 + 1e-15) || u > prev + 1e-15 || !Number.isFinite(u)) { ok = false; break; }
+        }
+        add("discharge bounded & monotone ↓", ok, "0 < U ≤ U₀, 单调不增", u.toExponential(4) + " V", "strict");
+      }
+      // 10. Dimensional consistency: τ = RC computes in seconds.
+      {
+        const tau = kTau(R_VALUES[0], C_TRUE);
+        add("dimensional: τ = RC (s)", rel(tau, 2.2) < 1e-12,
+          "10 kΩ × 220 μF = 2.2 s", tau.toFixed(12) + " s", "rel < 1e-12");
+      }
+      return checks;
+    }
+
+    /* ============================ Authoritative state ============================ */
+    const state = {
+      running: false,
+      mode: "idle",            // idle | charge | full | discharge | done
+      t: 0,                    // s, trial/cycle time (reset on charge & discharge start)
+      uc: 0,                   // V, capacitor voltage — the single source of truth
+      U0: 6,
+      rIndex: 0,
+      speed: 1,
+      lastTs: null,
+      lastSample: -SAMPLE_DT,
+      history: [],             // [{t, u}] sampled each SAMPLE_DT of simulated time
+      trialU0: 6, trialR: 10000, // snapshot of the parameters the displayed trial ran with
+      trials: [null, null],    // per-R trial records
+      particlePhase: 0,
+      particles: [],
+      reducedMotion: false,
+    };
+    const parameterSchema = [
+      { key: "U0", label: "电源电压", type: "slider", min: 3, max: 12, step: 0.5, default: 6, unit: "V" },
+      { key: "rIndex", label: "放电电阻", type: "segmented", options: [0, 1], default: 0, unit: "" },
+      { key: "speed", label: "时间倍率", type: "segmented", options: [0.5, 1, 2, 4], default: 1, unit: "×" },
+    ];
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const R = () => R_VALUES[state.rIndex];
+    const tauNow = () => kTau(R(), C_TRUE);
+    const tU0 = () => state.trialU0;   // U0 the displayed data belongs to
+    const tR = () => state.trialR;     // R the displayed data belongs to
+    // Signed current in A: charge > 0, discharge < 0 (derived, never stored).
+    const currentA = () => {
+      if (state.mode === "charge") return Math.max(0, (state.U0 - state.uc) / R_CH);
+      if (state.mode === "discharge") return -state.uc / R();
+      return 0;
+    };
+    const thresholds = () => [state.U0 / 2, state.U0 / 4, state.U0 / 8];
+
+    /* ------------------------------- Lifecycle -------------------------------- */
+    function beginCharge() {
+      state.mode = "charge"; state.t = 0; state.running = true;
+      state.history = []; state.lastSample = -SAMPLE_DT;
+    }
+    function beginDischarge() {
+      if (state.uc < 0.99 * state.U0) return;      // must be full for a clean trial
+      state.uc = state.U0;                          // snap to exactly U0
+      state.trialU0 = state.U0; state.trialR = R(); // freeze the trial's parameters
+      state.mode = "discharge"; state.t = 0; state.running = true;
+      state.history = [{ t: 0, u: state.uc }]; state.lastSample = 0;
+    }
+    function start() {
+      if (state.mode === "charge" || state.mode === "discharge") { state.running = true; return; }
+      if (state.uc < 0.99 * state.U0) beginCharge(); else beginDischarge();
+    }
+    function pause() { state.running = false; }
+    function reset() {
+      state.running = false; state.mode = "idle"; state.t = 0; state.uc = 0;
+      state.history = []; state.lastSample = -SAMPLE_DT;
+      state.trialU0 = state.U0; state.trialR = R();   // display tracks live params again
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const dts = clamp(finite(dt, 0), 0, 0.05) * state.speed;
+      if (dts <= 0) return;
+      const prevU = state.uc;
+      if (state.mode === "charge") {
+        state.uc = kCharge(state.uc, dts, state.U0, TAU_CH);
+        state.t += dts;
+        if (state.uc >= state.U0 - 1e-9 || state.t >= 5 * TAU_CH) {
+          state.uc = state.U0; state.running = false; state.mode = "full";
+        }
+      } else if (state.mode === "discharge") {
+        const tau = tauNow();
+        state.uc = kDischarge(state.uc, dts, tau);
+        state.t += dts;
+        if (state.t - state.lastSample >= SAMPLE_DT) {
+          state.lastSample = state.t;
+          state.history.push({ t: state.t, u: state.uc });
+          if (state.history.length > MAX_POINTS) state.history.shift();
+        }
+        if (state.uc <= state.U0 * TRIAL_FLOOR || state.t >= 6 * tau || prevU < state.uc) {
+          state.history.push({ t: state.t, u: state.uc });
+          state.running = false; state.mode = "done"; finalizeTrial();
+        }
+      } else {
+        return;
+      }
+      // particle advance is sim-time driven, so pause freezes it with everything else
+      const iAbs = Math.abs(currentA());
+      const iRef = state.U0 / (state.mode === "charge" ? R_CH : R());
+      const intensity = clamp(iAbs / Math.max(iRef, 1e-12), 0, 1);
+      state.particlePhase += (0.12 + 0.75 * Math.pow(intensity, 0.6)) * dts * 260;
+    }
+    function finalizeTrial() {
+      const thr = state.U0 / 2;
+      const tHalf = kInterpCross(state.history, thr);
+      const fit = kFitLn(state.history, state.U0 * FIT_FLOOR);
+      const rec = { R: R(), U0: state.U0, tHalf, fit, done: true };
+      state.trials[state.rIndex] = rec;
+    }
+
+    function setParameters(values) {
+      const v = values || {};
+      const busy = state.mode === "charge" || state.mode === "discharge";
+      if (!busy) {
+        if (v.U0 !== undefined) state.U0 = clamp(finite(Number(v.U0), 6), 3, 12);
+        if (v.rIndex !== undefined) state.rIndex = clamp(Math.round(Number(v.rIndex)) || 0, 0, 1);
+        if (state.uc > state.U0) state.uc = state.U0;   // physical: cannot exceed source
+        if (state.history.length === 0) {                // no displayed trial → track live params
+          state.trialU0 = state.U0; state.trialR = R();
+        }
+      }
+      if (v.speed !== undefined) {
+        const s = Number(v.speed);
+        if ([0.5, 1, 2, 4].indexOf(s) >= 0) state.speed = s;
+      }
+      syncControls();
+      render();
+    }
+    function getState() {
+      return {
+        running: state.running, mode: state.mode, t: state.t, uc: state.uc,
+        U0: state.U0, R: R(), speed: state.speed,
+        history: state.history.map((s) => ({ t: s.t, u: s.u })),
+        trials: state.trials.map((r) => r && { R: r.R, tHalf: r.tHalf, slope: r.fit && r.fit.slope }),
+      };
+    }
+    function getReadouts() {
+      return {
+        time: state.t,
+        voltage: state.uc,
+        currentA: currentA(),
+        tau: tauNow(),
+        tHalfTheory: kHalfLife(tauNow()),
+        tHalfMeasured: state.history.length > 1 ? kInterpCross(state.history, tU0() / 2) : null,
+      };
+    }
+
+    /* ============================== Rendering ============================== */
+    const els = {};
+    const CHARGE_ON = ["wBattTop", "wBattBot", "wP", "wCT", "wCB", "wBottom"];
+    const DISCHARGE_ON = ["wCT", "wP", "wB", "wR", "wBottom", "wCB"];
+    const LEVER = { idle: [400, 76], charge: [336, 64], full: [336, 64], discharge: [336, 146], done: [336, 146] };
+    const chargePathPts = [
+      [140, 245], [140, 60], [330, 60], [400, 105], [540, 105], [540, 320],
+      [540, 352], [540, 420], [140, 420], [140, 245],
+    ];
+    const dischargePathPts = [
+      [540, 320], [540, 105], [400, 105], [330, 150], [330, 198],
+      [313, 210], [347, 232], [313, 254], [347, 276], [313, 298], [347, 320],
+      [330, 332], [330, 420], [540, 420], [540, 352], [540, 320],
+    ];
+    function buildPath(pts) {
+      const seg = []; let total = 0;
+      for (let i = 1; i < pts.length; i += 1) {
+        const len = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        seg.push({ len, total }); total += len;
+      }
+      return { pts, seg, total };
+    }
+    const paths = { charge: buildPath(chargePathPts), discharge: buildPath(dischargePathPts) };
+    function pointOnPath(p, dist) {
+      dist = ((dist % p.total) + p.total) % p.total;
+      let acc = 0;
+      for (let i = 0; i < p.seg.length; i += 1) {
+        if (dist <= acc + p.seg[i].len) {
+          const u = (dist - acc) / p.seg[i].len;
+          return [p.pts[i][0] + (p.pts[i + 1][0] - p.pts[i][0]) * u,
+                  p.pts[i][1] + (p.pts[i + 1][1] - p.pts[i][1]) * u];
+        }
+        acc += p.seg[i].len;
+      }
+      return p.pts[p.pts.length - 1];
+    }
+    const fmt = (v, d) => Number(v).toFixed(d);
+
+    function render() {
+      if (!els.status) return;
+      renderStatus();
+      renderScene();
+      drawChart(els.uChart, "u");
+      drawChart(els.lnChart, "ln");
+      renderFeet();
+      renderTable();
+    }
+    function renderStatus() {
+      const s = els.status;
+      s.className = "status";
+      if (state.mode === "charge") { s.classList.add("charging"); s.textContent = state.running ? "充电中…" : "充电已暂停"; }
+      else if (state.mode === "full") { s.textContent = "已充满 · U₀ = " + fmt(state.U0, 1) + " V"; }
+      else if (state.mode === "discharge") { s.classList.add("discharging"); s.textContent = "放电中 · " + (state.rIndex ? "R₂" : "R₁") + " = " + (R() / 1000) + " kΩ"; }
+      else if (state.mode === "done") { s.classList.add("done"); s.textContent = "试验完成 · 数据已记录"; }
+      else { s.textContent = state.uc > 0.01 ? "已断开 · U = " + fmt(state.uc, 2) + " V" : "已断开 · 电容空"; }
+    }
+    function renderScene() {
+      const m = state.mode;
+      els.lever.setAttribute("x2", LEVER[m][0]);
+      els.lever.setAttribute("y2", LEVER[m][1]);
+      const onSet = m === "charge" || m === "full" ? CHARGE_ON : (m === "discharge" || m === "done") ? DISCHARGE_ON : [];
+      const cls = m === "charge" || m === "full" ? "charge-on" : (m === "discharge" || m === "done") ? "discharge-on" : "";
+      for (const id of CHARGE_ON.concat(DISCHARGE_ON)) {
+        const el = els[id];
+        el.classList.remove("charge-on", "discharge-on", "dim");
+        if (onSet.indexOf(id) >= 0) el.classList.add(cls);
+        else if (cls) el.classList.add("dim");
+      }
+      // labels & dock
+      els.u0Label.textContent = "U₀ " + fmt(state.U0, 1) + " V";
+      els.rLabel.textContent = (state.rIndex ? "R₂ = " : "R₁ = ") + (R() / 1000) + " kΩ";
+      els.dockTau.textContent = fmt(tauNow(), 2) + " s";
+      // capacitor charge tank
+      const ratio = clamp(state.uc / state.U0, 0, 1);
+      const hFill = 26 * ratio;
+      els.capFill.setAttribute("y", 350 - hFill);
+      els.capFill.setAttribute("height", hFill);
+      els.capFill.setAttribute("fill", m === "discharge" || m === "done" ? "#d97706" : "#0e9cb8");
+      renderSigns(ratio);
+      // voltmeter needle: U = 0 → +60°, U = U0 → −60°
+      const ang = (60 - 120 * ratio) * Math.PI / 180;
+      els.vmNeedle.setAttribute("x2", 690 + 42 * Math.cos(ang));
+      els.vmNeedle.setAttribute("y2", 242 + 42 * Math.sin(ang));
+      els.vmRead.textContent = fmt(state.uc, 2) + " V";
+      // big readouts
+      const i = currentA();
+      els.tReadLabel.textContent = m === "charge" ? "充电时间 t" : (m === "discharge" || m === "done") ? "放电时间 t" : "时间 t";
+      els.tRead.textContent = fmt(state.t, 1) + " s";
+      els.uRead.textContent = fmt(state.uc, 2) + " V";
+      els.iRead.textContent = fmt(i * 1000, 2) + " mA";
+      const t1 = state.history.length > 1 ? kInterpCross(state.history, tU0() / 2) : null;
+      els.dockTh.textContent = t1 !== null ? fmt(t1, 2) + " s" : "—";
+      renderParticles(i);
+    }
+    function renderSigns(ratio) {
+      const n = Math.round(7 * ratio);
+      let plus = "", minus = "";
+      for (let k = 0; k < n; k += 1) {
+        const x = 508 + k * 10.5;
+        plus += '<text class="charge-sign" x="' + x + '" y="313" text-anchor="middle" fill="rgba(37,99,235,' + (0.35 + 0.6 * ratio) + ')">+</text>';
+        minus += '<text class="charge-sign" x="' + x + '" y="376" text-anchor="middle" fill="rgba(220,38,38,' + (0.35 + 0.6 * ratio) + ')">−</text>';
+      }
+      els.plusSigns.innerHTML = plus;
+      els.minusSigns.innerHTML = minus;
+    }
+    function renderParticles(i) {
+      const active = (state.mode === "charge" || state.mode === "discharge") && Math.abs(i) > 1e-9 && !state.reducedMotion;
+      const iRef = state.U0 / (state.mode === "charge" ? R_CH : R());
+      const intensity = clamp(Math.abs(i) / Math.max(iRef, 1e-12), 0, 1);
+      const desired = active ? Math.max(3, Math.round(4 + 16 * intensity)) : 0;
+      while (state.particles.length < desired) {
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("r", "4.5");
+        c.setAttribute("class", "particle");
+        els.particles.appendChild(c);
+        state.particles.push({ el: c, off: Math.random() });
+      }
+      while (state.particles.length > desired) state.particles.pop().el.remove();
+      const p = paths[state.mode] || paths.charge;
+      for (const pt of state.particles) {
+        const d = (state.particlePhase / p.total + pt.off) * p.total;
+        const xy = pointOnPath(p, d);
+        pt.el.setAttribute("cx", xy[0]);
+        pt.el.setAttribute("cy", xy[1]);
+        pt.el.setAttribute("fill", state.mode === "charge" ? "#0e9cb8" : "#d97706");
+        pt.el.setAttribute("opacity", 0.5 + 0.45 * intensity);
+      }
+    }
+    function resizeCanvas(canvas) {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(80, Math.floor(rect.width)), h = Math.max(60, Math.floor(rect.height));
+      if (canvas.width !== Math.floor(w * dpr) || canvas.height !== Math.floor(h * dpr)) {
+        canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w, h };
+    }
+    function drawChart(canvas, kind) {
+      const { ctx, w, h } = resizeCanvas(canvas);
+      ctx.clearRect(0, 0, w, h);
+      const pad = kind === "u" ? { l: 44, r: 42, t: 12, b: 28 } : { l: 44, r: 14, t: 12, b: 28 };
+      const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      if (pw < 40 || ph < 40) return;
+      const U0 = tU0();               // chart scales belong to the displayed trial
+      const xMax = Math.max(6, state.t * 1.04);
+      const X = (t) => pad.l + t / xMax * pw;
+      let yMin, yMax, Y;
+      if (kind === "u") { yMax = U0 * 1.04; yMin = 0; Y = (v) => pad.t + (yMax - v) / yMax * ph; }
+      else { yMax = Math.log(U0 * 1.05); yMin = Math.log(U0 * 0.05); Y = (v) => pad.t + (yMax - v) / (yMax - yMin) * ph; }
+      ctx.font = '11px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#e8edf4"; ctx.fillStyle = "#7a8798";
+      // horizontal grid
+      const yTicks = kind === "u"
+        ? [0, 0.25, 0.5, 0.75, 1].map((k) => ({ v: yMax * k, label: (yMax * k).toFixed(1) }))
+        : [1, 0.5, 0.25, 0.125, 0.0625].map((k) => ({ v: Math.log(U0 * k), label: k === 1 ? "U₀" : "U₀/" + (1 / k) }));
+      for (const tk of yTicks) {
+        const y = Y(tk.v);
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(tk.label, pad.l - 6, y);
+      }
+      // vertical grid + x labels
+      for (let k = 0; k <= 6; k += 1) {
+        const x = pad.l + pw * k / 6, val = xMax * k / 6;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(val < 10 ? val.toFixed(1) : val.toFixed(0), x, h - pad.b + 6);
+      }
+      ctx.strokeStyle = "#9aa4b2"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h - pad.b); ctx.lineTo(w - pad.r, h - pad.b); ctx.stroke();
+      ctx.fillStyle = "#64748b";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(kind === "u" ? "U / V" : "ln U（等距 = 等倍减半）", pad.l + 4, 2);
+      ctx.textAlign = "right"; ctx.fillText("t / s", w - pad.r, h - pad.b - 14);
+      if (state.history.length < 2) return;
+      // half-life guides
+      ctx.setLineDash([6, 5]);
+      if (kind === "u") {
+        for (const frac of [0.5, 0.25]) {
+          const y = Y(U0 * frac);
+          ctx.strokeStyle = "rgba(180,83,9,.55)"; ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+          ctx.fillStyle = "#9a5405"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillText(frac === 0.5 ? "U₀/2" : "U₀/4", w - pad.r + 5, y);
+        }
+      }
+      const names = ["t₁", "t₂", "t₃"];
+      [0.5, 0.25, 0.125].forEach((frac, idx) => {
+        const tC = kInterpCross(state.history, U0 * frac);
+        if (tC === null || tC > xMax) return;
+        const x = X(tC);
+        ctx.strokeStyle = "rgba(15,159,186,.6)"; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        ctx.fillStyle = "#08758a"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+        ctx.fillText(names[idx] + " " + tC.toFixed(2), x + 3, pad.t + 2 + idx * 13);
+      });
+      ctx.setLineDash([]);
+      // ln points
+      if (kind === "ln") {
+        ctx.strokeStyle = "rgba(100,116,139,.5)"; ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        let started = false;
+        for (const s of state.history) {
+          if (s.u < U0 * FIT_FLOOR) break;
+          const x = X(s.t), y = Y(Math.log(s.u));
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      // fit line (ln chart)
+      if (kind === "ln") {
+        const fit = kFitLn(state.history, U0 * FIT_FLOOR);
+        if (fit && fit.slope < 0) {
+          const tFloor = kInterpCross(state.history, U0 * FIT_FLOOR);
+          const tEnd = Math.min(state.t, tFloor === null ? state.t : tFloor, xMax);
+          ctx.strokeStyle = "#0f9fba"; ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.moveTo(X(0), Y(fit.intercept));
+          ctx.lineTo(X(tEnd), Y(fit.slope * tEnd + fit.intercept));
+          ctx.stroke();
+        }
+      }
+      // trace / current point
+      if (kind === "u") {
+        ctx.strokeStyle = "#d97706"; ctx.lineWidth = 2.4; ctx.lineJoin = "round";
+        ctx.beginPath();
+        state.history.forEach((s, idx) => {
+          const x = X(s.t), y = Y(s.u);
+          if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      const last = state.history[state.history.length - 1];
+      if (state.mode === "discharge") {
+        ctx.beginPath();
+        ctx.arc(X(state.t), Y(kind === "u" ? state.uc : Math.log(Math.max(state.uc, 1e-9))), 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#d97706"; ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6; ctx.stroke();
+      }
+    }
+    function renderFeet() {
+      const t1 = state.history.length > 1 ? kInterpCross(state.history, tU0() / 2) : null;
+      const t2 = state.history.length > 1 ? kInterpCross(state.history, tU0() / 4) : null;
+      if (t1 === null) {
+        els.halfFoot.textContent = state.mode === "discharge" ? "等待电压第一次降到 U₀/2 …" : "开始放电后，这里显示半衰期 T½。";
+      } else {
+        let txt = "T½ = t₁ = " + fmt(t1, 2) + " s（U 从 " + fmt(tU0(), 1) + " V 降到 " + fmt(tU0() / 2, 1) + " V）";
+        if (t2 !== null) txt += "；t₂−t₁ = " + fmt(t2 - t1, 2) + " s，再减半一次 → C = T½/(R·ln2) = " + fmt(t1 / (tR() * LN2) * 1e6, 1) + " μF";
+        els.halfFoot.innerHTML = txt;
+      }
+      const recShown = state.trials[R_VALUES.indexOf(state.trialR)];
+      const fit = recShown && recShown.fit;
+      if (state.mode === "discharge" && state.history.length > 3) {
+        const live = kFitLn(state.history, tU0() * FIT_FLOOR);
+        if (live && live.slope < 0) {
+          const cf = -1 / live.slope / tR();
+          els.lnFoot.innerHTML = "拟合：k = " + live.slope.toFixed(4) + " s⁻¹ · τ = −1/k = " + fmt(-1 / live.slope, 2) + " s · <strong>C = " + fmt(cf * 1e6, 1) + " μF</strong>";
+        }
+      } else if (fit && fit.slope < 0) {
+        const cf = -1 / fit.slope / tR();
+        els.lnFoot.innerHTML = "上次试验：k = " + fit.slope.toFixed(4) + " s⁻¹ · τ = " + fmt(-1 / fit.slope, 2) + " s · <strong>C = " + fmt(cf * 1e6, 1) + " μF</strong>";
+      } else {
+        els.lnFoot.textContent = "开始放电后，这里显示拟合斜率 k 与 C。";
+      }
+      renderInsight(t1, t2);
+    }
+    function renderInsight(t1, t2) {
+      const m = state.mode;
+      let txt;
+      if (m === "idle") txt = state.uc > 0.01 ? "电容里还有电荷。先把它充满（开关拨到①），再放电测量。" : "第一步：点击「① 充满电容」，把电容充到 U₀。";
+      else if (m === "charge") txt = state.running ? "充电中：正负电荷在极板上积累，电压一路升向 U₀。" : "已暂停。点「继续」或等待你操作。";
+      else if (m === "full") txt = "已充满！现在拨到②：电容脱离电源，只通过 R 放电，电压将一路下降。";
+      else if (m === "discharge") {
+        if (!state.running) txt = "已暂停：动画与采样同时冻结，读数保持不变。";
+        else if (t1 === null) txt = "看曲线形状：电压先快后慢地下降——它不是匀速下降的直线。";
+        else if (t2 === null) txt = "第一次减半！T½ = t₁ = " + fmt(t1, 2) + " s。猜猜看：再过一个 T½，电压会降到多少？";
+        else txt = "果然：t₂ − t₁ ≈ t₁。每经过一个 T½，电压就减半：U₀ → U₀/2 → U₀/4 …";
+      } else if (m === "done") {
+        const rec = state.trials[state.rIndex];
+        const cH = rec && rec.tHalf ? rec.tHalf / (rec.R * LN2) * 1e6 : null;
+        const cF = rec && rec.fit ? -1 / rec.fit.slope / rec.R * 1e6 : null;
+        let msg = "试验完成：半衰期法 C = " + fmt(cH, 1) + " μF，ln U–t 直线法 C = " + fmt(cF, 1) + " μF（标称 220 μF）。";
+        if (state.rIndex === 0) msg += " 换大电阻 R₂ 再放一次，看看 T½ 怎么变。";
+        else if (state.trials[0] && state.trials[1]) {
+          const ratio = state.trials[1].tHalf / state.trials[0].tHalf;
+          msg += " 对比：R 扩大 10 倍，T½ 约 ×" + fmt(ratio, 1) + "（T½ = RC·ln2），两种方法算出的 C 都几乎不变。";
+        }
+        txt = msg;
+      }
+      els.insight.textContent = txt;
+    }
+    function renderTable() {
+      for (let i = 0; i < 2; i += 1) {
+        const row = els["rowR" + (i + 1)];
+        const rec = state.trials[i];
+        const cells = row.children;
+        if (rec && rec.tHalf !== null && rec.fit) {
+          row.classList.add("filled");
+          row.classList.toggle("active-row", i === state.rIndex);
+          cells[2].textContent = fmt(rec.tHalf, 2) + " s";
+          cells[3].textContent = fmt(rec.tHalf / (R_VALUES[i] * LN2) * 1e6, 1) + " μF";
+          cells[4].textContent = fmt(-1 / rec.fit.slope / R_VALUES[i] * 1e6, 1) + " μF";
+        } else {
+          row.classList.remove("filled", "active-row");
+          cells[2].textContent = cells[3].textContent = cells[4].textContent = "—";
+        }
+      }
+    }
+
+    /* ============================ Controls & boot ============================ */
+    function syncControls() {
+      if (!els.chargeBtn) return;
+      const busyRun = (state.mode === "charge" || state.mode === "discharge") && state.running;
+      els.chargeBtn.disabled = state.mode === "full" || busyRun;
+      els.dischargeBtn.disabled = !(state.uc >= 0.99 * state.U0 && state.mode !== "discharge");
+      const inCycle = state.mode === "charge" || state.mode === "discharge";
+      els.pauseBtn.disabled = !inCycle;
+      els.pauseBtn.textContent = inCycle && !state.running ? "继续" : "暂停";
+      const busy = inCycle;
+      els.btnR1.disabled = busy; els.btnR2.disabled = busy;
+      els.u0Input.disabled = busy;
+      els.btnR1.setAttribute("aria-pressed", state.rIndex === 0 ? "true" : "false");
+      els.btnR2.setAttribute("aria-pressed", state.rIndex === 1 ? "true" : "false");
+      els.u0Input.value = String(state.U0);
+      els.u0Output.textContent = fmt(state.U0, 1) + " V";
+      document.querySelectorAll(".speed-btn").forEach((b) => {
+        b.setAttribute("aria-pressed", Number(b.dataset.speed) === state.speed ? "true" : "false");
+      });
+    }
+    function togglePause() {
+      if (state.mode !== "charge" && state.mode !== "discharge") return;
+      state.running = !state.running;
+      syncControls(); render();
+    }
+    function bindControls() {
+      els.chargeBtn.addEventListener("click", () => { beginCharge(); syncControls(); render(); });
+      els.dischargeBtn.addEventListener("click", () => { beginDischarge(); syncControls(); render(); });
+      els.pauseBtn.addEventListener("click", togglePause);
+      els.resetBtn.addEventListener("click", () => { reset(); syncControls(); });
+      els.btnR1.addEventListener("click", () => { setParameters({ rIndex: 0 }); });
+      els.btnR2.addEventListener("click", () => { setParameters({ rIndex: 1 }); });
+      els.u0Input.addEventListener("input", () => setParameters({ U0: Number(els.u0Input.value) }));
+      document.querySelectorAll(".speed-btn").forEach((b) =>
+        b.addEventListener("click", () => setParameters({ speed: Number(b.dataset.speed) })));
+      const switchTo = (mode) => {
+        if (state.mode === "charge" || state.mode === "discharge") return;
+        if (mode === "charge") { beginCharge(); }
+        else if (mode === "discharge" && state.uc >= 0.99 * state.U0) { beginDischarge(); }
+        syncControls(); render();
+      };
+      els.contactA.addEventListener("click", () => switchTo("charge"));
+      els.contactB.addEventListener("click", () => switchTo("discharge"));
+      [els.contactA, els.contactB].forEach((c) => c.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.click(); }
+      }));
+      window.addEventListener("resize", render);
+    }
+    function initVMTicks() {
+      let out = "";
+      for (let k = 0; k <= 4; k += 1) {
+        const ang = (60 - 30 * k) * Math.PI / 180;
+        const x1 = 690 + 42 * Math.cos(ang), y1 = 242 + 42 * Math.sin(ang);
+        const x2 = 690 + 48 * Math.cos(ang), y2 = 242 + 48 * Math.sin(ang);
+        out += '<line class="vm-tick" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"></line>';
+      }
+      els.vmTicks.innerHTML = out;
+    }
+    function init() {
+      const ids = ["status", "u0Label", "rLabel", "lever", "contactA", "contactB", "capFill", "plusSigns",
+        "minusSigns", "vmTicks", "vmNeedle", "vmRead", "tReadLabel", "tRead", "uRead", "iRead", "particles",
+        "uChart", "lnChart", "halfFoot", "lnFoot", "insight", "rowR1", "rowR2",
+        "chargeBtn", "dischargeBtn", "pauseBtn", "resetBtn", "btnR1", "btnR2", "u0Input", "u0Output", "dockTau", "dockTh"];
+      for (const id of ids) els[id] = document.getElementById(id);
+      for (const id of CHARGE_ON.concat(DISCHARGE_ON)) els[id] = document.getElementById(id);
+      state.reducedMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      initVMTicks();
+      bindControls();
+      setParameters({ U0: 6, rIndex: 0, speed: 1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+    function frame(ts) {
+      if (state.lastTs === null) state.lastTs = ts;
+      const dt = clamp((ts - state.lastTs) / 1000, 0, 0.05);
+      state.lastTs = ts;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

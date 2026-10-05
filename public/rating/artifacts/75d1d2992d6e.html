@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蹦极跳物理演示</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a222c; --panel2:#141b24; --line:#2a3644;
+    --txt:#dfe7ef; --dim:#8fa0b3; --acc:#4dabf7;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding:14px;}
+  h1{font-size:20px; margin-bottom:4px;}
+  .sub{color:var(--dim); font-size:12.5px; margin-bottom:12px;}
+  .app{display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;}
+  .left{flex:1 1 480px; min-width:420px;}
+  .right{flex:1 1 380px; min-width:340px; display:flex; flex-direction:column; gap:12px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px;}
+  canvas{display:block; width:100%; border-radius:8px; background:#0b1016;}
+  #sim{height:640px;}
+  #chart{height:250px;}
+  .cap{font-size:12px; color:var(--dim); margin-top:6px; line-height:1.6;}
+  .row{display:flex; align-items:center; gap:10px; margin:8px 0;}
+  .row label{width:96px; font-size:13.5px; color:var(--dim); flex:none;}
+  .row input[type=range]{flex:1; accent-color:var(--acc);}
+  .row .val{width:92px; text-align:right; font-variant-numeric:tabular-nums; font-size:13.5px; flex:none;}
+  .btns{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  button{flex:1; min-width:88px; padding:8px 10px; border:none; border-radius:8px; font-size:14px; cursor:pointer;
+    background:#2b3a4d; color:var(--txt);}
+  button:hover{background:#38495f;}
+  button.primary{background:#1971c2;} button.primary:hover{background:#1c86de;}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .derived{font-size:12.5px; color:var(--dim); margin-top:10px; line-height:1.7; border-top:1px dashed var(--line); padding-top:8px;}
+  .info-grid{display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:13.5px;}
+  .info-grid .k{color:var(--dim);}
+  .chip{display:inline-block; padding:2px 10px; border-radius:20px; font-size:12.5px; color:#0b1016; font-weight:600;}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; font-size:12px; color:var(--dim);}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .dot{width:10px; height:10px; border-radius:3px; display:inline-block;}
+  .mono{font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<h1>蹦极跳演示：自由落体 → 绳绷紧 → 加速/减速 → 最低点 → 反弹</h1>
+<div class="sub">g = 9.8 m/s²，忽略空气阻力与绳的质量（轻绳理想弹簧模型，劲度系数 k）</div>
+
+<div class="app">
+  <div class="left">
+    <canvas id="sim"></canvas>
+    <div class="cap">
+      绿色箭头 = 速度 v（含大小），橙色箭头 = 加速度 a（含大小）；虚线自上而下：跳台(0)、绳自然长度 L、平衡位置（绳力=重力）、预计最低点。
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="panel">
+      <div class="row"><label>绳长 L</label><input type="range" id="inL" min="5" max="45" step="0.5" value="20"><span class="val" id="outL"></span></div>
+      <div class="row"><label>劲度系数 k</label><input type="range" id="inK" min="15" max="300" step="1" value="60"><span class="val" id="outK"></span></div>
+      <div class="row"><label>人的质量 m</label><input type="range" id="inM" min="40" max="120" step="1" value="70"><span class="val" id="outM"></span></div>
+      <div class="btns">
+        <button class="primary" id="btnStart">开始跳跃</button>
+        <button id="btnPause" disabled>暂停</button>
+        <button id="btnReset">重置</button>
+      </div>
+      <div class="derived" id="derived"></div>
+    </div>
+
+    <div class="panel">
+      <div class="info-grid">
+        <span class="k">当前阶段</span><span><span class="chip" id="stgChip">—</span></span>
+        <span class="k">速度 v</span><span class="mono" id="iV">—</span>
+        <span class="k">加速度 a</span><span class="mono" id="iA">—</span>
+        <span class="k">绳伸长量 x</span><span class="mono" id="iX">—</span>
+        <span class="k">绳拉力 T</span><span class="mono" id="iT">—</span>
+        <span class="k">离跳台距离</span><span class="mono" id="iS">—</span>
+        <span class="k">时间 t</span><span class="mono" id="iT2">—</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="chart"></canvas>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const G = 9.8, DT = 0.002;
+
+/* ---------- 参数与状态 ---------- */
+let L=20, k=60, m=70;
+let xEq=0, xMax=0, D=0;                 // 平衡伸长 / 最大伸长 / 跳台总高
+let st={t:0,s:0,v:0};
+let started=false, running=false, paused=false;
+let hist=[], markers=[], firstTaut=null, tick=0;
+
+const STAGES={
+  s1:{name:'① 自由落体：绳松弛，只受重力，a=g 向下', color:'#4dabf7'},
+  s2:{name:'② 绳绷紧·仍加速下降：绳力<重力，a 向下但变小', color:'#ffd43b'},
+  s3:{name:'③ 减速下降：绳力>重力，a 向上，越降越慢', color:'#ff922b'},
+  s4:{name:'④ 反弹·加速上升：a 向上，向上越来越快', color:'#9775fa'},
+  s5:{name:'⑤ 绳仍绷紧·减速上升：绳力<重力，a 向下', color:'#f06595'},
+  s6:{name:'⑥ 绳松弛·竖直上抛：离开绳，a=g 向下，减速上升', color:'#63e6be'},
+  low:{name:'★ 最低点：v = 0，绳力最大，a 向上最大', color:'#20c997'}
+};
+
+function accel(s){ return G - (s>L ? k*(s-L)/m : 0); }
+function stageOf(s,v,a){
+  if(a===undefined) a=accel(s);
+  if(Math.abs(v)<0.15 && s>L && a<0) return 'low';
+  if(s<=L) return v>=0 ? 's1' : 's6';
+  if(v>0)  return a>0 ? 's2' : 's3';
+  return a<0 ? 's4' : 's5';
+}
+function recompute(){
+  xEq  = m*G/k;
+  xMax = (m*G + Math.sqrt((m*G)**2 + 2*k*L*m*G))/k;
+  D    = L + xMax + 6;
+}
+
+/* ---------- 画布 ---------- */
+const cvS=document.getElementById('sim'), gS=cvS.getContext('2d');
+const cvC=document.getElementById('chart'), gC=cvC.getContext('2d');
+let sizeS={w:0,h:0}, sizeC={w:0,h:0};
+function fit(c){ const r=c.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  c.width=Math.round(r.width*d); c.height=Math.round(r.height*d);
+  c.getContext('2d').setTransform(d,0,0,d,0,0); return {w:r.width,h:r.height}; }
+function layout(){ sizeS=fit(cvS); sizeC=fit(cvC); }
+window.addEventListener('resize', layout);
+
+/* ---------- 物理推进 ---------- */
+function pushHist(key){
+  hist.push({t:st.t, v:st.v, key});
+  if(hist.length>24000) hist=hist.filter((_,i)=>i%2===0);
+}
+function advance(fdt){
+  let n=Math.round(fdt/DT); n=Math.max(1,Math.min(200,n));
+  const h=fdt/n;
+  for(let i=0;i<n;i++){
+    const a=accel(st.s);
+    if(tick%3===0) pushHist(stageOf(st.s,st.v,a));
+    const pv=st.v;
+    st.v+=a*h; st.s+=st.v*h;
+    if(st.s<0){ st.s=0; if(st.v<0) st.v=0; }
+    st.t+=h;
+    if(firstTaut===null && st.s>=L) firstTaut=st.t;
+    if(pv>0 && st.v<=0 && st.s>L) markers.push({t:st.t});
+    tick++;
+  }
+}
+
+/* ---------- 主场景绘制 ---------- */
+function drawSim(){
+  const {w,h}=sizeS; gS.clearRect(0,0,w,h);
+  const top=64, bot=h-44, ppm=(bot-top)/D;
+  const ax=w*0.5;                       // 锚点 x
+  const yOf=s=>top+s*ppm;
+
+  // 背景
+  const sky=gS.createLinearGradient(0,0,0,h);
+  sky.addColorStop(0,'#0e1a26'); sky.addColorStop(1,'#0b1016');
+  gS.fillStyle=sky; gS.fillRect(0,0,w,h);
+
+  // 高度网格（每 10 m）
+  gS.font='11px system-ui'; gS.textAlign='left';
+  for(let d=0; d<=D; d+=10){
+    const y=yOf(d);
+    gS.strokeStyle='rgba(255,255,255,.05)'; gS.beginPath(); gS.moveTo(70,y); gS.lineTo(w,y); gS.stroke();
+    gS.fillStyle='#63788c'; gS.fillText(d+' m',26,y+4);
+  }
+
+  // 参考虚线
+  function ref(s,txt,color){
+    const y=yOf(s);
+    gS.strokeStyle=color; gS.setLineDash([6,5]); gS.lineWidth=1.2;
+    gS.beginPath(); gS.moveTo(70,y); gS.lineTo(w,y); gS.stroke(); gS.setLineDash([]);
+    gS.fillStyle=color; gS.textAlign='right'; gS.font='11.5px system-ui';
+    gS.fillText(txt, w-8, y-5);
+  }
+  ref(L,   '绳自然长度 L = '+L.toFixed(1)+' m', '#c98a4b');
+  ref(L+xEq,'平衡位置（绳力 = 重力）', '#74c0fc');
+  ref(L+xMax,'预计最低点（v=0）', '#e599f7');
+
+  // 地面
+  gS.fillStyle='#20303f'; gS.fillRect(0,bot,w,h-bot);
+  gS.strokeStyle='#3b5268'; gS.lineWidth=2;
+  gS.beginPath(); gS.moveTo(0,bot); gS.lineTo(w,bot); gS.stroke();
+  gS.strokeStyle='rgba(255,255,255,.12)'; gS.lineWidth=1;
+  for(let x=0;x<w;x+=14){ gS.beginPath(); gS.moveTo(x,bot); gS.lineTo(x-8,bot+9); gS.stroke(); }
+
+  // 塔架与跳台
+  const tw=ax-170;
+  gS.fillStyle='#2c3d4f'; gS.fillRect(tw,top-14,14,bot-top+14);
+  gS.fillStyle='#3a5270'; gS.fillRect(tw-8,top-12,ax-tw+26,12);
+  gS.strokeStyle='#4a6484';
+  for(let x=tw+8;x<ax+10;x+=18){ gS.beginPath(); gS.moveTo(x,top-12); gS.lineTo(x,top-30); gS.stroke(); }
+  gS.beginPath(); gS.moveTo(tw-8,top-30); gS.lineTo(ax+18,top-30); gS.stroke();
+  gS.fillStyle='#8fa0b3'; gS.font='12px system-ui'; gS.textAlign='left';
+  gS.fillText('跳台 (0 m)', tw-4, top-36);
+
+  // 绳
+  const px=ax, py=yOf(st.s);
+  gS.strokeStyle= st.s>L ? '#d9a05f' : '#8f6b3f';
+  gS.lineWidth= st.s>L ? 3 : 2.5;
+  gS.beginPath(); gS.moveTo(ax,top);
+  if(st.s>=L || !started){ gS.lineTo(px,py-30); }
+  else { gS.quadraticCurveTo(px-14,(top+py-30)/2, px, py-30); }  // 松弛微弯
+  gS.stroke();
+  // 锚点
+  gS.fillStyle='#c9a227'; gS.beginPath(); gS.arc(ax,top,4,0,7); gS.fill();
+
+  // 人
+  gS.fillStyle='#ffd7a8'; gS.beginPath(); gS.arc(px,py-20,7,0,7); gS.fill();          // 头
+  gS.strokeStyle='#ffd7a8'; gS.lineWidth=3; gS.lineCap='round';
+  gS.beginPath(); gS.moveTo(px,py-13); gS.lineTo(px,py+8); gS.stroke();               // 躯干
+  gS.beginPath(); gS.moveTo(px,py+8); gS.lineTo(px-6,py+24); gS.moveTo(px,py+8); gS.lineTo(px+6,py+24); gS.stroke(); // 腿
+  gS.beginPath(); gS.moveTo(px,py-11); gS.lineTo(px,py-29); gS.moveTo(px,py-11); gS.lineTo(px-8, started?py-24:py+2); gS.stroke(); // 臂
+
+  // 矢量箭头
+  function arrow(x0,len,color,label,txt){
+    if(Math.abs(len)<4) len=4;
+    const y0=py, y1=py+len;
+    gS.strokeStyle=color; gS.fillStyle=color; gS.lineWidth=3.5;
+    gS.beginPath(); gS.moveTo(x0,y0); gS.lineTo(x0,y1); gS.stroke();
+    const dir=Math.sign(len);
+    gS.beginPath(); gS.moveTo(x0,y1); gS.lineTo(x0-6,y1-9*dir); gS.lineTo(x0+6,y1-9*dir); gS.closePath(); gS.fill();
+    gS.font='bold 12.5px system-ui'; gS.textAlign='left';
+    gS.fillText(txt, x0+9, y1 + (dir>0?14:-8));
+    gS.font='11px system-ui'; gS.fillStyle='#8fa0b3';
+    gS.fillText(label, x0+9, py-16);
+  }
+  if(started){
+    const a=accel(st.s);
+    const vLen=Math.max(-95,Math.min(95, st.v*4.2));
+    const aLen=Math.max(-95,Math.min(95, a*10));
+    arrow(px+52, vLen, '#51cf66', '速度 v', 'v = '+Math.abs(st.v).toFixed(1)+' m/s '+(st.v>0.05?'↓':st.v<-0.05?'↑':''));
+    arrow(px+130, aLen, '#ff922b', '加速度 a', 'a = '+Math.abs(a).toFixed(1)+' m/s² '+(a>0.02?'↓':a<-0.02?'↑':''));
+  }
+
+  // 当前阶段文字
+  if(started){
+    const key=stageOf(st.s,st.v), sg=STAGES[key];
+    gS.font='bold 13px system-ui'; gS.textAlign='left'; gS.fillStyle=sg.color;
+    gS.fillText(sg.name, 16, h-14);
+  }
+}
+
+/* ---------- v–t 图 ---------- */
+function niceStep(x){ const p=Math.pow(10,Math.floor(Math.log10(x))); const r=x/p;
+  return (r<1.5?1:r<3.5?2:r<7.5?5:10)*p; }
+
+function drawChart(){
+  const {w,h}=sizeC; gC.clearRect(0,0,w,h);
+  const ml=46, mr=12, mt=16, mb=26;
+  const pw=w-ml-mr, ph=h-mt-mb;
+  let vmax=5;
+  for(const p of hist) vmax=Math.max(vmax,Math.abs(p.v));
+  vmax*=1.15;
+  const tmax=Math.max(4, st.t*1.05);
+  const X=t=>ml+t/tmax*pw, Y=v=>mt+(1-(v+vmax)/(2*vmax))*ph;
+
+  gC.fillStyle='#0b1016'; gC.fillRect(ml,mt,pw,ph);
+
+  // 阶段底色
+  for(let i=1;i<hist.length;i++){
+    const x0=X(hist[i-1].t), x1=X(hist[i].t)+0.8;
+    gC.fillStyle=hexA(STAGES[hist[i].key].color,0.16);
+    gC.fillRect(x0,mt,Math.max(0.8,x1-x0),ph);
+  }
+  // 网格与坐标
+  const ts=niceStep(tmax/5), vs=niceStep(vmax/2.5);
+  gC.font='10.5px system-ui'; gC.fillStyle='#63788c'; gC.textAlign='center';
+  for(let t=0;t<=tmax+1e-9;t+=ts){
+    const x=X(t);
+    gC.strokeStyle='rgba(255,255,255,.07)';
+    gC.beginPath(); gC.moveTo(x,mt); gC.lineTo(x,mt+ph); gC.stroke();
+    gC.fillText(t.toFixed(ts<1?1:0)+'s', x, h-10);
+  }
+  gC.textAlign='right';
+  for(let v=-Math.floor(vmax/vs)*vs; v<=vmax; v+=vs){
+    const y=Y(v);
+    gC.strokeStyle= v===0 ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.07)';
+    gC.beginPath(); gC.moveTo(ml,y); gC.lineTo(ml+pw,y); gC.stroke();
+    gC.fillText((v>0?'+':'')+v.toFixed(0), ml-6, y+3.5);
+  }
+  gC.save(); gC.translate(11,mt+ph/2); gC.rotate(-Math.PI/2);
+  gC.textAlign='center'; gC.fillStyle='#8fa0b3'; gC.font='11px system-ui';
+  gC.fillText('速度 v (m/s，向下为正)',0,0); gC.restore();
+  gC.textAlign='center'; gC.fillStyle='#8fa0b3';
+  gC.fillText('时间 t (s)', ml+pw/2, h-1);
+
+  // 绳绷紧竖线
+  if(firstTaut!==null){
+    const x=X(firstTaut);
+    gC.strokeStyle='#d9a05f'; gC.setLineDash([5,4]);
+    gC.beginPath(); gC.moveTo(x,mt); gC.lineTo(x,mt+ph); gC.stroke(); gC.setLineDash([]);
+    gC.fillStyle='#d9a05f'; gC.textAlign='left'; gC.font='11px system-ui';
+    gC.fillText('绳绷紧', x+4, mt+12);
+  }
+  // 曲线
+  if(hist.length>1){
+    gC.strokeStyle='#f1f3f5'; gC.lineWidth=2; gC.lineJoin='round'; gC.beginPath();
+    for(let i=0;i<hist.length;i++){ const x=X(hist[i].t), y=Y(hist[i].v); i?gC.lineTo(x,y):gC.moveTo(x,y); }
+    gC.stroke();
+  }
+  // 最低点标记
+  markers.forEach((mk,i)=>{
+    const x=X(mk.t), y=Y(0);
+    gC.fillStyle='#ff6b6b'; gC.beginPath(); gC.arc(x,y,4,0,7); gC.fill();
+    if(i===0){ gC.fillStyle='#ffb3b3'; gC.textAlign='left'; gC.font='11px system-ui';
+      gC.fillText('最低点 v=0', x+7, y-6); }
+  });
+  // 当前点
+  if(started && hist.length){
+    gC.fillStyle='#51cf66'; gC.beginPath(); gC.arc(X(st.t),Y(st.v),4.5,0,7); gC.fill();
+  }
+}
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16);
+  return `rgba(${n>>16},${(n>>8)&255},${n&255},${a})`; }
+
+/* ---------- 信息面板 ---------- */
+const $=id=>document.getElementById(id);
+function updateInfo(){
+  const key= started?stageOf(st.s,st.v):null;
+  const chip=$('stgChip');
+  if(!key){ chip.textContent='准备：站在跳台上（v = 0）'; chip.style.background='#5c7185'; }
+  else{ chip.textContent=STAGES[key].name.split('：')[0]; chip.style.background=STAGES[key].color; }
+  const a=accel(st.s), T=st.s>L?k*(st.s-L):0;
+  $('iV').textContent = started? Math.abs(st.v).toFixed(1)+' m/s（'+(st.v>0.05?'向下':st.v<-0.05?'向上':'≈0，瞬时静止')+'）' : '0 m/s';
+  $('iA').textContent = started? Math.abs(a).toFixed(1)+' m/s²（'+(a>0.02?'向下':a<-0.02?'向上':'=0')+'）' : '0 m/s²（静止）';
+  $('iX').textContent = (st.s>L?(st.s-L):0).toFixed(1)+' m';
+  $('iT').textContent = T.toFixed(0)+' N'+(st.s>L?'':'（绳松弛）');
+  $('iS').textContent = st.s.toFixed(1)+' m';
+  $('iT2').textContent = st.t.toFixed(2)+' s';
+}
+function updateDerived(){
+  $('derived').innerHTML =
+    '平衡伸长 mg/k = <b>'+xEq.toFixed(1)+'</b> m　｜　预计最大伸长 = <b>'+xMax.toFixed(1)+'</b> m<br>'+
+    '跳台离地高度 = <b>'+D.toFixed(1)+'</b> m（自动保证不触地）　｜　调整参数后自动回到跳台重新开始';
+}
+
+/* ---------- 控制 ---------- */
+function readParams(){
+  L=+$('inL').value; k=+$('inK').value; m=+$('inM').value;
+  $('outL').textContent=L.toFixed(1)+' m';
+  $('outK').textContent=k.toFixed(0)+' N/m';
+  $('outM').textContent=m.toFixed(0)+' kg';
+}
+function resetSim(){
+  st={t:0,s:0,v:0}; hist=[]; markers=[]; firstTaut=null; tick=0;
+  started=false; running=false; paused=false;
+  $('btnPause').disabled=true; $('btnPause').textContent='暂停';
+}
+$('btnStart').onclick=()=>{ resetSim(); started=true; running=true; };
+$('btnPause').onclick=()=>{ if(!running)return; paused=!paused; $('btnPause').textContent=paused?'继续':'暂停'; };
+$('btnReset').onclick=resetSim;
+['inL','inK','inM'].forEach(id=>$(id).addEventListener('input',()=>{
+  readParams(); recompute(); updateDerived(); resetSim();
+}));
+
+/* 图例 */
+(function(){
+  const box=$('legend');
+  for(const key in STAGES){
+    const s=document.createElement('span');
+    s.innerHTML='<i class="dot" style="background:'+STAGES[key].color+'"></i>'+STAGES[key].name;
+    box.appendChild(s);
+  }
+})();
+
+/* ---------- 主循环 ---------- */
+let lastTs=0;
+function frame(ts){
+  if(!lastTs) lastTs=ts;
+  let dt=(ts-lastTs)/1000; lastTs=ts;
+  if(dt>0.06) dt=0.06;
+  if(running && !paused) advance(dt);
+  updateInfo(); drawSim(); drawChart();
+  requestAnimationFrame(frame);
+}
+
+readParams(); recompute(); updateDerived(); layout();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

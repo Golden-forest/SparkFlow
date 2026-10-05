@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>受迫振动与共振</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.45); outline-offset: 2px; }
+
+    .app { width: min(1560px, 100%); height: 100vh; min-height: 640px; margin: 0 auto; padding: var(--sim-space-4) var(--sim-space-5) var(--sim-space-3); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--sim-space-3); }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.03em; line-height: 1.05; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15, 159, 186, 0.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700; white-space: nowrap; }
+
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(340px, 0.76fr); gap: var(--sim-space-3); }
+    .panel { min-width: 0; background: rgba(255, 255, 255, 0.94); border: 1px solid rgba(148, 163, 184, 0.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+
+    .scene-panel { min-height: 420px; padding: var(--sim-space-3) var(--sim-space-4) var(--sim-space-2); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: var(--sim-space-2); }
+    .panel-head h2 { margin: 0; font-size: 1.02rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 0; display: block; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: var(--sim-radius-md); background: linear-gradient(160deg, #fbfdff 0%, #f2f8fa 55%, #fff9ed 100%); }
+
+    .side { min-height: 0; display: flex; flex-direction: column; gap: var(--sim-space-3); }
+    .chart-panel { padding: var(--sim-space-3) var(--sim-space-4) var(--sim-space-2); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    #chart { width: 100%; height: 100%; min-height: 250px; display: block; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: var(--sim-radius-md); background: #fdfefe; touch-action: none; cursor: crosshair; }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding-top: 9px; font-size: 0.72rem; color: var(--sim-muted); }
+    .legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+    .sw { display: inline-block; width: 20px; height: 0; border-top: 3px solid var(--sim-accent); border-radius: 2px; }
+    .sw.ref1 { border-top-color: #97a4b8; }
+    .sw.ref2 { border-top-color: #97a4b8; border-top-style: dashed; }
+    .sw.ref3 { border-top-color: #b9c3d2; border-top-style: dotted; }
+    .pt { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+    .pt.theory { background: var(--sim-accent-deep); }
+    .pt.meas { background: var(--sim-warning); border-radius: 2px; transform: rotate(45deg); }
+
+    .readouts { padding: var(--sim-space-3) var(--sim-space-4); }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 11px 13px; border: 1px solid rgba(15, 159, 186, 0.12); border-radius: var(--sim-radius-sm); background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.28rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .metric strong em { font-style: normal; font-size: 0.72rem; color: var(--sim-muted); font-weight: 600; margin-left: 4px; }
+
+    .insight-panel { padding: var(--sim-space-3) var(--sim-space-4); display: grid; align-content: start; gap: 10px; flex: 1; }
+    .insight-panel h2 { margin: 0; font-size: 0.98rem; }
+    .insight { margin: 0; padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0; background: #fff8e8; color: #80510a; font-weight: 650; line-height: 1.55; font-size: 0.92rem; }
+    .conclusion { margin: 0; color: var(--sim-muted); font-size: 0.84rem; line-height: 1.6; }
+    .model-note { margin: 0; color: #8794a7; font-size: 0.72rem; line-height: 1.55; border-top: 1px dashed var(--sim-border); padding-top: 9px; }
+
+    .controls { padding: 11px 14px; display: grid; grid-template-columns: auto auto minmax(190px, 1fr) minmax(170px, 0.9fr) minmax(180px, auto); gap: 18px; align-items: center; border-radius: var(--sim-radius-md); }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.9rem; transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(0.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15, 159, 186, 0.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45); }
+    .speed-row { display: flex; gap: 5px; align-items: center; }
+    .speed-row .lab { font-size: 0.78rem; color: var(--sim-muted); font-weight: 700; margin-right: 3px; }
+    .speed-btn { padding: 7px 9px; font-size: 0.8rem; }
+    .speed-btn[aria-pressed="true"] { background: var(--sim-accent-soft); border-color: rgba(15, 159, 186, 0.5); color: var(--sim-accent-deep); box-shadow: none; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.82rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .dock-hint { color: var(--sim-muted); font-size: 0.74rem; line-height: 1.5; }
+
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .svg-label { fill: var(--sim-muted); font-size: 12px; }
+    .svg-label-s { fill: var(--sim-muted); font-size: 11px; }
+    .spring { fill: none; stroke: #5b6b84; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .guide { stroke: var(--sim-accent); stroke-width: 2; stroke-dasharray: 7 6; opacity: 0.85; }
+    .guide-text { fill: var(--sim-accent-deep); font-size: 13px; font-weight: 700; }
+    .force-arrow { stroke: var(--sim-warning); stroke-width: 5; stroke-linecap: round; }
+    .force-text { fill: #a35d00; font-size: 13px; font-weight: 750; }
+    .drag-arrow { stroke: #8794a7; stroke-width: 3; stroke-linecap: round; }
+    .trace-line { fill: none; stroke: var(--sim-accent); stroke-width: 2.6; stroke-linejoin: round; }
+    .env-line { stroke: var(--sim-accent); stroke-width: 1.6; stroke-dasharray: 5 5; opacity: 0.7; }
+    .ref-curve { fill: none; stroke-width: 2; }
+    .live-curve { fill: none; stroke: var(--sim-accent); stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+    .f0-line { stroke: #657188; stroke-width: 1.8; stroke-dasharray: 4 5; }
+    .fr-dot { fill: var(--sim-danger); }
+    .meas-dot { fill: var(--sim-warning); stroke: #fff; stroke-width: 1.6; }
+
+    @media (max-width: 940px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-3); }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { height: auto; aspect-ratio: 960 / 620; }
+      #chart { height: auto; aspect-ratio: 440 / 390; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .dock-hint { grid-column: 1 / -1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button { transition: none; }
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <!-- AppShell shell: header / stage / evidence / insight / controls -->
+  <div class="app" data-layout="scene-first" data-model-tier="continuous-ode">
+    <header class="header" data-zone="header">
+      <div>
+        <h1>受迫振动与共振</h1>
+        <p>振子在周期性驱动力下振动：调节驱动力频率与阻尼，观察稳态振幅何时最大、阻尼如何改变曲线。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-zone="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">振动台：弹簧振子受周期性驱动力</h2>
+          <span>青色虚线 = 稳态振幅包络 ±A · 琥珀色箭头 = 驱动力 F(t)</span>
+        </div>
+        <svg id="scene" viewBox="0 0 960 620" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">上半部分是水平弹簧振子：左端固定，滑块受驱动力箭头与阻尼作用；下方是实时位移曲线，展示暂态如何过渡到稳态。</desc>
+          <defs>
+            <marker id="mArrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--sim-warning)"></path></marker>
+            <marker id="mArrowGray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8794a7"></path></marker>
+          </defs>
+          <g id="apparatusStatic"></g>
+          <polyline id="springPts" class="spring" points=""></polyline>
+          <line id="guideL" class="guide" x1="0" y1="80" x2="0" y2="212"></line>
+          <line id="guideR" class="guide" x1="0" y1="80" x2="0" y2="212"></line>
+          <text id="guideLText" class="guide-text" text-anchor="middle"></text>
+          <text id="guideRText" class="guide-text" text-anchor="middle"></text>
+          <g id="oscGroup">
+            <rect x="-32" y="-28" width="64" height="56" rx="10" fill="#22334e" stroke="#101a2c" stroke-width="2"></rect>
+            <text x="0" y="5" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="750">m=1kg</text>
+            <line id="dragA1" class="drag-arrow" x1="0" y1="-14" x2="0" y2="-14" marker-end="url(#mArrowGray)"></line>
+            <line id="dragA2" class="drag-arrow" x1="0" y1="16" x2="0" y2="16" marker-end="url(#mArrowGray)"></line>
+          </g>
+          <line id="forceLine" class="force-arrow" x1="0" y1="104" x2="0" y2="104" marker-end="url(#mArrowAmber)"></line>
+          <text id="forceText" class="force-text" text-anchor="middle">驱动力 F(t)</text>
+          <g id="traceStatic"></g>
+          <line id="envP" class="env-line" x1="70" y1="0" x2="930" y2="0"></line>
+          <line id="envN" class="env-line" x1="70" y1="0" x2="930" y2="0"></line>
+          <polyline id="tracePts" class="trace-line" points=""></polyline>
+          <g id="timeTicks"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-zone="evidence">
+        <section class="panel chart-panel" aria-labelledby="chart-title">
+          <div class="panel-head">
+            <h2 id="chart-title">稳态振幅–驱动力频率曲线</h2>
+            <span>固有频率 f₀ = 0.64 Hz · F₀ = 0.2 N</span>
+          </div>
+          <svg id="chart" viewBox="0 0 440 390" role="img" aria-labelledby="chart-title chart-desc">
+            <desc id="chart-desc">稳态振幅随驱动力频率变化的曲线族：三条虚线为不同阻尼的参考曲线，实线为当前阻尼，圆点为当前工作点，菱形点为实测振幅。</desc>
+            <g id="chartStatic"></g>
+            <polyline id="liveCurve" class="live-curve" points=""></polyline>
+            <circle id="frDot" class="fr-dot" r="4"></circle>
+            <circle id="wpHalo" r="9" fill="rgba(15,159,186,0.18)"></circle>
+            <circle id="wpDot" r="5.5" fill="var(--sim-accent-deep)" stroke="#fff" stroke-width="2"></circle>
+            <rect id="measDot" class="meas-dot" x="-5" y="-5" width="10" height="10" transform="translate(-100,-100) rotate(45)" opacity="0"></rect>
+          </svg>
+          <div class="legend">
+            <span class="lg"><i class="sw"></i>当前阻尼曲线</span>
+            <span class="lg"><i class="sw ref1"></i>β=0.12 弱阻尼</span>
+            <span class="lg"><i class="sw ref2"></i>β=0.30</span>
+            <span class="lg"><i class="sw ref3"></i>β=0.60 强阻尼</span>
+            <span class="lg"><i class="pt theory"></i>理论稳态点</span>
+            <span class="lg"><i class="pt meas"></i>实测振幅</span>
+          </div>
+        </section>
+
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>驱动力频率 f</small><strong id="metricFreq">0.50<em>Hz</em></strong></div>
+            <div class="metric"><small>阻尼系数 β</small><strong id="metricBeta">0.30<em>s⁻¹</em></strong></div>
+            <div class="metric"><small>理论稳态振幅 A</small><strong id="metricAmp">—<em>cm</em></strong></div>
+            <div class="metric"><small>实测稳态振幅</small><strong id="metricMeas">—<em>cm</em></strong></div>
+          </div>
+        </section>
+
+        <section class="panel insight-panel" data-zone="insight" aria-labelledby="insight-title">
+          <h2 id="insight-title">观察与结论</h2>
+          <p id="insight" class="insight">点击「开始」：振子先按固有频率起步（暂态），随后逐渐被驱动力“接管”，进入稳态。</p>
+          <p class="conclusion">对比结论：阻尼越小，共振峰值越高、曲线越尖锐；阻尼增大，峰值明显降低、曲线变宽变缓，共振频率还略向低频偏移。</p>
+          <p class="model-note">模型：m·x″ + 2mβ·x′ + k·x = F₀·cos(ωt)，m=1 kg、k=16 N/m（ω₀=4 rad/s）、F₀=0.2 N。动态过程用 RK4 定步长 1/240 s 积分；图中稳态曲线为解析解 A(ω)=（F₀/m）/√((ω₀²−ω²)²+(2βω)²)。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-zone="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="speed-row" role="group" aria-label="时间倍率">
+        <span class="lab">时间</span>
+        <button class="speed-btn" type="button" data-scale="0.5" aria-pressed="false">0.5×</button>
+        <button class="speed-btn" type="button" data-scale="1" aria-pressed="true">1×</button>
+        <button class="speed-btn" type="button" data-scale="2" aria-pressed="false">2×</button>
+        <button class="speed-btn" type="button" data-scale="4" aria-pressed="false">4×</button>
+      </div>
+      <div class="control">
+        <label for="driveFreqInput">驱动力频率 f <output id="driveFreqOutput" for="driveFreqInput">0.50 Hz</output></label>
+        <input id="driveFreqInput" type="range" min="0.10" max="1.40" step="0.01" value="0.50">
+      </div>
+      <div class="control">
+        <label for="dampingInput">阻尼系数 β <output id="dampingOutput" for="dampingInput">0.30 s⁻¹</output></label>
+        <input id="dampingInput" type="range" min="0.12" max="1.20" step="0.01" value="0.30">
+      </div>
+      <p class="dock-hint" id="dockHint">提示：可直接在右侧曲线图上点按或拖动，设置驱动力频率。</p>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    /* ================= parameter schema ================= */
+    const parameterSchema = [
+      { key: "driveFreq", label: "驱动力频率 f", type: "slider", min: 0.10, max: 1.40, step: 0.01, default: 0.50, unit: "Hz" },
+      { key: "damping", label: "阻尼系数 β", type: "slider", min: 0.12, max: 1.20, step: 0.01, default: 0.30, unit: "s⁻¹" }
+    ];
+
+    /* ================= physical constants (SI) =================
+       m x'' + 2 m beta x' + k x = F0 cos(theta),  theta' = omega   */
+    const M = 1;                       // kg
+    const K = 16;                      // N/m
+    const OMEGA0 = Math.sqrt(K / M);   // 4 rad/s, natural angular frequency
+    const F0 = 0.2;                    // N, drive amplitude
+    const F0M = F0 / M;                // m/s^2
+    const H = 1 / 240;                 // fixed RK4 step (s)
+    const REF_BETAS = [0.12, 0.30, 0.60];
+    const F_LO = 0.05, F_HI = 1.45;    // chart frequency span (Hz)
+
+    /* ================= authoritative state ================= */
+    const state = {
+      running: false, t: 0, theta: 0, x: 0, v: 0,
+      driveF: 0.50, beta: 0.30, timeScale: 1,
+      lastTs: null, acc: 0, lastSampleT: -1,
+      trace: [], maxima: [], minima: [], measA: null, settled: false
+    };
+
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const finite = (v, fb) => (Number.isFinite(v) ? v : fb);
+    const omegaOf = (f) => 2 * Math.PI * f;
+
+    /* ================= analytic steady state (oracle) ================= */
+    function analyticAmplitude(beta, omega) {
+      return F0M / Math.hypot(OMEGA0 * OMEGA0 - omega * omega, 2 * beta * omega);
+    }
+    function analyticPhase(beta, omega) {
+      return Math.atan2(2 * beta * omega, OMEGA0 * OMEGA0 - omega * omega);
+    }
+    function resonanceOmega(beta) {
+      const r = OMEGA0 * OMEGA0 - 2 * beta * beta;
+      return r > 0 ? Math.sqrt(r) : 0;
+    }
+
+    /* ================= physics kernel (DOM-free) ================= */
+    function deriv(y, beta, omega, a0) {
+      return [omega, y[2], a0 * Math.cos(y[0]) - 2 * beta * y[2] - OMEGA0 * OMEGA0 * y[1]];
+    }
+    function rk4Step(y, beta, omega, a0, h) {
+      const k1 = deriv(y, beta, omega, a0);
+      const y2 = [y[0] + h / 2 * k1[0], y[1] + h / 2 * k1[1], y[2] + h / 2 * k1[2]];
+      const k2 = deriv(y2, beta, omega, a0);
+      const y3 = [y[0] + h / 2 * k2[0], y[1] + h / 2 * k2[1], y[2] + h / 2 * k2[2]];
+      const k3 = deriv(y3, beta, omega, a0);
+      const y4 = [y[0] + h * k3[0], y[1] + h * k3[1], y[2] + h * k3[2]];
+      const k4 = deriv(y4, beta, omega, a0);
+      return [
+        y[0] + h / 6 * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
+        y[1] + h / 6 * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]),
+        y[2] + h / 6 * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2])
+      ];
+    }
+
+    /* Pure runner for model checks: returns tail statistics. */
+    function simulateCase(opts) {
+      const beta = opts.beta, omega = opts.driveF != null ? omegaOf(opts.driveF) : 0;
+      const a0 = opts.driveAmp != null ? opts.driveAmp : F0M;
+      const dt = opts.dt || H;
+      let y = [0, opts.x0 || 0, opts.v0 || 0];
+      const n = Math.round(opts.duration / dt);
+      const tailStart = opts.duration - (opts.tail || 8);
+      let tailMin = Infinity, tailMax = -Infinity, tailCorr = 0, tailN = 0;
+      let lastV = y[2];
+      const maxima = [];
+      for (let i = 1; i <= n; i += 1) {
+        y = rk4Step(y, beta, omega, a0, dt);
+        const t = i * dt;
+        if (t > tailStart) {
+          if (y[1] < tailMin) tailMin = y[1];
+          if (y[1] > tailMax) tailMax = y[1];
+          tailCorr += y[1] * Math.cos(y[0]); tailN += 1;
+        }
+        if (lastV > 0 && y[2] <= 0) maxima.push({ t, x: y[1] });
+        lastV = y[2];
+      }
+      return { tailMin, tailMax, corrMean: tailN ? tailCorr / tailN : 0, maxima, x: y[1], v: y[2], t: n * dt };
+    }
+
+    /* ================= lifecycle ================= */
+    let elements = null;
+
+    function init() {
+      elements = {
+        status: document.querySelector("#status"),
+        scene: document.querySelector("#scene"),
+        springPts: document.querySelector("#springPts"), oscGroup: document.querySelector("#oscGroup"),
+        guideL: document.querySelector("#guideL"), guideR: document.querySelector("#guideR"),
+        guideLText: document.querySelector("#guideLText"), guideRText: document.querySelector("#guideRText"),
+        forceLine: document.querySelector("#forceLine"), forceText: document.querySelector("#forceText"),
+        dragA1: document.querySelector("#dragA1"), dragA2: document.querySelector("#dragA2"),
+        tracePts: document.querySelector("#tracePts"), envP: document.querySelector("#envP"), envN: document.querySelector("#envN"),
+        chart: document.querySelector("#chart"), liveCurve: document.querySelector("#liveCurve"),
+        frDot: document.querySelector("#frDot"), wpHalo: document.querySelector("#wpHalo"), wpDot: document.querySelector("#wpDot"),
+        measDot: document.querySelector("#measDot"),
+        metricFreq: document.querySelector("#metricFreq"), metricBeta: document.querySelector("#metricBeta"),
+        metricAmp: document.querySelector("#metricAmp"), metricMeas: document.querySelector("#metricMeas"),
+        insight: document.querySelector("#insight"),
+        driveFreqInput: document.querySelector("#driveFreqInput"), driveFreqOutput: document.querySelector("#driveFreqOutput"),
+        dampingInput: document.querySelector("#dampingInput"), dampingOutput: document.querySelector("#dampingOutput"),
+        startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn")
+      };
+      buildApparatusStatic();
+      buildTraceStatic();
+      buildTimeTicks();
+      buildChartStatic();
+      bindControls();
+      setParameters({ driveFreq: 0.50, damping: 0.30 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      if (elements) elements.status.textContent = "运行中";
+    }
+    function pause() {
+      state.running = false;
+      state.lastTs = null;
+      if (elements) elements.status.textContent = "已暂停";
+    }
+    function reset() {
+      pause();
+      state.t = 0; state.theta = 0; state.x = 0; state.v = 0;
+      state.acc = 0; state.lastSampleT = -1;
+      state.trace = []; state.maxima = []; state.minima = [];
+      state.measA = null; state.settled = false;
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const realDt = clamp(finite(dt, 0), 0, 0.05) * state.timeScale;
+      state.acc = Math.min(state.acc + realDt, 0.5);
+      let vPrev = state.v;
+      while (state.acc >= H) {
+        const y = rk4Step([state.theta, state.x, state.v], state.beta, omegaOf(state.driveF), F0M, H);
+        state.theta = y[0]; state.x = y[1]; state.v = y[2];
+        state.t += H; state.acc -= H;
+        if (!Number.isFinite(state.x) || !Number.isFinite(state.v) || !Number.isFinite(state.theta)) {
+          state.t = 0; state.theta = 0; state.x = 0; state.v = 0;
+          state.trace = []; state.maxima = []; state.minima = [];
+          state.measA = null; state.settled = false;
+          return;
+        }
+        if (vPrev > 0 && state.v <= 0 && state.x > 0) recordPeak(state.maxima, state.t, state.x);
+        if (vPrev < 0 && state.v >= 0 && state.x < 0) recordPeak(state.minima, state.t, state.x);
+        vPrev = state.v;
+        if (state.t - state.lastSampleT >= 1 / 60) {
+          state.lastSampleT = state.t;
+          state.trace.push({ t: state.t, x: state.x });
+        }
+      }
+      while (state.trace.length > 1 && state.trace[0].t < state.t - 12) state.trace.shift();
+      updateMeasurement();
+    }
+
+    function recordPeak(list, t, val) {
+      list.push({ t, val });
+      if (list.length > 6) list.shift();
+    }
+    function updateMeasurement() {
+      if (state.maxima.length >= 1 && state.minima.length >= 1) {
+        const mx = state.maxima[state.maxima.length - 1].val;
+        const mn = Math.abs(state.minima[state.minima.length - 1].val);
+        const age = state.t - Math.min(state.maxima[state.maxima.length - 1].t, state.minima[state.minima.length - 1].t);
+        if (age < 8) state.measA = (mx + mn) / 2;
+      }
+      state.settled = spreadSmall(state.maxima) && spreadSmall(state.minima) &&
+        state.maxima.length >= 3 && state.minima.length >= 3 && state.measA !== null;
+    }
+    function spreadSmall(list) {
+      if (list.length < 3) return false;
+      const last3 = list.slice(-3).map((p) => p.val);
+      const mx = Math.max.apply(null, last3.map(Math.abs));
+      const mn = Math.min.apply(null, last3.map(Math.abs));
+      return mx > 1e-6 && (mx - mn) / mx < 0.03;
+    }
+
+    /* ================= view mapping constants ================= */
+    const PX_PER_M = 500;            // apparatus scale
+    const BLOCK_CX = 480, RAIL_Y = 150;
+    const TR = { x0: 70, x1: 930, y0: 300, y1: 585, yMid: 442.5, span: 12, pxA: 594 };  // trace band
+    const CH = { x0: 56, x1: 425, y0: 30, y1: 322, aMax: 0.24 };                        // chart band
+
+    const chartFx = (f) => CH.x0 + (f - F_LO) / (F_HI - F_LO) * (CH.x1 - CH.x0);
+    const chartAy = (a) => CH.y1 - (a / CH.aMax) * (CH.y1 - CH.y0);
+    const traceTy = (t, tNow) => TR.x0 + (t - Math.max(0, tNow - TR.span)) / TR.span * (TR.x1 - TR.x0);
+    const traceXy = (x) => TR.yMid - x * TR.pxA;
+    const fmt1 = (v) => v.toFixed(1);
+
+    /* ================= static builders ================= */
+    function buildApparatusStatic() {
+      const g = [];
+      g.push(`<rect x="60" y="84" width="26" height="132" rx="4" fill="#e3e9f2" stroke="#c3cedd"/>`);
+      for (let i = 0; i < 7; i += 1) {
+        g.push(`<line x1="60" y1="${92 + i * 18}" x2="86" y2="${80 + i * 18}" stroke="#c3cedd" stroke-width="2"/>`);
+      }
+      g.push(`<text class="svg-label-s" x="73" y="234" text-anchor="middle">固定端</text>`);
+      g.push(`<line x1="60" y1="178" x2="900" y2="178" stroke="#d7dfea" stroke-width="4" stroke-linecap="round"/>`);
+      g.push(`<line x1="60" y1="184" x2="900" y2="184" stroke="#e4eaf2" stroke-width="2" stroke-linecap="round"/>`);
+      g.push(`<line x1="${BLOCK_CX}" y1="192" x2="${BLOCK_CX}" y2="204" stroke="#9aa7ba" stroke-width="1.6"/>`);
+      g.push(`<text class="svg-label-s" x="${BLOCK_CX}" y="218" text-anchor="middle">平衡位置 0</text>`);
+      g.push(`<text class="svg-label-s" x="250" y="204" text-anchor="middle">弹簧 k = 16 N/m</text>`);
+      g.push(`<text class="svg-label" x="70" y="266">实时位移 x(t)：从暂态到稳态（窗口 12 s）</text>`);
+      g.push(`<text class="svg-label-s" x="928" y="266" text-anchor="end">单位 cm</text>`);
+      document.querySelector("#apparatusStatic").innerHTML = g.join("");
+    }
+
+    function buildTraceStatic() {
+      const g = [];
+      const rows = [
+        { cm: 20, y: TR.yMid - 0.20 * TR.pxA }, { cm: 10, y: TR.yMid - 0.10 * TR.pxA },
+        { cm: 0, y: TR.yMid }, { cm: -10, y: TR.yMid + 0.10 * TR.pxA }, { cm: -20, y: TR.yMid + 0.20 * TR.pxA }
+      ];
+      for (const r of rows) {
+        g.push(`<line class="grid-line" x1="${TR.x0}" y1="${r.y.toFixed(1)}" x2="${TR.x1}" y2="${r.y.toFixed(1)}"/>`);
+        g.push(`<text class="svg-label-s" x="${TR.x0 - 6}" y="${(r.y + 4).toFixed(1)}" text-anchor="end">${r.cm}</text>`);
+      }
+      g.push(`<line class="axis" x1="${TR.x0}" y1="${TR.y0}" x2="${TR.x0}" y2="${TR.y1}"/>`);
+      g.push(`<line class="axis" x1="${TR.x0}" y1="${TR.y1}" x2="${TR.x1}" y2="${TR.y1}"/>`);
+      g.push(`<text class="svg-label-s" x="${TR.x1}" y="${TR.y1 + 24}" text-anchor="end">时间 t / s</text>`);
+      document.querySelector("#traceStatic").innerHTML = g.join("");
+    }
+
+    function buildTimeTicks() {
+      const host = document.querySelector("#timeTicks");
+      let html = "";
+      for (let i = 0; i < 8; i += 1) {
+        html += `<g opacity="0"><line x1="0" y1="${TR.y1}" x2="0" y2="${TR.y1 + 7}" stroke="#9aa7ba" stroke-width="1.5"/><text class="svg-label-s" x="0" y="${TR.y1 + 20}" text-anchor="middle"></text></g>`;
+      }
+      host.innerHTML = html;
+    }
+
+    function buildChartStatic() {
+      const g = [];
+      for (let cm = 0; cm <= 24; cm += 4) {
+        const y = chartAy(cm / 100).toFixed(1);
+        g.push(`<line class="grid-line" x1="${CH.x0}" y1="${y}" x2="${CH.x1}" y2="${y}"/>`);
+        g.push(`<text class="svg-label-s" x="${CH.x0 - 6}" y="${+y + 4}" text-anchor="end">${cm}</text>`);
+      }
+      for (let f = 0.2; f <= 1.41; f += 0.2) {
+        const x = chartFx(f).toFixed(1);
+        g.push(`<line class="grid-line" x1="${x}" y1="${CH.y0}" x2="${x}" y2="${CH.y1}"/>`);
+        g.push(`<text class="svg-label-s" x="${x}" y="${CH.y1 + 16}" text-anchor="middle">${f.toFixed(1)}</text>`);
+      }
+      g.push(`<line class="axis" x1="${CH.x0}" y1="${CH.y1}" x2="${CH.x1}" y2="${CH.y1}"/>`);
+      g.push(`<line class="axis" x1="${CH.x0}" y1="${CH.y0}" x2="${CH.x0}" y2="${CH.y1}"/>`);
+      g.push(`<text class="svg-label" x="${(CH.x0 + CH.x1) / 2}" y="${CH.y1 + 38}" text-anchor="middle">驱动力频率 f / Hz</text>`);
+      g.push(`<text class="svg-label-s" x="18" y="24">A/cm</text>`);
+      const fx0 = chartFx(OMEGA0 / (2 * Math.PI));
+      g.push(`<line class="f0-line" x1="${fx0.toFixed(1)}" y1="${CH.y0}" x2="${fx0.toFixed(1)}" y2="${CH.y1}"/>`);
+      g.push(`<text x="${(fx0 + 5).toFixed(1)}" y="${CH.y0 + 10}" fill="#657188" font-size="11" font-weight="700">固有频率 f₀</text>`);
+      const styles = [
+        { dash: "none", color: "#97a4b8" },
+        { dash: "7 5", color: "#97a4b8" },
+        { dash: "2 5", color: "#b9c3d2" }
+      ];
+      REF_BETAS.forEach((b, i) => {
+        const pts = curvePoints(b);
+        const st = styles[i];
+        g.push(`<polyline class="ref-curve" points="${pts}" stroke="${st.color}"${st.dash === "none" ? "" : ` stroke-dasharray="${st.dash}"`}/>`);
+        const fr = resonanceOmega(b) / (2 * Math.PI), am = analyticAmplitude(b, resonanceOmega(b));
+        const lx = chartFx(fr) + 8, ly = chartAy(am) - 7;
+        g.push(`<text x="${lx.toFixed(1)}" y="${Math.max(ly, 20).toFixed(1)}" fill="#8794a7" font-size="11" font-weight="700">β=${b.toFixed(2)}</text>`);
+      });
+      document.querySelector("#chartStatic").innerHTML = g.join("");
+    }
+
+    function curvePoints(beta) {
+      const pts = [];
+      for (let f = F_LO; f <= F_HI + 1e-9; f += 0.01) {
+        pts.push(`${chartFx(f).toFixed(1)},${chartAy(analyticAmplitude(beta, omegaOf(f))).toFixed(1)}`);
+      }
+      return pts.join(" ");
+    }
+
+    /* ================= render ================= */
+    function render() {
+      if (!elements) return;
+      renderApparatus();
+      renderTrace();
+      renderChart();
+      renderReadouts();
+      renderInsight();
+    }
+
+    function renderApparatus() {
+      const A = analyticAmplitude(state.beta, omegaOf(state.driveF));
+      const cx = BLOCK_CX + state.x * PX_PER_M;
+      elements.oscGroup.setAttribute("transform", `translate(${cx.toFixed(1)},${RAIL_Y})`);
+      elements.springPts.setAttribute("points", springPoints(86, cx - 32, RAIL_Y));
+
+      const gx = BLOCK_CX + A * PX_PER_M;
+      elements.guideR.setAttribute("x1", gx.toFixed(1)); elements.guideR.setAttribute("x2", gx.toFixed(1));
+      elements.guideL.setAttribute("x1", (2 * BLOCK_CX - gx).toFixed(1)); elements.guideL.setAttribute("x2", (2 * BLOCK_CX - gx).toFixed(1));
+      elements.guideRText.setAttribute("x", clamp(gx, 120, 880).toFixed(1));
+      elements.guideRText.setAttribute("y", 72);
+      elements.guideRText.textContent = `+A = ${fmt1(A * 100)} cm`;
+      const wide = 2 * A * PX_PER_M >= 140;
+      elements.guideLText.setAttribute("x", clamp(2 * BLOCK_CX - gx, 100, 700).toFixed(1));
+      elements.guideLText.setAttribute("y", 72);
+      elements.guideLText.setAttribute("opacity", wide ? "1" : "0");
+      elements.guideL.setAttribute("opacity", wide ? "0.85" : "0.45");
+      elements.guideLText.textContent = `−A`;
+
+      const F = F0 * Math.cos(state.theta);
+      const s = F >= 0 ? 1 : -1;
+      const len = Math.max(8, Math.abs(F) / F0 * 78);
+      const x1 = cx + s * 46;
+      elements.forceLine.setAttribute("x1", x1.toFixed(1));
+      elements.forceLine.setAttribute("x2", (x1 + s * len).toFixed(1));
+      elements.forceText.setAttribute("x", clamp(cx + s * 128, 150, 810).toFixed(1));
+      elements.forceText.setAttribute("y", 92);
+      elements.forceText.textContent = "驱动力 F(t)";
+
+      const L = clamp(Math.abs(state.v) * 55, 0, 42);
+      const showDrag = Math.abs(state.v) > 0.03 && state.running;
+      const ds = state.v >= 0 ? -1 : 1;
+      const bx = state.v >= 0 ? 40 : -40;
+      [["dragA1", -14], ["dragA2", 16]].forEach(([id, dy]) => {
+        const el = elements[id];
+        el.setAttribute("x1", bx.toFixed(1)); el.setAttribute("y1", dy);
+        el.setAttribute("x2", (bx + ds * L).toFixed(1)); el.setAttribute("y2", dy);
+        el.setAttribute("opacity", showDrag ? "0.9" : "0");
+      });
+    }
+
+    function springPoints(x0, x1, y) {
+      const lead = 14, coils = 9, amp = 15;
+      const span = Math.max(x1 - x0 - 2 * lead, 20);
+      const n = coils * 2;
+      const step = span / n;
+      let pts = `${x0.toFixed(1)},${y} ${(x0 + lead).toFixed(1)},${y}`;
+      for (let i = 1; i <= n; i += 1) {
+        const px = x0 + lead + step * i;
+        const py = y + (i % 2 === 1 ? -amp : amp);
+        pts += ` ${px.toFixed(1)},${py.toFixed(1)}`;
+      }
+      pts += ` ${x1.toFixed(1)},${y}`;
+      return pts;
+    }
+
+    function renderTrace() {
+      const tNow = state.t;
+      elements.tracePts.setAttribute("points",
+        state.trace.map((s) => `${traceTy(s.t, tNow).toFixed(1)},${traceXy(s.x).toFixed(1)}`).join(" "));
+      const A = analyticAmplitude(state.beta, omegaOf(state.driveF));
+      const yp = traceXy(A).toFixed(1), yn = traceXy(-A).toFixed(1);
+      elements.envP.setAttribute("y1", yp); elements.envP.setAttribute("y2", yp);
+      elements.envN.setAttribute("y1", yn); elements.envN.setAttribute("y2", yn);
+
+      const ticks = document.querySelectorAll("#timeTicks > g");
+      const wStart = Math.max(0, tNow - TR.span);
+      const first = Math.ceil(wStart / 2) * 2;
+      let k = 0;
+      for (let tt = first; tt <= Math.min(tNow, wStart + TR.span) && k < ticks.length; tt += 2) {
+        const g = ticks[k];
+        const px = traceTy(tt, tNow).toFixed(1);
+        g.setAttribute("opacity", "1");
+        g.querySelector("line").setAttribute("x1", px); g.querySelector("line").setAttribute("x2", px);
+        const txt = g.querySelector("text");
+        txt.setAttribute("x", px); txt.textContent = tt.toFixed(0);
+        k += 1;
+      }
+      for (; k < ticks.length; k += 1) ticks[k].setAttribute("opacity", "0");
+    }
+
+    function renderChart() {
+      const px = chartFx(state.driveF);
+      const py = chartAy(analyticAmplitude(state.beta, omegaOf(state.driveF)));
+      elements.wpDot.setAttribute("cx", px.toFixed(1)); elements.wpDot.setAttribute("cy", py.toFixed(1));
+      elements.wpHalo.setAttribute("cx", px.toFixed(1)); elements.wpHalo.setAttribute("cy", py.toFixed(1));
+      if (state.measA !== null) {
+        elements.measDot.setAttribute("transform", `translate(${px.toFixed(1)},${chartAy(state.measA).toFixed(1)}) rotate(45)`);
+        elements.measDot.setAttribute("opacity", state.settled ? "1" : "0.55");
+      } else {
+        elements.measDot.setAttribute("opacity", "0");
+      }
+    }
+
+    function renderReadouts() {
+      const A = analyticAmplitude(state.beta, omegaOf(state.driveF));
+      elements.metricFreq.innerHTML = `${state.driveF.toFixed(2)}<em>Hz</em>`;
+      elements.metricBeta.innerHTML = `${state.beta.toFixed(2)}<em>s⁻¹</em>`;
+      elements.metricAmp.innerHTML = `${fmt1(A * 100)}<em>cm</em>`;
+      elements.metricMeas.innerHTML = state.measA === null
+        ? `—<em>cm</em>`
+        : `${fmt1(state.measA * 100)}<em>cm${state.settled ? " · 已达稳态" : " · 暂态中"}</em>`;
+      elements.driveFreqOutput.textContent = `${state.driveF.toFixed(2)} Hz`;
+      elements.dampingOutput.textContent = `${state.beta.toFixed(2)} s⁻¹`;
+    }
+
+    function renderInsight() {
+      const A = analyticAmplitude(state.beta, omegaOf(state.driveF));
+      const fr = resonanceOmega(state.beta) / (2 * Math.PI);
+      let text;
+      if (!state.running && state.t === 0) {
+        text = "点击「开始」：振子先按固有频率起步（暂态），随后逐渐被驱动力“接管”，进入稳态。";
+      } else if (!state.settled) {
+        text = "暂态衰减中：起步的固有振动正在衰减，实测振幅（菱形点）正逐渐靠向理论稳态点（圆点）。";
+      } else if (Math.abs(state.driveF - fr) <= Math.max(0.02, fr * 0.03)) {
+        text = `共振！驱动力频率≈固有频率（f₀=0.64 Hz），稳态振幅最大，约 ${fmt1(A * 100)} cm——此时驱动力对振子做功最快。`;
+      } else if (state.driveF < fr) {
+        text = `低于共振：驱动力频率偏小，稳态振幅约 ${fmt1(A * 100)} cm，位移与驱动力大体同相。`;
+      } else {
+        text = `高于共振：驱动力频率超过固有频率，振幅回落到约 ${fmt1(A * 100)} cm，位移与驱动力近乎反相。`;
+      }
+      elements.insight.textContent = text;
+    }
+
+    /* ================= parameters & interactions ================= */
+    function setParameters(values) {
+      const dF = parameterSchema[0], dB = parameterSchema[1];
+      const newF = clamp(finite(Number(values.driveFreq), state.driveF), dF.min, dF.max);
+      const newB = clamp(finite(Number(values.damping), state.beta), dB.min, dB.max);
+      const changed = newF !== state.driveF || newB !== state.beta;
+      state.driveF = Math.round(newF * 100) / 100;
+      state.beta = Math.round(newB * 100) / 100;
+      if (elements) {
+        elements.driveFreqInput.value = String(state.driveF);
+        elements.dampingInput.value = String(state.beta);
+      }
+      if (changed) {
+        state.maxima = []; state.minima = []; state.measA = null; state.settled = false;
+      }
+      if (elements) {
+        elements.liveCurve.setAttribute("points", curvePoints(state.beta));
+        const fr = resonanceOmega(state.beta) / (2 * Math.PI);
+        elements.frDot.setAttribute("cx", chartFx(fr).toFixed(1));
+        elements.frDot.setAttribute("cy", chartAy(analyticAmplitude(state.beta, resonanceOmega(state.beta))).toFixed(1));
+      }
+      render();
+    }
+
+    function setTimeScale(scale, btn) {
+      state.timeScale = scale;
+      document.querySelectorAll(".speed-btn").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.driveFreqInput.addEventListener("input", () => setParameters({ driveFreq: elements.driveFreqInput.value, damping: state.beta }));
+      elements.dampingInput.addEventListener("input", () => setParameters({ driveFreq: state.driveF, damping: elements.dampingInput.value }));
+      document.querySelectorAll(".speed-btn").forEach((btn) => {
+        btn.addEventListener("click", () => setTimeScale(Number(btn.dataset.scale), btn));
+      });
+      const chartEl = elements.chart;
+      const setFromChart = (evt) => {
+        const rect = chartEl.getBoundingClientRect();
+        const vx = (evt.clientX - rect.left) / rect.width * 440;
+        const f = clamp(F_LO + (vx - CH.x0) / (CH.x1 - CH.x0) * (F_HI - F_LO), parameterSchema[0].min, parameterSchema[0].max);
+        setParameters({ driveFreq: Math.round(f * 100) / 100, damping: state.beta });
+      };
+      let dragging = false;
+      chartEl.addEventListener("pointerdown", (e) => { dragging = true; chartEl.setPointerCapture(e.pointerId); setFromChart(e); });
+      chartEl.addEventListener("pointermove", (e) => { if (dragging) setFromChart(e); });
+      chartEl.addEventListener("pointerup", () => { dragging = false; });
+      chartEl.addEventListener("pointercancel", () => { dragging = false; });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTs === null) state.lastTs = timestamp;
+      const dt = (timestamp - state.lastTs) / 1000;
+      state.lastTs = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    /* ================= readouts / state ================= */
+    function getState() {
+      return {
+        running: state.running, t: state.t, theta: state.theta, x: state.x, v: state.v,
+        driveF: state.driveF, beta: state.beta, timeScale: state.timeScale,
+        measA: state.measA, settled: state.settled,
+        trace: state.trace.map((s) => ({ t: s.t, x: s.x }))
+      };
+    }
+    function getReadouts() {
+      const omega = omegaOf(state.driveF);
+      return {
+        running: state.running,
+        t: state.t,
+        driveFreqHz: state.driveF,
+        dampingBeta: state.beta,
+        naturalFreqHz: OMEGA0 / (2 * Math.PI),
+        resonanceFreqHz: resonanceOmega(state.beta) / (2 * Math.PI),
+        steadyAmplitudeM: analyticAmplitude(state.beta, omega),
+        measuredAmplitudeM: state.measA,
+        settled: state.settled,
+        phaseDeg: analyticPhase(state.beta, omega) * 180 / Math.PI
+      };
+    }
+
+    /* ================= model checks (analytic / numerical oracles) =================
+       Tolerances fixed before implementation. All checks are DOM-free. */
+    function runModelChecks() {
+      const results = [];
+
+      // 1. Free decay: successive maxima shrink by exp(-beta*Td) (ordinary case).
+      const free = simulateCase({ beta: 0.30, driveF: null, driveAmp: 0, x0: 0.15, v0: 0, dt: H, duration: 24, tail: 1 });
+      const Td = 2 * Math.PI / Math.sqrt(OMEGA0 * OMEGA0 - 0.30 * 0.30);
+      const expectedRatio = Math.exp(-0.30 * Td);
+      const ratio = free.maxima.length >= 2 ? free.maxima[1].x / free.maxima[0].x : NaN;
+      results.push({
+        name: "自由衰减包络（相邻峰值比 = e^(−βTd)）",
+        pass: Number.isFinite(ratio) && Math.abs(ratio / expectedRatio - 1) < 0.01 && free.maxima.length >= 8,
+        expected: expectedRatio.toFixed(5), actual: Number.isFinite(ratio) ? ratio.toFixed(5) : " Peaks<2",
+        tolerance: "相对偏差 < 1%"
+      });
+
+      // 2. Driven steady-state amplitude matches analytic A(omega).
+      const steady = simulateCase({ beta: 0.30, driveF: 0.50, x0: 0, v0: 0, dt: H, duration: 90, tail: 8 });
+      const Ameas = (steady.tailMax - steady.tailMin) / 2;
+      const Aexp = analyticAmplitude(0.30, omegaOf(0.50));
+      results.push({
+        name: "稳态振幅 = 解析值（β=0.30, f=0.50 Hz）",
+        pass: Math.abs(Ameas / Aexp - 1) < 0.02,
+        expected: `${(Aexp * 100).toFixed(3)} cm`, actual: `${(Ameas * 100).toFixed(3)} cm`,
+        tolerance: "相对偏差 < 2%"
+      });
+
+      // 3. Resonance location: numeric argmax of the analytic curve vs closed form.
+      let fArgmax = 0, aBest = -1;
+      for (let f = 0.05; f <= 1.45 + 1e-9; f += 0.0002) {
+        const a = analyticAmplitude(0.12, omegaOf(f));
+        if (a > aBest) { aBest = a; fArgmax = f; }
+      }
+      const frClosed = resonanceOmega(0.12) / (2 * Math.PI);
+      const aClosed = analyticAmplitude(0.12, resonanceOmega(0.12));
+      results.push({
+        name: "共振频率位置 = √(ω₀²−2β²)/2π（β=0.12）",
+        pass: Math.abs(fArgmax - frClosed) < 0.002 && Math.abs(aBest / aClosed - 1) < 0.005,
+        expected: `${frClosed.toFixed(4)} Hz / ${(aClosed * 100).toFixed(2)} cm`,
+        actual: `${fArgmax.toFixed(4)} Hz / ${(aBest * 100).toFixed(2)} cm`,
+        tolerance: "|Δf| < 0.002 Hz, 峰值偏差 < 0.5%"
+      });
+
+      // 4. Phase sign flips across resonance (opposite-direction case).
+      const low = simulateCase({ beta: 0.30, driveF: 0.25, x0: 0, v0: 0, dt: H, duration: 90, tail: 8 });
+      const high = simulateCase({ beta: 0.30, driveF: 1.20, x0: 0, v0: 0, dt: H, duration: 90, tail: 8 });
+      const cosLow = Math.cos(analyticPhase(0.30, omegaOf(0.25)));
+      const cosHigh = Math.cos(analyticPhase(0.30, omegaOf(1.20)));
+      results.push({
+        name: "相位关系：低频同相 / 高频反相（〈x·F〉符号）",
+        pass: Math.sign(low.corrMean) === Math.sign(cosLow) && Math.sign(high.corrMean) === Math.sign(cosHigh) &&
+          Math.abs(low.corrMean) > 0.001 && Math.abs(high.corrMean) > 0.001,
+        expected: `cosφ(0.25 Hz)=${cosLow.toFixed(3)}, cosφ(1.20 Hz)=${cosHigh.toFixed(3)}`,
+        actual: `〈x·F〉=${low.corrMean.toFixed(4)}, ${high.corrMean.toFixed(4)}`,
+        tolerance: "符号一致且非零"
+      });
+
+      // 5. Step-halving convergence of the RK4 kernel.
+      const s1 = simulateCase({ beta: 0.30, driveF: 0.50, x0: 0, v0: 0, dt: 1 / 240, duration: 90, tail: 8 });
+      const s2 = simulateCase({ beta: 0.30, driveF: 0.50, x0: 0, v0: 0, dt: 1 / 480, duration: 90, tail: 8 });
+      const a1 = (s1.tailMax - s1.tailMin) / 2, a2 = (s2.tailMax - s2.tailMin) / 2;
+      results.push({
+        name: "步长减半收敛（dt: 1/240 → 1/480）",
+        pass: Math.abs(a1 - a2) / Aexp < 0.003 && Math.abs(a2 / Aexp - 1) < 0.02,
+        expected: `${(Aexp * 100).toFixed(3)} cm`, actual: `${(a1 * 100).toFixed(3)} / ${(a2 * 100).toFixed(3)} cm`,
+        tolerance: "|a1−a2|/A < 0.3%"
+      });
+
+      return results;
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+
+    if (typeof document !== "undefined" && document.querySelector) init();
+  })();
+  </script>
+</body>
+</html>
