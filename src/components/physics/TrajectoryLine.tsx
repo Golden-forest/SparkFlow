@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 
 /**
@@ -46,26 +46,17 @@ export function TrajectoryLine({
   fadeEffect = true,
   opacity = 0.8,
 }: TrajectoryLineProps) {
-  const lineRef = useRef<THREE.Line>(null);
-  const geometryRef = useRef<THREE.BufferGeometry>(null);
+  const geometry = useMemo(() => new THREE.BufferGeometry(), []);
 
   // Limit positions to maxPoints for performance
-  const limitedPositions = useMemo(() => {
-    if (positions.length <= maxPoints) {
-      return positions;
-    }
-    // Keep only the most recent maxPoints
-    return positions.slice(-maxPoints);
-  }, [positions, maxPoints]);
+  const limitedPositions = positions.length <= maxPoints ? positions : positions.slice(-maxPoints);
+  const pointCount = limitedPositions.length;
 
   // Create or update geometry
   useEffect(() => {
-    if (!visible || limitedPositions.length < 2) {
+    if (!visible || pointCount < 2) {
       return;
     }
-
-    const geometry = geometryRef.current || new THREE.BufferGeometry();
-    geometryRef.current = geometry;
 
     // Convert positions to flat array
     const points = limitedPositions.map(p => [p.x, p.y, p.z]).flat();
@@ -74,15 +65,7 @@ export function TrajectoryLine({
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
     geometry.computeBoundingSphere();
 
-    // Update line reference
-    if (lineRef.current) {
-      lineRef.current.geometry = geometry;
-    }
-  }, [limitedPositions, visible]);
-
-  if (!visible || limitedPositions.length < 2) {
-    return null;
-  }
+  }, [geometry, limitedPositions, pointCount, visible]);
 
   // Create material with fade effect if enabled
   const material = useMemo(() => {
@@ -108,10 +91,9 @@ export function TrajectoryLine({
 
   // Update vertex colors for fade effect
   useEffect(() => {
-    if (fadeEffect && geometryRef.current && limitedPositions.length >= 2) {
+    if (fadeEffect && pointCount >= 2) {
       const lineColor = new THREE.Color(color);
       const colors: number[] = [];
-      const pointCount = limitedPositions.length;
 
       for (let i = 0; i < pointCount; i++) {
         // Calculate fade factor (older points are more transparent)
@@ -124,14 +106,22 @@ export function TrajectoryLine({
       }
 
       // Add vertex colors to geometry
-      geometryRef.current.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     }
-  }, [fadeEffect, limitedPositions.length, color]);
+  }, [fadeEffect, pointCount, color, geometry]);
+
+  const line = useMemo(() => new THREE.Line(geometry, material), [geometry, material]);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+
+  if (!visible || pointCount < 2) {
+    return null;
+  }
 
   return (
     <primitive
-      ref={lineRef}
-      object={new THREE.Line(geometryRef.current!, material)}
+      object={line}
     />
   );
 }

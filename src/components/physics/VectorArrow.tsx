@@ -63,13 +63,14 @@ export function VectorArrow({
   const calculatedHeadWidth = headWidth ?? arrowLength * 0.1;
 
   // Create normalized direction vector
-  const direction = vector.clone().normalize();
+  const { x, y, z } = vector;
+  const direction = useMemo(() => new THREE.Vector3(x, y, z).normalize(), [x, y, z]);
 
   useFrame(() => {
     if (arrowRef.current && visible) {
       // Update arrow direction and length dynamically
       arrowRef.current.setDirection(direction);
-      arrowRef.current.setLength(arrowLength, calculatedHeadLength, calculatedHeadLength);
+      arrowRef.current.setLength(arrowLength, calculatedHeadLength, calculatedHeadWidth);
     }
   });
 
@@ -79,8 +80,6 @@ export function VectorArrow({
       arrowRef.current.position.copy(origin);
     }
   }, [origin]);
-
-  if (!visible) return null;
 
   // Create ArrowHelper instance only when dependencies change
   const arrowHelper = useMemo(() => {
@@ -92,8 +91,11 @@ export function VectorArrow({
       calculatedHeadLength,
       calculatedHeadWidth
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [direction, origin, arrowLength, color, calculatedHeadLength, calculatedHeadWidth]);
+
+  useEffect(() => () => arrowHelper.dispose(), [arrowHelper]);
+
+  if (!visible) return null;
 
   return (
     <>

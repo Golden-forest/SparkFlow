@@ -119,7 +119,8 @@ export abstract class ExperimentBase2D implements IExperiment2D {
         };
     }
 
-    triggerAction(_key: string): void {
+    triggerAction(key: string): void {
+        void key;
         // Subclass overrides for action handling
     }
 }

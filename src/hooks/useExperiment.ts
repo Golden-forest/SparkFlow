@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
-import { ExperimentRegistry, type IExperiment } from '@/experiments/base';
+import { ExperimentRegistry } from '@/experiments/base';
 
 interface UseExperimentOptions {
     autoInit?: boolean;

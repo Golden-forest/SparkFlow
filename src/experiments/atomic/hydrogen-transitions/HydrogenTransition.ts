@@ -33,7 +33,7 @@ export class HydrogenTransition extends ExperimentBase {
             timestep: 1 / 60,
         },
         camera: {
-            position: [0, 0, 18] as [number, number, number],
+            position: [0, 0, 44] as [number, number, number],
             target: [0, 0, 0] as [number, number, number],
             fov: 45,
         },
@@ -80,7 +80,7 @@ export class HydrogenTransition extends ExperimentBase {
                 type: 'number' as const,
                 defaultValue: 1,
                 min: 1,
-                max: 6,
+                max: 4,
                 step: 1,
             },
             {
@@ -235,10 +235,8 @@ export class HydrogenTransition extends ExperimentBase {
     }
 
     private getOrbitRadius(n: number): number {
-        // 调整视觉比例，不是严格按 n^2，否则 n=6 太远
-        // n=1 -> 2
-        // n=6 -> 8
-        return 1.5 + n * 1.1;
+        // 玻尔模型轨道半径 r_n = n²·r₁，间距内密外疏（1:4:9:16）
+        return 1.0 * n * n;
     }
 
     protected onStart(): void {

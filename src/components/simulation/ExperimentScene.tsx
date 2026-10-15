@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import type { IExperiment } from '@/experiments/base';
 
@@ -11,22 +11,26 @@ interface ExperimentSceneProps {
  */
 export function ExperimentScene({ experiment }: ExperimentSceneProps) {
     const { scene } = useThree();
-    const initializedRef = useRef(false);
+    const [initError, setInitError] = useState<Error | null>(null);
 
     useEffect(() => {
-        if (!experiment || initializedRef.current) return;
+        if (!experiment) return;
+        let cancelled = false;
 
         // 初始化实验场景
-        experiment.init(scene).then(() => {
-            initializedRef.current = true;
+        void Promise.resolve().then(() => {
+            if (!cancelled) return experiment.init(scene);
+        }).catch(() => {
+            if (!cancelled) setInitError(new Error('The experiment could not be initialized.'));
         });
 
         return () => {
             // 清理
-            initializedRef.current = false;
+            cancelled = true;
         };
     }, [experiment, scene]);
 
+    if (initError) throw initError;
     return null;
 }
 

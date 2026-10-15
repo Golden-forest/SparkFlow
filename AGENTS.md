@@ -1,5 +1,22 @@
 # 高中物理仿真实验系统 - 项目规范文档
 
+## 当前工程入口（以代码为准）
+
+- 技术栈：React 19、Vite 7、TypeScript、React Router 7；Node 22.12+，使用 `.nvmrc`。
+- 安装：`npm ci && npm run setup:accounts`；首次浏览器准备：`npm run test:e2e:install`。
+- 开发：`npm run dev`；生产构建：`npm run build`。
+- 统一验收：`npm run verify`（失败必须返回非零）。
+- 独立检查：`npm run lint`、`npm run typecheck`、`npm test`、`npm run test:e2e`。
+- 浏览器检查针对生产预览，包含基础页面与实验操作；CI 执行相同验收入口。
+- 架构与基座现状：[docs/foundation.md](docs/foundation.md)；账户开发/复用：[docs/accounts.md](docs/accounts.md)；账户部署：[deploy/accounts/README.md](deploy/accounts/README.md)；原站点部署：[DEPLOY.md](DEPLOY.md)。
+- 通用基础模块位于 `src/platform`；业务插件位于 `src/experiments`。
+- `server/` 是独立 Better Auth/PostgreSQL 服务；运行与迁移角色分离。账户测试需要 PostgreSQL 工具，可通过 `POSTGRES_BIN` 指定；不得跳过真实数据库验收。
+- `functions/_middleware.ts` 仅实现共享授权码，不是用户账户系统；不得将评分者自选身份当作授权。
+- 密钥不得放在 `VITE_*` 或提交到 Git；受保护部署显式设置 `AUTH_GATE_ENABLED=true`。
+- 非可信 HTML 不得与未来账户应用同源发布；iframe sandbox 不能隔离直接打开的同源页面。
+
+下方架构和技术选型保留项目早期设计背景；安装和验收命令以本节及当前 `package.json` 为准。
+
 > 一个可扩展的、模块化的高中物理虚拟实验平台
 
 ## 项目愿景

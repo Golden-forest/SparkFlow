@@ -107,7 +107,7 @@ export class CircleDemo2D extends ExperimentBase2D {
         this.phase = 0;
     }
 
-    onResize(_width: number, _height: number): void {
+    onResize(): void {
         // Could update viewBox to match container aspect ratio
     }
 }

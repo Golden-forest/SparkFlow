@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Atom } from 'lucide-react';
+import React from 'react';
+import { Play, Pause, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SceneMode } from '@/experiments/atomic/hydrogen-transitions/TransitionPhysics';
 

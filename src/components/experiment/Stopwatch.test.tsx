@@ -1,87 +1,55 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Stopwatch } from './Stopwatch';
 
-describe('Stopwatch Component', () => {
-  it('renders correctly with initial state', () => {
+describe('Stopwatch', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('starts at zero and prevents negative period counts', () => {
     render(<Stopwatch />);
     expect(screen.getByText('00:00.00')).toBeInTheDocument();
     expect(screen.getByText('Periods: 0')).toBeInTheDocument();
-    expect(screen.getByText('Start')).toBeInTheDocument();
-    expect(screen.getByText('Reset')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '-' })).toBeDisabled();
   });
 
-  it('starts and stops timer', () => {
-    render(<Stopwatch />);
+  it('advances while running and holds elapsed time when paused', () => {
+    const onTimeChange = vi.fn();
+    render(<Stopwatch onTimeChange={onTimeChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    act(() => vi.advanceTimersByTime(1_230));
+    expect(screen.getByText('00:01.23')).toBeInTheDocument();
+    expect(onTimeChange).toHaveBeenCalled();
 
-    const startButton = screen.getByText('Start');
-    fireEvent.click(startButton);
-
-    expect(screen.getByText('Pause')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.getByText('00:01.23')).toBeInTheDocument();
   });
 
-  it('resets timer and periods', () => {
-    render(<Stopwatch />);
-
-    // Start the timer
-    fireEvent.click(screen.getByText('Start'));
-    // Increment periods
-    fireEvent.click(screen.getByText('+'));
-
-    // Reset
-    fireEvent.click(screen.getByText('Reset'));
-
-    expect(screen.getByText('00:00.00')).toBeInTheDocument();
-    expect(screen.getByText('Periods: 0')).toBeInTheDocument();
-  });
-
-  it('increments and decrements periods', () => {
-    render(<Stopwatch />);
-
-    const incrementButton = screen.getByText('+');
-    const decrementButton = screen.getByText('-');
-
-    // Increment
-    fireEvent.click(incrementButton);
+  it('updates the period count and notifies the parent', () => {
+    const onPeriodsChange = vi.fn();
+    render(<Stopwatch onPeriodsChange={onPeriodsChange} />);
+    fireEvent.click(screen.getByRole('button', { name: '+' }));
     expect(screen.getByText('Periods: 1')).toBeInTheDocument();
-
-    // Decrement
-    fireEvent.click(decrementButton);
+    expect(onPeriodsChange).toHaveBeenLastCalledWith(1);
+    fireEvent.click(screen.getByRole('button', { name: '-' }));
     expect(screen.getByText('Periods: 0')).toBeInTheDocument();
+    expect(onPeriodsChange).toHaveBeenLastCalledWith(0);
   });
 
-  it('calls callbacks correctly', () => {
-    const onPeriodsChange = jest.fn();
-    const onTimeChange = jest.fn();
-
+  it('resets time and periods and stops the timer', () => {
+    const onPeriodsChange = vi.fn();
+    const onTimeChange = vi.fn();
     render(<Stopwatch onPeriodsChange={onPeriodsChange} onTimeChange={onTimeChange} />);
-
-    fireEvent.click(screen.getByText('+'));
-
-    expect(onPeriodsChange).toHaveBeenCalledWith(1);
-
-    fireEvent.click(screen.getByText('Start'));
-
-    // Wait for at least one timer tick
-    setTimeout(() => {
-      expect(onTimeChange).toHaveBeenCalled();
-    }, 20);
-  });
-
-  it('disables decrement button when periods is 0', () => {
-    render(<Stopwatch />);
-
-    const decrementButton = screen.getByText('-');
-    expect(decrementButton).toBeDisabled();
-  });
-
-  it('formats time correctly', () => {
-    const { rerender } = render(<Stopwatch />);
-
-    // Initial state
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.click(screen.getByRole('button', { name: '+' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+    act(() => vi.advanceTimersByTime(500));
     expect(screen.getByText('00:00.00')).toBeInTheDocument();
-
-    // After clicking start, time should increase
-    // Note: This is a basic check, actual time progression would need timing utilities
+    expect(screen.getByText('Periods: 0')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument();
+    expect(onPeriodsChange).toHaveBeenLastCalledWith(0);
+    expect(onTimeChange).toHaveBeenLastCalledWith(0);
   });
 });

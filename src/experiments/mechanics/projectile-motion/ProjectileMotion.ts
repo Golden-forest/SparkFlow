@@ -163,7 +163,7 @@ export class ProjectileMotion extends ExperimentBase2D {
 
     // --- Resize ---
 
-    onResize(_width: number, _height: number): void {
+    onResize(): void {
         this.recalculateView();
         this.updateViewBox();
         this.updateSVG();

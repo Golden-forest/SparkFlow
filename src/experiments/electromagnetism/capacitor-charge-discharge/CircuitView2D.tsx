@@ -161,10 +161,6 @@ function formatVoltage(v: number): string {
     return v.toFixed(2);
 }
 
-function formatCharge(uc: number): string {
-    return (uc * 1e6).toFixed(1);
-}
-
 /**
  * 充电路径 path（粒子沿此流动）：
  * 上接点(120,100) → 电池负极(304,100) → 电池正极(356,100)
@@ -245,7 +241,6 @@ interface ValueTagProps {
 function ValueTag({ x, y, text, fill = COLORS.text, align = 'middle' }: ValueTagProps) {
     // 估算文字宽度（font-mono 14px ≈ 8.4 px/char）+ padding
     const padX = 8;
-    const padY = 4;
     const charW = 8.4;
     const w = text.length * charW + padX * 2;
     const h = 22;
@@ -503,7 +498,6 @@ interface CircuitView2DProps {
 export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const { t } = useTranslation();
     // 触发 React 重渲染的 state（每帧 setState）
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [, setTick] = useState(0);
 
     // 粒子位置累积（沿 path 距离，DOM mutation 不触发 React 渲染）
@@ -695,7 +689,6 @@ export function CircuitView2D({ experiment }: CircuitView2DProps) {
     const tauDischarge = analyzeDischargeTimeConstant(params);
     const R_ohm = params.resistance * 1000;
     const C_farad = params.capacitance * 1e-6;
-    const Imax = R_ohm > 0 ? params.sourceVoltage / R_ohm : 0;
     const Qmax = C_farad * params.sourceVoltage; // 单位 C
     const Qabs = Math.abs(state.charge);
     const chargeDots = Qmax > 0 ? Math.floor((Qabs / Qmax) * (CHARGE_GRID.cols * CHARGE_GRID.rows)) : 0;

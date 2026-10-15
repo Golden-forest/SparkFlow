@@ -174,6 +174,7 @@ test('discharging voltage decays to ~36.8% of U0 at t = tau_discharge', () => {
 test('analyzeTimeConstant converts kOhm/uF to seconds correctly', () => {
     // R=10kΩ, C=1000μF → 10000Ω × 0.001F = 10 s
     const tau = analyzeTimeConstant({
+        ...DEFAULT_PARAMS,
         resistance: 10,
         capacitance: 1000,
         sourceVoltage: 6,
@@ -185,6 +186,7 @@ test('analyzeTimeConstant converts kOhm/uF to seconds correctly', () => {
 
     // 再来一组：R=1kΩ, C=100μF → 1000Ω × 1e-4 F = 0.1 s
     const tau2 = analyzeTimeConstant({
+        ...DEFAULT_PARAMS,
         resistance: 1,
         capacitance: 100,
         sourceVoltage: 9,

@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import type { SimulationObject } from '../types/ObjectTypes';
 import { EARTH_GRAVITY } from '@/utils/constants';
 

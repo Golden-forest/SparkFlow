@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, type ComponentRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSimulationStore } from '@/stores/simulationStore';
 
@@ -39,7 +39,7 @@ function CameraController({
     target?: [number, number, number];
     fov?: number;
 }) {
-    const controlsRef = useRef<any>(null);
+    const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null);
     const { camera } = useThree();
 
     useEffect(() => {
