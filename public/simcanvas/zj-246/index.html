@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>绝对零度温度计</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#04060e;
+  --sim-surface:#0a0f1c;
+  --sim-surface-soft:#0d1424;
+  --sim-text:#e8eefc;
+  --sim-muted:#7a8aa8;
+  --sim-border:#1a2440;
+  --sim-grid:#131c30;
+  --sim-accent:#5ec8ff;
+  --sim-accent-deep:#2a8fd6;
+  --sim-accent-soft:#0a2a44;
+  --sim-positive:#5ec8ff;
+  --sim-warning:#ffb84d;
+  --sim-danger:#ff5e6e;
+  --sim-radius-sm:10px;
+  --sim-radius-md:16px;
+  --sim-radius-lg:22px;
+  --sim-shadow:0 18px 46px rgba(0,0,0,0.55);
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--sim-bg);color:var(--sim-text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{width:100%;height:100vh;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px;padding:14px 18px 12px}
+.header{display:flex;justify-content:space-between;align-items:center;gap:18px;min-height:44px}
+.header h1{margin:0;font-size:clamp(1.3rem,2.2vw,1.8rem);letter-spacing:-0.02em;font-weight:700}
+.header p{margin:3px 0 0;color:var(--sim-muted);font-size:0.82rem}
+.status{border:1px solid rgba(94,200,255,0.28);border-radius:999px;padding:7px 14px;background:var(--sim-accent-soft);color:var(--sim-accent);font-weight:700;white-space:nowrap;font-size:0.82rem}
+.main{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,0.42fr);gap:12px}
+.stage-panel{min-height:0;position:relative;border:1px solid var(--sim-border);border-radius:var(--sim-radius-lg);background:rgba(10,15,28,0.5);overflow:hidden}
+#scene{display:block;width:100%;height:100%}
+.side{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px}
+.panel{border:1px solid var(--sim-border);border-radius:var(--sim-radius-md);background:rgba(10,15,28,0.6)}
+.readouts{padding:16px}
+.readout-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.metric{padding:12px 14px;border:1px solid rgba(94,200,255,0.14);border-radius:13px;background:linear-gradient(145deg,#0d1424,#0a0f1c)}
+.metric small{display:block;margin-bottom:4px;color:var(--sim-muted);font-size:0.72rem}
+.metric strong{font-size:1.3rem;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;color:var(--sim-text)}
+.model-note{padding:16px;display:grid;align-content:start;gap:12px}
+.model-note h2{margin:0;font-size:0.95rem}
+.insight{padding:12px 14px;border-left:3px solid var(--sim-warning);border-radius:0 12px 12px 0;background:rgba(255,184,77,0.08);color:#ffd591 !important;font-weight:650;font-size:0.85rem;line-height:1.5}
+.model-note p{margin:0;color:var(--sim-muted);line-height:1.55;font-size:0.8rem}
+.controls{padding:12px 16px;display:grid;grid-template-columns:auto minmax(160px,1fr) minmax(160px,1fr) auto;gap:22px;align-items:center;border:1px solid var(--sim-border);border-radius:var(--sim-radius-md);background:rgba(10,15,28,0.6)}
+.actions{display:flex;gap:8px}
+button{border:1px solid var(--sim-border);border-radius:var(--sim-radius-sm);padding:9px 14px;color:var(--sim-text);background:var(--sim-surface-soft);cursor:pointer;font-weight:700;font-size:0.85rem;transition:transform .14s,background .14s,border-color .14s}
+button:hover{border-color:#2a3a60;background:#132038}
+button:active{transform:scale(.97)}
+button.primary{border-color:var(--sim-accent-deep);color:#fff;background:linear-gradient(135deg,var(--sim-accent-deep),var(--sim-accent))}
+button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px rgba(255,255,255,0.35)}
+.control label{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px;font-size:0.78rem;font-weight:700;color:var(--sim-text)}
+.control output{color:var(--sim-accent);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--sim-accent);margin:0}
+@media (max-width:860px){
+  .app{height:auto;min-height:100vh;overflow:visible;padding:10px}
+  .main{grid-template-columns:1fr}
+  .stage-panel{min-height:0;height:auto;aspect-ratio:760/420}
+  .controls{grid-template-columns:1fr;gap:12px}
+  .header h1{font-size:1.2rem}
+}
+@media (prefers-reduced-motion: reduce){
+  *{scroll-behavior:auto !important}
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>绝对零度温度计</h1>
+      <p>变冷一倍 = 开尔文减半，不是摄氏减半</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+  <main class="main">
+    <section class="panel stage-panel" data-region="stage" aria-label="温度计对照演示">
+      <canvas id="scene" role="img" aria-label="温度计对照演示"></canvas>
+    </section>
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数值">
+        <div class="readout-grid">
+          <div class="metric"><small>当前开尔文</small><strong id="kReadout">273.1 K</strong></div>
+          <div class="metric"><small>当前摄氏</small><strong id="cReadout">0.0 °C</strong></div>
+          <div class="metric"><small>目标开尔文</small><strong id="targetKReadout">136.6 K</strong></div>
+          <div class="metric"><small>目标摄氏</small><strong id="targetCReadout">-136.6 °C</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <h2>模型说明</h2>
+        <p id="insight" class="insight">温度的本质是分子动能，其零点在绝对零度而非 0 °C。变冷一倍应让开尔文减半，而非摄氏减半。</p>
+        <p>教学视图：T(K) = T(°C) + 273.15。变冷 n 倍即 T' = T(K) / n，再换算回摄氏度。</p>
+      </section>
+    </aside>
+  </main>
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button" aria-pressed="true">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="tempInput">今天温度 <output id="tempOutput">0 °C</output></label>
+      <input id="tempInput" type="range" min="-50" max="50" step="1" value="0">
+    </div>
+    <div class="control">
+      <label for="factorInput">变冷倍数 <output id="factorOutput">2.0×</output></label>
+      <input id="factorInput" type="range" min="1" max="6" step="0.1" value="2">
+    </div>
+    <div class="actions">
+      <button id="revealBtn" class="primary" type="button">揭晓答案</button>
+    </div>
+  </section>
+</div>
+<script>
+(()=>{
+  "use strict";
+  const K0=273.15;
+  const state={
+    running:true,t:0,todayC:0,factor:2.0,
+    revealT:0,lastTs:null,
+    width:0,height:0,dpr:1
+  };
+  const els={
+    status:document.querySelector("#status"),
+    scene:document.querySelector("#scene"),
+    tempInput:document.querySelector("#tempInput"),
+    tempOutput:document.querySelector("#tempOutput"),
+    factorInput:document.querySelector("#factorInput"),
+    factorOutput:document.querySelector("#factorOutput"),
+    startBtn:document.querySelector("#startBtn"),
+    pauseBtn:document.querySelector("#pauseBtn"),
+    resetBtn:document.querySelector("#resetBtn"),
+    revealBtn:document.querySelector("#revealBtn"),
+    kReadout:document.querySelector("#kReadout"),
+    cReadout:document.querySelector("#cReadout"),
+    targetKReadout:document.querySelector("#targetKReadout"),
+    targetCReadout:document.querySelector("#targetCReadout"),
+    insight:document.querySelector("#insight")
+  };
+  const ctx=els.scene.getContext("2d");
+  function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+  function lerp(a,b,t){return a+(b-a)*t}
+  function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+  function todayK(){return state.todayC+K0}
+  function targetK(){
+    const k=todayK();
+    if(k<=1e-9)return 0;
+    return k/state.factor;
+  }
+  function targetC(){return targetK()-K0}
+  function animK(){
+    const k0=todayK(),kT=targetK();
+    const e=easeInOut(clamp(state.t/2.4,0,1));
+    return lerp(k0,kT,e);
+  }
+  function animC(){return animK()-K0}
+  function resize(){
+    const r=els.scene.getBoundingClientRect();
+    state.width=Math.max(320,r.width);
+    state.height=Math.max(240,r.height);
+    state.dpr=Math.min(2,window.devicePixelRatio||1);
+    els.scene.width=Math.floor(state.width*state.dpr);
+    els.scene.height=Math.floor(state.height*state.dpr);
+    ctx.setTransform(state.dpr,0,0,state.dpr,0,0);
+  }
+  function drawGlowCircle(x,y,r,color){
+    ctx.save();
+    ctx.globalAlpha=0.16;
+    ctx.fillStyle=color;
+    ctx.beginPath();ctx.arc(x,y,r*2.4,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.34;
+    ctx.beginPath();ctx.arc(x,y,r*1.5,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  function drawGlowLine(x1,y1,x2,y2,color,w){
+    ctx.save();
+    ctx.globalAlpha=0.22;ctx.strokeStyle=color;ctx.lineWidth=w*3.2;ctx.lineCap="round";
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.globalAlpha=0.5;ctx.lineWidth=w*1.8;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.globalAlpha=1;ctx.lineWidth=w;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.restore();
+  }
+  function drawScale(cx,topY,botY,label,unit,zeroC,isLeft){
+    const colX=isLeft?cx-150:cx+150;
+    const tickDir=isLeft?1:-1;
+    const labelAlign=isLeft?"left":"right";
+    const labelOffset=isLeft?16:-16;
+    ctx.save();
+    ctx.fillStyle="rgba(122,138,168,0.5)";
+    ctx.font="12px ui-sans-serif,system-ui,sans-serif";
+    ctx.textAlign=labelAlign;
+    ctx.textBaseline="middle";
+    const spanK=K0*1.05;
+    const major=[-200,-150,-100,-50,0,50];
+    for(const c of major){
+      const k=c+K0;
+      if(k<-5||k>spanK+5)continue;
+      const y=botY-(k/spanK)*(botY-topY);
+      ctx.strokeStyle="rgba(122,138,168,0.4)";
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(colX,y);ctx.lineTo(colX+tickDir*9,y);ctx.stroke();
+      const lbl=`${c>0?"+":""}${c}`;
+      ctx.fillText(lbl,colX+labelOffset,y);
+    }
+    for(let k=0;k<=spanK;k+=10){
+      const y=botY-(k/spanK)*(botY-topY);
+      const isMajor=(k%50===0);
+      ctx.strokeStyle=isMajor?"rgba(122,138,168,0.45)":"rgba(122,138,168,0.18)";
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(colX,y);ctx.lineTo(colX+tickDir*(isMajor?9:5),y);ctx.stroke();
+    }
+    ctx.fillStyle="rgba(232,238,252,0.92)";
+    ctx.font="700 13px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText(label,colX+labelOffset,topY-22);
+    ctx.fillStyle="rgba(122,138,168,0.7)";
+    ctx.font="11px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText(unit,colX+labelOffset,topY-8);
+    const zy=botY-(zeroC/spanK)*(botY-topY);
+    drawGlowLine(colX-22,zy,colX+22,zy,"rgba(255,184,77,0.9)",2);
+    ctx.fillStyle="rgba(255,184,77,0.95)";
+    ctx.font="700 11px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText(isLeft?"0 °C = 273 K":"273 K = 0 °C",colX+labelOffset,zy-12);
+    ctx.restore();
+    return{colX,spanK};
+  }
+  function drawThermometer(cx,topY,botY){
+    const tubeW=58;
+    const bulbR=42;
+    const bulbY=botY+bulbR+6;
+    ctx.save();
+    ctx.fillStyle="#0a0f1c";
+    ctx.strokeStyle="rgba(94,200,255,0.4)";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-tubeW/2,topY);
+    ctx.arc(cx,topY,tubeW/2,Math.PI,0,false);
+    ctx.lineTo(cx+tubeW/2,botY);
+    ctx.arc(cx,bulbY,bulbR,0,Math.PI,false);
+    ctx.lineTo(cx-tubeW/2,topY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return{tubeW,bulbR,bulbY};
+  }
+  function drawMercury(cx,topY,botY,geom,fillK,spanK){
+    const{k0,kT}=fillK;
+    const y0=botY-(k0/spanK)*(botY-topY);
+    const yT=botY-(kT/spanK)*(botY-topY);
+    const topYm=Math.min(y0,yT);
+    const grad=ctx.createLinearGradient(0,topYm,0,geom.bulbY);
+    grad.addColorStop(0,"rgba(94,200,255,0.95)");
+    grad.addColorStop(0.5,"rgba(70,170,235,1)");
+    grad.addColorStop(1,"rgba(40,120,200,1)");
+    ctx.save();
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.arc(cx,geom.bulbY,geom.bulbR-6,0,Math.PI*2);
+    ctx.fill();
+    if(topYm<botY){
+      ctx.fillRect(cx-geom.tubeW/2+5,topYm,geom.tubeW-10,botY-topYm);
+    }
+    ctx.restore();
+    const isAbs=Math.abs(kT)<0.5;
+    const glowColor=isAbs?"rgba(255,94,110,0.95)":"rgba(94,200,255,0.95)";
+    if(topYm<botY-1){
+      drawGlowLine(cx,topYm,cx,botY,glowColor,3);
+    }
+    ctx.save();
+    ctx.fillStyle=isAbs?"rgba(255,94,110,1)":"rgba(255,255,255,0.98)";
+    ctx.beginPath();
+    ctx.arc(cx,topYm,7,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    return{topYm,isAbs};
+  }
+  function drawAbsoluteZero(cx,botY,geom,spanK){
+    const y=botY-(0/spanK)*(botY-topY);
+    ctx.save();
+    ctx.strokeStyle="rgba(255,94,110,0.85)";
+    ctx.lineWidth=1.5;
+    ctx.setLineDash([6,5]);
+    ctx.beginPath();
+    ctx.moveTo(cx-110,y);
+    ctx.lineTo(cx+110,y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    const pulse=0.5+0.5*Math.sin(state.t*2.2);
+    drawGlowCircle(cx,geom.bulbY,geom.bulbR+4+pulse*3,"rgba(255,94,110,0.95)");
+    ctx.save();
+    ctx.fillStyle="rgba(255,94,110,0.95)";
+    ctx.font="700 12px ui-sans-serif,system-ui,sans-serif";
+    ctx.textAlign="center";
+    ctx.fillText("绝对零度 0 K = -273.15 °C",cx,geom.bulbY+geom.bulbR+22);
+    ctx.fillStyle="rgba(255,94,110,0.65)";
+    ctx.font="11px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText("宇宙温度下限 · 分子动能归零",cx,geom.bulbY+geom.bulbR+38);
+    ctx.restore();
+  }
+  function drawAnswerPanel(cx,y){
+    const w=420,h=130;
+    const x=cx-w/2;
+    const e=clamp(state.revealT/0.7,0,1);
+    const ee=easeInOut(e);
+    ctx.save();
+    ctx.globalAlpha=ee;
+    ctx.fillStyle="rgba(10,15,28,0.85)";
+    ctx.strokeStyle="rgba(94,200,255,0.3)";
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    if(ctx.roundRect){ctx.roundRect(x,y,w,h,12)}
+    else{ctx.rect(x,y,w,h)}
+    ctx.fill();ctx.stroke();
+    ctx.textAlign="left";
+    ctx.textBaseline="alphabetic";
+    const guessC=0;
+    const correctC=targetC();
+    const guessKE=clamp((state.revealT-0.1)/0.4,0,1);
+    const correctKE=clamp((state.revealT-0.35)/0.4,0,1);
+    ctx.font="700 13px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillStyle="rgba(255,94,110,0.95)";
+    ctx.fillText("直觉答案",x+22,y+30);
+    ctx.font="700 22px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillStyle="rgba(255,94,110,1)";
+    ctx.fillText(`${guessC.toFixed(1)} °C`,x+22,y+58);
+    if(guessKE>0){
+      ctx.save();
+      ctx.globalAlpha=ee*guessKE;
+      ctx.strokeStyle="rgba(255,94,110,0.95)";
+      ctx.lineWidth=3;
+      ctx.lineCap="round";
+      const cx1=x+22+90,cy1=y+38;
+      ctx.beginPath();
+      ctx.moveTo(cx1-7,cy1-7);ctx.lineTo(cx1+7,cy1+7);
+      ctx.moveTo(cx1-7,cy1+7);ctx.lineTo(cx1+7,cy1-7);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.font="700 13px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillStyle="rgba(94,200,255,0.95)";
+    ctx.fillText("正确答案",x+22,y+82);
+    ctx.font="700 22px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillStyle="rgba(94,200,255,1)";
+    ctx.fillText(`${correctC.toFixed(1)} °C`,x+22,y+110);
+    if(correctKE>0){
+      ctx.save();
+      ctx.globalAlpha=ee*correctKE;
+      ctx.strokeStyle="rgba(94,200,255,0.95)";
+      ctx.lineWidth=3;
+      ctx.lineCap="round";
+      const cx2=x+22+120,cy2=y+92;
+      ctx.beginPath();
+      ctx.moveTo(cx2-8,cy2);ctx.lineTo(cx2-2,cy2+7);ctx.lineTo(cx2+8,cy2-7);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.textAlign="right";
+    ctx.font="12px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillStyle="rgba(122,138,168,0.92)";
+    ctx.fillText(`${todayK().toFixed(1)} K ÷ ${state.factor.toFixed(1)} = ${targetK().toFixed(1)} K`,x+w-22,y+30);
+    ctx.fillText(`${targetK().toFixed(1)} K − 273.15 = ${targetC().toFixed(1)} °C`,x+w-22,y+52);
+    ctx.fillStyle="rgba(232,238,252,0.55)";
+    ctx.font="11px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText("温度的本质是分子动能，",x+w-22,y+82);
+    ctx.fillText("其零点在绝对零度而非 0 °C",x+w-22,y+100);
+    ctx.restore();
+  }
+  function drawReadouts(cx,topY){
+    ctx.save();
+    ctx.textAlign="center";
+    ctx.textBaseline="alphabetic";
+    const aK=animK(),aC=animC();
+    ctx.fillStyle="rgba(94,200,255,0.95)";
+    ctx.font="700 30px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText(`${aK.toFixed(1)} K`,cx,topY-58);
+    ctx.fillStyle="rgba(232,238,252,0.7)";
+    ctx.font="700 18px ui-sans-serif,system-ui,sans-serif";
+    ctx.fillText(`${aC.toFixed(1)} °C`,cx,topY-32);
+    ctx.restore();
+  }
+  function render(){
+    if(state.width===0)return;
+    const W=state.width,H=state.height;
+    ctx.clearRect(0,0,W,H);
+    const cx=W/2;
+    const topY=H*0.16;
+    const botY=H*0.78;
+    const left=drawScale(cx,topY,botY,"摄氏度","°C",K0,true);
+    const right=drawScale(cx,topY,botY,"开尔文","K",K0,false);
+    const spanK=left.spanK;
+    const geom=drawThermometer(cx,topY,botY);
+    const fillK={k0:todayK(),kT:animK()};
+    drawMercury(cx,topY,botY,geom,fillK,spanK);
+    drawAbsoluteZero(cx,botY,geom,spanK);
+    drawReadouts(cx,topY);
+    if(state.revealT>0){
+      drawAnswerPanel(cx,H*0.84);
+    }
+    els.kReadout.textContent=`${animK().toFixed(1)} K`;
+    els.cReadout.textContent=`${animC().toFixed(1)} °C`;
+    els.targetKReadout.textContent=`${targetK().toFixed(1)} K`;
+    els.targetCReadout.textContent=`${targetC().toFixed(1)} °C`;
+    els.tempOutput.textContent=`${state.todayC.toFixed(0)} °C`;
+    els.factorOutput.textContent=`${state.factor.toFixed(1)}×`;
+    const gap=Math.abs(todayK()-animK());
+    if(!state.running){
+      els.insight.textContent="已暂停：液柱停在当前温度，调整参数后可继续观察变化。";
+    }else if(gap<1){
+      els.insight.textContent="接近目标：液柱已到达变冷后的温度，注意摄氏度并非简单减半。";
+    }else if(state.factor>1){
+      els.insight.textContent=`变冷 ${state.factor.toFixed(1)} 倍：开尔文从 ${todayK().toFixed(1)} K 降至 ${targetK().toFixed(1)} K，而非摄氏减半。`;
+    }else{
+      els.insight.textContent="倍数为 1×：温度保持不变，液柱停在今天的温度。";
+    }
+  }
+  function update(dt){
+    if(!state.running)return;
+    const d=clamp(dt,0,0.05);
+    state.t+=d;
+    if(state.revealT>0&&state.revealT<1.5){
+      state.revealT=Math.min(1.5,state.revealT+d);
+    }
+  }
+  function start(){
+    state.running=true;
+    els.status.textContent="运行中";
+    els.startBtn.setAttribute("aria-pressed","true");
+  }
+  function pause(){
+    state.running=false;
+    els.status.textContent="已暂停";
+    els.startBtn.setAttribute("aria-pressed","false");
+  }
+  function reset(){
+    pause();
+    state.t=0;
+    state.revealT=0;
+    els.revealBtn.textContent="揭晓答案";
+    els.status.textContent="就绪";
+    render();
+  }
+  function setParameters(values){
+    if(values.todayC!==undefined){
+      state.todayC=clamp(Number(values.todayC),-50,50);
+      els.tempInput.value=String(state.todayC);
+    }
+    if(values.factor!==undefined){
+      state.factor=clamp(Number(values.factor),1,6);
+      els.factorInput.value=String(state.factor);
+    }
+    state.t=0;
+    state.revealT=0;
+    els.revealBtn.textContent="揭晓答案";
+    els.status.textContent="就绪";
+    render();
+  }
+  function revealAnswer(){
+    state.revealT=0.001;
+    els.revealBtn.textContent="隐藏答案";
+    els.status.textContent="答案揭晓";
+  }
+  function getState(){
+    return{...state,history:void 0};
+  }
+  function getReadouts(){
+    return{todayC:state.todayC,todayK:todayK(),factor:state.factor,targetK:targetK(),targetC:targetC(),animK:animK(),animC:animC()};
+  }
+  function runModelChecks(){
+    const sim=(factor,todayC)=>{
+      const k=todayC+K0;
+      return k/factor;
+    };
+    const c1=sim(2,0);
+    const c2=sim(3,0);
+    const c3=sim(2,30);
+    const c4=sim(1,0);
+    return[
+      {name:"0°C 减半 = 136.575 K",pass:Math.abs(c1-136.575)<0.01,expected:136.575,actual:c1,tolerance:0.01},
+      {name:"0°C 三分之一 = 91.05 K",pass:Math.abs(c2-91.05)<0.01,expected:91.05,actual:c2,tolerance:0.01},
+      {name:"30°C 减半 = 151.575 K",pass:Math.abs(c3-151.575)<0.01,expected:151.575,actual:c3,tolerance:0.01},
+      {name:"1× 保持不变",pass:Math.abs(c4-K0)<0.01,expected:K0,actual:c4,tolerance:0.01},
+      {name:"倍数越大温度越低",pass:sim(4,0)<sim(2,0),expected:"4× K < 2× K",actual:`${sim(4,0)} < ${sim(2,0)}`,tolerance:"strict"},
+      {name:"对应摄氏度换算",pass:Math.abs((c1-K0)-(-136.575))<0.01,expected:-136.575,actual:c1-K0,tolerance:0.01}
+    ];
+  }
+  function bindControls(){
+    els.tempInput.addEventListener("input",()=>setParameters({todayC:els.tempInput.value}));
+    els.factorInput.addEventListener("input",()=>setParameters({factor:els.factorInput.value}));
+    els.startBtn.addEventListener("click",start);
+    els.pauseBtn.addEventListener("click",pause);
+    els.resetBtn.addEventListener("click",()=>{setParameters({todayC:0,factor:2});reset();});
+    els.revealBtn.addEventListener("click",()=>{
+      if(state.revealT>0){
+        state.revealT=0;
+        els.revealBtn.textContent="揭晓答案";
+        els.status.textContent="就绪";
+      }else{
+        revealAnswer();
+      }
+    });
+    window.addEventListener("resize",()=>{resize();render();});
+  }
+  function frame(ts){
+    if(state.lastTs===null)state.lastTs=ts;
+    const dt=(ts-state.lastTs)/1000;
+    state.lastTs=ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+  function init(){
+    resize();
+    bindControls();
+    setParameters({todayC:0,factor:2});
+    start();
+    requestAnimationFrame(frame);
+  }
+  window.simulation={init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks,revealAnswer};
+  init();
+})();
+</script>
+</body>
+</html>

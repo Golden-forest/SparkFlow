@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>科赫雪花分形生成</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1c;
+      --sim-surface-soft: #0f1626;
+      --sim-text: #e8f4f8;
+      --sim-muted: #6b7d92;
+      --sim-border: #1a2438;
+      --sim-grid: #131c2e;
+      --sim-accent: #4dd0e1;
+      --sim-accent-deep: #00838f;
+      --sim-accent-soft: #1a3a42;
+      --sim-positive: #4dd0e1;
+      --sim-warning: #ffb74d;
+      --sim-danger: #ef5350;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 0 60px rgba(77, 208, 225, 0.08);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 100%;
+      min-width: 320px;
+      color: var(--sim-text);
+      background: var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 2px solid rgba(77, 208, 225, 0.5); outline-offset: 2px; }
+    
+    .app {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .header {
+      flex-shrink: 0;
+      padding: 18px 28px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 24px;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+    .header h1 {
+      font-size: 1.35rem;
+      font-weight: 300;
+      letter-spacing: 0.08em;
+      color: var(--sim-text);
+    }
+    .header h1 .accent { color: var(--sim-accent); font-weight: 400; }
+    .metrics {
+      display: flex;
+      gap: 24px;
+      padding-left: 24px;
+      border-left: 1px solid var(--sim-border);
+    }
+    .metric { display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
+    .metric-label {
+      font-size: 0.68rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .metric-value {
+      font-size: 1.05rem;
+      font-weight: 400;
+      color: var(--sim-text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .metric-value.perimeter { color: var(--sim-warning); }
+    .metric-value.area { color: var(--sim-accent); }
+    
+    .stage-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 28px;
+    }
+    .stage-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(77, 208, 225, 0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    #scene {
+      width: 100%;
+      height: 100%;
+      max-width: 900px;
+      display: block;
+    }
+    .stage-label {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--sim-muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    
+    .insight-bar {
+      flex-shrink: 0;
+      padding: 10px 28px;
+      border-top: 1px solid var(--sim-border);
+      background: linear-gradient(to bottom, transparent, rgba(10, 15, 28, 0.4));
+    }
+    .insight-text {
+      font-size: 0.82rem;
+      color: var(--sim-muted);
+      line-height: 1.5;
+      letter-spacing: 0.02em;
+    }
+    .insight-text .em { color: var(--sim-accent); font-weight: 500; }
+    
+    .controls {
+      flex-shrink: 0;
+      padding: 16px 28px 22px;
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      border-top: 1px solid var(--sim-border);
+      background: linear-gradient(to bottom, transparent, rgba(10, 15, 28, 0.6));
+    }
+    .control-group { display: flex; align-items: center; gap: 14px; }
+    .control-group.flex-grow { flex: 1; min-width: 0; }
+    
+    .btn {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 10px 16px;
+      color: var(--sim-text);
+      background: transparent;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.85rem;
+      letter-spacing: 0.03em;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--sim-accent); color: var(--sim-accent); }
+    .btn:active { transform: scale(0.97); }
+    .btn.primary {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: rgba(77, 208, 225, 0.08);
+    }
+    .btn.primary.playing {
+      background: var(--sim-accent);
+      color: var(--sim-bg);
+    }
+    
+    .slider-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .slider-label {
+      font-size: 0.78rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    input[type="range"] {
+      flex: 1;
+      min-width: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(77, 208, 225, 0.6);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border: none;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 12px rgba(77, 208, 225, 0.6);
+    }
+    .order-display {
+      font-size: 1.1rem;
+      font-weight: 400;
+      color: var(--sim-accent);
+      font-variant-numeric: tabular-nums;
+      min-width: 2.5em;
+      text-align: right;
+    }
+    
+    @media (max-width: 760px) {
+      .header { padding: 14px 16px 10px; flex-direction: column; align-items: flex-start; gap: 8px; }
+      .header h1 { font-size: 1.1rem; }
+      .metrics { padding-left: 0; border-left: none; width: 100%; justify-content: space-around; }
+      .stage-wrap { padding: 0 16px; }
+      .insight-bar { padding: 8px 16px; }
+      .insight-text { font-size: 0.76rem; }
+      .controls { padding: 12px 16px 16px; flex-wrap: wrap; gap: 12px; }
+      .control-group.flex-grow { width: 100%; order: 3; }
+      .stage-label { font-size: 0.68rem; }
+    }
+    @media (max-width: 480px) {
+      .metrics { gap: 12px; }
+      .metric { min-width: 0; }
+      .metric-value { font-size: 0.92rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>科赫雪花 <span class="accent">·</span> 阶数 <span id="hdrOrder">0</span></h1>
+      </div>
+      <div class="metrics" data-region="evidence">
+        <div class="metric">
+          <span class="metric-label">周长</span>
+          <span class="metric-value perimeter" id="perimeterValue">3.000</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">面积</span>
+          <span class="metric-value area" id="areaValue">0.4330</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="stage-wrap" data-region="stage">
+      <svg id="scene" viewBox="-1.6 -1.85 3.2 3.5" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="sceneTitle sceneDesc">
+        <title id="sceneTitle">科赫雪花分形</title>
+        <desc id="sceneDesc">从等边三角形逐级迭代生成的科赫雪花分形图形</desc>
+        <defs>
+          <linearGradient id="kochGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4dd0e1" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#26c6da" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#00838f" stop-opacity="0.95"/>
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.012" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="gridLayer"></g>
+        <path id="kochPath" d="" fill="none" stroke="url(#kochGradient)" stroke-width="0.012" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)"/>
+      </svg>
+      <div class="stage-label" id="stageLabel">科赫雪花 · 0 阶</div>
+    </div>
+
+    <section class="insight-bar" data-region="insight" aria-label="观察提示">
+      <p class="insight-text" id="insightText">每升一阶，每条边折成四段，周长乘 <span class="em">4/3</span> 而趋于无穷；面积却收敛于有限值。</p>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="模拟控制">
+      <div class="control-group">
+        <button id="playBtn" class="btn primary" type="button" aria-label="自动播放">自动播放</button>
+        <button id="resetBtn" class="btn" type="button" aria-label="重置">重置</button>
+      </div>
+      <div class="control-group flex-grow">
+        <label class="slider-label" for="orderSlider">阶数</label>
+        <div class="slider-wrap">
+          <input id="orderSlider" type="range" min="0" max="5" step="1" value="0" aria-label="分形阶数"/>
+          <span class="order-display" id="orderDisplay">0</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // === 参数 schema ===
+    const parameterSchema = [
+      { key: "order", label: "阶数", type: "slider", min: 0, max: 5, step: 1, default: 0, unit: "阶" }
+    ];
+
+    // === 状态 ===
+    const state = {
+      running: false,
+      order: 0,           // 当前目标阶数（整数）
+      displayOrder: 0,    // 显示用连续值（用于动画插值）
+      lastTimestamp: null,
+      autoPlayDirection: 1
+    };
+
+    // === DOM 引用 ===
+    const elements = {
+      scene: document.querySelector("#scene"),
+      kochPath: document.querySelector("#kochPath"),
+      gridLayer: document.querySelector("#gridLayer"),
+      stageLabel: document.querySelector("#stageLabel"),
+      hdrOrder: document.querySelector("#hdrOrder"),
+      perimeterValue: document.querySelector("#perimeterValue"),
+      areaValue: document.querySelector("#areaValue"),
+      insightText: document.querySelector("#insightText"),
+      orderSlider: document.querySelector("#orderSlider"),
+      orderDisplay: document.querySelector("#orderDisplay"),
+      playBtn: document.querySelector("#playBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    // === 工具函数 ===
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // === 科赫雪花几何 ===
+    // 等边三角形顶点（边长 s=1，居中于原点）
+    // 顶点向上，底边水平在下方
+    const SQRT3 = Math.sqrt(3);
+    const TRIANGLE_VERTICES = [
+      { x: 0, y: SQRT3 / 3 },           // 上顶点
+      { x: -0.5, y: -SQRT3 / 6 },       // 左下
+      { x: 0.5, y: -SQRT3 / 6 }         // 右下
+    ];
+
+    // 生成 n 阶科赫雪花所有线段端点（顶点序列）
+    function generateKochPoints(order) {
+      const n = Math.max(0, Math.floor(order));
+      // 三条边的起点和终点（顺时针方向，使尖角朝外）
+      const edges = [
+        { start: TRIANGLE_VERTICES[2], end: TRIANGLE_VERTICES[0] },   // 右下 → 上
+        { start: TRIANGLE_VERTICES[0], end: TRIANGLE_VERTICES[1] },   // 上 → 左下
+        { start: TRIANGLE_VERTICES[1], end: TRIANGLE_VERTICES[2] }    // 左下 → 右下
+      ];
+
+      let points = [];
+      for (const edge of edges) {
+        const segPoints = kochSegment(edge.start, edge.end, n);
+        if (points.length === 0) {
+          points = segPoints;
+        } else {
+          // 跳过下一条边的第一个点（与上一条边的最后一个点重合）
+          points = points.concat(segPoints.slice(1));
+        }
+      }
+      return points;
+    }
+
+    // 递归生成一条边的科赫曲线点序列
+    function kochSegment(start, end, order) {
+      if (order === 0) {
+        return [start, end];
+      }
+      // 将边三等分
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const p1 = { x: start.x + dx / 3, y: start.y + dy / 3 };
+      const p3 = { x: start.x + 2 * dx / 3, y: start.y + 2 * dy / 3 };
+
+      // p2 是尖角顶点：p1 绕 p3 逆时针旋转 -60°（即顺时针 60°）
+      // 等价于 p3 绕 p1 逆时针旋转 60°
+      const cos60 = 0.5;
+      const sin60 = SQRT3 / 2;
+      const vx = p3.x - p1.x;
+      const vy = p3.y - p1.y;
+      const p2 = {
+        x: p1.x + vx * cos60 - vy * sin60,
+        y: p1.y + vx * sin60 + vy * cos60
+      };
+
+      // 递归四段
+      const s1 = kochSegment(start, p1, order - 1);
+      const s2 = kochSegment(p1, p2, order - 1);
+      const s3 = kochSegment(p2, p3, order - 1);
+      const s4 = kochSegment(p3, end, order - 1);
+
+      return s1.concat(s2.slice(1)).concat(s3.slice(1)).concat(s4.slice(1));
+    }
+
+    // === 数学计算 ===
+    // 周长：P_n = 3 * s * (4/3)^n，s=1
+    function calcPerimeter(order) {
+      return 3 * Math.pow(4 / 3, order);
+    }
+
+    // 面积：A_n = (2√3/5) * s² * (1 - (4/9)^(n+1))，s=1
+    // A_0 = √3/4 ≈ 0.4330
+    // A_∞ = (2√3/5) ≈ 0.6928 = 8/5 * A_0
+    function calcArea(order) {
+      return (2 * SQRT3 / 5) * (1 - Math.pow(4 / 9, order + 1));
+    }
+
+    // === 渲染 ===
+    function pointsToPath(points) {
+      if (!points || points.length === 0) return "";
+      let d = `M ${points[0].x.toFixed(5)} ${points[0].y.toFixed(5)}`;
+      for (let i = 1; i < points.length; i++) {
+        d += ` L ${points[i].x.toFixed(5)} ${points[i].y.toFixed(5)}`;
+      }
+      return d;
+    }
+
+    function render() {
+      // 使用 displayOrder 的整数部分作为当前阶数
+      const currentOrder = Math.max(0, Math.floor(state.displayOrder + 0.0001));
+      const points = generateKochPoints(currentOrder);
+      const pathData = pointsToPath(points);
+      elements.kochPath.setAttribute("d", pathData);
+
+      // 更新读数
+      const perimeter = calcPerimeter(state.order);
+      const area = calcArea(state.order);
+
+      elements.perimeterValue.textContent = perimeter.toFixed(perimeter < 100 ? 3 : 2);
+      elements.areaValue.textContent = area.toFixed(4);
+      elements.orderDisplay.textContent = state.order;
+      elements.hdrOrder.textContent = state.order;
+      elements.stageLabel.textContent = `科赫雪花 · ${state.order} 阶`;
+
+      // 更新洞察文本
+      const insightMsgs = [
+        "0 阶：等边三角形，周长 <span class='em'>3</span>，面积 <span class='em'>√3/4</span>。这是分形的起点。",
+        "1 阶：每边折出尖角，周长乘 <span class='em'>4/3</span>，面积增加三个小三角形。",
+        "2 阶：尖角上再生尖角，周长再乘 <span class='em'>4/3</span>，面积继续逼近极限。",
+        "3 阶：边界愈发曲折，周长已超 <span class='em'>7</span>，面积仍不足极限的 95%。",
+        "4 阶：周长约 <span class='em'>9.5</span>，面积接近 <span class='em'>0.670</span>。",
+        "5 阶：周长约 <span class='em'>12.7</span>，面积逼近极限 <span class='em'>2√3/5 ≈ 0.6928</span>。"
+      ];
+      elements.insightText.innerHTML = insightMsgs[clamp(state.order, 0, 5)];
+    }
+
+    // === 生命周期 ===
+    function init() {
+      bindControls();
+      setParameters({ order: 0 });
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.playBtn.textContent = "暂停";
+      elements.playBtn.classList.add("playing");
+      elements.playBtn.setAttribute("aria-label", "暂停自动播放");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.playBtn.textContent = "自动播放";
+      elements.playBtn.classList.remove("playing");
+      elements.playBtn.setAttribute("aria-label", "自动播放");
+    }
+
+    function reset() {
+      pause();
+      state.order = 0;
+      state.displayOrder = 0;
+      state.autoPlayDirection = 1;
+      state.lastTimestamp = null;
+      elements.orderSlider.value = "0";
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+
+      // 自动播放：阶数在 0→5→0 之间循环
+      // 每阶停留约 1.8 秒
+      const speed = 1 / 1.8; // 阶/秒
+      state.displayOrder += state.autoPlayDirection * speed * boundedDt;
+
+      // 边界处理
+      if (state.displayOrder >= 5) {
+        state.displayOrder = 5;
+        state.autoPlayDirection = -1;
+        // 在最高阶多停留一会
+        state.displayOrder = 5 - 0.001;
+      } else if (state.displayOrder <= 0) {
+        state.displayOrder = 0;
+        state.autoPlayDirection = 1;
+        state.displayOrder = 0.001;
+      }
+
+      // 更新整数阶数（当 displayOrder 跨越整数边界时更新）
+      const newOrder = clamp(Math.round(state.displayOrder), 0, 5);
+      if (newOrder !== state.order) {
+        state.order = newOrder;
+        elements.orderSlider.value = String(newOrder);
+        render();
+      }
+    }
+
+    function setParameters(values) {
+      const orderDef = parameterSchema[0];
+      const newOrder = clamp(Math.round(finite(Number(values.order), orderDef.default)), orderDef.min, orderDef.max);
+      if (newOrder !== state.order) {
+        state.order = newOrder;
+        state.displayOrder = newOrder;
+        render();
+      }
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        order: state.order,
+        displayOrder: state.displayOrder,
+        perimeter: calcPerimeter(state.order),
+        area: calcArea(state.order)
+      };
+    }
+
+    function getReadouts() {
+      return {
+        order: state.order,
+        perimeter: calcPerimeter(state.order),
+        area: calcArea(state.order)
+      };
+    }
+
+    // === Model Checks ===
+    function runModelChecks() {
+      const results = [];
+
+      // 1. 0 阶周长 = 3（等边三角形边长 1，周长 3）
+      const p0 = calcPerimeter(0);
+      results.push({
+        name: "0阶周长=3",
+        pass: Math.abs(p0 - 3) < 1e-10,
+        expected: 3,
+        actual: p0,
+        tolerance: 1e-10
+      });
+
+      // 2. 周长指数增长：P_n / P_{n-1} = 4/3
+      let ratioOk = true;
+      for (let n = 1; n <= 5; n++) {
+        const ratio = calcPerimeter(n) / calcPerimeter(n - 1);
+        if (Math.abs(ratio - 4/3) > 1e-10) { ratioOk = false; break; }
+      }
+      results.push({
+        name: "周长公比=4/3",
+        pass: ratioOk,
+        expected: "4/3",
+        actual: ratioOk ? "4/3" : "不符",
+        tolerance: 1e-10
+      });
+
+      // 3. 0 阶面积 = √3/4 ≈ 0.4330
+      const a0 = calcArea(0);
+      const a0Expected = SQRT3 / 4;
+      results.push({
+        name: "0阶面积=√3/4",
+        pass: Math.abs(a0 - a0Expected) < 1e-10,
+        expected: a0Expected,
+        actual: a0,
+        tolerance: 1e-10
+      });
+
+      // 4. 面积收敛到 8/5 倍初始面积
+      const aInf = (2 * SQRT3) / 5;
+      const ratio8_5 = aInf / a0Expected;
+      results.push({
+        name: "极限面积=8/5×A0",
+        pass: Math.abs(ratio8_5 - 8/5) < 1e-10,
+        expected: "8/5 = 1.6",
+        actual: ratio8_5,
+        tolerance: 1e-10
+      });
+
+      // 5. 面积单调递增且收敛
+      let monotonic = true;
+      for (let n = 1; n <= 5; n++) {
+        if (calcArea(n) <= calcArea(n - 1)) { monotonic = false; break; }
+      }
+      const converging = calcArea(5) < aInf;
+      results.push({
+        name: "面积单调递增且收敛",
+        pass: monotonic && converging,
+        expected: "递增 → 8/5×A0",
+        actual: `单调:${monotonic}, 收敛:${converging}`,
+        tolerance: "strict"
+      });
+
+      // 6. 顶点数正确：N_n = 3 * 4^n
+      const expectedVerts3 = 3 * Math.pow(4, 3);
+      const actualVerts3 = generateKochPoints(3).length;
+      results.push({
+        name: "3阶顶点数=3×4³=192",
+        pass: actualVerts3 === expectedVerts3,
+        expected: expectedVerts3,
+        actual: actualVerts3,
+        tolerance: 0
+      });
+
+      // 7. 几何对称性：0 阶三角形关于 y 轴对称
+      const pts0 = generateKochPoints(0);
+      let symmetric = true;
+      for (const p of pts0) {
+        const mirror = pts0.find(q => Math.abs(q.x - (-p.x)) < 1e-10 && Math.abs(q.y - p.y) < 1e-10);
+        if (!mirror) { symmetric = false; break; }
+      }
+      results.push({
+        name: "0阶关于y轴对称",
+        pass: symmetric,
+        expected: "对称",
+        actual: symmetric ? "对称" : "不对称",
+        tolerance: "strict"
+      });
+
+      return results;
+    }
+
+    // === 控件绑定 ===
+    function bindControls() {
+      elements.playBtn.addEventListener("click", () => {
+        if (state.running) { pause(); } else { start(); }
+      });
+      elements.resetBtn.addEventListener("click", reset);
+      elements.orderSlider.addEventListener("input", () => {
+        pause();
+        setParameters({ order: elements.orderSlider.value });
+      });
+    }
+
+    // === 主循环 ===
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      requestAnimationFrame(frame);
+    }
+
+    // === 暴露 API ===
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks,
+      generateKochPoints, calcPerimeter, calcArea
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

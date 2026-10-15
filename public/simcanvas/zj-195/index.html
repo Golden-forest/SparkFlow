@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>驻波点阵 · Standing Wave Lattice</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#04060f;
+  --sim-surface:#070b18;
+  --sim-surface-soft:#0c1326;
+  --sim-text:#e8eefc;
+  --sim-muted:#5b6b88;
+  --sim-border:rgba(150,180,220,.18);
+  --sim-grid:rgba(127,227,255,.06);
+  --sim-accent:#7fe3ff;
+  --sim-accent-deep:#3bb8d6;
+  --sim-accent-soft:rgba(127,227,255,.14);
+  --sim-positive:#7fe3ff;
+  --sim-warning:#f59e0b;
+  --sim-danger:#dc2626;
+  --sim-radius-sm:10px;
+  --sim-radius-md:16px;
+  --sim-radius-lg:22px;
+  --sim-shadow:0 14px 36px rgba(0,0,0,.45);
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:var(--sim-bg);color:var(--sim-text);font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:default}
+.formula{
+  position:fixed;left:22px;bottom:18px;z-index:5;
+  font-size:12px;letter-spacing:.04em;color:rgba(180,210,240,.34);
+  font-variant-numeric:tabular-nums;pointer-events:none;user-select:none;
+  text-shadow:0 1px 6px rgba(0,0,0,.7)
+}
+.formula .var{color:rgba(150,200,235,.5)}
+.play-btn{
+  position:fixed;right:22px;bottom:18px;z-index:5;
+  width:34px;height:34px;border-radius:50%;
+  border:1px solid rgba(150,180,220,.2);
+  background:rgba(12,18,32,.5);
+  color:rgba(200,225,250,.7);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:background .25s ease,border-color .25s ease,color .25s ease,transform .15s ease
+}
+.play-btn:hover{background:rgba(20,30,50,.65);border-color:rgba(150,180,220,.35);color:rgba(220,240,255,.92)}
+.play-btn:active{transform:scale(.93)}
+.play-btn:focus-visible{outline:2px solid rgba(127,227,255,.55);outline-offset:3px}
+.play-btn svg{width:13px;height:13px;display:block}
+@media(max-width:560px){
+  .formula{font-size:10.5px;left:14px;bottom:12px}
+  .play-btn{width:30px;height:30px;right:14px;bottom:12px}
+}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header data-region="header" style="position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;pointer-events:none;z-index:-1">
+  <h1>驻波点阵</h1>
+  <p>Standing Wave Lattice</p>
+</header>
+<canvas id="stage" data-region="stage"></canvas>
+<div class="formula" data-region="insight" aria-hidden="true">A = 2·cos(<span class="var">ωt</span>)·sin(<span class="var">kx</span>)</div>
+<aside data-region="evidence" style="position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;pointer-events:none;z-index:-1">
+  <section class="readouts"><div class="metric"><small>Time</small><strong id="timeReadout">0.00 s</strong></div></section>
+</aside>
+<button id="playBtn" class="play-btn" data-region="controls" type="button" aria-label="播放或暂停" aria-pressed="false"></button>
+<script>
+(()=>{
+"use strict";
+const canvas=document.getElementById('stage');
+const ctx=canvas.getContext('2d',{alpha:false});
+const playBtn=document.getElementById('playBtn');
+
+const DPR=Math.max(1,Math.min(2,window.devicePixelRatio||1));
+let W=0,H=0;
+
+// 驻波参数（确定性，无随机）
+const COLS=60, ROWS=36;
+const K=2*Math.PI*2.5/COLS;       // 空间频率：2.5 个完整驻波周期横跨点阵
+const OMEGA=0.55;                 // 角频率：缓慢脉动
+const DRIFT=0.022;                // 节线缓慢漂移速率
+const PHASE_AMP=0.55;             // 竖直方向相位扰动幅度（让节线弯曲）
+const PHASE_KY=2*Math.PI/ROWS*1.3;// 竖直方向相位变化的空间频率
+
+let running=true;
+let simTime=0;
+let lastTs=null;
+
+// 预分配点阵坐标缓存
+const pts=new Float32Array(COLS*ROWS*2);
+for(let r=0;r<ROWS;r++){
+  for(let c=0;c<COLS;c++){
+    const i=(r*COLS+c)*2;
+    pts[i]=c; pts[i+1]=r;
+  }
+}
+
+function resize(){
+  const w=window.innerWidth, h=window.innerHeight;
+  canvas.width=Math.floor(w*DPR);
+  canvas.height=Math.floor(h*DPR);
+  canvas.style.width=w+'px';
+  canvas.style.height=h+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  W=w; H=h;
+}
+window.addEventListener('resize',resize);
+
+function drawIcon(){
+  const s='<svg viewBox="0 0 14 14" fill="currentColor">';
+  if(running){
+    // 暂停图标
+    playBtn.innerHTML=s+'<rect x="3" y="2.5" width="2.6" height="9" rx="1"/><rect x="8.4" y="2.5" width="2.6" height="9" rx="1"/></svg>';
+    playBtn.setAttribute('aria-label','暂停');
+  }else{
+    // 播放图标
+    playBtn.innerHTML=s+'<path d="M3.5 2.5 L11 7 L3.5 11.5 Z"/></svg>';
+    playBtn.setAttribute('aria-label','播放');
+  }
+}
+
+function toggle(){
+  running=!running;
+  playBtn.setAttribute('aria-pressed',running?'true':'false');
+  drawIcon();
+}
+playBtn.addEventListener('click',toggle);
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='Enter'){
+    e.preventDefault();toggle();
+  }
+});
+
+// 颜色：深蓝黑底 → 腹点青白
+const BG_R=4,BG_G=6,BG_B=15;
+const PEAK_R=200,PEAK_G=240,PEAK_B=255;
+
+function render(){
+  // 背景：轻微径向渐变营造空间深度
+  const g=ctx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,Math.max(W,H)*0.75);
+  g.addColorStop(0,'#070b18');
+  g.addColorStop(1,'#020308');
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H);
+
+  // 点阵布局：留边距，完整落在屏幕内
+  const marginX=Math.max(28,W*0.06);
+  const marginY=Math.max(24,H*0.07);
+  const availW=W-2*marginX;
+  const availH=H-2*marginY;
+  const stepX=availW/(COLS-1);
+  const stepY=availH/(ROWS-1);
+  const ox=marginX, oy=marginY;
+
+  const t=simTime;
+  const driftPhase=DRIFT*t;
+
+  // 第一遍：粗大低透明度光晕（模拟发光，无 shadowBlur）
+  ctx.globalCompositeOperation='lighter';
+  for(let pass=0;pass<2;pass++){
+    const isHalo=pass===0;
+    for(let r=0;r<ROWS;r++){
+      const phaseY=PHASE_AMP*Math.sin(PHASE_KY*r+0.4*t);
+      for(let c=0;c<COLS;c++){
+        // 两列反向行波叠加 = 驻波 + 缓慢漂移
+        const wave=Math.sin(K*c+OMEGA*t)+Math.sin(K*c-OMEGA*t+phaseY+driftPhase);
+        // wave ∈ [-2,2]，归一化到 [0,1]
+        const amp=(wave*0.5)+1; // 0..2
+        const norm=amp*0.5;     // 0..1
+
+        if(norm<0.06) continue; // 节线附近跳过，自然形成暗带
+
+        const x=ox+c*stepX;
+        const y=oy+r*stepY;
+
+        // 大小随振幅放大（教学性视觉夸张）
+        const baseR=Math.min(stepX,stepY)*0.5;
+        let radius;
+        if(isHalo){
+          radius=baseR*(0.5+norm*2.6);
+        }else{
+          radius=baseR*(0.18+norm*0.95);
+        }
+        if(radius<0.3) continue;
+
+        // 亮度随振幅
+        const intensity=norm;
+        let alpha;
+        if(isHalo){
+          alpha=0.05+intensity*0.13;
+        }else{
+          alpha=0.12+intensity*0.78;
+        }
+
+        // 颜色：低振幅偏冷蓝，高振幅偏青白
+        const cr=Math.round(BG_R+(PEAK_R-BG_R)*intensity);
+        const cg=Math.round(BG_G+(PEAK_G-BG_G)*intensity);
+        const cb=Math.round(BG_B+(PEAK_B-BG_B)*intensity);
+
+        ctx.fillStyle='rgba('+cr+','+cg+','+cb+','+alpha.toFixed(3)+')';
+        ctx.beginPath();
+        ctx.arc(x,y,radius,0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.globalCompositeOperation='source-over';
+}
+
+function update(dt){
+  if(!running) return;
+  let d=dt;
+  if(!Number.isFinite(d)) d=0;
+  if(d>0.05) d=0.05;
+  if(d<0) d=0;
+  simTime+=d;
+}
+
+function frame(ts){
+  if(lastTs===null) lastTs=ts;
+  let dt=(ts-lastTs)/1000;
+  lastTs=ts;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+// 生命周期
+function init(){
+  resize();
+  drawIcon();
+  requestAnimationFrame(frame);
+}
+function start(){
+  running=true;
+  playBtn.setAttribute('aria-pressed','true');
+  drawIcon();
+}
+function pause(){
+  running=false;
+  playBtn.setAttribute('aria-pressed','false');
+  drawIcon();
+}
+function reset(){
+  simTime=0;
+}
+function setParameters(values){
+  // 当前无外部可调参数，保留接口以满足契约
+  void values;
+}
+function getState(){
+  return {running,t:simTime,cols:COLS,rows:ROWS,k:K,omega:OMEGA,drift:DRIFT};
+}
+function getReadouts(){
+  return {t:simTime,running};
+}
+
+// 暴露接口（符合 runtime 契约，便于验证）
+window.simulation={
+  init,
+  start,
+  pause,
+  reset,
+  update,
+  render,
+  setParameters,
+  getState,
+  getReadouts,
+  // 模型检查：验证驻波数学性质
+  runModelChecks:()=>{
+    const checks=[];
+    // 1. 驻波振幅在节线处为 0：sin(kx)=0 → kx=nπ
+    //    取 c 使 K*c = π（第一个节线），两列行波应完全抵消
+    const cNode=Math.PI/K;
+    const t1=1.3;
+    const w1=Math.sin(K*cNode+OMEGA*t1)+Math.sin(K*cNode-OMEGA*t1);
+    checks.push({name:'节线处振幅为零',pass:Math.abs(w1)<1e-10,expected:0,actual:w1,tolerance:1e-9});
+
+    // 2. 腹点处振幅为 2：sin(kx)=±1 → kx=π/2
+    const cAntinode=(Math.PI*0.5)/K;
+    const t2=0;
+    const w2=Math.sin(K*cAntinode+OMEGA*t2)+Math.sin(K*cAntinode-OMEGA*t2);
+    checks.push({name:'腹点处振幅为2',pass:Math.abs(w2-2)<1e-10,expected:2,actual:w2,tolerance:1e-9});
+
+    // 3. 驻波 = 2cos(ωt)sin(kx)：任意点任意时刻应满足
+    let maxErr=0;
+    for(let i=0;i<20;i++){
+      const c=Math.random()*COLS;
+      const t=Math.random()*10;
+      const wave=Math.sin(K*c+OMEGA*t)+Math.sin(K*c-OMEGA*t);
+      const standing=2*Math.cos(OMEGA*t)*Math.sin(K*c);
+      maxErr=Math.max(maxErr,Math.abs(wave-standing));
+    }
+    checks.push({name:'反向行波叠加等于驻波公式',pass:maxErr<1e-10,expected:0,actual:maxErr,tolerance:1e-9});
+
+    // 4. 振幅范围 [-2,2]
+    let outOfRange=false;
+    for(let i=0;i<100;i++){
+      const c=Math.random()*COLS;
+      const t=Math.random()*20;
+      const w=Math.sin(K*c+OMEGA*t)+Math.sin(K*c-OMEGA*t);
+      if(Math.abs(w)>2+1e-10) outOfRange=true;
+    }
+    checks.push({name:'振幅始终在[-2,2]',pass:!outOfRange,expected:'|A|≤2',actual:'范围内',tolerance:'strict'});
+
+    return checks;
+  }
+};
+
+init();
+})();
+</script>
+</body>
+</html>

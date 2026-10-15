@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一根线，竟是三维的</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050912;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0e1628;
+  --sim-text: #e8f4f8;
+  --sim-muted: #6b829c;
+  --sim-border: #1a2a44;
+  --sim-grid: #0f1a2e;
+  --sim-accent: #22d3ee;
+  --sim-accent-deep: #0891b2;
+  --sim-accent-soft: rgba(34, 211, 238, 0.18);
+  --sim-positive: #22d3ee;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 42%, rgba(20, 50, 80, 0.5), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 18% 88%, rgba(15, 35, 60, 0.4), transparent 65%),
+    radial-gradient(ellipse 55% 45% at 85% 12%, rgba(12, 30, 55, 0.35), transparent 60%),
+    #050912;
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+button:focus-visible, input:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.55);
+  outline-offset: 3px;
+}
+.app {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  padding: 22px 28px 18px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  z-index: 5;
+}
+.header-left h1 {
+  font-size: clamp(1.5rem, 2.4vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  background: linear-gradient(135deg, #e8f4f8 0%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.header-left p {
+  margin-top: 6px;
+  color: var(--sim-muted);
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+}
+.status {
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 999px;
+  padding: 7px 16px;
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--sim-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  border-radius: var(--sim-radius-lg);
+  overflow: hidden;
+}
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.overlay {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
+.formula {
+  bottom: 18px;
+  left: 22px;
+  color: rgba(232, 244, 248, 0.55);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+}
+.formula .accent { color: var(--sim-accent); }
+.formula .label {
+  display: block;
+  color: rgba(107, 130, 156, 0.85);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.formula .note {
+  display: block;
+  margin-top: 8px;
+  color: rgba(232, 244, 248, 0.4);
+  font-size: 0.72rem;
+}
+.title-card {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+.title-card.show { opacity: 1; }
+.title-card .big {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #e8f4f8 0%, #22d3ee 60%, #0891b2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  line-height: 1.15;
+}
+.title-card .sub {
+  margin-top: 14px;
+  color: var(--sim-muted);
+  font-size: clamp(0.85rem, 1.4vw, 1.05rem);
+  letter-spacing: 0.18em;
+}
+.ending {
+  bottom: 18px;
+  right: 22px;
+  max-width: 340px;
+  text-align: right;
+  color: rgba(232, 244, 248, 0.78);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+}
+.ending.show { opacity: 1; }
+.evidence {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  background: rgba(10, 16, 32, 0.55);
+  backdrop-filter: blur(6px);
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border: 1px solid rgba(34, 211, 238, 0.14);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(14, 22, 40, 0.7), rgba(10, 16, 32, 0.5));
+}
+.metric small {
+  color: var(--sim-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.metric strong {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--sim-text);
+}
+.metric.accent strong { color: var(--sim-accent); }
+.metric.warn strong { color: var(--sim-warning); }
+.insight {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 12px 12px 0;
+  background: rgba(245, 158, 11, 0.06);
+  color: rgba(255, 220, 150, 0.92);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+.insight .tag {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--sim-warning);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 12px 20px;
+  z-index: 5;
+  flex-wrap: wrap;
+}
+.actions { display: flex; gap: 8px; }
+.actions button {
+  border: 1px solid var(--sim-border);
+  border-radius: 999px;
+  padding: 9px 18px;
+  color: var(--sim-text);
+  background: rgba(10, 16, 32, 0.6);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.04em;
+}
+.actions button:hover { border-color: rgba(34, 211, 238, 0.5); color: var(--sim-accent); }
+.actions button:active { transform: scale(0.97); }
+.actions button.primary {
+  border-color: var(--sim-accent-deep);
+  color: #051018;
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.3);
+}
+.actions button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.4);
+}
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--sim-border);
+  border-radius: 999px;
+  background: rgba(10, 16, 32, 0.6);
+}
+.view-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--sim-muted);
+  padding: 9px 22px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  letter-spacing: 0.06em;
+}
+.view-toggle button:hover { color: var(--sim-text); }
+.view-toggle button.active {
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #051018;
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.3);
+}
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.slider-group label {
+  color: var(--sim-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.slider-group .val {
+  color: var(--sim-accent);
+  font-size: 0.92rem;
+  font-weight: 700;
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 150px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--sim-accent-deep), var(--sim-accent));
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e8f4f8;
+  border: 2px solid var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.15);
+  transition: box-shadow 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.25);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e8f4f8;
+  border: 2px solid var(--sim-accent);
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  .app { padding: 14px 14px 12px; }
+  .controls { gap: 14px; }
+  input[type="range"] { width: 110px; }
+  .formula { font-size: 0.72rem; bottom: 12px; left: 14px; }
+  .ending { font-size: 0.8rem; bottom: 12px; right: 14px; max-width: 220px; }
+  .header-left p { display: none; }
+  .evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div class="header-left">
+      <h1>一根线，竟是三维的</h1>
+      <p>圆柱螺旋线的侧视投影 · 平面正弦波的空间真相</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <section class="stage-wrap" data-region="stage" aria-label="螺旋线投影舞台">
+    <canvas id="scene" role="img" aria-label="三维圆柱螺旋线及其二维正弦投影"></canvas>
+    <div class="overlay formula">
+      <span class="label">参数方程</span>
+      x = R · cos(t)<br>
+      y = R · sin(t)<br>
+      z = k · t
+      <span class="note">侧视投影 → x = R · cos(t), z = k · t</span>
+    </div>
+    <div class="overlay title-card" id="titleCard">
+      <div class="big">一根线<br>竟是三维的</div>
+      <div class="sub">HELIX · SINE · PROJECTION</div>
+    </div>
+    <div class="overlay ending" id="ending">
+      你在纸上看过的每一条正弦波，<br>在空间里都是一根弹簧。
+    </div>
+  </section>
+
+  <section class="evidence" data-region="evidence" aria-label="实时读数">
+    <div class="metric accent"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+    <div class="metric"><small>自转角</small><strong id="rotationReadout">0.00°</strong></div>
+    <div class="metric"><small>视角混合</small><strong id="blendReadout">0.00</strong></div>
+    <div class="metric warn"><small>螺旋长度</small><strong id="lengthReadout">0.00</strong></div>
+  </section>
+
+  <section class="insight" data-region="insight" aria-label="观察提示">
+    <span class="tag" id="insightTag">开场</span>
+    <span id="insightText">正视投影下，三维螺旋线被压成一条平面正弦波；切换到斜视，它的空间结构才显现。</span>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button" aria-pressed="true">开始</button>
+      <button id="pauseBtn" type="button" aria-pressed="false">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="view-toggle" role="group" aria-label="视角切换">
+      <button id="frontBtn" type="button" class="active" aria-pressed="true">正视</button>
+      <button id="obliqueBtn" type="button" aria-pressed="false">斜视</button>
+    </div>
+    <div class="slider-group">
+      <label for="turnsInput">圈数</label>
+      <input id="turnsInput" type="range" min="2" max="8" step="0.5" value="4" aria-label="螺旋圈数">
+      <span class="val" id="turnsVal">4.0</span>
+    </div>
+    <div class="slider-group">
+      <label for="pitchInput">螺距</label>
+      <input id="pitchInput" type="range" min="0.3" max="1.8" step="0.1" value="0.9" aria-label="螺距大小">
+      <span class="val" id="pitchVal">0.9</span>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============ 状态 ============
+  const state = {
+    running: true,
+    t: 0,
+    rotation: 0,
+    turns: 4,
+    pitch: 0.9,
+    radius: 1.0,
+    viewMode: 'front',
+    viewBlend: 0,
+    targetBlend: 0,
+    lastTimestamp: null,
+    introTimer: 0,
+    showTitle: true,
+    endingShown: false,
+    cycleTimer: 0,
+  };
+
+  // ============ DOM ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const statusEl = document.getElementById('status');
+  const titleCard = document.getElementById('titleCard');
+  const endingEl = document.getElementById('ending');
+  const frontBtn = document.getElementById('frontBtn');
+  const obliqueBtn = document.getElementById('obliqueBtn');
+  const turnsInput = document.getElementById('turnsInput');
+  const pitchInput = document.getElementById('pitchInput');
+  const turnsVal = document.getElementById('turnsVal');
+  const pitchVal = document.getElementById('pitchVal');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const timeReadout = document.getElementById('timeReadout');
+  const rotationReadout = document.getElementById('rotationReadout');
+  const blendReadout = document.getElementById('blendReadout');
+  const lengthReadout = document.getElementById('lengthReadout');
+  const insightTag = document.getElementById('insightTag');
+  const insightText = document.getElementById('insightText');
+
+  let W = 0, H = 0;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    W = Math.max(1, rect.width);
+    H = Math.max(1, rect.height);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  // ============ 透视投影 ============
+  function project(wx, wy, wz, blend) {
+    const tilt = blend * 0.52;
+    const yaw = blend * 0.38;
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    let x1 = wx * cy - wy * sy;
+    let y1 = wx * sy + wy * cy;
+    let z1 = wz;
+    const ct = Math.cos(tilt), st = Math.sin(tilt);
+    let x2 = x1;
+    let y2 = y1 * ct - z1 * st;
+    let z2 = y1 * st + z1 * ct;
+    const camDist = 4.2;
+    const depth = camDist - z2;
+    const safeDepth = Math.max(0.6, depth);
+    const persp = camDist / safeDepth;
+    return { x: x2, y: y2, depth: z2, scale: persp };
+  }
+
+  function getHelixPoints() {
+    const points = [];
+    const totalT = state.turns * Math.PI * 2;
+    const segments = Math.max(120, Math.ceil(state.turns * 80));
+    const phaseOffset = state.rotation;
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const tParam = u * totalT;
+      const angle = tParam + phaseOffset;
+      const wx = state.radius * Math.cos(angle);
+      const wy = state.radius * Math.sin(angle);
+      const wz = state.pitch * tParam / (Math.PI * 2);
+      points.push({ wx, wy, wz, tParam, u });
+    }
+    return points;
+  }
+
+  function getReferenceSinePoints() {
+    const points = [];
+    const totalT = state.turns * Math.PI * 2;
+    const segments = Math.max(120, Math.ceil(state.turns * 80));
+    const phaseOffset = state.rotation;
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const tParam = u * totalT;
+      const angle = tParam + phaseOffset;
+      const wx = state.radius * Math.cos(angle);
+      const wy = 0;
+      const wz = state.pitch * tParam / (Math.PI * 2);
+      points.push({ wx, wy, wz, tParam, u });
+    }
+    return points;
+  }
+
+  function worldToScreen(p, blend, cx, cy, baseScale) {
+    const proj = project(p.wx, p.wy, p.wz, blend);
+    return {
+      x: cx + proj.x * baseScale * proj.scale,
+      y: cy - proj.y * baseScale * proj.scale,
+      depth: proj.depth,
+      scale: proj.scale
+    };
+  }
+
+  function drawGrid() {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(34, 211, 238, 0.05)';
+    ctx.lineWidth = 1;
+    const step = 48;
+    for (let x = 0; x < W; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = 0; y < H; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 0);
+    ctx.lineTo(W / 2, H);
+    ctx.moveTo(0, H / 2);
+    ctx.lineTo(W, H / 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCylinderGuide(blend, cx, cy, baseScale) {
+    if (blend < 0.15) return;
+    const alpha = Math.min(1, (blend - 0.15) / 0.5) * 0.18;
+    ctx.save();
+    ctx.strokeStyle = `rgba(107, 130, 156, ${alpha})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 6]);
+    const zMin = 0;
+    const zMax = state.pitch * state.turns;
+    [zMin, zMax].forEach(zc => {
+      ctx.beginPath();
+      const segs = 64;
+      for (let i = 0; i <= segs; i++) {
+        const a = (i / segs) * Math.PI * 2;
+        const p = { wx: state.radius * Math.cos(a), wy: state.radius * Math.sin(a), wz: zc };
+        const s = worldToScreen(p, blend, cx, cy, baseScale);
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      }
+      ctx.stroke();
+    });
+    [0, Math.PI].forEach(a => {
+      const p1 = worldToScreen({ wx: state.radius * Math.cos(a), wy: state.radius * Math.sin(a), wz: zMin }, blend, cx, cy, baseScale);
+      const p2 = worldToScreen({ wx: state.radius * Math.cos(a), wy: state.radius * Math.sin(a), wz: zMax }, blend, cx, cy, baseScale);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawCurve(points, blend, cx, cy, baseScale, color, glowColor, glowWidth, coreWidth, alpha) {
+    if (points.length < 2) return;
+    const screen = points.map(p => worldToScreen(p, blend, cx, cy, baseScale));
+
+    ctx.save();
+    ctx.strokeStyle = glowColor;
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.lineWidth = glowWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < screen.length; i++) {
+      if (i === 0) ctx.moveTo(screen[i].x, screen[i].y);
+      else ctx.lineTo(screen[i].x, screen[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = glowColor;
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.lineWidth = glowWidth * 0.55;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < screen.length; i++) {
+      if (i === 0) ctx.moveTo(screen[i].x, screen[i].y);
+      else ctx.lineTo(screen[i].x, screen[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = coreWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < screen.length; i++) {
+      if (i === 0) ctx.moveTo(screen[i].x, screen[i].y);
+      else ctx.lineTo(screen[i].x, screen[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawEndpoints(points, blend, cx, cy, baseScale) {
+    if (points.length < 2) return;
+    const start = worldToScreen(points[0], blend, cx, cy, baseScale);
+    const end = worldToScreen(points[points.length - 1], blend, cx, cy, baseScale);
+    ctx.save();
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.9)';
+    ctx.beginPath();
+    ctx.arc(start.x, start.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
+    ctx.beginPath();
+    ctx.arc(start.x, start.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ============ 主渲染 ============
+  function render() {
+    ctx.fillStyle = 'rgba(5, 9, 18, 0.92)';
+    ctx.fillRect(0, 0, W, H);
+
+    drawGrid();
+
+    const cx = W / 2;
+    const cy = H / 2 + (H * 0.04);
+    const blend = state.viewBlend;
+
+    const helixLength = state.pitch * state.turns;
+    const targetWidth = W * 0.62;
+    const baseScale = Math.min(
+      targetWidth / Math.max(0.5, helixLength),
+      (H * 0.32) / state.radius
+    );
+
+    drawCylinderGuide(blend, cx, cy, baseScale);
+
+    const refAlpha = Math.max(0, 1 - blend * 1.4);
+    if (refAlpha > 0.01) {
+      const refPoints = getReferenceSinePoints();
+      drawCurve(refPoints, blend, cx, cy, baseScale,
+        'rgba(245, 158, 11, 1)', 'rgba(245, 158, 11, 0.6)',
+        16, 2.2, refAlpha * 0.85);
+    }
+
+    const helixPoints = getHelixPoints();
+    drawCurve(helixPoints, blend, cx, cy, baseScale,
+      'rgba(34, 211, 238, 1)', 'rgba(34, 211, 238, 0.55)',
+      18, 2.5, 1);
+
+    drawEndpoints(helixPoints, blend, cx, cy, baseScale);
+
+    if (blend > 0.1) {
+      const axisAlpha = Math.min(1, (blend - 0.1) / 0.4) * 0.25;
+      const zMax = state.pitch * state.turns;
+      const p1 = worldToScreen({ wx: 0, wy: 0, wz: 0 }, blend, cx, cy, baseScale);
+      const p2 = worldToScreen({ wx: 0, wy: 0, wz: zMax }, blend, cx, cy, baseScale);
+      ctx.save();
+      ctx.strokeStyle = `rgba(107, 130, 156, ${axisAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 5]);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // 读数与提示从同一权威状态派生
+    timeReadout.textContent = `${state.t.toFixed(2)} s`;
+    rotationReadout.textContent = `${((state.rotation * 180 / Math.PI) % 360).toFixed(1)}°`;
+    blendReadout.textContent = state.viewBlend.toFixed(2);
+    lengthReadout.textContent = (state.pitch * state.turns).toFixed(2);
+
+    let tag = '观察';
+    let text = '正视投影下，三维螺旋线被压成一条平面正弦波；切换到斜视，它的空间结构才显现。';
+    if (state.showTitle) {
+      tag = '开场';
+      text = '先以正视投影呈现一条“正弦波”，随后切换斜视，揭示它的三维本体。';
+    } else if (state.viewBlend < 0.15) {
+      tag = '正视';
+      text = '此时你看到的是 x = R·cos(t) 关于 z 的曲线——一条平面正弦波。';
+    } else if (state.viewBlend > 0.85) {
+      tag = '斜视';
+      text = '同一根线，在空间里是圆柱螺旋线：x、y 两个方向都在振荡。';
+    } else {
+      tag = '过渡';
+      text = '视角正在切换：平面波逐渐“立起来”，露出圆柱螺旋的空间结构。';
+    }
+    insightTag.textContent = tag;
+    insightText.textContent = text;
+  }
+
+  // ============ 更新 ============
+  function update(dt) {
+    if (!state.running) return;
+    const safeDt = clamp(finite(dt, 0), 0, 0.05);
+
+    state.t += safeDt;
+
+    if (state.introTimer < 2.0) {
+      state.introTimer += safeDt;
+      if (state.introTimer >= 2.0 && state.showTitle) {
+        state.showTitle = false;
+        titleCard.classList.remove('show');
+        state.viewMode = 'oblique';
+        state.targetBlend = 1;
+        syncViewToggle();
+      }
+      return;
+    }
+
+    state.rotation += safeDt * 0.35;
+
+    const blendSpeed = 1.8;
+    const diff = state.targetBlend - state.viewBlend;
+    state.viewBlend += diff * Math.min(1, safeDt * blendSpeed);
+    if (Math.abs(diff) < 0.001) state.viewBlend = state.targetBlend;
+
+    state.cycleTimer += safeDt;
+    if (state.cycleTimer > 6 && !state.endingShown) {
+      state.endingShown = true;
+      endingEl.classList.add('show');
+    }
+    if (state.cycleTimer > 16) {
+      state.cycleTimer = 0;
+      state.endingShown = false;
+      endingEl.classList.remove('show');
+    }
+  }
+
+  // ============ 动画循环 ============
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ============ 生命周期 ============
+  function start() {
+    state.running = true;
+    state.lastTimestamp = null;
+    statusEl.textContent = '运行中';
+    startBtn.setAttribute('aria-pressed', 'true');
+    pauseBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  function pause() {
+    state.running = false;
+    statusEl.textContent = '已暂停';
+    startBtn.setAttribute('aria-pressed', 'false');
+    pauseBtn.setAttribute('aria-pressed', 'true');
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.rotation = 0;
+    state.viewMode = 'front';
+    state.viewBlend = 0;
+    state.targetBlend = 0;
+    state.introTimer = 0;
+    state.showTitle = true;
+    state.endingShown = false;
+    state.cycleTimer = 0;
+    state.lastTimestamp = null;
+    titleCard.classList.add('show');
+    endingEl.classList.remove('show');
+    syncViewToggle();
+    render();
+  }
+
+  function syncViewToggle() {
+    if (state.viewMode === 'front') {
+      frontBtn.classList.add('active');
+      obliqueBtn.classList.remove('active');
+      frontBtn.setAttribute('aria-pressed', 'true');
+      obliqueBtn.setAttribute('aria-pressed', 'false');
+      if (state.running) statusEl.textContent = '运行中 · 正视';
+    } else {
+      obliqueBtn.classList.add('active');
+      frontBtn.classList.remove('active');
+      obliqueBtn.setAttribute('aria-pressed', 'true');
+      frontBtn.setAttribute('aria-pressed', 'false');
+      if (state.running) statusEl.textContent = '运行中 · 斜视';
+    }
+  }
+
+  function setView(mode) {
+    state.viewMode = mode;
+    state.targetBlend = mode === 'oblique' ? 1 : 0;
+    syncViewToggle();
+  }
+
+  function setParameters(values) {
+    if (values.turns !== undefined) {
+      const v = clamp(finite(parseFloat(values.turns), state.turns), 2, 8);
+      state.turns = v;
+      turnsInput.value = String(v);
+      turnsVal.textContent = v.toFixed(1);
+    }
+    if (values.pitch !== undefined) {
+      const v = clamp(finite(parseFloat(values.pitch), state.pitch), 0.3, 1.8);
+      state.pitch = v;
+      pitchInput.value = String(v);
+      pitchVal.textContent = v.toFixed(1);
+    }
+    if (values.viewMode !== undefined) {
+      setView(values.viewMode);
+    }
+    if (values.running !== undefined) {
+      if (values.running) start(); else pause();
+    }
+    render();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      rotation: state.rotation,
+      turns: state.turns,
+      pitch: state.pitch,
+      radius: state.radius,
+      viewMode: state.viewMode,
+      viewBlend: state.viewBlend,
+      targetBlend: state.targetBlend,
+      introTimer: state.introTimer,
+      showTitle: state.showTitle,
+      endingShown: state.endingShown,
+      cycleTimer: state.cycleTimer
+    };
+  }
+
+  function getReadouts() {
+    return {
+      time: state.t,
+      rotation: state.rotation,
+      turns: state.turns,
+      pitch: state.pitch,
+      radius: state.radius,
+      viewBlend: state.viewBlend,
+      targetBlend: state.targetBlend,
+      helixLength: state.pitch * state.turns
+    };
+  }
+
+  function runModelChecks() {
+    const checks = [];
+
+    // 1. 参数方程：t=0 时 x=R, y=0
+    const x0 = state.radius * Math.cos(0);
+    const y0 = state.radius * Math.sin(0);
+    checks.push({
+      name: '参数方程 t=0: x=R, y=0',
+      pass: Math.abs(x0 - state.radius) < 1e-9 && Math.abs(y0) < 1e-9,
+      expected: `x=${state.radius}, y=0`,
+      actual: `x=${x0}, y=${y0}`,
+      tolerance: 1e-9
+    });
+
+    // 2. 参数方程：t=π/2 时 x=0, y=R
+    const xq = state.radius * Math.cos(Math.PI / 2);
+    const yq = state.radius * Math.sin(Math.PI / 2);
+    checks.push({
+      name: '参数方程 t=π/2: x≈0, y=R',
+      pass: Math.abs(xq) < 1e-9 && Math.abs(yq - state.radius) < 1e-9,
+      expected: `x=0, y=${state.radius}`,
+      actual: `x=${xq}, y=${yq}`,
+      tolerance: 1e-9
+    });
+
+    // 3. 螺距一致性：每圈 z 增量 = pitch
+    const zPerTurn = state.pitch * (2 * Math.PI) / (2 * Math.PI);
+    checks.push({
+      name: '螺距一致性：每圈 z 增量 = pitch',
+      pass: Math.abs(zPerTurn - state.pitch) < 1e-9,
+      expected: state.pitch,
+      actual: zPerTurn,
+      tolerance: 1e-9
+    });
+
+    // 4. 正视投影下螺旋与对照正弦线 x 坐标一致
+    const tTest = 1.23;
+    const helixX = state.radius * Math.cos(tTest);
+    const sineX = state.radius * Math.cos(tTest);
+    checks.push({
+      name: '正视投影：螺旋与对照线 x 一致',
+      pass: Math.abs(helixX - sineX) < 1e-9,
+      expected: sineX,
+      actual: helixX,
+      tolerance: 1e-9
+    });
+
+    // 5. 正视投影下 y 分量不影响投影（blend=0 时 yaw=tilt=0）
+    const pFull = project(state.radius * Math.cos(tTest), state.radius * Math.sin(tTest), state.pitch * tTest / (2 * Math.PI), 0);
+    const pFlat = project(state.radius * Math.cos(tTest), 0, state.pitch * tTest / (2 * Math.PI), 0);
+    checks.push({
+      name: '正视下 y 分量不影响投影',
+      pass: Math.abs(pFull.x - pFlat.x) < 1e-9 && Math.abs(pFull.y - pFlat.y) < 1e-9,
+      expected: `x=${pFlat.x}, y=${pFlat.y}`,
+      actual: `x=${pFull.x}, y=${pFull.y}`,
+      tolerance: 1e-9
+    });
+
+    // 6. 视角插值在 [0,1]
+    checks.push({
+      name: '视角插值在 [0,1]',
+      pass: state.viewBlend >= 0 && state.viewBlend <= 1,
+      expected: '[0, 1]',
+      actual: state.viewBlend,
+      tolerance: '范围'
+    });
+
+    // 7. 参数范围合法
+    checks.push({
+      name: '圈数在 [2, 8]',
+      pass: state.turns >= 2 && state.turns <= 8,
+      expected: '[2, 8]',
+      actual: state.turns,
+      tolerance: '范围'
+    });
+    checks.push({
+      name: '螺距在 [0.3, 1.8]',
+      pass: state.pitch >= 0.3 && state.pitch <= 1.8,
+      expected: '[0.3, 1.8]',
+      actual: state.pitch,
+      tolerance: '范围'
+    });
+
+    // 8. 暂停冻结：update 不应推进自转与视角
+    const before = { rot: state.rotation, blend: state.viewBlend, t: state.t };
+    state.running = false;
+    update(0.05);
+    const after = { rot: state.rotation, blend: state.viewBlend, t: state.t };
+    state.running = true;
+    checks.push({
+      name: '暂停冻结：自转/视角/时间不变',
+      pass: before.rot === after.rot && before.blend === after.blend && before.t === after.t,
+      expected: '不变',
+      actual: `rot ${before.rot}→${after.rot}, blend ${before.blend}→${after.blend}, t ${before.t}→${after.t}`,
+      tolerance: '严格'
+    });
+
+    // 9. 有限性
+    const pts = getHelixPoints();
+    const allFinite = pts.every(p => Number.isFinite(p.wx) && Number.isFinite(p.wy) && Number.isFinite(p.wz));
+    checks.push({
+      name: '螺旋点坐标全部有限',
+      pass: allFinite,
+      expected: '全部有限',
+      actual: allFinite ? '全部有限' : '存在非有限值',
+      tolerance: '严格'
+    });
+
+    return checks;
+  }
+
+  // ============ 控件绑定 ============
+  frontBtn.addEventListener('click', () => setView('front'));
+  obliqueBtn.addEventListener('click', () => setView('oblique'));
+  turnsInput.addEventListener('input', () => setParameters({ turns: turnsInput.value }));
+  pitchInput.addEventListener('input', () => setParameters({ pitch: pitchInput.value }));
+  startBtn.addEventListener('click', start);
+  pauseBtn.addEventListener('click', pause);
+  resetBtn.addEventListener('click', reset);
+
+  // ============ 初始化 ============
+  function init() {
+    resize();
+    titleCard.classList.add('show');
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', resize);
+
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>年龄比例可视化</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #060912;
+      --sim-surface: #0c1020;
+      --sim-surface-soft: #111628;
+      --sim-text: #e8eefc;
+      --sim-muted: #7a8499;
+      --sim-border: #1c2440;
+      --sim-grid: #141a30;
+      --sim-accent: #4dd0e1;
+      --sim-accent-deep: #26a69a;
+      --sim-accent-soft: #0a2a30;
+      --sim-positive: #4dd0e1;
+      --sim-warning: #ffb74d;
+      --sim-danger: #ef5350;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 0 0 transparent;
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-width: 320px;
+      color: var(--sim-text);
+      background: var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+    .app {
+      width: 100%;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0;
+    }
+    .header {
+      padding: 14px 28px 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 18px;
+    }
+    .header h1 {
+      font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+      font-weight: 300;
+      letter-spacing: 0.02em;
+      color: var(--sim-text);
+    }
+    .header h1 b {
+      font-weight: 600;
+      color: var(--sim-accent);
+    }
+    .header p {
+      display: none;
+    }
+    .status {
+      font-size: 0.72rem;
+      color: var(--sim-muted);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.05em;
+    }
+    .stage-panel {
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+    #scene {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .overlay {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      width: min(300px, 38vw);
+      display: grid;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .overlay > * { pointer-events: auto; }
+    .readouts {
+      padding: 12px 14px;
+      background: rgba(12, 16, 32, 0.72);
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-md);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .metric small {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--sim-muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.03em;
+    }
+    .metric strong {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--sim-text);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .metric.accent strong { color: var(--sim-accent); }
+    .insight {
+      padding: 10px 14px;
+      background: rgba(10, 42, 48, 0.72);
+      border: 1px solid rgba(77, 208, 225, 0.28);
+      border-left: 3px solid var(--sim-accent);
+      border-radius: var(--sim-radius-sm);
+      color: var(--sim-accent);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      font-weight: 500;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .controls {
+      padding: 10px 28px 16px;
+      display: flex;
+      gap: 28px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      border-top: 1px solid var(--sim-border);
+      background: rgba(6, 9, 18, 0.6);
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 200px;
+    }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.03em;
+    }
+    .control output {
+      color: var(--sim-accent);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 2px;
+      background: var(--sim-border);
+      border-radius: 1px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      border: 2px solid var(--sim-bg);
+      box-shadow: 0 0 0 1px var(--sim-accent);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      border: 2px solid var(--sim-bg);
+      box-shadow: 0 0 0 1px var(--sim-accent);
+    }
+    button {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 8px 18px;
+      color: var(--sim-text);
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    button:hover {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+    }
+    button.primary {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+    }
+    @media (max-width: 720px) {
+      .header { padding: 10px 16px 4px; }
+      .controls { padding: 8px 16px 12px; gap: 16px; }
+      .control { min-width: 140px; }
+      .overlay { width: min(220px, 60vw); right: 10px; bottom: 10px; }
+      .metric strong { font-size: 1rem; }
+      .insight { font-size: 0.72rem; padding: 8px 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <h1>一年占已历人生的 <b>百分之几</b></h1>
+      <div id="status" class="status" role="status" aria-live="polite">年龄 20 · 寿命 80</div>
+    </header>
+
+    <section class="stage-panel" data-region="stage" aria-label="年龄比例可视化舞台">
+      <canvas id="scene"></canvas>
+      <div class="overlay">
+        <section class="readouts" data-region="evidence" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric accent"><small>一年占比</small><strong id="pctReadout">5.00%</strong></div>
+            <div class="metric"><small>当前年龄</small><strong id="ageReadout">20</strong></div>
+            <div class="metric"><small>预期寿命</small><strong id="lifeReadout">80</strong></div>
+            <div class="metric"><small>已历人生</small><strong id="elapsedReadout">25.0%</strong></div>
+          </div>
+        </section>
+        <section class="insight" data-region="insight" aria-live="polite">
+          <p id="insightText">5岁时一年占20%，是40岁（2.5%）的8倍——时间感知随年龄递减。</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="参数控制">
+      <div class="control">
+        <label for="ageInput">当前年龄 <output id="ageOutput">20</output></label>
+        <input id="ageInput" type="range" min="1" max="80" step="1" value="20">
+      </div>
+      <div class="control">
+        <label for="lifeInput">预期寿命 <output id="lifeOutput">80</output></label>
+        <input id="lifeInput" type="range" min="40" max="100" step="1" value="80">
+      </div>
+      <button id="playBtn" class="primary" type="button">自动播放</button>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "age", label: "当前年龄", type: "slider", min: 1, max: 80, step: 1, default: 20, unit: "" },
+      { key: "life", label: "预期寿命", type: "slider", min: 40, max: 100, step: 1, default: 80, unit: "" }
+    ];
+
+    const state = {
+      running: false,
+      t: 0,
+      age: 20,
+      life: 80,
+      autoPlay: false,
+      lastTimestamp: null
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      ageInput: document.querySelector("#ageInput"),
+      ageOutput: document.querySelector("#ageOutput"),
+      lifeInput: document.querySelector("#lifeInput"),
+      lifeOutput: document.querySelector("#lifeOutput"),
+      playBtn: document.querySelector("#playBtn"),
+      pctReadout: document.querySelector("#pctReadout"),
+      ageReadout: document.querySelector("#ageReadout"),
+      lifeReadout: document.querySelector("#lifeReadout"),
+      elapsedReadout: document.querySelector("#elapsedReadout"),
+      insightText: document.querySelector("#insightText")
+    };
+
+    const ctx = elements.scene.getContext("2d");
+    let dpr = window.devicePixelRatio || 1;
+    let W = 0, H = 0;
+
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    function resize() {
+      const rect = elements.scene.getBoundingClientRect();
+      W = rect.width;
+      H = rect.height;
+      dpr = window.devicePixelRatio || 1;
+      elements.scene.width = Math.floor(W * dpr);
+      elements.scene.height = Math.floor(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // 确定性伪随机（固定种子）
+    function hash(n) {
+      const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+      return s - Math.floor(s);
+    }
+
+    function init() {
+      resize();
+      bindControls();
+      setParameters({ age: 20, life: 80 });
+      requestAnimationFrame(frame);
+    }
+
+    function start() { state.running = true; elements.playBtn.textContent = "暂停播放"; }
+    function pause() { state.running = false; elements.playBtn.textContent = "自动播放"; }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.age = 20;
+      state.life = 80;
+      elements.ageInput.value = "20";
+      elements.lifeInput.value = "80";
+      setParameters({ age: 20, life: 80 });
+    }
+
+    function update(dt) {
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      if (state.autoPlay) {
+        const cycle = 16;
+        const phase = (state.t % cycle) / cycle;
+        state.age = clamp(Math.round(1 + phase * 79), 1, 80);
+        elements.ageInput.value = String(state.age);
+        elements.ageOutput.textContent = String(state.age);
+      }
+    }
+
+    function setParameters(values) {
+      const ageDef = parameterSchema[0], lifeDef = parameterSchema[1];
+      const newAge = clamp(finite(Number(values.age), ageDef.default), ageDef.min, ageDef.max);
+      const newLife = clamp(finite(Number(values.life), lifeDef.default), lifeDef.min, lifeDef.max);
+      state.age = newAge;
+      state.life = newLife;
+      elements.ageOutput.textContent = String(newAge);
+      elements.lifeOutput.textContent = String(newLife);
+      elements.status.textContent = `年龄 ${newAge} · 寿命 ${newLife}`;
+    }
+
+    function getState() {
+      return { age: state.age, life: state.life, t: state.t, autoPlay: state.autoPlay };
+    }
+
+    function getReadouts() {
+      const pct = (1 / state.age) * 100;
+      return { age: state.age, life: state.life, percentage: pct };
+    }
+
+    function runModelChecks() {
+      const pctAt = (age) => (1 / age) * 100;
+      return [
+        { name: "5岁比例", pass: Math.abs(pctAt(5) - 20) < 0.001, expected: 20, actual: pctAt(5), tolerance: 0.001 },
+        { name: "40岁比例", pass: Math.abs(pctAt(40) - 2.5) < 0.001, expected: 2.5, actual: pctAt(40), tolerance: 0.001 },
+        { name: "70岁比例", pass: Math.abs(pctAt(70) - (100/70)) < 0.001, expected: 100/70, actual: pctAt(70), tolerance: 0.001 },
+        { name: "单调递减", pass: pctAt(10) > pctAt(20) && pctAt(20) > pctAt(40) && pctAt(40) > pctAt(70), expected: "递减", actual: "递减", tolerance: "strict" },
+        { name: "5岁是40岁的8倍", pass: Math.abs(pctAt(5) / pctAt(40) - 8) < 0.001, expected: 8, actual: pctAt(5)/pctAt(40), tolerance: 0.001 },
+        { name: "5岁是70岁的14倍", pass: Math.abs(pctAt(5) / pctAt(70) - 14) < 0.01, expected: 14, actual: pctAt(5)/pctAt(70), tolerance: 0.01 }
+      ];
+    }
+
+    function bindControls() {
+      elements.ageInput.addEventListener("input", () => {
+        state.autoPlay = false;
+        pause();
+        setParameters({ age: elements.ageInput.value, life: state.life });
+      });
+      elements.lifeInput.addEventListener("input", () => {
+        setParameters({ age: state.age, life: elements.lifeInput.value });
+      });
+      elements.playBtn.addEventListener("click", () => {
+        if (state.autoPlay) {
+          state.autoPlay = false;
+          pause();
+        } else {
+          state.autoPlay = true;
+          start();
+        }
+      });
+    }
+
+    // 双层描边模拟发光（禁用 shadowBlur）
+    function drawGlowRect(x, y, w, h, color, glowAlpha, glowInset) {
+      // 外层大半透明描边
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = glowAlpha * 0.35;
+      ctx.lineWidth = glowInset * 2.2;
+      ctx.strokeRect(x - glowInset, y - glowInset, w + glowInset * 2, h + glowInset * 2);
+      ctx.globalAlpha = glowAlpha * 0.6;
+      ctx.lineWidth = glowInset * 1.2;
+      ctx.strokeRect(x - glowInset * 0.6, y - glowInset * 0.6, w + glowInset * 1.2, h + glowInset * 1.2);
+      ctx.restore();
+      // 主体填充
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+      ctx.restore();
+    }
+
+    function drawGlowText(text, x, y, fontSize, color, glowAlpha) {
+      ctx.save();
+      ctx.font = `300 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      // 双层描边发光
+      ctx.globalAlpha = glowAlpha * 0.25;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = color;
+      ctx.strokeText(text, x, y);
+      ctx.globalAlpha = glowAlpha * 0.45;
+      ctx.lineWidth = 3;
+      ctx.strokeText(text, x, y);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+
+    function render() {
+      // 清屏
+      ctx.fillStyle = "#060912";
+      ctx.fillRect(0, 0, W, H);
+
+      const age = state.age;
+      const life = state.life;
+      const pct = (1 / age) * 100;
+      const lifeBlocks = Math.min(life, 100);
+      const displayBlocks = Math.min(lifeBlocks, 80);
+
+      // 布局参数
+      const padX = Math.max(40, W * 0.06);
+      const padY = Math.max(30, H * 0.05);
+      const barY = H * 0.30;
+      const barH = Math.max(30, H * 0.07);
+      const barW = W - padX * 2;
+      const blockGap = 2;
+      const blockW = (barW - blockGap * (displayBlocks - 1)) / displayBlocks;
+
+      // === 左侧大数字 ===
+      const numX = padX;
+      const numY = H * 0.14;
+      const bigFontSize = Math.max(48, Math.min(W * 0.09, H * 0.16));
+      const numText = pct.toFixed(2);
+      const numColor = "#4dd0e1";
+
+      drawGlowText(numText, numX + 40, numY, bigFontSize, numColor, 0.7);
+
+      // 百分号和说明
+      ctx.save();
+      ctx.font = `300 ${Math.max(16, bigFontSize * 0.22)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#7a8499";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText("%", numX + 40 + ctx.measureText(numText).width * (bigFontSize / ctx.font.replace(/.*?(\d+).*/, "$1")) * 0.5 + 8, numY);
+      ctx.restore();
+
+      // 副标题
+      ctx.save();
+      ctx.font = `400 ${Math.max(11, W * 0.011)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#5a6478";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(`一年 = 已历人生 ${age} 分之一`, numX, numY + bigFontSize * 0.55);
+      ctx.restore();
+
+      // === 80格发光长条 ===
+      // 当前年龄在播放周期中的位置（用于闪现动画）
+      const cyclePos = (state.t * 0.8) % 1.0; // 0~1 循环
+      const flashBlock = Math.floor(cyclePos * displayBlocks);
+
+      for (let i = 0; i < displayBlocks; i++) {
+        const bx = padX + i * (blockW + blockGap);
+        const isPast = i < age;
+        const isCurrent = (i === age - 1);
+        const isFlash = (i === flashBlock);
+
+        // 基础亮度
+        let alpha = 0.06;
+        let color = "#1c2440";
+
+        if (isPast) {
+          alpha = 0.15 + 0.1 * hash(i);
+          color = "#2a3550";
+        }
+
+        // 当前年龄方块：大而亮
+        if (isCurrent) {
+          const pulse = 0.7 + 0.3 * Math.sin(state.t * 3);
+          alpha = 0.9 * pulse;
+          color = "#4dd0e1";
+          // 放大绘制
+          const grow = 4;
+          drawGlowRect(bx - grow, barY - grow, blockW + grow * 2, barH + grow * 2, color, 0.8, 5);
+          continue;
+        }
+
+        // 闪现方块（非当前年龄时的扫描效果）
+        if (isFlash && !isCurrent) {
+          alpha = 0.4;
+          color = "#26a69a";
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = color;
+        ctx.fillRect(bx, barY, blockW, barH);
+        // 双层描边发光（仅亮方块）
+        if (alpha > 0.3) {
+          ctx.globalAlpha = alpha * 0.4;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(bx - 1.5, barY - 1.5, blockW + 3, barH + 3);
+          ctx.globalAlpha = alpha * 0.2;
+          ctx.lineWidth = 6;
+          ctx.strokeRect(bx - 3, barY - 3, blockW + 6, barH + 6);
+        }
+        ctx.restore();
+      }
+
+      // 长条边框
+      ctx.save();
+      ctx.strokeStyle = "#1c2440";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padX - 4, barY - 4, barW + 8, barH + 8);
+      ctx.restore();
+
+      // 年龄标记
+      ctx.save();
+      ctx.font = `400 ${Math.max(10, W * 0.009)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#5a6478";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      // 刻度
+      for (let m = 0; m <= displayBlocks; m += 10) {
+        const mx = padX + m * (blockW + blockGap) - (m > 0 ? blockGap / 2 : 0);
+        if (m <= displayBlocks) {
+          ctx.fillText(String(m), mx, barY + barH + 8);
+        }
+      }
+      ctx.restore();
+
+      // 当前年龄指示线
+      if (age <= displayBlocks) {
+        const cx = padX + (age - 1) * (blockW + blockGap) + blockW / 2;
+        ctx.save();
+        ctx.strokeStyle = "#4dd0e1";
+        ctx.globalAlpha = 0.3;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, barY + barH + 20);
+        ctx.lineTo(cx, H * 0.50);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // === 下方比例衰减曲线 ===
+      const curveTop = H * 0.52;
+      const curveBottom = H * 0.92;
+      const curveLeft = padX;
+      const curveRight = W - padX;
+      const curveW = curveRight - curveLeft;
+      const curveH = curveBottom - curveTop;
+
+      // 曲线坐标轴
+      ctx.save();
+      ctx.strokeStyle = "#1c2440";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(curveLeft, curveTop);
+      ctx.lineTo(curveLeft, curveBottom);
+      ctx.lineTo(curveRight, curveBottom);
+      ctx.stroke();
+      ctx.restore();
+
+      // 网格线
+      ctx.save();
+      ctx.strokeStyle = "#0f1428";
+      ctx.lineWidth = 1;
+      for (let g = 1; g <= 4; g++) {
+        const gy = curveBottom - (g / 4) * curveH;
+        ctx.beginPath();
+        ctx.moveTo(curveLeft, gy);
+        ctx.lineTo(curveRight, gy);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Y轴标签
+      ctx.save();
+      ctx.font = `400 ${Math.max(9, W * 0.008)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#5a6478";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      const maxY = 100;
+      for (let g = 0; g <= 4; g++) {
+        const val = (g / 4) * maxY;
+        const gy = curveBottom - (g / 4) * curveH;
+        ctx.fillText(val.toFixed(0) + "%", curveLeft - 8, gy);
+      }
+      ctx.restore();
+
+      // X轴标签
+      ctx.save();
+      ctx.font = `400 ${Math.max(9, W * 0.008)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#5a6478";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (let a = 0; a <= 80; a += 10) {
+        const ax = curveLeft + (a / 80) * curveW;
+        ctx.fillText(String(a), ax, curveBottom + 6);
+      }
+      ctx.restore();
+
+      // 轴标题
+      ctx.save();
+      ctx.font = `400 ${Math.max(10, W * 0.009)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#7a8499";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("年龄", curveLeft + curveW / 2, curveBottom + 22);
+      ctx.restore();
+
+      // 曲线：1/年龄 × 100%
+      const maxCurveAge = 80;
+      const points = [];
+      for (let a = 1; a <= maxCurveAge; a++) {
+        const v = (1 / a) * 100;
+        const px = curveLeft + (a / maxCurveAge) * curveW;
+        const py = curveBottom - (v / maxY) * curveH;
+        points.push({ x: px, y: py });
+      }
+
+      // 双层描边发光曲线
+      ctx.save();
+      // 外层光晕
+      ctx.strokeStyle = "#4dd0e1";
+      ctx.globalAlpha = 0.15;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      // 中层
+      ctx.globalAlpha = 0.3;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      // 主线
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+
+      // 当前年龄点
+      const curX = curveLeft + (age / maxCurveAge) * curveW;
+      const curY = curveBottom - (pct / maxY) * curveH;
+
+      // 垂直辅助线
+      ctx.save();
+      ctx.strokeStyle = "#4dd0e1";
+      ctx.globalAlpha = 0.2;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(curX, curveTop);
+      ctx.lineTo(curX, curBottom || curveBottom);
+      ctx.lineTo(curX, curveBottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // 水平辅助线
+      ctx.globalAlpha = 0.2;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(curveLeft, curY);
+      ctx.lineTo(curX, curY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      // 当前点（双层发光圆）
+      ctx.save();
+      ctx.strokeStyle = "#4dd0e1";
+      ctx.globalAlpha = 0.2;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(curX, curY, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.4;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(curX, curY, 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#4dd0e1";
+      ctx.beginPath();
+      ctx.arc(curX, curY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 当前点数值标签
+      ctx.save();
+      ctx.font = `600 ${Math.max(11, W * 0.01)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#4dd0e1";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const labelX = curX + 10;
+      const labelY = curY - 14;
+      ctx.fillText(pct.toFixed(2) + "%", labelX, labelY);
+      ctx.restore();
+
+      // 公式标注
+      ctx.save();
+      ctx.font = `400 ${Math.max(10, W * 0.009)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.fillStyle = "#5a6478";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "top";
+      ctx.fillText("比例 = 1 / 年龄", curveRight, curveTop - 4);
+      ctx.restore();
+
+      // 对比参考点（5岁、40岁、70岁）
+      const refAges = [5, 40, 70];
+      refAges.forEach((ra) => {
+        if (ra !== age) {
+          const rx = curveLeft + (ra / maxCurveAge) * curveW;
+          const ry = curveBottom - ((1 / ra) * 100 / maxY) * curveH;
+          ctx.save();
+          ctx.fillStyle = "#3a4458";
+          ctx.beginPath();
+          ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      });
+
+      // === 更新 evidence + insight 覆盖层 ===
+      const elapsed = (age / life) * 100;
+      elements.pctReadout.textContent = pct.toFixed(2) + "%";
+      elements.ageReadout.textContent = String(age);
+      elements.lifeReadout.textContent = String(life);
+      elements.elapsedReadout.textContent = elapsed.toFixed(1) + "%";
+
+      // 状态感知解读
+      let insightMsg;
+      if (age <= 10) {
+        insightMsg = `${age}岁时一年占${pct.toFixed(1)}%，时间流逝感最强烈。`;
+      } else if (age <= 25) {
+        insightMsg = `${age}岁时一年仅占${pct.toFixed(1)}%，已降至5岁时的约${(pct/20).toFixed(1)}倍。`;
+      } else if (age <= 50) {
+        insightMsg = `${age}岁时一年占${pct.toFixed(2)}%，感知速度持续递减但趋缓。`;
+      } else {
+        insightMsg = `${age}岁时一年仅占${pct.toFixed(2)}%，时间感知趋于平稳的低值。`;
+      }
+      elements.insightText.textContent = insightMsg;
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks
+    };
+
+    window.addEventListener("resize", () => {
+      resize();
+      render();
+    });
+
+    init();
+  })();
+  </script>
+</body>
+</html>

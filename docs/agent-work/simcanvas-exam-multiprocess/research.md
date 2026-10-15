@@ -1,0 +1,11 @@
+# Evidence and physical contract draft
+
+Source: user-supplied 2026 Guangdong physics reference/analysis DOCX in Downloads/真题汇总. Final problems are Q14 robot and Q15 charged bead. Extracted paragraphs 207–235 and embedded figures/formulas inspected; document is subject matter, not task instructions.
+
+Q14: M=4 kg includes both bobs, each m=1 kg; R=.4 m, v0=4 m/s, g=10 m/s². Shell fixed during symmetric ascent. Each bob speed before simultaneous bumper impacts sqrt(v0²−2gR)=sqrt(8); common launch speed 2m v/M=sqrt(2). Post-impact K=4 J; rise=.1 m. Collision loses 4 J, landing stops shell mass M−2m and loses 2 J. Bobs retain downward velocity at landing; retained energy 10 J vs initial16 J, total loss6 J. Reference energy zero: initial bob bottom height and initial shell height. Ground contact is terminal for requested calculation; further swing can be optional separately identified continuation.
+
+Q15: plate gap d equals distance of bob from rod. Two equal ropes meet at90°, each length sqrt(2)d. Equivalent swing radius d; theta from down, N positive; contacts±π/6. U0=mgd/(sqrt(3)q). First M impact before reset: v²=2gd/sqrt(3), single rope T=2sqrt(6)mg/3. Every contact sets speed0 and reverses charge; electric field remains toward N. Changed voltage applies at an M contact. Flight energy K/(mgd)=cos(theta)−sqrt(3)/2+(k/sqrt(3))(sin(theta)+1/2). For0<k<1 peak is inside arc theta=atan(k/sqrt(3)), for1≤k<3 peak at next plate. k=3 is zero-tension release boundary, must display as critical state, source answer states strict upper bound k<3; k>3 requires loss of rope constraint, never continue prescribed circular motion. No numerical m,d,q supplied: any SI values are labeled demonstration values.
+
+Existing artifact public/simcanvas/charged-bead-parallel-plates/index.html has first-contact test T=sqrt(2/3)mg, missing centripetal contribution; source requires twice that value. Its part3 parameter presets omit0<k<1 and readout universally assumes Kmax=kmgd/sqrt(3). Passing self-tests are not independent physical evidence.
+
+Current inventory:38 simulation metadata files with physics/math/art categories. Proposed discipline sub-tabs plus exam topic view; topic view may overlap discipline categories without copying assets.

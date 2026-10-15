@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elementary Cellular Automata</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #05070d;
+      --sim-surface: #0a0e1a;
+      --sim-surface-soft: #0d1220;
+      --sim-text: #e8eefc;
+      --sim-muted: #6b7a96;
+      --sim-border: #1a2238;
+      --sim-grid: #131a2c;
+      --sim-accent: #4fc3f7;
+      --sim-accent-deep: #0288d1;
+      --sim-accent-soft: #0a2540;
+      --sim-positive: #4fc3f7;
+      --sim-warning: #ffb74d;
+      --sim-danger: #ef5350;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body {
+      color: var(--sim-text);
+      background: var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button:focus-visible, input:focus-visible { outline: 2px solid rgba(79, 195, 247, 0.5); outline-offset: 2px; }
+    .app {
+      width: 100vw; height: 100vh; height: 100dvh;
+      display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0; overflow: hidden;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 18px; padding: 14px 22px 10px; min-height: 48px;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+    .header h1 {
+      margin: 0; font-size: clamp(1.15rem, 1.8vw, 1.5rem);
+      letter-spacing: -0.02em; line-height: 1; font-weight: 700;
+    }
+    .header .subtitle { color: var(--sim-muted); font-size: 0.82rem; }
+    .status {
+      border: 1px solid rgba(79, 195, 247, 0.22);
+      border-radius: 999px; padding: 7px 14px;
+      background: var(--sim-accent-soft); color: var(--sim-accent);
+      font-weight: 600; font-size: 0.78rem; white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    .main { min-height: 0; position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 280px; }
+    .stage-wrap { min-height: 0; position: relative; overflow: hidden; }
+    #scene { width: 100%; height: 100%; display: block; }
+    .side-panel {
+      min-height: 0; overflow-y: auto; border-left: 1px solid var(--sim-border);
+      background: var(--sim-surface); display: flex; flex-direction: column;
+    }
+    .evidence { padding: 16px 18px; border-bottom: 1px solid var(--sim-border); }
+    .evidence h2, .insight h2 {
+      margin: 0 0 10px; font-size: 0.82rem; color: var(--sim-muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+    }
+    .readout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      padding: 12px 14px; border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm); background: var(--sim-surface-soft);
+    }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .metric strong { font-size: 1.3rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent); }
+    .insight { padding: 16px 18px; flex: 1; }
+    .insight-note {
+      padding: 12px 14px; border-left: 3px solid var(--sim-warning);
+      border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+      background: rgba(255, 183, 77, 0.06); color: #ffd699;
+      font-weight: 600; font-size: 0.82rem; line-height: 1.5; margin-bottom: 12px;
+    }
+    .insight p { margin: 0 0 10px; color: var(--sim-muted); line-height: 1.55; font-size: 0.8rem; }
+    .insight p:last-child { margin-bottom: 0; }
+    .insight .rule-desc { color: var(--sim-text); font-size: 0.83rem; }
+    .controls {
+      padding: 10px 22px 14px; display: flex; align-items: center;
+      gap: 22px; flex-wrap: wrap; border-top: 1px solid var(--sim-border);
+      background: var(--sim-surface);
+    }
+    .rule-group { display: flex; gap: 6px; align-items: center; }
+    .rule-group .group-label {
+      font-size: 0.72rem; color: var(--sim-muted); font-weight: 600;
+      margin-right: 4px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .rule-btn {
+      border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+      padding: 7px 13px; color: var(--sim-muted); background: transparent;
+      cursor: pointer; font-weight: 700; font-size: 0.85rem;
+      transition: all 0.18s ease; font-variant-numeric: tabular-nums;
+      min-width: 64px;
+    }
+    .rule-btn:hover { border-color: rgba(79, 195, 247, 0.4); color: var(--sim-text); }
+    .rule-btn[aria-pressed="true"] {
+      border-color: var(--sim-accent); color: var(--sim-accent);
+      background: var(--sim-accent-soft);
+      box-shadow: 0 0 12px rgba(79, 195, 247, 0.15);
+    }
+    .control { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .control label {
+      display: flex; justify-content: space-between; gap: 10px;
+      font-size: 0.72rem; font-weight: 600; color: var(--sim-muted);
+      letter-spacing: 0.02em;
+    }
+    .control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; }
+    input[type="range"] {
+      width: 100%; accent-color: var(--sim-accent); height: 4px;
+      cursor: pointer;
+    }
+    .actions { display: flex; gap: 6px; margin-left: auto; }
+    .actions button {
+      border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+      padding: 8px 16px; color: var(--sim-text); background: var(--sim-surface-soft);
+      cursor: pointer; font-weight: 700; font-size: 0.85rem;
+      transition: all 0.18s ease;
+    }
+    .actions button:hover { border-color: rgba(79, 195, 247, 0.4); background: var(--sim-accent-soft); }
+    .actions button:active { transform: scale(0.97); }
+    .actions button.primary {
+      border-color: var(--sim-accent); color: #05070d;
+      background: var(--sim-accent);
+    }
+    .actions button.primary:hover { background: #6dd6f7; }
+    .actions button[aria-pressed="true"] {
+      border-color: var(--sim-accent); color: var(--sim-accent);
+      background: var(--sim-accent-soft);
+    }
+    .cell { cursor: pointer; transition: fill 0.12s ease; }
+    .cell:hover { fill: rgba(79, 195, 247, 0.35) !important; }
+    .hint {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      color: var(--sim-muted); font-size: 0.75rem; pointer-events: none;
+      opacity: 0; transition: opacity 0.4s ease; letter-spacing: 0.02em;
+    }
+    .hint.visible { opacity: 0.7; }
+    @media (max-width: 860px) {
+      .main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+      .side-panel { border-left: none; border-top: 1px solid var(--sim-border); max-height: 200px; }
+      .evidence { border-bottom: 1px solid var(--sim-border); }
+    }
+    @media (max-width: 720px) {
+      .controls { gap: 12px; padding: 8px 12px 12px; }
+      .control { min-width: 110px; }
+      .actions { margin-left: 0; }
+      .rule-btn { min-width: 50px; padding: 6px 8px; font-size: 0.78rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="discrete">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>Elementary Cellular Automata</h1>
+        <span class="subtitle">Rule <span id="ruleDisplay">30</span> · Generation <span id="genDisplay">0</span></span>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">Paused</div>
+    </header>
+
+    <main class="main">
+      <div class="stage-wrap" data-region="stage">
+        <svg id="scene" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="scene-title scene-desc">
+          <title id="scene-title">Cellular automaton evolution</title>
+          <desc id="scene-desc">A grid of cells evolving generation by generation according to the selected Wolfram rule. New generations appear below previous ones. Click cells in the top row to toggle their initial state.</desc>
+          <defs>
+            <linearGradient id="cellGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#7de0ff"/>
+              <stop offset="100%" stop-color="#0288d1"/>
+            </linearGradient>
+          </defs>
+          <rect width="1000" height="600" fill="#05070d"/>
+          <g id="cellLayer"></g>
+        </svg>
+        <div class="hint" id="hint">Click cells in the top row to toggle</div>
+      </div>
+
+      <aside class="side-panel">
+        <section class="evidence" data-region="evidence" aria-label="Live measurements">
+          <h2>Evidence</h2>
+          <div class="readout-grid">
+            <div class="metric"><small>Rule</small><strong id="ruleReadout">30</strong></div>
+            <div class="metric"><small>Generation</small><strong id="genReadout">0</strong></div>
+            <div class="metric"><small>Cells</small><strong id="widthReadout">101</strong></div>
+            <div class="metric"><small>Speed</small><strong id="speedReadout">10/s</strong></div>
+          </div>
+        </section>
+        <section class="insight" data-region="insight" aria-label="Model insight">
+          <h2>Insight</h2>
+          <div class="insight-note" id="insightNote">Press Play or Step to evolve. Each row is computed from the row above using the selected rule.</div>
+          <p class="rule-desc" id="ruleDesc">Rule 30 — Chaotic, aperiodic patterns from a single seed.</p>
+          <p>Teaching view: each cell's next state depends on itself and its two neighbors. The 8 possible 3-cell patterns map to an 8-bit rule number.</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="Simulation controls">
+      <div class="rule-group" role="group" aria-label="Rule selection">
+        <span class="group-label">Rule</span>
+        <button class="rule-btn" data-rule="30" aria-pressed="true">30</button>
+        <button class="rule-btn" data-rule="90">90</button>
+        <button class="rule-btn" data-rule="110">110</button>
+        <button class="rule-btn" data-rule="184">184</button>
+      </div>
+      <div class="control">
+        <label for="widthInput">Cells <output id="widthOutput">101</output></label>
+        <input id="widthInput" type="range" min="31" max="301" step="2" value="101">
+      </div>
+      <div class="control">
+        <label for="speedInput">Speed <output id="speedOutput">10/s</output></label>
+        <input id="speedInput" type="range" min="1" max="60" step="1" value="10">
+      </div>
+      <div class="actions">
+        <button id="stepBtn" type="button">Step</button>
+        <button id="playBtn" class="primary" type="button" aria-pressed="false">Play</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "rule", label: "Rule", type: "select", options: [30, 90, 110, 184], default: 30 },
+      { key: "width", label: "Cells", type: "slider", min: 31, max: 301, step: 2, default: 101, unit: "" },
+      { key: "speed", label: "Speed", type: "slider", min: 1, max: 60, step: 1, default: 10, unit: "/s" }
+    ];
+    const ruleDescriptions = {
+      30: "Rule 30 — Chaotic, aperiodic patterns from a single seed.",
+      90: "Rule 90 — Fractal Sierpinski triangle via XOR of neighbors.",
+      110: "Rule 110 — Complex, Turing-complete local structures.",
+      184: "Rule 184 — Traffic flow: particles move right into gaps."
+    };
+    const state = {
+      running: false, rule: 30, width: 101, speed: 10,
+      generations: [], accumulator: 0, lastTimestamp: null
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      ruleDisplay: document.querySelector("#ruleDisplay"),
+      genDisplay: document.querySelector("#genDisplay"),
+      cellLayer: document.querySelector("#cellLayer"),
+      hint: document.querySelector("#hint"),
+      widthInput: document.querySelector("#widthInput"),
+      widthOutput: document.querySelector("#widthOutput"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      stepBtn: document.querySelector("#stepBtn"),
+      playBtn: document.querySelector("#playBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      ruleBtns: document.querySelectorAll(".rule-btn"),
+      ruleReadout: document.querySelector("#ruleReadout"),
+      genReadout: document.querySelector("#genReadout"),
+      widthReadout: document.querySelector("#widthReadout"),
+      speedReadout: document.querySelector("#speedReadout"),
+      insightNote: document.querySelector("#insightNote"),
+      ruleDesc: document.querySelector("#ruleDesc")
+    };
+    const SVG_W = 1000, SVG_H = 600;
+    let cellSize = 10, offsetX = 0, maxRows = 60;
+    let hintTimer = null;
+
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+    function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+    function computeLayout() {
+      cellSize = SVG_W / state.width;
+      maxRows = Math.floor(SVG_H / cellSize);
+    }
+
+    function applyRule(left, center, right, rule) {
+      const idx = (left << 2) | (center << 1) | right;
+      return (rule >> idx) & 1;
+    }
+
+    function makeDefaultInitial(width) {
+      const row = new Uint8Array(width);
+      row[(width >> 1)] = 1;
+      return row;
+    }
+
+    function evolve(gen, rule) {
+      const w = gen.length;
+      const next = new Uint8Array(w);
+      for (let i = 0; i < w; i++) {
+        const l = gen[(i - 1 + w) % w];
+        const c = gen[i];
+        const r = gen[(i + 1) % w];
+        next[i] = applyRule(l, c, r, rule);
+      }
+      return next;
+    }
+
+    function init() {
+      computeLayout();
+      bindControls();
+      reset();
+      showHintBriefly();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "Running";
+      elements.playBtn.textContent = "Pause";
+      elements.playBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      state.accumulator = 0;
+      elements.status.textContent = "Paused";
+      elements.playBtn.textContent = "Play";
+      elements.playBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.generations = [makeDefaultInitial(state.width)];
+      render();
+    }
+
+    function step() {
+      const last = state.generations[state.generations.length - 1];
+      state.generations.push(evolve(last, state.rule));
+      if (state.generations.length > maxRows) state.generations.shift();
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+      state.accumulator += boundedDt;
+      const interval = 1 / state.speed;
+      let steps = 0;
+      while (state.accumulator >= interval && steps < 10) {
+        step();
+        state.accumulator -= interval;
+        steps++;
+      }
+    }
+
+    function render() {
+      const rows = state.generations;
+      const total = rows.length;
+      let svg = "";
+      const startIdx = Math.max(0, total - maxRows);
+      const displayCount = total - startIdx;
+
+      for (let r = 0; r < displayCount; r++) {
+        const gen = rows[startIdx + r];
+        const y = r * cellSize;
+        for (let c = 0; c < gen.length; c++) {
+          if (gen[c]) {
+            const x = offsetX + c * cellSize;
+            const isTop = (startIdx + r === 0);
+            svg += `<rect class="cell" data-row="${startIdx + r}" data-col="${c}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${(cellSize + 0.5).toFixed(2)}" height="${(cellSize + 0.5).toFixed(2)}" fill="url(#cellGrad)"/>`;
+          }
+        }
+      }
+      elements.cellLayer.innerHTML = svg;
+      elements.genDisplay.textContent = total - 1;
+
+      // Evidence readouts
+      elements.ruleReadout.textContent = state.rule;
+      elements.genReadout.textContent = total - 1;
+      elements.widthReadout.textContent = state.width;
+      elements.speedReadout.textContent = `${state.speed}/s`;
+
+      // Insight
+      const gen = total - 1;
+      if (!state.running && gen === 0) {
+        elements.insightNote.textContent = "Press Play or Step to evolve. Each row is computed from the row above using the selected rule.";
+      } else if (gen < 5) {
+        elements.insightNote.textContent = `Generation ${gen}: early structure forming from the initial seed.`;
+      } else if (gen < maxRows - 5) {
+        elements.insightNote.textContent = `Generation ${gen}: the pattern fills the visible area as it evolves downward.`;
+      } else {
+        elements.insightNote.textContent = `Generation ${gen}: oldest rows scroll off the top; the latest row is at the bottom.`;
+      }
+      elements.ruleDesc.textContent = ruleDescriptions[state.rule] || "";
+    }
+
+    function setParameters(values) {
+      const widthDef = parameterSchema[1];
+      const speedDef = parameterSchema[2];
+      let widthChanged = false;
+      if (values.rule !== undefined) {
+        state.rule = clamp(finite(Number(values.rule), 30), 30, 184);
+      }
+      if (values.width !== undefined) {
+        const newWidth = clamp(finite(Number(values.width), widthDef.default), widthDef.min, widthDef.max);
+        if (newWidth !== state.width) { state.width = newWidth; widthChanged = true; }
+      }
+      if (values.speed !== undefined) {
+        state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+      }
+      if (widthChanged) {
+        computeLayout();
+        reset();
+      } else {
+        render();
+      }
+      updateRuleButtons();
+      elements.widthOutput.textContent = state.width;
+      elements.speedOutput.textContent = `${state.speed}/s`;
+      elements.ruleDisplay.textContent = state.rule;
+    }
+
+    function updateRuleButtons() {
+      elements.ruleBtns.forEach(btn => {
+        btn.setAttribute("aria-pressed", String(Number(btn.dataset.rule) === state.rule));
+      });
+    }
+
+    function getState() {
+      return {
+        running: state.running, rule: state.rule, width: state.width,
+        speed: state.speed, generationCount: state.generations.length
+      };
+    }
+
+    function getReadouts() {
+      return { rule: state.rule, generation: state.generations.length - 1, width: state.width, speed: state.speed };
+    }
+
+    function runModelChecks() {
+      const results = [];
+      const testRule = (rule, patterns) => {
+        patterns.forEach(([l, c, r, expected]) => {
+          const actual = applyRule(l, c, r, rule);
+          results.push({
+            name: `Rule ${rule} (${l}${c}${r})`,
+            pass: actual === expected,
+            expected, actual, tolerance: "exact"
+          });
+        });
+      };
+      // Rule 30: 111->0, 110->0, 101->0, 100->1, 011->1, 010->1, 001->1, 000->0
+      testRule(30, [[1,1,1,0],[1,1,0,0],[1,0,1,0],[1,0,0,1],[0,1,1,1],[0,1,0,1],[0,0,1,1],[0,0,0,0]]);
+      // Rule 90: XOR of neighbors
+      testRule(90, [[1,1,1,0],[1,1,0,1],[1,0,1,0],[1,0,0,1],[0,1,1,1],[0,1,0,1],[0,0,1,1],[0,0,0,0]]);
+      // Rule 110: complex
+      testRule(110, [[1,1,1,0],[1,1,0,1],[1,0,1,1],[1,0,0,1],[0,1,1,1],[0,1,0,1],[0,0,1,1],[0,0,0,0]]);
+      // Rule 184: traffic rule
+      testRule(184, [[1,1,1,1],[1,1,0,0],[1,0,1,1],[1,0,0,0],[0,1,1,1],[0,1,0,0],[0,0,1,1],[0,0,0,0]]);
+      // Single-cell evolution checks
+      const single30 = (() => { let g = makeDefaultInitial(7); for (let i=0;i<3;i++) g = evolve(g, 30); return g; })();
+      results.push({
+        name: "Rule 30 single-cell 3-gen",
+        pass: single30[3] === 1 && single30[2] === 1,
+        expected: "center region alive", actual: single30, tolerance: "pattern"
+      });
+      const single90 = (() => { let g = makeDefaultInitial(7); for (let i=0;i<2;i++) g = evolve(g, 90); return g; })();
+      // Rule 90 from single cell: gen 0 = ...010..., gen 1 = ...111..., gen 2 = ..1.1.1..
+      results.push({
+        name: "Rule 90 single-cell Sierpinski",
+        pass: single90[1] === 1 && single90[3] === 1 && single90[5] === 1,
+        expected: "10101 pattern at gen 2", actual: Array.from(single90), tolerance: "pattern"
+      });
+      return results;
+    }
+
+    function showHintBriefly() {
+      if (hintTimer) clearTimeout(hintTimer);
+      elements.hint.classList.add("visible");
+      hintTimer = setTimeout(() => elements.hint.classList.remove("visible"), 3500);
+    }
+
+    function handleCellClick(e) {
+      const target = e.target;
+      if (!target.classList || !target.classList.contains("cell")) return;
+      const row = Number(target.dataset.row);
+      const col = Number(target.dataset.col);
+      if (row !== 0) return;
+      const gen = state.generations[0];
+      if (!gen) return;
+      gen[col] = gen[col] ? 0 : 1;
+      // Re-evolve all subsequent generations to reflect the change
+      for (let i = 1; i < state.generations.length; i++) {
+        state.generations[i] = evolve(state.generations[i - 1], state.rule);
+      }
+      render();
+    }
+
+    function bindControls() {
+      elements.ruleBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+          const rule = Number(btn.dataset.rule);
+          setParameters({ rule });
+          // Re-evolve from initial state with new rule
+          for (let i = 1; i < state.generations.length; i++) {
+            state.generations[i] = evolve(state.generations[i - 1], state.rule);
+          }
+          render();
+        });
+      });
+      elements.widthInput.addEventListener("input", () => {
+        setParameters({ width: Number(elements.widthInput.value) });
+      });
+      elements.speedInput.addEventListener("input", () => {
+        setParameters({ speed: Number(elements.speedInput.value) });
+      });
+      elements.stepBtn.addEventListener("click", () => { step(); });
+      elements.playBtn.addEventListener("click", () => {
+        if (state.running) pause(); else start();
+      });
+      elements.resetBtn.addEventListener("click", () => { reset(); showHintBriefly(); });
+      elements.cellLayer.addEventListener("click", handleCellClick);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, step, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

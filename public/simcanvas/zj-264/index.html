@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>萤火虫涌现同步</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050818;
+      --sim-surface: #0c1228;
+      --sim-surface-soft: #131a36;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a96b8;
+      --sim-border: #1e2742;
+      --sim-grid: #161e3a;
+      --sim-accent: #fbbf24;
+      --sim-accent-deep: #b45309;
+      --sim-accent-soft: #3a2f12;
+      --sim-positive: #34d399;
+      --sim-warning: #f59e0b;
+      --sim-danger: #ef4444;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 18% 8%, rgba(251, 191, 36, 0.06), transparent 32%),
+        radial-gradient(circle at 82% 92%, rgba(52, 211, 153, 0.04), transparent 30%),
+        var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(251, 191, 36, 0.4); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.03em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+    .status { border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 700; white-space: nowrap; font-size: 0.82rem; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(12, 18, 40, 0.85); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid var(--sim-border); border-radius: 18px; background: radial-gradient(ellipse at 50% 40%, #0a1230 0%, #050818 70%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid var(--sim-border); border-radius: 15px; background: linear-gradient(145deg, var(--sim-surface-soft), var(--sim-surface)); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent); }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.85rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: var(--sim-accent-soft); color: var(--sim-accent) !important; font-weight: 650; font-size: 0.88rem; line-height: 1.5; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #2a3556; background: #1a2240; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #1a1208; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(251, 191, 36, 0.2); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="stochastic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>萤火虫涌现同步</h1>
+        <p>调节耦合强度与固有频率，观察个体如何从无序闪烁涌现为集体同步。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">萤火虫群落</h2><span>每只萤火虫的相位与发光状态</span></div>
+        <canvas id="scene" width="760" height="420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">深色背景上分布着许多萤火虫，亮起时发出黄色光晕。</desc>
+        </canvas>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>同步指数 R</small><strong id="rReadout">0.00</strong></div>
+            <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.0 s</strong></div>
+            <div class="metric"><small>群体平均相位</small><strong id="meanPhaseReadout">0.00π</strong></div>
+            <div class="metric"><small>亮起比例</small><strong id="litRatioReadout">0%</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">按"开始"。耦合强度为零时各自独立闪烁；增大耦合后，邻近个体相互牵引，最终涌现整群同步闪烁。</p>
+          <p>教学视图：Kuramoto 模型 dθᵢ/dt = ωᵢ + K·⟨sin(θⱼ−θᵢ)⟩。每只萤火虫有固有频率，通过正弦耦合向邻居靠拢。R∈[0,1] 衡量相位一致性。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="couplingInput">耦合强度 K <output id="couplingOutput">0.50</output></label>
+        <input id="couplingInput" type="range" min="0" max="3" step="0.05" value="0.5">
+      </div>
+      <div class="control">
+        <label for="freqSpreadInput">频率离散度 <output id="freqSpreadOutput">0.30</output></label>
+        <input id="freqSpreadInput" type="range" min="0" max="2" step="0.05" value="0.3">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "coupling", label: "耦合强度 K", type: "slider", min: 0, max: 3, step: 0.05, default: 0.5, unit: "" },
+      { key: "freqSpread", label: "频率离散度", type: "slider", min: 0, max: 2, step: 0.05, default: 0.3, unit: "" }
+    ];
+    const N = 80;
+    const W = 760, H = 420;
+    const state = {
+      running: false,
+      t: 0,
+      fireflies: [],
+      coupling: 0.5,
+      freqSpread: 0.3,
+      baseFreq: 1.0,
+      lastTimestamp: null,
+      r: 0,
+      meanPhase: 0,
+      litRatio: 0,
+      history: [{ t: 0, r: 0 }]
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      rReadout: document.querySelector("#rReadout"),
+      timeReadout: document.querySelector("#timeReadout"),
+      meanPhaseReadout: document.querySelector("#meanPhaseReadout"),
+      litRatioReadout: document.querySelector("#litRatioReadout"),
+      insight: document.querySelector("#insight"),
+      couplingInput: document.querySelector("#couplingInput"),
+      couplingOutput: document.querySelector("#couplingOutput"),
+      freqSpreadInput: document.querySelector("#freqSpreadInput"),
+      freqSpreadOutput: document.querySelector("#freqSpreadOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+    let ctx = null;
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function spawnFireflies() {
+      state.fireflies = [];
+      const cols = 10, rows = 8;
+      for (let i = 0; i < N; i++) {
+        const col = i % cols, row = Math.floor(i / cols);
+        const px = 50 + col * (W - 100) / (cols - 1) + (Math.random() - 0.5) * 18;
+        const py = 40 + row * (H - 80) / (rows - 1) + (Math.random() - 0.5) * 18;
+        state.fireflies.push({
+          x: px, y: py,
+          theta: Math.random() * Math.PI * 2,
+          omega: state.baseFreq + (Math.random() - 0.5) * 2 * state.freqSpread,
+          neighbors: []
+        });
+      }
+      for (let i = 0; i < N; i++) {
+        const f = state.fireflies[i];
+        f.neighbors = [];
+        for (let j = 0; j < N; j++) {
+          if (i === j) continue;
+          const dx = state.fireflies[j].x - f.x, dy = state.fireflies[j].y - f.y;
+          if (dx * dx + dy * dy < 130 * 130) f.neighbors.push(j);
+        }
+      }
+    }
+
+    function init() {
+      ctx = elements.scene.getContext("2d");
+      bindControls();
+      setParameters({ coupling: 0.5, freqSpread: 0.3 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0;
+      state.r = 0;
+      state.meanPhase = 0;
+      state.litRatio = 0;
+      state.lastTimestamp = null;
+      spawnFireflies();
+      state.history = [{ t: 0, r: 0 }];
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const K = state.coupling;
+      const newThetas = new Array(N);
+      for (let i = 0; i < N; i++) {
+        const f = state.fireflies[i];
+        let coupling = 0;
+        const nbrs = f.neighbors;
+        for (let k = 0; k < nbrs.length; k++) {
+          coupling += Math.sin(state.fireflies[nbrs[k]].theta - f.theta);
+        }
+        if (nbrs.length > 0) coupling /= nbrs.length;
+        newThetas[i] = f.theta + (f.omega + K * coupling) * boundedDt;
+      }
+      let sumSin = 0, sumCos = 0, litCount = 0;
+      for (let i = 0; i < N; i++) {
+        state.fireflies[i].theta = newThetas[i];
+        sumSin += Math.sin(newThetas[i]);
+        sumCos += Math.cos(newThetas[i]);
+        if (Math.cos(newThetas[i]) > 0) litCount++;
+      }
+      state.r = Math.sqrt(sumSin * sumSin + sumCos * sumCos) / N;
+      state.meanPhase = Math.atan2(sumSin, sumCos);
+      state.litRatio = litCount / N;
+      state.t += boundedDt;
+      if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.1) {
+        state.history.push({ t: state.t, r: state.r });
+        if (state.history.length > 300) state.history.shift();
+      }
+    }
+    function render() {
+      if (!ctx) return;
+      ctx.fillStyle = "#050818";
+      ctx.fillRect(0, 0, W, H);
+      const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+      grad.addColorStop(0, "rgba(15, 23, 60, 0.5)");
+      grad.addColorStop(1, "rgba(5, 8, 24, 0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < N; i++) {
+        const f = state.fireflies[i];
+        const brightness = Math.max(0, Math.cos(f.theta));
+        const b2 = brightness * brightness;
+        if (b2 > 0.02) {
+          const glowR = 4 + b2 * 16;
+          const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, glowR);
+          g.addColorStop(0, `rgba(255, 240, 180, ${0.85 * b2})`);
+          g.addColorStop(0.4, `rgba(251, 191, 36, ${0.5 * b2})`);
+          g.addColorStop(1, "rgba(251, 191, 36, 0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, glowR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = `rgba(255, 250, 220, ${0.25 + 0.75 * b2})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const r = state.r;
+      let insightText;
+      if (!state.running && state.t === 0) {
+        insightText = "按"开始"。耦合强度为零时各自独立闪烁；增大耦合后，邻近个体相互牵引，最终涌现整群同步闪烁。";
+      } else if (state.coupling < 0.05) {
+        insightText = "K≈0：无耦合。每只萤火虫按固有频率独立闪烁，R 接近零，群体无一致性。";
+      } else if (r < 0.3) {
+        insightText = "弱耦合：相位仍分散，R 较低。邻居间开始牵引但整群尚未一致。";
+      } else if (r < 0.7) {
+        insightText = "部分同步：局部簇开始形成，R 上升中。可看到相邻萤火虫逐渐对齐。";
+      } else {
+        insightText = "涌现同步：群体相位高度一致，R 接近 1。整群如一体闪烁——这是自组织涌现。";
+      }
+      elements.insight.textContent = insightText;
+      elements.rReadout.textContent = state.r.toFixed(2);
+      elements.timeReadout.textContent = `${state.t.toFixed(1)} s`;
+      elements.meanPhaseReadout.textContent = `${(state.meanPhase / Math.PI).toFixed(2)}π`;
+      elements.litRatioReadout.textContent = `${Math.round(state.litRatio * 100)}%`;
+      elements.couplingOutput.textContent = state.coupling.toFixed(2);
+      elements.freqSpreadOutput.textContent = state.freqSpread.toFixed(2);
+    }
+    function setParameters(values) {
+      const cDef = parameterSchema[0], fDef = parameterSchema[1];
+      const newCoupling = clamp(finite(Number(values.coupling), cDef.default), cDef.min, cDef.max);
+      const newSpread = clamp(finite(Number(values.freqSpread), fDef.default), fDef.min, fDef.max);
+      const spreadChanged = Math.abs(newSpread - state.freqSpread) > 1e-9;
+      state.coupling = newCoupling;
+      state.freqSpread = newSpread;
+      if (spreadChanged && state.fireflies.length > 0) {
+        for (let i = 0; i < state.fireflies.length; i++) {
+          state.fireflies[i].omega = state.baseFreq + (Math.random() - 0.5) * 2 * state.freqSpread;
+        }
+      }
+      elements.couplingInput.value = String(state.coupling);
+      elements.freqSpreadInput.value = String(state.freqSpread);
+      render();
+    }
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        coupling: state.coupling,
+        freqSpread: state.freqSpread,
+        r: state.r,
+        meanPhase: state.meanPhase,
+        litRatio: state.litRatio,
+        fireflies: state.fireflies.map(f => ({ x: f.x, y: f.y, theta: f.theta, omega: f.omega })),
+        history: state.history.map(s => ({ ...s }))
+      };
+    }
+    function getReadouts() {
+      return {
+        r: state.r,
+        time: state.t,
+        meanPhase: state.meanPhase,
+        litRatio: state.litRatio,
+        coupling: state.coupling,
+        freqSpread: state.freqSpread
+      };
+    }
+    function runModelChecks() {
+      const simulate = (K, spread, duration, dt) => {
+        const n = 30;
+        const arr = [];
+        for (let i = 0; i < n; i++) {
+          arr.push({
+            theta: Math.random() * Math.PI * 2,
+            omega: 1.0 + (Math.random() - 0.5) * 2 * spread
+          });
+        }
+        for (let t = 0; t < duration - 1e-12; t += dt) {
+          const newT = new Array(n);
+          for (let i = 0; i < n; i++) {
+            let c = 0;
+            for (let j = 0; j < n; j++) {
+              if (i !== j) c += Math.sin(arr[j].theta - arr[i].theta);
+            }
+            c /= (n - 1);
+            newT[i] = arr[i].theta + (arr[i].omega + K * c) * dt;
+          }
+          for (let i = 0; i < n; i++) arr[i].theta = newT[i];
+        }
+        let s = 0, c = 0;
+        for (let i = 0; i < n; i++) { s += Math.sin(arr[i].theta); c += Math.cos(arr[i].theta); }
+        return Math.sqrt(s * s + c * c) / n;
+      };
+      const rZero = simulate(0, 0.5, 5, 0.01);
+      const rStrong = simulate(3, 0.3, 10, 0.01);
+      const rIdentical = simulate(1, 0, 5, 0.01);
+      return [
+        { name: "zero coupling stays incoherent", pass: rZero < 0.3, expected: "R < 0.3", actual: rZero, tolerance: 0.3 },
+        { name: "strong coupling synchronizes", pass: rStrong > 0.6, expected: "R > 0.6", actual: rStrong, tolerance: 0.6 },
+        { name: "identical frequencies fully sync", pass: rIdentical > 0.95, expected: "R > 0.95", actual: rIdentical, tolerance: 0.95 },
+        { name: "R bounded in [0,1]", pass: rZero >= 0 && rStrong <= 1 && rIdentical <= 1, expected: "0 ≤ R ≤ 1", actual: `${rZero}, ${rStrong}, ${rIdentical}`, tolerance: "strict" }
+      ];
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.couplingInput.addEventListener("input", () => setParameters({ coupling: elements.couplingInput.value, freqSpread: state.freqSpread }));
+      elements.freqSpreadInput.addEventListener("input", () => setParameters({ coupling: state.coupling, freqSpread: elements.freqSpreadInput.value }));
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

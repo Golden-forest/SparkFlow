@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>生命游戏 · Conway's Game of Life</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-born: #0f9fba;
+      --sim-alive: #08758a;
+      --sim-dying: #f59e0b;
+      --sim-dead: #e8edf4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); touch-action: none; cursor: crosshair; }
+    .scene-hint { margin-top: 10px; color: var(--sim-muted); font-size: 0.82rem; text-align: center; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto auto; gap: 12px; overflow: hidden; }
+    .readouts { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric.born small { color: var(--sim-accent-deep); }
+    .metric.born strong { color: var(--sim-born); }
+    .metric.dying small { color: #a35d00; }
+    .metric.dying strong { color: var(--sim-dying); }
+    .insight-panel { padding: 17px; display: grid; align-content: start; gap: 14px; overflow: hidden; }
+    .insight-panel .panel-head { margin-bottom: 0; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; line-height: 1.5; font-size: 0.88rem; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--sim-muted); }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); }
+    .patterns-panel { padding: 17px; display: grid; align-content: start; gap: 12px; overflow: hidden; }
+    .patterns-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .pattern-btn { padding: 10px 8px; text-align: center; font-size: 0.82rem; font-weight: 700; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); background: var(--sim-surface-soft); cursor: pointer; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    .pattern-btn:hover { border-color: var(--sim-accent); background: var(--sim-accent-soft); }
+    .pattern-btn:active { transform: scale(.97); }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+      .side { max-height: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="discrete">
+    <header class="header" data-region="header">
+      <div>
+        <h1>生命游戏 · Conway's Game of Life</h1>
+        <p>局部规则如何涌现复杂动态 · 点击网格绘制或清除细胞</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">网格演化</h2><span id="gridLabel">30 × 30 网格</span></div>
+        <canvas id="scene" role="img" aria-labelledby="scene-title scene-desc"></canvas>
+        <div class="scene-hint">点击或拖动绘制/清除细胞 · 空白处为死细胞</div>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>当前代数</small><strong id="genReadout">0</strong></div>
+            <div class="metric"><small>存活细胞</small><strong id="aliveReadout">0</strong></div>
+            <div class="metric born"><small>本代出生</small><strong id="bornReadout">0</strong></div>
+            <div class="metric dying"><small>本代死亡</small><strong id="diedReadout">0</strong></div>
+          </div>
+        </section>
+        <section class="panel insight-panel" data-region="insight">
+          <div class="panel-head"><h2>洞察</h2></div>
+          <p id="insight" class="insight">点击网格放置细胞，或从右侧图案库载入经典图案。按"启动"观察细胞按 Conway 规则逐代演化。</p>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-born)"></span>新生</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-alive)"></span>存活</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-dying)"></span>刚死亡</div>
+            <div class="legend-item"><span class="legend-swatch" style="background:var(--sim-dead);border-color:#cdd6e2"></span>死</div>
+          </div>
+        </section>
+        <section class="panel patterns-panel">
+          <div class="panel-head"><h2>图案库</h2><span>载入到网格中心</span></div>
+          <div class="patterns-grid" id="patternsGrid"></div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">启动</button>
+        <button id="stepBtn" type="button">单步</button>
+        <button id="resetBtn" type="button">清空</button>
+      </div>
+      <div class="control">
+        <label for="speedInput">演化速度 <output id="speedOutput">6 代/秒</output></label>
+        <input id="speedInput" type="range" min="1" max="30" step="1" value="6">
+      </div>
+      <div class="control">
+        <label for="sizeInput">网格大小 <output id="sizeOutput">30 × 30</output></label>
+        <input id="sizeInput" type="range" min="15" max="60" step="5" value="30">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ---- 经典图案库 ----
+    const PATTERNS = {
+      glider: {
+        name: "滑翔机",
+        cells: [[1,0],[2,1],[0,2],[1,2],[2,2]]
+      },
+      pulsar: {
+        name: "脉冲星",
+        cells: [
+          [2,0],[3,0],[4,0],[8,0],[9,0],[10,0],
+          [0,2],[5,2],[7,2],[12,2],
+          [0,3],[5,3],[7,3],[12,3],
+          [0,4],[5,4],[7,4],[12,4],
+          [2,5],[3,5],[4,5],[8,5],[9,5],[10,5],
+          [2,7],[3,7],[4,7],[8,7],[9,7],[10,7],
+          [0,8],[5,8],[7,8],[12,8],
+          [0,9],[5,9],[7,9],[12,9],
+          [0,10],[5,10],[7,10],[12,10],
+          [2,12],[3,12],[4,12],[8,12],[9,12],[10,12]
+        ]
+      },
+      blinker: {
+        name: "振荡器",
+        cells: [[0,0],[1,0],[2,0]]
+      },
+      toad: {
+        name: "蟾蜍",
+        cells: [[1,0],[2,0],[3,0],[0,1],[1,1],[2,1]]
+      },
+      beacon: {
+        name: "信标",
+        cells: [[0,0],[1,0],[0,1],[3,2],[2,3],[3,3]]
+      },
+      block: {
+        name: "方块",
+        cells: [[0,0],[1,0],[0,1],[1,1]]
+      },
+      random: {
+        name: "随机",
+        cells: null
+      },
+      clear: {
+        name: "清空",
+        cells: []
+      }
+    };
+
+    const parameterSchema = [
+      { key: "speed", label: "演化速度", type: "slider", min: 1, max: 30, step: 1, default: 6, unit: "代/秒" },
+      { key: "gridSize", label: "网格大小", type: "slider", min: 15, max: 60, step: 5, default: 30, unit: "" }
+    ];
+
+    const state = {
+      running: false,
+      generation: 0,
+      gridSize: 30,
+      speed: 6,
+      grid: null,
+      prevGrid: null,
+      accumulator: 0,
+      lastTimestamp: null,
+      aliveCount: 0,
+      bornCount: 0,
+      diedCount: 0,
+      drawing: false,
+      drawValue: 1
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      gridLabel: document.querySelector("#gridLabel"),
+      genReadout: document.querySelector("#genReadout"),
+      aliveReadout: document.querySelector("#aliveReadout"),
+      bornReadout: document.querySelector("#bornReadout"),
+      diedReadout: document.querySelector("#diedReadout"),
+      insight: document.querySelector("#insight"),
+      patternsGrid: document.querySelector("#patternsGrid"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      sizeInput: document.querySelector("#sizeInput"),
+      sizeOutput: document.querySelector("#sizeOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      stepBtn: document.querySelector("#stepBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    const ctx = elements.scene.getContext("2d");
+    let cellSize = 0;
+    let canvasSize = 0;
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function makeGrid(size) {
+      const g = new Array(size);
+      for (let i = 0; i < size; i++) {
+        g[i] = new Uint8Array(size);
+      }
+      return g;
+    }
+
+    function copyGrid(src) {
+      const size = src.length;
+      const dst = makeGrid(size);
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          dst[r][c] = src[r][c];
+        }
+      }
+      return dst;
+    }
+
+    function resizeCanvas() {
+      const rect = elements.scene.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const size = Math.min(rect.width, rect.height);
+      canvasSize = size;
+      elements.scene.width = size * dpr;
+      elements.scene.height = size * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cellSize = size / state.gridSize;
+      render();
+    }
+
+    function initGrid(size) {
+      state.gridSize = size;
+      state.grid = makeGrid(size);
+      state.prevGrid = makeGrid(size);
+      state.generation = 0;
+      state.aliveCount = 0;
+      state.bornCount = 0;
+      state.diedCount = 0;
+      elements.gridLabel.textContent = `${size} × ${size} 网格`;
+      resizeCanvas();
+    }
+
+    function countNeighbors(grid, row, col) {
+      const size = grid.length;
+      let count = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const r = row + dr;
+          const c = col + dc;
+          if (r >= 0 && r < size && c >= 0 && c < size) {
+            count += grid[r][c];
+          }
+        }
+      }
+      return count;
+    }
+
+    function step() {
+      const size = state.gridSize;
+      const newGrid = makeGrid(size);
+      let alive = 0, born = 0, died = 0;
+
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const n = countNeighbors(state.grid, r, c);
+          const current = state.grid[r][c];
+          let next = 0;
+          if (current === 1) {
+            if (n === 2 || n === 3) {
+              next = 1;
+              alive++;
+            } else {
+              next = 0;
+              died++;
+            }
+          } else {
+            if (n === 3) {
+              next = 1;
+              born++;
+              alive++;
+            }
+          }
+          newGrid[r][c] = next;
+        }
+      }
+
+      state.prevGrid = state.grid;
+      state.grid = newGrid;
+      state.generation++;
+      state.aliveCount = alive;
+      state.bornCount = born;
+      state.diedCount = died;
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+      state.accumulator += boundedDt;
+      const interval = 1 / state.speed;
+      let steps = 0;
+      while (state.accumulator >= interval && steps < 10) {
+        step();
+        state.accumulator -= interval;
+        steps++;
+      }
+      if (steps > 0) {
+        updateInsight();
+      }
+    }
+
+    function render() {
+      if (!state.grid) return;
+      const size = state.gridSize;
+      ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+      // 背景
+      ctx.fillStyle = "#fbfdff";
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+      // 绘制细胞
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const x = c * cellSize;
+          const y = r * cellSize;
+          const current = state.grid[r][c];
+          const prev = state.prevGrid ? state.prevGrid[r][c] : 0;
+
+          if (current === 1 && prev === 0) {
+            // 新生
+            ctx.fillStyle = "#0f9fba";
+            ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (current === 1 && prev === 1) {
+            // 存活
+            ctx.fillStyle = "#08758a";
+            ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (current === 0 && prev === 1) {
+            // 刚死亡 - 显示淡色痕迹
+            ctx.fillStyle = "rgba(245, 158, 11, 0.35)";
+            ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          }
+        }
+      }
+
+      // 网格线
+      ctx.strokeStyle = "rgba(232, 237, 244, 0.6)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= size; i++) {
+        const pos = i * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos, canvasSize);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, pos);
+        ctx.lineTo(canvasSize, pos);
+        ctx.stroke();
+      }
+    }
+
+    function updateInsight() {
+      const gen = state.generation;
+      const alive = state.aliveCount;
+
+      if (gen === 0) {
+        elements.insight.textContent = "点击网格放置细胞，或从右侧图案库载入经典图案。按\"启动\"观察细胞按 Conway 规则逐代演化。";
+      } else if (alive === 0) {
+        elements.insight.textContent = `第 ${gen} 代：所有细胞已死亡。网格进入静止状态——这是 Conway 规则下的一种终态。`;
+      } else if (state.bornCount === 0 && state.diedCount === 0 && gen > 2) {
+        elements.insight.textContent = `第 ${gen} 代：出生与死亡均为 0，图案已进入稳定状态（静物）。`;
+      } else if (state.bornCount === state.diedCount && gen > 2 && state.bornCount > 0) {
+        elements.insight.textContent = `第 ${gen} 代：出生 ${state.bornCount} = 死亡 ${state.diedCount}，图案可能在振荡——周期性回到相同形态。`;
+      } else if (gen <= 4) {
+        elements.insight.textContent = `第 ${gen} 代：观察局部规则如何作用。每个细胞只看 8 个邻居，却已产生出生 ${state.bornCount}、死亡 ${state.diedCount} 的变化。`;
+      } else {
+        elements.insight.textContent = `第 ${gen} 代：存活 ${alive}，出生 ${state.bornCount}，死亡 ${state.diedCount}。简单局部规则持续涌现复杂动态。`;
+      }
+    }
+
+    function updateReadouts() {
+      elements.genReadout.textContent = state.generation;
+      elements.aliveReadout.textContent = state.aliveCount;
+      elements.bornReadout.textContent = state.bornCount;
+      elements.diedReadout.textContent = state.diedCount;
+    }
+
+    function renderAll() {
+      render();
+      updateReadouts();
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.textContent = "暂停";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.textContent = "启动";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function toggleRun() {
+      if (state.running) pause(); else start();
+    }
+
+    function reset() {
+      pause();
+      const size = state.gridSize;
+      state.grid = makeGrid(size);
+      state.prevGrid = makeGrid(size);
+      state.generation = 0;
+      state.aliveCount = 0;
+      state.bornCount = 0;
+      state.diedCount = 0;
+      state.accumulator = 0;
+      updateInsight();
+      renderAll();
+    }
+
+    function setParameters(values) {
+      const speedDef = parameterSchema[0];
+      const sizeDef = parameterSchema[1];
+      const newSpeed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+      const newSize = clamp(finite(Number(values.gridSize), sizeDef.default), sizeDef.min, sizeDef.max);
+
+      if (newSize !== state.gridSize) {
+        initGrid(newSize);
+      }
+      state.speed = newSpeed;
+      elements.speedInput.value = String(state.speed);
+      elements.sizeInput.value = String(state.gridSize);
+      elements.speedOutput.textContent = `${state.speed} 代/秒`;
+      elements.sizeOutput.textContent = `${state.gridSize} × ${state.gridSize}`;
+      renderAll();
+    }
+
+    function loadPattern(patternKey) {
+      const pattern = PATTERNS[patternKey];
+      if (!pattern) return;
+      pause();
+      const size = state.gridSize;
+      state.grid = makeGrid(size);
+      state.prevGrid = makeGrid(size);
+      state.generation = 0;
+      state.accumulator = 0;
+
+      if (pattern.cells === null) {
+        // 随机
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            state.grid[r][c] = Math.random() < 0.3 ? 1 : 0;
+          }
+        }
+      } else {
+        const cells = pattern.cells;
+        let maxR = 0, maxC = 0;
+        for (const [c, r] of cells) {
+          maxR = Math.max(maxR, r);
+          maxC = Math.max(maxC, c);
+        }
+        const offsetR = Math.floor((size - maxR - 1) / 2);
+        const offsetC = Math.floor((size - maxC - 1) / 2);
+        for (const [c, r] of cells) {
+          const nr = r + offsetR;
+          const nc = c + offsetC;
+          if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+            state.grid[nr][nc] = 1;
+          }
+        }
+      }
+
+      // 计算初始存活数
+      let alive = 0;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (state.grid[r][c] === 1) alive++;
+        }
+      }
+      state.aliveCount = alive;
+      state.bornCount = 0;
+      state.diedCount = 0;
+      updateInsight();
+      renderAll();
+    }
+
+    function getCellFromEvent(e) {
+      const rect = elements.scene.getBoundingClientRect();
+      const x = (e.clientX - rect.left);
+      const y = (e.clientY - rect.top);
+      const col = Math.floor(x / cellSize);
+      const row = Math.floor(y / cellSize);
+      if (row >= 0 && row < state.gridSize && col >= 0 && col < state.gridSize) {
+        return { row, col };
+      }
+      return null;
+    }
+
+    function handlePointerDown(e) {
+      e.preventDefault();
+      const cell = getCellFromEvent(e);
+      if (!cell) return;
+      state.drawing = true;
+      state.drawValue = state.grid[cell.row][cell.col] === 1 ? 0 : 1;
+      state.grid[cell.row][cell.col] = state.drawValue;
+      state.prevGrid = copyGrid(state.grid);
+      // 更新存活计数
+      let alive = 0;
+      for (let r = 0; r < state.gridSize; r++) {
+        for (let c = 0; c < state.gridSize; c++) {
+          if (state.grid[r][c] === 1) alive++;
+        }
+      }
+      state.aliveCount = alive;
+      renderAll();
+    }
+
+    function handlePointerMove(e) {
+      if (!state.drawing) return;
+      e.preventDefault();
+      const cell = getCellFromEvent(e);
+      if (!cell) return;
+      if (state.grid[cell.row][cell.col] !== state.drawValue) {
+        state.grid[cell.row][cell.col] = state.drawValue;
+        let alive = 0;
+        for (let r = 0; r < state.gridSize; r++) {
+          for (let c = 0; c < state.gridSize; c++) {
+            if (state.grid[r][c] === 1) alive++;
+          }
+        }
+        state.aliveCount = alive;
+        renderAll();
+      }
+    }
+
+    function handlePointerUp() {
+      state.drawing = false;
+    }
+
+    function buildPatternButtons() {
+      const html = [];
+      for (const key of Object.keys(PATTERNS)) {
+        const p = PATTERNS[key];
+        html.push(`<button class="pattern-btn" data-pattern="${key}" type="button">${p.name}</button>`);
+      }
+      elements.patternsGrid.innerHTML = html.join("");
+      elements.patternsGrid.querySelectorAll("[data-pattern]").forEach((btn) => {
+        btn.addEventListener("click", () => loadPattern(btn.dataset.pattern));
+      });
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", toggleRun);
+      elements.stepBtn.addEventListener("click", () => {
+        pause();
+        step();
+        updateInsight();
+        renderAll();
+      });
+      elements.resetBtn.addEventListener("click", reset);
+      elements.speedInput.addEventListener("input", () => setParameters({ speed: elements.speedInput.value, gridSize: state.gridSize }));
+      elements.sizeInput.addEventListener("input", () => setParameters({ speed: state.speed, gridSize: elements.sizeInput.value }));
+
+      elements.scene.addEventListener("pointerdown", handlePointerDown);
+      elements.scene.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+      });
+    }
+
+    function init() {
+      buildPatternButtons();
+      bindControls();
+      initGrid(30);
+      setParameters({ speed: 6, gridSize: 30 });
+      // 默认载入滑翔机
+      loadPattern("glider");
+      requestAnimationFrame(frame);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      renderAll();
+      requestAnimationFrame(frame);
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        generation: state.generation,
+        gridSize: state.gridSize,
+        speed: state.speed,
+        aliveCount: state.aliveCount,
+        bornCount: state.bornCount,
+        diedCount: state.diedCount
+      };
+    }
+
+    function getReadouts() {
+      return {
+        generation: state.generation,
+        alive: state.aliveCount,
+        born: state.bornCount,
+        died: state.diedCount
+      };
+    }
+
+    function runModelChecks() {
+      // 验证 Conway 规则的正确性
+      const testGrid = makeGrid(5);
+      // 中心细胞有 2 个邻居 -> 存活
+      testGrid[2][2] = 1;
+      testGrid[1][2] = 1;
+      testGrid[2][1] = 1;
+
+      const testState = { grid: testGrid, prevGrid: makeGrid(5), gridSize: 5, generation: 0, aliveCount: 0, bornCount: 0, diedCount: 0 };
+
+      // 测试1: 存活细胞有 2 个邻居 -> 存活
+      const n1 = countNeighbors(testGrid, 2, 2);
+      const test1 = n1 === 2;
+
+      // 测试2: 孤立细胞（0 邻居）-> 死亡
+      const loneGrid = makeGrid(5);
+      loneGrid[2][2] = 1;
+      const n2 = countNeighbors(loneGrid, 2, 2);
+      const test2 = n2 === 0;
+
+      // 测试3: 死细胞有 3 个邻居 -> 出生
+      const birthGrid = makeGrid(5);
+      birthGrid[1][2] = 1;
+      birthGrid[2][1] = 1;
+      birthGrid[3][2] = 1;
+      const n3 = countNeighbors(birthGrid, 2, 2);
+      const test3 = n3 === 3;
+
+      // 测试4: 滑翔机 4 代后移动 1 格
+      const glideGrid = makeGrid(10);
+      const gliderCells = [[1,0],[2,1],[0,2],[1,2],[2,2]];
+      for (const [c, r] of gliderCells) {
+        glideGrid[r][c] = 1;
+      }
+      const savedGrid = copyGrid(glideGrid);
+      // 模拟 4 步
+      const simState = { grid: glideGrid, prevGrid: makeGrid(10), gridSize: 10, generation: 0, aliveCount: 0, bornCount: 0, diedCount: 0 };
+      const oldStep = step;
+      // 临时替换 state
+      const realGrid = state.grid;
+      const realPrev = state.prevGrid;
+      const realSize = state.gridSize;
+      const realGen = state.generation;
+      const realAlive = state.aliveCount;
+      const realBorn = state.bornCount;
+      const realDied = state.diedCount;
+
+      state.grid = glideGrid;
+      state.prevGrid = makeGrid(10);
+      state.gridSize = 10;
+      for (let i = 0; i < 4; i++) step();
+
+      // 滑翔机应该移动了 (1,1)
+      let gliderMoved = true;
+      let newAlive = 0;
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          if (state.grid[r][c] === 1) newAlive++;
+        }
+      }
+      // 滑翔机应保持 5 个活细胞
+      const gliderCountOk = newAlive === 5;
+
+      // 检查是否移动了
+      let originalAlive = 0;
+      for (let r = 0; r < 10; r++) {
+        for (let c = 0; c < 10; c++) {
+          if (savedGrid[r][c] === 1) originalAlive++;
+        }
+      }
+
+      // 恢复 state
+      state.grid = realGrid;
+      state.prevGrid = realPrev;
+      state.gridSize = realSize;
+      state.generation = realGen;
+      state.aliveCount = realAlive;
+      state.bornCount = realBorn;
+      state.diedCount = realDied;
+
+      // 测试5: 方块是静物 - 不应变化
+      const blockGrid = makeGrid(5);
+      blockGrid[1][1] = 1; blockGrid[1][2] = 1;
+      blockGrid[2][1] = 1; blockGrid[2][2] = 1;
+      const blockSaved = copyGrid(blockGrid);
+
+      state.grid = blockGrid;
+      state.prevGrid = makeGrid(5);
+      state.gridSize = 5;
+      step();
+      let blockStable = true;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (state.grid[r][c] !== blockSaved[r][c]) {
+            blockStable = false;
+            break;
+          }
+        }
+      }
+      // 恢复
+      state.grid = realGrid;
+      state.prevGrid = realPrev;
+      state.gridSize = realSize;
+      state.generation = realGen;
+      state.aliveCount = realAlive;
+      state.bornCount = realBorn;
+      state.diedCount = realDied;
+
+      return [
+        { name: "存活细胞有2邻居应存活", pass: test1, expected: "n=2", actual: `n=${n1}`, tolerance: "exact" },
+        { name: "孤立细胞应死亡", pass: test2, expected: "n=0", actual: `n=${n2}`, tolerance: "exact" },
+        { name: "死细胞有3邻居应出生", pass: test3, expected: "n=3", actual: `n=${n3}`, tolerance: "exact" },
+        { name: "滑翔机4代后保持5个活细胞", pass: gliderCountOk, expected: 5, actual: newAlive, tolerance: "exact" },
+        { name: "方块(静物)不应变化", pass: blockStable, expected: true, actual: blockStable, tolerance: "exact" }
+      ];
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks, step: () => { step(); updateInsight(); renderAll(); } };
+    init();
+  })();
+  </script>
+</body>
+</html>

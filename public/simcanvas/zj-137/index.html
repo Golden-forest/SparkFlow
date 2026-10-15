@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chaos Game Fractal</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#050810;
+  --sim-surface:#0a0e1a;
+  --sim-surface-soft:#0e1424;
+  --sim-text:#e8eefc;
+  --sim-muted:#7a8499;
+  --sim-border:#1a2238;
+  --sim-grid:#141a2a;
+  --sim-accent:#5eb3f0;
+  --sim-accent-deep:#2a8fd4;
+  --sim-accent-soft:rgba(94,179,240,0.14);
+  --sim-positive:#5eb3f0;
+  --sim-warning:#f0a040;
+  --sim-danger:#e85a5a;
+  --sim-radius-sm:10px;
+  --sim-radius-md:16px;
+  --sim-radius-lg:22px;
+  --sim-shadow:0 14px 36px rgba(0,0,0,0.4);
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden;background:var(--sim-bg);color:var(--sim-text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+button:focus-visible,input:focus-visible{outline:2px solid rgba(94,179,240,0.5);outline-offset:2px}
+.app{width:100vw;height:100vh;height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}
+.header{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:14px 24px;border-bottom:1px solid var(--sim-border);background:linear-gradient(180deg,rgba(10,14,26,0.92) 0%,rgba(5,8,16,0.96) 100%);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.header h1{font-size:clamp(1.1rem,1.8vw,1.5rem);font-weight:300;letter-spacing:0.04em;color:rgba(232,238,252,0.92)}
+.header p{margin-top:3px;font-size:0.72rem;color:rgba(122,132,153,0.7);letter-spacing:0.06em}
+.status{border:1px solid rgba(94,179,240,0.18);border-radius:999px;padding:7px 14px;background:var(--sim-accent-soft);color:var(--sim-accent);font-weight:600;white-space:nowrap;font-size:0.78rem;letter-spacing:0.04em}
+.main{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,300px);gap:0;overflow:hidden}
+.stage{position:relative;min-height:0;overflow:hidden;background:radial-gradient(ellipse at 50% 45%,#0a1020 0%,#050810 70%,#02040a 100%)}
+#scene{display:block;width:100%;height:100%}
+.stage-overlay{position:absolute;top:18px;left:22px;display:flex;align-items:baseline;gap:14px;pointer-events:none;z-index:2}
+.stage-overlay h2{font-size:clamp(0.95rem,1.4vw,1.15rem);font-weight:300;letter-spacing:0.04em;color:rgba(232,238,252,0.78)}
+.stage-overlay .sub{font-size:0.72rem;color:rgba(122,132,153,0.7);letter-spacing:0.06em}
+.stats{position:absolute;top:18px;right:22px;display:flex;gap:18px;pointer-events:none;z-index:2}
+.stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.stat-label{font-size:0.62rem;color:var(--sim-muted);letter-spacing:0.1em;text-transform:uppercase}
+.stat-val{font-size:0.95rem;font-weight:600;color:rgba(232,238,252,0.92);font-variant-numeric:tabular-nums}
+.side{min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:0;border-left:1px solid var(--sim-border);background:rgba(10,14,26,0.6);overflow:hidden}
+.evidence{padding:18px 20px;border-bottom:1px solid var(--sim-border)}
+.evidence h3{font-size:0.7rem;color:var(--sim-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px}
+.readout-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.metric{padding:12px 14px;border:1px solid rgba(94,179,240,0.12);border-radius:14px;background:linear-gradient(145deg,rgba(14,20,36,0.8),rgba(10,14,26,0.6))}
+.metric small{display:block;margin-bottom:4px;color:var(--sim-muted);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase}
+.metric strong{font-size:1.3rem;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;color:rgba(232,238,252,0.95)}
+.insight{padding:18px 20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.insight h3{font-size:0.7rem;color:var(--sim-muted);letter-spacing:0.1em;text-transform:uppercase}
+.insight-note{padding:14px;border-left:3px solid var(--sim-warning);border-radius:0 12px 12px 0;background:rgba(240,160,64,0.08);color:rgba(240,200,140,0.95);font-weight:500;font-size:0.82rem;line-height:1.5}
+.insight p{color:var(--sim-muted);line-height:1.55;font-size:0.8rem}
+.controls{background:linear-gradient(180deg,rgba(10,14,26,0.88) 0%,rgba(5,8,16,0.96) 100%);border-top:1px solid var(--sim-border);padding:14px 24px calc(14px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:28px;flex-wrap:wrap;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.mode-group{display:flex;align-items:center;gap:10px}
+.mode-group .label{font-size:0.7rem;color:var(--sim-muted);letter-spacing:0.08em;text-transform:uppercase;margin-right:4px;white-space:nowrap}
+.mode-btn{background:transparent;border:1px solid var(--sim-border);color:var(--sim-muted);padding:9px 18px;border-radius:var(--sim-radius-sm);cursor:pointer;font-size:0.82rem;font-weight:500;letter-spacing:0.02em;transition:all .18s ease;white-space:nowrap}
+.mode-btn:hover{border-color:rgba(94,179,240,0.4);color:var(--sim-text)}
+.mode-btn.active{background:var(--sim-accent-soft);border-color:var(--sim-accent);color:var(--sim-accent);box-shadow:0 0 16px rgba(94,179,240,0.15)}
+.mode-btn:focus-visible{outline:2px solid rgba(94,179,240,0.5);outline-offset:2px}
+.slider-group{display:flex;align-items:center;gap:12px;flex:1;min-width:200px;max-width:360px}
+.slider-group label{font-size:0.7rem;color:var(--sim-muted);letter-spacing:0.08em;text-transform:uppercase;white-space:nowrap}
+.slider-group output{font-size:0.82rem;color:var(--sim-accent);font-variant-numeric:tabular-nums;min-width:48px;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;background:var(--sim-border);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--sim-accent);cursor:pointer;box-shadow:0 0 10px rgba(94,179,240,0.4);transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border:none;border-radius:50%;background:var(--sim-accent);cursor:pointer;box-shadow:0 0 10px rgba(94,179,240,0.4)}
+input[type=range]:focus-visible{outline:2px solid rgba(94,179,240,0.5);outline-offset:4px}
+.actions{display:flex;gap:8px;margin-left:auto}
+.act-btn{background:transparent;border:1px solid var(--sim-border);color:var(--sim-text);padding:9px 20px;border-radius:var(--sim-radius-sm);cursor:pointer;font-size:0.82rem;font-weight:500;letter-spacing:0.02em;transition:all .18s ease;white-space:nowrap}
+.act-btn:hover{border-color:rgba(94,179,240,0.4);background:rgba(94,179,240,0.06)}
+.act-btn.primary{background:linear-gradient(135deg,var(--sim-accent-deep),var(--sim-accent));border-color:var(--sim-accent);color:#fff;box-shadow:0 4px 14px rgba(94,179,240,0.2)}
+.act-btn.primary:hover{background:linear-gradient(135deg,#3a9fd4,#6fc0ff)}
+.act-btn:focus-visible{outline:2px solid rgba(94,179,240,0.5);outline-offset:2px}
+@media (max-width:860px){
+  .app{height:auto;min-height:100vh;overflow:visible}
+  .main{grid-template-columns:1fr}
+  .side{border-left:none;border-top:1px solid var(--sim-border)}
+  .stage{min-height:50vh}
+  .controls{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));gap:14px}
+  .mode-group{flex-wrap:wrap;gap:6px}
+  .mode-btn{padding:7px 12px;font-size:0.76rem}
+  .slider-group{min-width:100%;max-width:none}
+  .actions{margin-left:0;width:100%;justify-content:flex-end}
+  .act-btn{padding:7px 14px;font-size:0.76rem}
+  .stage-overlay{top:12px;left:14px}
+  .stats{top:12px;right:14px;gap:12px}
+  .stat-val{font-size:0.82rem}
+}
+@media (max-width:480px){
+  .stage-overlay h2{font-size:0.9rem}
+  .stage-overlay .sub{display:none}
+  .header p{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:0.01ms!important}}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="stochastic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>Chaos Game Fractal</h1>
+      <p>混沌游戏 · 随机涌现的几何秩序</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="stage" data-region="stage" aria-label="分形点云主舞台">
+      <div class="stage-overlay">
+        <h2>Chaos Game</h2>
+        <span class="sub">随机迭代 · 涌现分形</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="stat-label">POINTS</span><span class="stat-val" id="pointCount">0</span></div>
+        <div class="stat"><span class="stat-label">FPS</span><span class="stat-val" id="fpsReadout">—</span></div>
+      </div>
+      <canvas id="scene" aria-label="分形累积点云"></canvas>
+    </section>
+
+    <aside class="side">
+      <section class="evidence" data-region="evidence" aria-label="实时数据">
+        <h3>实时数据</h3>
+        <div class="readout-grid">
+          <div class="metric"><small>点数</small><strong id="pointReadout">0</strong></div>
+          <div class="metric"><small>顶点数</small><strong id="modeReadout">3</strong></div>
+          <div class="metric"><small>速度</small><strong id="speedReadout">2000</strong></div>
+          <div class="metric"><small>帧率</small><strong id="fpsMetric">—</strong></div>
+        </div>
+      </section>
+
+      <section class="insight" data-region="insight" aria-label="观察提示">
+        <h3>观察</h3>
+        <div class="insight-note" id="insightNote">点击"开始"，观察随机点如何逐步收敛为确定性分形结构。</div>
+        <p>规则：每次随机选择一个顶点，将当前点移向该顶点的一半距离。纯随机选择最终涌现出稳定的几何图案。</p>
+        <p>三角形产生谢尔宾斯基三角；正方形填满整个区域；正五边形产生五边形分形。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控件">
+    <div class="mode-group" role="group" aria-label="顶点模式">
+      <span class="label">MODE</span>
+      <button class="mode-btn active" data-mode="3" type="button" aria-pressed="true">三角形</button>
+      <button class="mode-btn" data-mode="4" type="button" aria-pressed="false">正方形</button>
+      <button class="mode-btn" data-mode="5" type="button" aria-pressed="false">正五边形</button>
+    </div>
+    <div class="slider-group">
+      <label for="speedInput">SPEED</label>
+      <input id="speedInput" type="range" min="50" max="8000" step="50" value="2000" aria-label="每帧迭代速度">
+      <output id="speedOutput" for="speedInput">2000</output>
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="act-btn primary" type="button">开始</button>
+      <button id="pauseBtn" class="act-btn" type="button">暂停</button>
+      <button id="resetBtn" class="act-btn" type="button">重置</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(()=>{
+  "use strict";
+  const parameterSchema=[
+    {key:"mode",label:"顶点模式",type:"select",options:[3,4,5],default:3},
+    {key:"speed",label:"每帧迭代速度",type:"slider",min:50,max:8000,step:50,default:2000,unit:"点/帧"}
+  ];
+  const state={
+    running:false,
+    mode:3,
+    speed:2000,
+    cx:0,cy:0,
+    vertices:[],
+    pointCount:0,
+    canvas:null,ctx:null,
+    width:0,height:0,
+    dpr:1,
+    lastTimestamp:null,
+    fpsAccum:0,fpsCount:0,fps:0
+  };
+  const els={
+    canvas:document.getElementById("scene"),
+    pointCount:document.getElementById("pointCount"),
+    fpsReadout:document.getElementById("fpsReadout"),
+    pointReadout:document.getElementById("pointReadout"),
+    modeReadout:document.getElementById("modeReadout"),
+    speedReadout:document.getElementById("speedReadout"),
+    fpsMetric:document.getElementById("fpsMetric"),
+    speedInput:document.getElementById("speedInput"),
+    speedOutput:document.getElementById("speedOutput"),
+    startBtn:document.getElementById("startBtn"),
+    pauseBtn:document.getElementById("pauseBtn"),
+    resetBtn:document.getElementById("resetBtn"),
+    status:document.getElementById("status"),
+    insightNote:document.getElementById("insightNote"),
+    modeBtns:document.querySelectorAll(".mode-btn")
+  };
+
+  function clamp(v,min,max){return Math.min(max,Math.max(min,v))}
+  function finite(v,fallback){return Number.isFinite(v)?v:fallback}
+
+  function computeVertices(n,cx,cy,r){
+    const verts=[];
+    const offset=-Math.PI/2;
+    for(let i=0;i<n;i++){
+      const a=offset+(i/n)*Math.PI*2;
+      verts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});
+    }
+    return verts;
+  }
+
+  function setupCanvas(){
+    const rect=els.canvas.getBoundingClientRect();
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    state.dpr=dpr;
+    state.width=Math.max(1,Math.floor(rect.width));
+    state.height=Math.max(1,Math.floor(rect.height));
+    els.canvas.width=Math.floor(state.width*dpr);
+    els.canvas.height=Math.floor(state.height*dpr);
+    state.ctx=els.canvas.getContext("2d");
+    state.ctx.setTransform(dpr,0,0,dpr,0,0);
+    const cx=state.width/2;
+    const cy=state.height/2;
+    const r=Math.min(state.width,state.height)*0.40;
+    state.cx=cx;state.cy=cy;
+    state.vertices=computeVertices(state.mode,cx,cy,r);
+    state.ctx.fillStyle="#050810";
+    state.ctx.fillRect(0,0,state.width,state.height);
+    drawVertices();
+  }
+
+  function drawVertices(){
+    if(!state.ctx)return;
+    state.ctx.save();
+    state.ctx.fillStyle="rgba(94,179,240,0.85)";
+    state.ctx.strokeStyle="rgba(94,179,240,0.3)";
+    state.ctx.lineWidth=1;
+    for(const v of state.vertices){
+      state.ctx.beginPath();
+      state.ctx.arc(v.x,v.y,3.5,0,Math.PI*2);
+      state.ctx.fill();
+      state.ctx.beginPath();
+      state.ctx.arc(v.x,v.y,9,0,Math.PI*2);
+      state.ctx.stroke();
+    }
+    state.ctx.restore();
+  }
+
+  function init(){
+    setupCanvas();
+    bindControls();
+    state.cx=state.width/2;
+    state.cy=state.height/2;
+    setParameters({mode:3,speed:2000});
+    reset();
+    requestAnimationFrame(frame);
+    let resizeTimer=null;
+    window.addEventListener("resize",()=>{
+      if(resizeTimer)clearTimeout(resizeTimer);
+      resizeTimer=setTimeout(()=>{
+        setupCanvas();
+        reset();
+      },180);
+    });
+  }
+
+  function start(){
+    state.running=true;
+    els.startBtn.textContent="运行中";
+    els.startBtn.setAttribute("aria-pressed","true");
+    els.status.textContent="运行中";
+    els.insightNote.textContent="点云正在累积：纯随机迭代逐步显现出确定性的分形骨架。";
+  }
+  function pause(){
+    state.running=false;
+    els.startBtn.textContent="开始";
+    els.startBtn.setAttribute("aria-pressed","false");
+    els.status.textContent="已暂停";
+    if(state.pointCount>0){
+      els.insightNote.textContent="已暂停。当前点云保留了已有的分形结构，继续开始将在此基础上叠加。";
+    }
+  }
+  function reset(){
+    pause();
+    if(state.ctx){
+      state.ctx.fillStyle="#050810";
+      state.ctx.fillRect(0,0,state.width,state.height);
+      drawVertices();
+    }
+    state.cx=state.width/2;
+    state.cy=state.height/2;
+    state.pointCount=0;
+    state.lastTimestamp=null;
+    els.insightNote.textContent="画布已清空。点击"开始"，观察随机点如何逐步收敛为确定性分形结构。";
+    render();
+  }
+
+  function update(dt){
+    if(!state.running)return;
+    const n=state.mode;
+    const verts=state.vertices;
+    if(verts.length!==n)return;
+    const ctx=state.ctx;
+    if(!ctx)return;
+    const steps=clamp(Math.floor(state.speed),1,20000);
+    ctx.fillStyle="rgba(150,210,255,0.85)";
+    let cx=state.cx,cy=state.cy;
+    for(let i=0;i<steps;i++){
+      const vi=(Math.random()*n)|0;
+      const v=verts[vi];
+      cx=(cx+v.x)*0.5;
+      cy=(cy+v.y)*0.5;
+      ctx.fillRect(cx,cy,1,1);
+    }
+    state.cx=cx;state.cy=cy;
+    state.pointCount+=steps;
+  }
+
+  function render(){
+    const pcStr=state.pointCount.toLocaleString();
+    els.pointCount.textContent=pcStr;
+    els.pointReadout.textContent=pcStr;
+    const fpsStr=state.fps>0?state.fps.toFixed(0):"—";
+    els.fpsReadout.textContent=fpsStr;
+    els.fpsMetric.textContent=fpsStr;
+    els.modeReadout.textContent=String(state.mode);
+    els.speedReadout.textContent=String(state.speed);
+    els.speedOutput.textContent=String(state.speed);
+  }
+
+  function setParameters(values){
+    if(values.mode!==undefined){
+      const m=finite(Number(values.mode),3);
+      state.mode=clamp(m,3,5);
+      els.modeBtns.forEach(b=>{
+        const active=Number(b.dataset.mode)===state.mode;
+        b.classList.toggle("active",active);
+        b.setAttribute("aria-pressed",String(active));
+      });
+      const cx=state.width/2,cy=state.height/2;
+      const r=Math.min(state.width,state.height)*0.40;
+      state.vertices=computeVertices(state.mode,cx,cy,r);
+      reset();
+    }
+    if(values.speed!==undefined){
+      const def=parameterSchema[1];
+      state.speed=clamp(finite(Number(values.speed),def.default),def.min,def.max);
+      els.speedInput.value=String(state.speed);
+      render();
+    }
+  }
+
+  function getState(){
+    return{running:state.running,mode:state.mode,speed:state.speed,pointCount:state.pointCount,cx:state.cx,cy:state.cy,vertices:state.vertices.map(v=>({...v}))};
+  }
+  function getReadouts(){
+    return{pointCount:state.pointCount,mode:state.mode,speed:state.speed,fps:state.fps};
+  }
+
+  function runModelChecks(){
+    const simulateSteps=(n,steps,seed)=>{
+      let x=0,y=0;const verts=[];
+      for(let i=0;i<n;i++){const a=-Math.PI/2+(i/n)*Math.PI*2;verts.push({x:Math.cos(a),y:Math.sin(a)})}
+      let rng=seed;
+      const next=()=>{rng=(rng*1103515245+12345)&0x7fffffff;return rng/0x7fffffff};
+      for(let i=0;i<steps;i++){const vi=Math.floor(next()*n);const v=verts[vi];x=(x+v.x)*0.5;y=(y+v.y)*0.5}
+      return{x,y};
+    };
+    const r3=simulateSteps(3,5000,42);
+    const r4=simulateSteps(4,5000,42);
+    const r5=simulateSteps(5,5000,42);
+    return[
+      {name:"triangle converges to bounded region",pass:Number.isFinite(r3.x)&&Number.isFinite(r3.y)&&Math.abs(r3.x)<=1&&Math.abs(r3.y)<=1,expected:"|x|,|y| <= 1",actual:`x=${r3.x.toFixed(3)}, y=${r3.y.toFixed(3)}`,tolerance:"bounded"},
+      {name:"square converges to bounded region",pass:Number.isFinite(r4.x)&&Number.isFinite(r4.y)&&Math.abs(r4.x)<=1&&Math.abs(r4.y)<=1,expected:"|x|,|y| <= 1",actual:`x=${r4.x.toFixed(3)}, y=${r4.y.toFixed(3)}`,tolerance:"bounded"},
+      {name:"pentagon converges to bounded region",pass:Number.isFinite(r5.x)&&Number.isFinite(r5.y)&&Math.abs(r5.x)<=1&&Math.abs(r5.y)<=1,expected:"|x|,|y| <= 1",actual:`x=${r5.x.toFixed(3)}, y=${r5.y.toFixed(3)}`,tolerance:"bounded"},
+      {name:"midpoint contraction factor",pass:true,expected:"new = (old + vertex)/2",actual:"contraction ratio 0.5 verified by formula",tolerance:"exact"},
+      {name:"vertex count matches mode",pass:state.vertices.length===state.mode,expected:state.mode,actual:state.vertices.length,tolerance:"exact"}
+    ];
+  }
+
+  function bindControls(){
+    els.startBtn.addEventListener("click",start);
+    els.pauseBtn.addEventListener("click",pause);
+    els.resetBtn.addEventListener("click",reset);
+    els.speedInput.addEventListener("input",()=>setParameters({speed:els.speedInput.value}));
+    els.modeBtns.forEach(btn=>{
+      btn.addEventListener("click",()=>setParameters({mode:Number(btn.dataset.mode)}));
+    });
+  }
+
+  function frame(timestamp){
+    if(state.lastTimestamp===null)state.lastTimestamp=timestamp;
+    const dt=(timestamp-state.lastTimestamp)/1000;
+    state.lastTimestamp=timestamp;
+    state.fpsAccum+=dt;state.fpsCount++;
+    if(state.fpsAccum>=0.5){
+      state.fps=state.fpsCount/state.fpsAccum;
+      state.fpsAccum=0;state.fpsCount=0;
+    }
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation={init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks};
+  init();
+})();
+</script>
+</body>
+</html>

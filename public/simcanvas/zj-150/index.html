@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>斐波那契螺旋叶序</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #000000;
+      --sim-surface: #050505;
+      --sim-surface-soft: #0a0a0a;
+      --sim-text: #f4f4f5;
+      --sim-muted: #71717a;
+      --sim-border: #1a1a1a;
+      --sim-grid: #111111;
+      --sim-accent: #fbbf24;
+      --sim-accent-deep: #b45309;
+      --sim-accent-soft: rgba(251, 191, 36, 0.18);
+      --sim-positive: #fbbf24;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid rgba(251, 191, 36, 0.4);
+      outline-offset: 2px;
+    }
+    .app {
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: var(--sim-space-3);
+      padding: var(--sim-space-3);
+      padding-bottom: max(var(--sim-space-4), env(safe-area-inset-bottom));
+    }
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border-radius: var(--sim-radius-lg);
+      overflow: hidden;
+      background: #000000;
+    }
+    #scene {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .evidence { display: none; }
+    .insight { display: none; }
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: var(--sim-space-4);
+      padding: var(--sim-space-2) var(--sim-space-4);
+      max-width: 620px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sim-space-1);
+      width: 100%;
+    }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: var(--sim-space-3);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--sim-text);
+      letter-spacing: 0.02em;
+    }
+    .control output {
+      color: var(--sim-accent);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--sim-accent);
+      height: 28px;
+      cursor: pointer;
+    }
+    .header { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header" aria-hidden="true">
+      <h1>斐波那契螺旋叶序</h1>
+      <p>种子按黄金角螺旋逐颗生长，形成向日葵花盘纹样。</p>
+      <div id="status" class="status" role="status" aria-live="polite">Running</div>
+    </header>
+
+    <main class="main" style="display:contents">
+      <section class="stage" data-region="stage" aria-label="斐波那契螺旋舞台">
+        <canvas id="scene" role="img" aria-label="斐波那契螺旋种子排布动画"></canvas>
+      </section>
+
+      <aside class="side" data-region="evidence" aria-hidden="true">
+        <section class="panel readouts" aria-label="Live values">
+          <div class="readout-grid">
+            <div class="metric"><small>State</small><strong id="stateReadout">0.00</strong></div>
+            <div class="metric"><small>Time</small><strong id="timeReadout">0.00 s</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <p id="insight" class="insight">斐波那契螺旋叶序演示。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="Simulation controls">
+      <div class="actions" style="display:none">
+        <button id="startBtn" class="primary" type="button">Start</button>
+        <button id="pauseBtn" type="button">Pause</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+      <div class="control">
+        <label for="angleInput">发散角 <output id="angleOutput">137.5°</output></label>
+        <input id="angleInput" type="range" min="136" max="139" step="0.1" value="137.5" aria-label="发散角">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "angle", label: "发散角", type: "slider", min: 136, max: 139, step: 0.1, default: 137.5, unit: "°" }
+    ];
+    const state = {
+      running: true,
+      t: 0,
+      x: 0,
+      angle: 137.5,
+      lastTimestamp: null,
+      history: [{ t: 0, x: 0 }],
+      width: 0,
+      height: 0,
+      dpr: 1,
+      seedCount: 0,
+      spawnAcc: 0,
+      maxSeeds: 600,
+      spawnRate: 60,
+      c: 7.0,
+      seeds: [],
+      goldenAngle: 137.5
+    };
+    const elements = {
+      scene: document.querySelector("#scene"),
+      angleInput: document.querySelector("#angleInput"),
+      angleOutput: document.querySelector("#angleOutput"),
+      status: document.querySelector("#status"),
+      stateReadout: document.querySelector("#stateReadout"),
+      timeReadout: document.querySelector("#timeReadout"),
+      insight: document.querySelector("#insight"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function resizeCanvas() {
+      const canvas = elements.scene;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      state.width = w;
+      state.height = h;
+      state.dpr = dpr;
+      const minDim = Math.min(w, h);
+      state.c = Math.max(4, minDim * 0.022);
+    }
+
+    function init() {
+      resizeCanvas();
+      bindControls();
+      setParameters({ angle: 137.5 });
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        render();
+      });
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      if (elements.status) elements.status.textContent = "Running";
+      if (elements.startBtn) elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      if (elements.status) elements.status.textContent = "Paused";
+      if (elements.startBtn) elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      state.t = 0;
+      state.x = 0;
+      state.lastTimestamp = null;
+      state.history = [{ t: 0, x: 0 }];
+      state.seedCount = 0;
+      state.spawnAcc = 0;
+      state.seeds = [];
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      state.spawnAcc += boundedDt * state.spawnRate;
+      while (state.spawnAcc >= 1 && state.seedCount < state.maxSeeds) {
+        state.seedCount += 1;
+        state.spawnAcc -= 1;
+      }
+      if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.04) {
+        state.history.push({ t: state.t, x: state.x });
+        if (state.history.length > 500) state.history.shift();
+      }
+    }
+
+    function render() {
+      const canvas = elements.scene;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = state.dpr || 1;
+      const w = state.width;
+      const h = state.height;
+      if (w < 2 || h < 2) return;
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const angleRad = state.angle * Math.PI / 180;
+      const c = state.c;
+      const maxR = Math.sqrt(state.maxSeeds) * c;
+      const fitScale = Math.min(w, h) * 0.42 / Math.max(1, maxR);
+      const drawScale = Math.min(1, fitScale);
+
+      const count = state.seedCount;
+      const seeds = state.seeds;
+      if (seeds.length !== count) {
+        if (seeds.length > count) {
+          seeds.length = count;
+        } else {
+          for (let n = seeds.length + 1; n <= count; n++) {
+            const theta = n * angleRad;
+            const r = c * Math.sqrt(n);
+            const x = cx + r * Math.cos(theta) * drawScale;
+            const y = cy + r * Math.sin(theta) * drawScale;
+            const age = count - n;
+            const norm = Math.sqrt(n) / Math.sqrt(state.maxSeeds);
+            const baseSize = 1.6 + (1 - norm) * 2.4;
+            const appear = age < 18 ? Math.min(1, (age + 1) / 18) : 1;
+            seeds.push({ n, x, y, baseSize, appear, norm });
+          }
+        }
+      }
+
+      for (let i = 0; i < seeds.length; i++) {
+        const s = seeds[i];
+        const theta = s.n * angleRad;
+        const r = c * Math.sqrt(s.n);
+        s.x = cx + r * Math.cos(theta) * drawScale;
+        s.y = cy + r * Math.sin(theta) * drawScale;
+      }
+
+      for (let i = 0; i < seeds.length; i++) {
+        const s = seeds[i];
+        const size = Math.max(0.5, s.baseSize * s.appear);
+        const glowR = Math.max(size + 1, size * 4.2);
+        const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+        grad.addColorStop(0, "rgba(255, 255, 255, " + (0.95 * s.appear).toFixed(3) + ")");
+        grad.addColorStop(0.08, "rgba(254, 243, 199, " + (0.95 * s.appear).toFixed(3) + ")");
+        grad.addColorStop(0.22, "rgba(251, 191, 36, " + (0.85 * s.appear).toFixed(3) + ")");
+        grad.addColorStop(0.45, "rgba(245, 158, 11, " + (0.4 * s.appear).toFixed(3) + ")");
+        grad.addColorStop(0.7, "rgba(180, 83, 9, " + (0.16 * s.appear).toFixed(3) + ")");
+        grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 255, 255, " + (0.92 * s.appear).toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, Math.max(0.5, size * 0.4), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (elements.stateReadout) elements.stateReadout.textContent = state.seedCount.toString();
+      if (elements.timeReadout) elements.timeReadout.textContent = state.t.toFixed(2) + " s";
+      if (elements.angleOutput) elements.angleOutput.textContent = state.angle.toFixed(1) + "°";
+      if (elements.insight) {
+        const delta = Math.abs(state.angle - state.goldenAngle);
+        elements.insight.textContent = delta < 0.15
+          ? "黄金角：种子形成清晰的双向螺旋。"
+          : "偏离黄金角：螺旋纹样瓦解为杂乱排布。";
+      }
+    }
+
+    function setParameters(values) {
+      const angleDef = parameterSchema[0];
+      state.angle = clamp(finite(Number(values.angle), angleDef.default), angleDef.min, angleDef.max);
+      if (elements.angleInput) elements.angleInput.value = String(state.angle);
+      state.seeds = [];
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        x: state.x,
+        angle: state.angle,
+        seedCount: state.seedCount,
+        history: state.history.map((s) => ({ ...s }))
+      };
+    }
+
+    function getReadouts() {
+      return { state: state.x, time: state.t, angle: state.angle, seedCount: state.seedCount };
+    }
+
+    function runModelChecks() {
+      const angleRad = (angleDeg) => angleDeg * Math.PI / 180;
+      const place = (n, angleDeg) => {
+        const theta = n * angleRad(angleDeg);
+        const r = Math.sqrt(n);
+        return { x: r * Math.cos(theta), y: r * Math.sin(theta) };
+      };
+      const minDist = (n, angleDeg) => {
+        let m = Infinity;
+        const a = place(n, angleDeg);
+        for (let k = 1; k <= 8; k++) {
+          if (n - k < 1) break;
+          const b = place(n - k, angleDeg);
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < m) m = d;
+        }
+        return m;
+      };
+      const golden1375 = minDist(500, 137.5);
+      const off1370 = minDist(500, 137.0);
+      const off1380 = minDist(500, 138.0);
+      const goldenFinite = Number.isFinite(golden1375);
+      const goldenMinRatio = golden1375 > 0;
+      const offCloser = off1370 < golden1375 * 0.5 && off1380 < golden1375 * 0.5;
+      const trend = off1370 < golden1375 && off1380 < golden1375;
+      const symmetry = Math.abs(minDist(300, 137.5) - minDist(300, 137.5 + 360)) < 1e-9;
+      const n1 = place(1, 137.5);
+      const n1R = Math.hypot(n1.x, n1.y);
+      const n1Boundary = Math.abs(n1R - 1) < 1e-9;
+      const n0 = place(0, 137.5);
+      const n0Origin = Math.hypot(n0.x, n0.y) < 1e-9;
+      return [
+        { name: "finite golden-angle spacing", pass: goldenFinite, expected: "finite min distance", actual: golden1375, tolerance: "finite" },
+        { name: "golden-angle positive spacing", pass: goldenMinRatio, expected: "min distance > 0", actual: golden1375, tolerance: "strict" },
+        { name: "off-golden closer packing", pass: offCloser, expected: "off-angle min dist < 50% golden", actual: "137.0=" + off1370 + ", 138.0=" + off1380 + ", golden=" + golden1375, tolerance: "strict" },
+        { name: "off-golden trend", pass: trend, expected: "off-angle min dist < golden min dist", actual: "137.0=" + off1370 + ", 138.0=" + off1380 + ", golden=" + golden1375, tolerance: "strict" },
+        { name: "360-degree symmetry", pass: symmetry, expected: "identical packing at +360°", actual: symmetry, tolerance: "strict" },
+        { name: "n=1 radius boundary", pass: n1Boundary, expected: "r(1) = 1", actual: n1R, tolerance: 1e-9 },
+        { name: "n=0 origin boundary", pass: n0Origin, expected: "r(0) = 0", actual: Math.hypot(n0.x, n0.y), tolerance: 1e-9 }
+      ];
+    }
+
+    function bindControls() {
+      if (elements.angleInput) {
+        elements.angleInput.addEventListener("input", () => setParameters({ angle: elements.angleInput.value }));
+      }
+      if (elements.startBtn) elements.startBtn.addEventListener("click", start);
+      if (elements.pauseBtn) elements.pauseBtn.addEventListener("click", pause);
+      if (elements.resetBtn) elements.resetBtn.addEventListener("click", reset);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

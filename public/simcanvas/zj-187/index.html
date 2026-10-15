@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radial Spectrum Rhythm</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sim-bg: #000000;
+    --sim-surface: #05060a;
+    --sim-surface-soft: #0a0c12;
+    --sim-text: #e8eefc;
+    --sim-muted: #6b7896;
+    --sim-border: rgba(255,255,255,0.06);
+    --sim-grid: rgba(255,255,255,0.04);
+    --sim-accent: #0f9fba;
+    --sim-accent-deep: #08758a;
+    --sim-accent-soft: #d9f4f7;
+    --sim-positive: #0f9fba;
+    --sim-warning: #d97706;
+    --sim-danger: #dc2626;
+    --sim-radius-sm: 10px;
+    --sim-radius-md: 16px;
+    --sim-radius-lg: 22px;
+    --sim-shadow: 0 14px 36px rgba(0,0,0,0.5);
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--sim-bg);
+    overflow: hidden;
+    color: var(--sim-text);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+  }
+  canvas#scene {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .header {
+    position: fixed;
+    left: 18px; top: 16px;
+    z-index: 10;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(0,0,0,0.85);
+  }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 780;
+    letter-spacing: 0.02em;
+    color: rgba(220, 235, 255, 0.88);
+    margin: 0 0 3px;
+  }
+  .header p {
+    font-size: 11px;
+    color: rgba(150, 170, 200, 0.62);
+    margin: 0;
+  }
+  .formula {
+    position: fixed;
+    left: 18px; bottom: 16px;
+    color: rgba(180, 200, 230, 0.32);
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    user-select: none;
+    z-index: 10;
+    text-shadow: 0 0 8px rgba(0,0,0,0.8);
+  }
+  .insight {
+    position: fixed;
+    right: 70px; bottom: 22px;
+    max-width: 260px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(12, 16, 24, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(200, 220, 245, 0.82);
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: right;
+    pointer-events: none;
+    z-index: 10;
+    text-shadow: 0 0 8px rgba(0,0,0,0.8);
+  }
+  .play-btn {
+    position: fixed;
+    right: 18px; bottom: 16px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(12, 16, 24, 0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: rgba(220, 230, 250, 0.85);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s ease, border-color .2s ease, transform .15s ease;
+    z-index: 10;
+  }
+  .play-btn:hover {
+    background: rgba(20, 28, 40, 0.7);
+    border-color: rgba(255,255,255,0.22);
+  }
+  .play-btn:active { transform: scale(0.94); }
+  .play-btn:focus-visible {
+    outline: 2px solid rgba(15, 159, 186, 0.6);
+    outline-offset: 3px;
+  }
+  .play-btn svg { width: 16px; height: 16px; }
+  @media (max-width: 600px) {
+    .header { left: 12px; top: 12px; }
+    .header h1 { font-size: 13px; }
+    .header p { font-size: 10px; }
+    .formula { font-size: 10px; left: 12px; bottom: 12px; }
+    .insight { right: 60px; bottom: 18px; max-width: 180px; font-size: 10px; padding: 6px 10px; }
+    .play-btn { width: 40px; height: 40px; right: 12px; bottom: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .play-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <canvas id="scene" data-region="stage" aria-label="环形频谱节奏壁纸"></canvas>
+  <header class="header" data-region="header">
+    <h1>Radial Spectrum Rhythm</h1>
+    <p>64 条频段随节拍呼吸，重拍触发外扩波纹。</p>
+  </header>
+  <div class="formula" data-region="evidence" aria-hidden="true">r_i(θ,t) = R_0 + A(i) · beat(t) · mod_i</div>
+  <div id="insight" class="insight" data-region="insight" role="status" aria-live="polite">重拍触发波纹，频段随节拍呼吸。</div>
+  <button id="playBtn" class="play-btn" data-region="controls" type="button" aria-label="播放或暂停">
+    <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="6" y="5" width="4" height="14" rx="1"/>
+      <rect x="14" y="5" width="4" height="14" rx="1"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ====== 参数 schema ======
+  const parameterSchema = [
+    { key: "bpm", label: "Tempo", type: "slider", min: 60, max: 160, step: 1, default: 120, unit: "bpm" },
+    { key: "spectralDecay", label: "Spectral decay", type: "slider", min: 0.5, max: 1.5, step: 0.05, default: 1.0, unit: "" }
+  ];
+
+  // ====== 状态 ======
+  const state = {
+    running: true,
+    t: 0,
+    lastTimestamp: null,
+    bpm: 120,
+    spectralDecay: 1.0,
+    // 重拍波纹环：每次重拍触发一个，记录触发时间
+    ripples: []
+  };
+
+  // ====== DOM ======
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const playBtn = document.getElementById("playBtn");
+  const playIcon = document.getElementById("playIcon");
+  const insightEl = document.getElementById("insight");
+
+  // ====== 常量 ======
+  const BANDS = 64;
+  const TWO_PI = Math.PI * 2;
+
+  // 固定随机种子（确定性扰动相位）
+  const perturbPhase = new Float64Array(BANDS);
+  const perturbFreq = new Float64Array(BANDS);
+  let s = 12345;
+  function rand() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }
+  for (let i = 0; i < BANDS; i++) {
+    perturbPhase[i] = rand() * TWO_PI;
+    perturbFreq[i] = 0.25 + rand() * 0.55;
+  }
+
+  // ====== 工具 ======
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // ====== 节拍包络 ======
+  // 4/4 拍：每 0.5s 一个 beat（120bpm），每小节 4 拍。
+  // 第 1 拍最强（1.0），第 3 拍次强（0.62），第 2/4 拍弱（0.32）。
+  // beat 起沿快（attack 0.018s），衰减按指数（decay 0.22s）。
+  function beatEnvelope(t, bpm) {
+    const beatDur = 60 / bpm;          // 单拍时长
+    const barDur = beatDur * 4;        // 小节时长
+    const tBar = ((t % barDur) + barDur) % barDur;
+    const beatIdx = Math.floor(tBar / beatDur);
+    const localT = tBar - beatIdx * beatDur;
+
+    const accents = [1.0, 0.32, 0.62, 0.32];
+    const accent = accents[beatIdx % 4];
+
+    const attack = 0.018;
+    const decay = 0.22;
+    let env;
+    if (localT < attack) {
+      env = localT / attack;
+    } else {
+      env = Math.exp(-(localT - attack) / decay);
+    }
+    return env * accent;
+  }
+
+  // ====== 频段幅度（低频大、高频小，指数衰减） ======
+  function bandAmplitude(i) {
+    const u = i / (BANDS - 1);          // 0..1
+    return Math.exp(-u * 2.4 * state.spectralDecay);
+  }
+
+  // ====== 频段调制（缓慢正弦扰动，确定性） ======
+  function bandModulation(i, t) {
+    return 0.55 + 0.45 * Math.sin(t * perturbFreq[i] * TWO_PI * 0.18 + perturbPhase[i]);
+  }
+
+  // ====== 颜色：青 → 品红 → 蓝 环形渐变 ======
+  function bandColor(i, alpha) {
+    const u = i / BANDS;
+    let r, g, b;
+    if (u < 0.5) {
+      const k = u * 2;                 // 0..1：青 → 品红
+      r = 20 + 235 * k;
+      g = 230 - 200 * k;
+      b = 200 - 80 * k;
+    } else {
+      const k = (u - 0.5) * 2;        // 0..1：品红 → 蓝
+      r = 255 - 195 * k;
+      g = 30 + 30 * k;
+      b = 120 + 135 * k;
+    }
+    return `rgba(${r|0},${g|0},${b|0},${alpha})`;
+  }
+
+  // ====== Canvas 尺寸 ======
+  let W = 0, H = 0, cx = 0, cy = 0, R0 = 0, maxBar = 0;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(W * dpr));
+    canvas.height = Math.max(1, Math.floor(H * dpr));
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2;
+    cy = H / 2;
+    const m = Math.min(W, H);
+    R0 = m * 0.16;
+    maxBar = m * 0.20;
+  }
+
+  // ====== 生命周期 ======
+  function start() {
+    state.running = true;
+    state.lastTimestamp = null;
+    playIcon.innerHTML = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+    playBtn.setAttribute("aria-label", "暂停");
+  }
+  function pause() {
+    state.running = false;
+    playIcon.innerHTML = '<polygon points="7,4 20,12 7,20"/>';
+    playBtn.setAttribute("aria-label", "播放");
+  }
+  function reset() {
+    state.t = 0;
+    state.ripples.length = 0;
+    state.lastTimestamp = null;
+  }
+  function setParameters(values) {
+    const bpmDef = parameterSchema[0];
+    const decayDef = parameterSchema[1];
+    state.bpm = clamp(finite(Number(values.bpm), bpmDef.default), bpmDef.min, bpmDef.max);
+    state.spectralDecay = clamp(finite(Number(values.spectralDecay), decayDef.default), decayDef.min, decayDef.max);
+  }
+  function getState() {
+    return { running: state.running, t: state.t, bpm: state.bpm, spectralDecay: state.spectralDecay };
+  }
+  function getReadouts() {
+    return { time: state.t, beat: beatEnvelope(state.t, state.bpm), energy: totalEnergy(state.t) };
+  }
+
+  // ====== 总能量（中心圆点呼吸驱动） ======
+  function totalEnergy(t) {
+    let e = 0;
+    for (let i = 0; i < BANDS; i++) {
+      e += bandAmplitude(i) * beatEnvelope(t, state.bpm) * bandModulation(i, t);
+    }
+    return e / BANDS;
+  }
+
+  // ====== 更新 ======
+  let lastBeatIdx = -1;
+  function update(dt) {
+    if (!state.running) return;
+    const bdt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += bdt;
+
+    // 检测重拍（第 1 拍）触发波纹
+    const beatDur = 60 / state.bpm;
+    const barDur = beatDur * 4;
+    const tBar = ((state.t % barDur) + barDur) % barDur;
+    const beatIdx = Math.floor(tBar / beatDur);
+    if (beatIdx !== lastBeatIdx) {
+      if (beatIdx % 4 === 0) {
+        state.ripples.push({ t0: state.t });
+      }
+      lastBeatIdx = beatIdx;
+    }
+    // 清理过期波纹（生命周期 2.2s）
+    const rippleLife = 2.2;
+    while (state.ripples.length > 0 && state.t - state.ripples[0].t0 > rippleLife) {
+      state.ripples.shift();
+    }
+  }
+
+  // ====== 渲染 ======
+  function render() {
+    // 纯黑背景（每帧清屏，无拖尾，保证锐利）
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, W, H);
+
+    const t = state.t;
+    const beat = beatEnvelope(t, state.bpm);
+    const energy = totalEnergy(t);
+
+    // ---- 重拍波纹环（从内向外扩散） ----
+    const rippleLife = 2.2;
+    for (let r = 0; r < state.ripples.length; r++) {
+      const rp = state.ripples[r];
+      const age = t - rp.t0;
+      if (age < 0 || age > rippleLife) continue;
+      const p = age / rippleLife;                 // 0..1
+      const radius = R0 * 0.7 + p * (Math.min(W, H) * 0.42);
+      const alpha = (1 - p) * 0.22;
+      if (alpha <= 0.01) continue;
+      // 双层模拟发光：粗线低透明 + 细线高透明
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = `rgba(120, 200, 230, ${alpha * 0.45})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, TWO_PI);
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `rgba(180, 230, 250, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, TWO_PI);
+      ctx.stroke();
+    }
+
+    // ---- 64 条辐射频段 ----
+    const innerR = R0;
+    for (let i = 0; i < BANDS; i++) {
+      const theta = (i / BANDS) * TWO_PI - Math.PI / 2;  // 顶部起始
+      const A = bandAmplitude(i);
+      const mod = bandModulation(i, t);
+      const len = maxBar * A * (0.18 + 0.82 * beat) * mod;
+      const outerR = innerR + Math.max(2, len);
+
+      const cosT = Math.cos(theta);
+      const sinT = Math.sin(theta);
+      const x1 = cx + cosT * innerR;
+      const y1 = cy + sinT * innerR;
+      const x2 = cx + cosT * outerR;
+      const y2 = cy + sinT * outerR;
+
+      // 双层绘制模拟发光（禁用 shadowBlur）
+      // 外层：粗线低透明
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = bandColor(i, 0.16 + 0.10 * beat);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      // 内层：细线高透明
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = bandColor(i, 0.85);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // ---- 中心呼吸圆点（双层圆形描边模拟发光） ----
+    // 重拍瞬间变亮，指数衰减
+    const beatPulse = beat;                        // 0..1
+    const breath = 0.7 + 0.3 * energy * 4;         // 随总能量呼吸
+    const coreR = Math.max(3, R0 * 0.18 * (0.85 + 0.15 * beatPulse) * breath);
+    const haloR = coreR * 2.8;
+
+    // 外层光晕（径向渐变）
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+    grad.addColorStop(0, `rgba(180, 240, 255, ${0.35 + 0.45 * beatPulse})`);
+    grad.addColorStop(0.4, `rgba(80, 180, 220, ${0.18 + 0.20 * beatPulse})`);
+    grad.addColorStop(1, "rgba(20, 60, 100, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, haloR, 0, TWO_PI);
+    ctx.fill();
+
+    // 双层描边
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = `rgba(150, 220, 250, ${0.25 + 0.25 * beatPulse})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR * 1.5, 0, TWO_PI);
+    ctx.stroke();
+
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = `rgba(220, 245, 255, ${0.85})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR, 0, TWO_PI);
+    ctx.stroke();
+
+    // 核心填充
+    ctx.fillStyle = `rgba(230, 250, 255, ${0.65 + 0.30 * beatPulse})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, coreR * 0.6, 0, TWO_PI);
+    ctx.fill();
+
+    // ---- insight 文本更新 ----
+    if (insightEl) {
+      const beatDur = 60 / state.bpm;
+      const barDur = beatDur * 4;
+      const tBar = ((state.t % barDur) + barDur) % barDur;
+      const beatIdx = Math.floor(tBar / beatDur);
+      const localT = tBar - beatIdx * beatDur;
+      const beatNames = ["重拍", "弱拍", "次强拍", "弱拍"];
+      const phase = localT < 0.05 ? "触发" : (localT < beatDur * 0.3 ? "衰减" : "间歇");
+      insightEl.textContent = `${beatNames[beatIdx % 4]} · ${phase} · 能量 ${(energy * 100).toFixed(1)}%`;
+    }
+  }
+
+  // ====== 主循环 ======
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ====== 模型检查（确定性合成频谱的解析验证） ======
+  function runModelChecks() {
+    const bpm = 120;
+    const beatDur = 60 / bpm;
+    const barDur = beatDur * 4;
+
+    // 1. beat 周期性：t 与 t+barDur 应相等
+    const e1a = beatEnvelope(1.0, bpm);
+    const e1b = beatEnvelope(1.0 + barDur, bpm);
+    const periodic = Math.abs(e1a - e1b) < 1e-9;
+
+    // 2. 第 1 拍峰值 > 第 2 拍峰值
+    const peak1 = beatEnvelope(beatDur * 0.02, bpm);
+    const peak2 = beatEnvelope(beatDur * 1.02, bpm);
+    const accentOk = peak1 > peak2;
+
+    // 3. beat 衰减：0.3s 后应接近 0
+    const decayed = beatEnvelope(beatDur * 0.3, bpm);
+    const decayOk = decayed < 0.15;
+
+    // 4. 频段幅度单调递减（低频 > 高频）
+    const aLow = bandAmplitude(0);
+    const aHigh = bandAmplitude(BANDS - 1);
+    const monotonic = aLow > aHigh;
+
+    // 5. 调制有界：0.1..1.0
+    let modBounded = true;
+    for (let i = 0; i < BANDS; i++) {
+      const m = bandModulation(i, 5.0);
+      if (m < 0.09 || m > 1.01) { modBounded = false; break; }
+    }
+
+    // 6. 总能量有界且有限
+    const e = totalEnergy(3.0);
+    const energyOk = Number.isFinite(e) && e > 0 && e < 2;
+
+    // 7. 确定性：相同 t 相同输出
+    const det1 = totalEnergy(7.3);
+    const det2 = totalEnergy(7.3);
+    const deterministic = det1 === det2;
+
+    return [
+      { name: "beat 周期性（一个小节）", pass: periodic, expected: "e(t) == e(t + barDur)", actual: `${e1a} vs ${e1b}`, tolerance: "1e-9" },
+      { name: "重拍强于弱拍", pass: accentOk, expected: "peak1 > peak2", actual: `${peak1} > ${peak2}`, tolerance: "strict" },
+      { name: "beat 指数衰减", pass: decayOk, expected: "< 0.15 at 0.3s", actual: decayed.toFixed(4), tolerance: "0.15" },
+      { name: "频段幅度单调递减", pass: monotonic, expected: "A(0) > A(63)", actual: `${aLow.toFixed(3)} > ${aHigh.toFixed(3)}`, tolerance: "strict" },
+      { name: "调制有界 [0.1, 1.0]", pass: modBounded, expected: "所有频段 mod ∈ [0.1, 1.0]", actual: modBounded ? "bounded" : "out of range", tolerance: "strict" },
+      { name: "总能量有限有界", pass: energyOk, expected: "0 < E < 2", actual: e.toFixed(4), tolerance: "2.0" },
+      { name: "确定性（同 t 同输出）", pass: deterministic, expected: "E(7.3) === E(7.3)", actual: `${det1} === ${det2}`, tolerance: "exact" }
+    ];
+  }
+
+  // ====== 事件绑定 ======
+  function bindControls() {
+    playBtn.addEventListener("click", () => {
+      if (state.running) pause(); else start();
+    });
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) state.lastTimestamp = null;
+    });
+  }
+
+  // ====== 初始化 ======
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ bpm: 120, spectralDecay: 1.0 });
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

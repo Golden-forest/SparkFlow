@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>五彩等高线山脉</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sim-bg: #04060f;
+    --sim-surface: #0a0e1f;
+    --sim-surface-soft: #0e1428;
+    --sim-text: #e8eefc;
+    --sim-muted: #6b7a9a;
+    --sim-border: rgba(80,100,140,0.18);
+    --sim-grid: rgba(60,80,120,0.10);
+    --sim-accent: #5eead4;
+    --sim-accent-deep: #2dd4bf;
+    --sim-accent-soft: rgba(94,234,212,0.12);
+    --sim-positive: #5eead4;
+    --sim-warning: #fbbf24;
+    --sim-danger: #f87171;
+    --sim-radius-sm: 8px;
+    --sim-radius-md: 12px;
+    --sim-radius-lg: 16px;
+    --sim-shadow: 0 0 0 transparent;
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--sim-bg);
+    overflow: hidden;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  canvas#stage {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+  }
+  .corner-formula {
+    position: fixed;
+    left: 18px; bottom: 14px;
+    color: rgba(200,220,255,0.22);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    pointer-events: none;
+    user-select: none;
+    text-shadow: 0 0 8px rgba(0,0,0,0.6);
+    white-space: nowrap;
+    z-index: 5;
+  }
+  .evidence-panel {
+    position: fixed;
+    right: 16px; top: 16px;
+    min-width: 200px;
+    padding: 14px 16px;
+    border: 1px solid rgba(94,234,212,0.18);
+    border-radius: var(--sim-radius-md);
+    background: rgba(10,14,30,0.62);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--sim-text);
+    font-size: 12px;
+    line-height: 1.5;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .evidence-panel h2 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sim-muted);
+  }
+  .evidence-panel .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; margin-bottom: 6px;
+  }
+  .evidence-panel .row:last-child { margin-bottom: 0; }
+  .evidence-panel .label { color: var(--sim-muted); font-size: 11px; }
+  .evidence-panel .value {
+    color: var(--sim-text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .insight-panel {
+    position: fixed;
+    left: 16px; top: 16px;
+    max-width: 280px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--sim-warning);
+    border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+    background: rgba(20,16,8,0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fcd9a0;
+    font-size: 12px;
+    line-height: 1.5;
+    z-index: 10;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .insight-panel .label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(251,191,36,0.7);
+    margin-bottom: 4px;
+  }
+  .play-btn {
+    position: fixed;
+    right: 16px; bottom: 12px;
+    width: 30px; height: 30px;
+    border: 1px solid rgba(120,150,200,0.18);
+    border-radius: 50%;
+    background: rgba(10,14,30,0.45);
+    color: rgba(200,220,255,0.4);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s ease, color .2s ease, border-color .2s ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 10;
+  }
+  .play-btn:hover {
+    background: rgba(20,28,55,0.65);
+    color: rgba(220,235,255,0.7);
+    border-color: rgba(140,170,220,0.3);
+  }
+  .play-btn:focus-visible {
+    outline: 2px solid rgba(94,234,212,0.4);
+    outline-offset: 2px;
+  }
+  .play-btn svg { width: 12px; height: 12px; fill: currentColor; }
+  @media (max-width: 600px) {
+    .corner-formula { font-size: 9px; left: 12px; bottom: 10px; }
+    .play-btn { width: 26px; height: 26px; right: 12px; bottom: 10px; }
+    .play-btn svg { width: 10px; height: 10px; }
+    .evidence-panel { right: 10px; top: 10px; min-width: 160px; padding: 10px 12px; font-size: 11px; }
+    .evidence-panel .value { font-size: 12px; }
+    .insight-panel { left: 10px; top: 10px; max-width: 220px; padding: 10px 12px; font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .play-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" data-region="stage" aria-label="五彩等高线山脉动态背景"></canvas>
+<div class="corner-formula" data-region="header">h(x,y)=Σ Hᵢ·exp(-((x-xᵢ)²+(y-yᵢ)²)/σᵢ²)</div>
+<aside class="evidence-panel" data-region="evidence" aria-label="实时数据">
+  <h2>实时数据</h2>
+  <div class="row"><span class="label">水位</span><span class="value" id="waterReadout">0.080</span></div>
+  <div class="row"><span class="label">时间</span><span class="value" id="timeReadout">0.0 s</span></div>
+  <div class="row"><span class="label">峰数</span><span class="value" id="peaksReadout">6</span></div>
+  <div class="row"><span class="label">等高线</span><span class="value" id="contoursReadout">26</span></div>
+</aside>
+<aside class="insight-panel" data-region="insight" aria-live="polite">
+  <span class="label">观察</span>
+  <span id="insightText">水位缓慢升降，淹没低洼处露出高地，等高线随之明灭。</span>
+</aside>
+<button id="playBtn" class="play-btn" data-region="controls" type="button" aria-label="播放或暂停动画">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path id="playIcon" d="M6 4h4v16H6zM14 4h4v16h-4z"></path></svg>
+</button>
+<script>
+(() => {
+  "use strict";
+
+  // ====== 确定性伪随机（固定种子）======
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(20240115);
+
+  // ====== 高度场：多个高斯峰叠加 ======
+  const peaks = [];
+  const NUM_PEAKS = 6;
+  for (let i = 0; i < NUM_PEAKS; i++) {
+    peaks.push({
+      x: (rng() - 0.5) * 1.7,
+      y: (rng() - 0.5) * 1.7,
+      h: 0.45 + rng() * 0.55,
+      sigma: 0.22 + rng() * 0.28
+    });
+  }
+  // 确保有一个显著主峰
+  peaks[0] = { x: 0.05, y: -0.1, h: 1.0, sigma: 0.42 };
+
+  function heightAt(x, y) {
+    let h = 0;
+    for (let i = 0; i < peaks.length; i++) {
+      const p = peaks[i];
+      const dx = x - p.x, dy = y - p.y;
+      h += p.h * Math.exp(-(dx * dx + dy * dy) / (p.sigma * p.sigma));
+    }
+    return h;
+  }
+
+  // ====== 等高线追踪（Marching Squares）======
+  const NUM_CONTOURS = 26;
+  const GRID_N = 200;
+  const FIELD_RANGE = 1.7;
+  const CONTOUR_LEVELS = [];
+  for (let i = 0; i < NUM_CONTOURS; i++) {
+    CONTOUR_LEVELS.push((i + 0.5) / NUM_CONTOURS);
+  }
+
+  function computeField() {
+    const field = new Float32Array((GRID_N + 1) * (GRID_N + 1));
+    for (let j = 0; j <= GRID_N; j++) {
+      const y = ((j / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+      for (let i = 0; i <= GRID_N; i++) {
+        const x = ((i / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+        field[j * (GRID_N + 1) + i] = heightAt(x, y);
+      }
+    }
+    return field;
+  }
+
+  function traceContours(field) {
+    const contours = [];
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const level = CONTOUR_LEVELS[c];
+      const segs = [];
+      for (let j = 0; j < GRID_N; j++) {
+        for (let i = 0; i < GRID_N; i++) {
+          const tl = field[j * (GRID_N + 1) + i];
+          const tr = field[j * (GRID_N + 1) + i + 1];
+          const bl = field[(j + 1) * (GRID_N + 1) + i];
+          const br = field[(j + 1) * (GRID_N + 1) + i + 1];
+          const idx = (tl >= level ? 1 : 0) | (tr >= level ? 2 : 0) | (br >= level ? 4 : 0) | (bl >= level ? 8 : 0);
+          if (idx === 0 || idx === 15) continue;
+          const x0 = ((i / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+          const x1 = (((i + 1) / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+          const y0 = ((j / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+          const y1 = (((j + 1) / GRID_N) - 0.5) * 2 * FIELD_RANGE;
+          const tx0 = x0 + (x1 - x0) * (level - tl) / (tr - tl || 1e-9);
+          const tx1 = x0 + (x1 - x0) * (level - bl) / (br - bl || 1e-9);
+          const ty0 = y0 + (y1 - y0) * (level - tl) / (bl - tl || 1e-9);
+          const ty1 = y0 + (y1 - y0) * (level - tr) / (br - tr || 1e-9);
+          switch (idx) {
+            case 1: case 14: segs.push(tx0, y0, x0, ty0); break;
+            case 2: case 13: segs.push(tx0, y0, x1, ty1); break;
+            case 4: case 11: segs.push(x1, ty1, tx1, y1); break;
+            case 8: case 7: segs.push(x0, ty0, tx1, y1); break;
+            case 3: case 12: segs.push(x0, ty0, x1, ty1); break;
+            case 6: segs.push(tx0, y0, x1, ty1); segs.push(x0, ty0, tx1, y1); break;
+            case 9: segs.push(tx0, y0, x0, ty0); segs.push(x1, ty1, tx1, y1); break;
+            case 10: case 5: segs.push(x0, ty0, tx1, y1); segs.push(tx0, y0, x1, ty1); break;
+          }
+        }
+      }
+      contours.push(segs);
+    }
+    return contours;
+  }
+
+  // ====== 颜色：深蓝→青→绿→黄→红 ======
+  function contourColor(level) {
+    const t = Math.max(0, Math.min(1, level));
+    let r, g, b;
+    if (t < 0.2) {
+      const u = t / 0.2;
+      r = 20 + u * 20; g = 50 + u * 130; b = 130 + u * 80;
+    } else if (t < 0.4) {
+      const u = (t - 0.2) / 0.2;
+      r = 40 + u * 20; g = 180 + u * 50; b = 210 - u * 110;
+    } else if (t < 0.6) {
+      const u = (t - 0.4) / 0.2;
+      r = 60 + u * 180; g = 230 - u * 10; b = 100 - u * 70;
+    } else if (t < 0.8) {
+      const u = (t - 0.6) / 0.2;
+      r = 240 + u * 15; g = 220 - u * 90; b = 30;
+    } else {
+      const u = (t - 0.8) / 0.2;
+      r = 255; g = 130 - u * 90; b = 30 - u * 20;
+    }
+    return [r | 0, g | 0, b | 0];
+  }
+
+  // ====== 投影：俯视微倾斜 + 平面旋转 ======
+  const TILT = 0.22;        // 微倾斜系数
+  const VIEW_DIST = 3.2;   // 视距
+  function project(x, y, h, rot, cx, cy, scale) {
+    const cr = Math.cos(rot), sr = Math.sin(rot);
+    const rx = x * cr - y * sr;
+    const ry = x * sr + y * cr;
+    const z = h * TILT;
+    const denom = (z + VIEW_DIST);
+    return [cx + (rx / denom) * scale, cy + (ry / denom) * scale];
+  }
+
+  // ====== 参数 schema ======
+  const parameterSchema = [
+    { key: "rotSpeed", label: "旋转速率", type: "slider", min: 0, max: 0.06, step: 0.002, default: 0.018, unit: "rad/s" },
+    { key: "waterAmp", label: "水位幅度", type: "slider", min: 0.1, max: 0.5, step: 0.02, default: 0.435, unit: "" }
+  ];
+
+  // ====== 状态 ======
+  const state = {
+    running: true,
+    time: 0,
+    lastTimestamp: null,
+    field: null,
+    contours: null,
+    needsResize: true,
+    canvasW: 0,
+    canvasH: 0,
+    dpr: 1,
+    rotSpeed: 0.018,
+    waterAmp: 0.435
+  };
+
+  // ====== Canvas 初始化 ======
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const playBtn = document.getElementById("playBtn");
+  const playIcon = document.getElementById("playIcon");
+  const waterReadout = document.getElementById("waterReadout");
+  const timeReadout = document.getElementById("timeReadout");
+  const peaksReadout = document.getElementById("peaksReadout");
+  const contoursReadout = document.getElementById("contoursReadout");
+  const insightText = document.getElementById("insightText");
+
+  function resize() {
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.canvasW = window.innerWidth;
+    state.canvasH = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(state.canvasW * state.dpr));
+    canvas.height = Math.max(1, Math.floor(state.canvasH * state.dpr));
+    canvas.style.width = state.canvasW + "px";
+    canvas.style.height = state.canvasH + "px";
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    state.needsResize = false;
+  }
+
+  // ====== 预计算等高线段投影 ======
+  function precomputeSegments() {
+    const segData = [];
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const segs = state.contours[c];
+      const level = CONTOUR_LEVELS[c];
+      const h = level;
+      const pts = [];
+      for (let k = 0; k < segs.length; k += 4) {
+        pts.push(segs[k], segs[k + 1], segs[k + 2], segs[k + 3]);
+      }
+      segData.push({ level, h, pts });
+    }
+    return segData;
+  }
+
+  let segData = null;
+
+  function init() {
+    resize();
+    state.field = computeField();
+    state.contours = traceContours(state.field);
+    segData = precomputeSegments();
+    bindControls();
+    requestAnimationFrame(frame);
+  }
+
+  // ====== 运行时钩子 ======
+  function start() {
+    state.running = true;
+    playIcon.setAttribute("d", "M6 4h4v16H6zM14 4h4v16h-4z");
+    playBtn.setAttribute("aria-label", "暂停动画");
+  }
+  function pause() {
+    state.running = false;
+    playIcon.setAttribute("d", "M8 5v14l11-7z");
+    playBtn.setAttribute("aria-label", "播放动画");
+  }
+  function reset() {
+    state.time = 0;
+    state.lastTimestamp = null;
+    render();
+  }
+  function setParameters(values) {
+    if (values && typeof values.rotSpeed === "number") {
+      const v = Number(values.rotSpeed);
+      if (Number.isFinite(v)) state.rotSpeed = Math.max(0, Math.min(0.06, v));
+    }
+    if (values && typeof values.waterAmp === "number") {
+      const v = Number(values.waterAmp);
+      if (Number.isFinite(v)) state.waterAmp = Math.max(0.1, Math.min(0.5, v));
+    }
+  }
+
+  // ====== 渲染 ======
+  function render() {
+    const W = state.canvasW, H = state.canvasH;
+    if (W < 1 || H < 1) return;
+
+    // 深色背景渐变
+    const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.75);
+    bgGrad.addColorStop(0, "#0a0f22");
+    bgGrad.addColorStop(0.55, "#060912");
+    bgGrad.addColorStop(1, "#020308");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    const cx = W * 0.5;
+    const cy = H * 0.52;
+    const scale = Math.min(W, H) * 0.42;
+
+    // 水位扫描：在 0.08–(0.08+waterAmp) 之间正弦升降，周期 16 秒
+    const waterLevel = 0.08 + state.waterAmp * (1 - Math.cos(state.time * Math.PI * 2 / 16)) / 2;
+    const scanWidth = 0.07;
+
+    const rot = state.time * state.rotSpeed; // 缓慢旋转
+
+    // 投影所有等高线段
+    const projected = new Array(NUM_CONTOURS);
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const sd = segData[c];
+      const pts = sd.pts;
+      const proj = new Float32Array(pts.length);
+      for (let k = 0; k < pts.length; k += 2) {
+        const px = project(pts[k], pts[k + 1], sd.h, rot, cx, cy, scale);
+        proj[k] = px[0];
+        proj[k + 1] = px[1];
+      }
+      projected[c] = proj;
+    }
+
+    // 第一遍：粗线低透明度（模拟外发光）
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3.5;
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const level = CONTOUR_LEVELS[c];
+      const dist = Math.abs(level - waterLevel);
+      let glow = 0;
+      if (dist < scanWidth) {
+        glow = (1 - dist / scanWidth);
+        glow = glow * glow * (3 - 2 * glow); // smoothstep
+      }
+      const [r, g, b] = contourColor(level);
+      const baseAlpha = 0.05 + level * 0.06;
+      const glowAlpha = glow * 0.35;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(baseAlpha + glowAlpha).toFixed(3)})`;
+      const proj = projected[c];
+      ctx.beginPath();
+      for (let k = 0; k < proj.length; k += 4) {
+        ctx.moveTo(proj[k], proj[k + 1]);
+        ctx.lineTo(proj[k + 2], proj[k + 3]);
+      }
+      ctx.stroke();
+    }
+
+    // 第二遍：细线高透明度（锐利核心）
+    ctx.lineWidth = 1.1;
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const level = CONTOUR_LEVELS[c];
+      const dist = Math.abs(level - waterLevel);
+      let glow = 0;
+      if (dist < scanWidth) {
+        glow = (1 - dist / scanWidth);
+        glow = glow * glow * (3 - 2 * glow);
+      }
+      const [r, g, b] = contourColor(level);
+      const baseAlpha = 0.22 + level * 0.20;
+      const glowAlpha = glow * 0.65;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${(baseAlpha + glowAlpha).toFixed(3)})`;
+      const proj = projected[c];
+      ctx.beginPath();
+      for (let k = 0; k < proj.length; k += 4) {
+        ctx.moveTo(proj[k], proj[k + 1]);
+        ctx.lineTo(proj[k + 2], proj[k + 3]);
+      }
+      ctx.stroke();
+    }
+
+    // 第三遍：水位扫描带的半透明渐变填充（相邻等高线之间）
+    ctx.globalCompositeOperation = "lighter";
+    for (let c = 0; c < NUM_CONTOURS; c++) {
+      const level = CONTOUR_LEVELS[c];
+      const dist = level - waterLevel;
+      if (Math.abs(dist) >= scanWidth) continue;
+      const intensity = (1 - Math.abs(dist) / scanWidth);
+      const [r, g, b] = contourColor(level);
+      const fillAlpha = intensity * 0.10;
+      ctx.strokeStyle = `rgba(${r},${g},${b},${fillAlpha.toFixed(3)})`;
+      ctx.lineWidth = 7 + intensity * 6;
+      const proj = projected[c];
+      ctx.beginPath();
+      for (let k = 0; k < proj.length; k += 4) {
+        ctx.moveTo(proj[k], proj[k + 1]);
+        ctx.lineTo(proj[k + 2], proj[k + 3]);
+      }
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = "source-over";
+
+    // 更新读数
+    waterReadout.textContent = waterLevel.toFixed(3);
+    timeReadout.textContent = state.time.toFixed(1) + " s";
+    peaksReadout.textContent = String(NUM_PEAKS);
+    contoursReadout.textContent = String(NUM_CONTOURS);
+
+    // 更新观察提示
+    const phase = (state.time % 16) / 16;
+    if (!state.running) {
+      insightText.textContent = "已暂停。按播放键继续水位升降与缓慢旋转。";
+    } else if (phase < 0.25) {
+      insightText.textContent = "水位上升中：低洼处被淹没，等高线向高地收缩。";
+    } else if (phase < 0.5) {
+      insightText.textContent = "水位接近峰值：仅高地露出，红色等高线勾勒主峰。";
+    } else if (phase < 0.75) {
+      insightText.textContent = "水位回落中：淹没区缩小，等高线向外扩展。";
+    } else {
+      insightText.textContent = "水位接近谷值：大片低地露出，蓝色等高线铺开。";
+    }
+  }
+
+  // ====== 更新 ======
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.max(0, Math.min(dt, 0.05));
+    state.time += boundedDt;
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    if (state.needsResize) resize();
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ====== 控件 ======
+  function bindControls() {
+    playBtn.addEventListener("click", () => {
+      if (state.running) pause(); else start();
+    });
+    window.addEventListener("resize", () => { state.needsResize = true; });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) state.lastTimestamp = null;
+    });
+  }
+
+  // ====== 模型检查（暴露给验证）======
+  function runModelChecks() {
+    const results = [];
+    // 1. 高度场有限性
+    let allFinite = true;
+    for (let j = 0; j <= GRID_N && allFinite; j++) {
+      for (let i = 0; i <= GRID_N; i++) {
+        const v = state.field[j * (GRID_N + 1) + i];
+        if (!Number.isFinite(v) || v < 0 || v > 1.5) { allFinite = false; break; }
+      }
+    }
+    results.push({ name: "height field finite & bounded", pass: allFinite, expected: "all finite in [0,1.5]", actual: allFinite ? "pass" : "fail", tolerance: "strict" });
+
+    // 2. 中心高度高于边缘
+    const centerH = heightAt(0, 0);
+    const edgeH = heightAt(1.5, 1.5);
+    results.push({ name: "center higher than edge", pass: centerH > edgeH, expected: "center > edge", actual: `center=${centerH.toFixed(3)} edge=${edgeH.toFixed(3)}`, tolerance: "strict" });
+
+    // 3. 等高线层级单调递增
+    let monotonic = true;
+    for (let i = 1; i < NUM_CONTOURS; i++) {
+      if (CONTOUR_LEVELS[i] <= CONTOUR_LEVELS[i - 1]) { monotonic = false; break; }
+    }
+    results.push({ name: "contour levels monotonic", pass: monotonic, expected: "strictly increasing", actual: monotonic ? "pass" : "fail", tolerance: "strict" });
+
+    // 4. 颜色函数覆盖深蓝到红
+    const c0 = contourColor(0);
+    const c1 = contourColor(1);
+    const blueDominantLow = c0[2] > c0[0];
+    const redDominantHigh = c1[0] > c1[2];
+    results.push({ name: "color gradient blue→red", pass: blueDominantLow && redDominantHigh, expected: "low=blue, high=red", actual: `low=rgb(${c0}) high=rgb(${c1})`, tolerance: "strict" });
+
+    // 5. 水位在合法范围
+    const wl = 0.08 + state.waterAmp * (1 - Math.cos(2 * Math.PI / 16)) / 2;
+    results.push({ name: "water level in range", pass: wl >= 0.08 && wl <= 0.08 + state.waterAmp, expected: "[0.08," + (0.08 + state.waterAmp).toFixed(3) + "]", actual: wl.toFixed(3), tolerance: "range" });
+
+    // 6. 投影函数有限
+    const p = project(1, 1, 0.5, 0.5, 400, 400, 300);
+    results.push({ name: "projection finite", pass: Number.isFinite(p[0]) && Number.isFinite(p[1]), expected: "finite", actual: p.join(","), tolerance: "finite" });
+
+    return results;
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      time: state.time,
+      waterLevel: 0.08 + state.waterAmp * (1 - Math.cos(state.time * Math.PI * 2 / 16)) / 2,
+      rotSpeed: state.rotSpeed,
+      waterAmp: state.waterAmp
+    };
+  }
+  function getReadouts() {
+    return {
+      time: state.time,
+      peaks: peaks.length,
+      contours: NUM_CONTOURS,
+      waterLevel: 0.08 + state.waterAmp * (1 - Math.cos(state.time * Math.PI * 2 / 16)) / 2
+    };
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts, runModelChecks
+  };
+  init();
+})();
+</script>
+</body>
+</html>

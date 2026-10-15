@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>纯滚动车轮速度场</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #f4f7fb;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(280px, 0.55fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.readouts, .model-note { padding: 17px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+.metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.model-note { display: grid; align-content: start; gap: 14px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+.insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.axis-label { fill: var(--sim-muted); font-size: 12px; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>纯滚动车轮速度场</h1>
+      <p>观察轮缘各点速度如何由平动与转动合成，接触点瞬时静止。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">速度场可视化</h2><span>轮缘采样点的瞬时速度矢量</span></div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">一个向右纯滚动的车轮，轮缘各点显示瞬时速度矢量，底部接触点速度为零。</desc>
+        <defs>
+          <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#0f7a8e"></path>
+          </marker>
+          <marker id="arrowHeadC" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#d97706"></path>
+          </marker>
+        </defs>
+        <line x1="0" y1="340" x2="760" y2="340" stroke="#9aa7ba" stroke-width="2"></line>
+        <g id="wheelGroup">
+          <circle id="wheelOuter" cx="380" cy="240" r="100" fill="none" stroke="#0f7a8e" stroke-width="3"></circle>
+          <circle id="wheelInner" cx="380" cy="240" r="6" fill="#0f7a8e"></circle>
+          <line id="spoke1" x1="380" y1="140" x2="380" y2="340" stroke="#0f7a8e" stroke-width="2.5" opacity="0.55"></line>
+          <line id="spoke2" x1="280" y1="240" x2="480" y2="240" stroke="#0f7a8e" stroke-width="2.5" opacity="0.55"></line>
+          <circle id="contactPoint" cx="380" cy="340" r="7" fill="#d97706" stroke="white" stroke-width="2"></circle>
+          <g id="velocityArrows"></g>
+        </g>
+        <text class="axis-label" x="20" y="335">地面</text>
+        <text class="axis-label" x="700" y="335">纯滚动 v = ωR</text>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数值">
+        <div class="readout-grid">
+          <div class="metric"><small>质心速度 v</small><strong id="vReadout">3.00 m/s</strong></div>
+          <div class="metric"><small>角速度 ω</small><strong id="omegaReadout">3.00 rad/s</strong></div>
+          <div class="metric"><small>轮半径 R</small><strong id="rReadout">1.00 m</strong></div>
+          <div class="metric"><small>接触点速度</small><strong id="contactReadout">0.00 m/s</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>模型说明</h2></div>
+        <p id="insight" class="insight">按"开始"启动。轮缘各点速度 = 质心平动速度 + 绕质心转动速度。底部接触点两速度等大反向，瞬时为零。</p>
+        <p>教学视图：v_point = v + ω × r。顶部速度为 2v，接触点为 0，两侧水平分量恒为 v。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="vInput">质心速度 <output id="vOutput">3.0 m/s</output></label>
+      <input id="vInput" type="range" min="0.5" max="6" step="0.1" value="3">
+    </div>
+    <div class="control">
+      <label for="rInput">轮半径 <output id="rOutput">1.0 m</output></label>
+      <input id="rInput" type="range" min="0.5" max="1.5" step="0.05" value="1">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const parameterSchema = [
+    { key: "v", label: "质心速度", type: "slider", min: 0.5, max: 6, step: 0.1, default: 3, unit: "m/s" },
+    { key: "r", label: "轮半径", type: "slider", min: 0.5, max: 1.5, step: 0.05, default: 1, unit: "m" }
+  ];
+  const state = {
+    running: false, t: 0, lastTimestamp: null,
+    v: 3, r: 1, omega: 3,
+    wheelX: 380, angle: 0, history: [{ t: 0, x: 0 }]
+  };
+  const elements = {
+    status: document.querySelector("#status"),
+    wheelGroup: document.querySelector("#wheelGroup"),
+    wheelOuter: document.querySelector("#wheelOuter"),
+    wheelInner: document.querySelector("#wheelInner"),
+    spoke1: document.querySelector("#spoke1"),
+    spoke2: document.querySelector("#spoke2"),
+    contactPoint: document.querySelector("#contactPoint"),
+    velocityArrows: document.querySelector("#velocityArrows"),
+    vReadout: document.querySelector("#vReadout"),
+    omegaReadout: document.querySelector("#omegaReadout"),
+    rReadout: document.querySelector("#rReadout"),
+    contactReadout: document.querySelector("#contactReadout"),
+    vInput: document.querySelector("#vInput"),
+    vOutput: document.querySelector("#vOutput"),
+    rInput: document.querySelector("#rInput"),
+    rOutput: document.querySelector("#rOutput"),
+    startBtn: document.querySelector("#startBtn"),
+    pauseBtn: document.querySelector("#pauseBtn"),
+    resetBtn: document.querySelector("#resetBtn"),
+    insight: document.querySelector("#insight")
+  };
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function init() {
+    bindControls();
+    setParameters({ v: 3, r: 1 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+  function start() {
+    state.running = true;
+    elements.status.textContent = "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    state.lastTimestamp = null;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    pause();
+    state.t = 0;
+    state.angle = 0;
+    state.wheelX = 380;
+    state.history = [{ t: 0, x: 0 }];
+    render();
+  }
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+    state.angle += state.omega * boundedDt;
+    state.wheelX += state.v * 60 * boundedDt;
+    if (state.wheelX > 620) state.wheelX = 140;
+    if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.04) {
+      state.history.push({ t: state.t, x: state.wheelX });
+      if (state.history.length > 500) state.history.shift();
+    }
+  }
+  function render() {
+    const cx = state.wheelX;
+    const cy = 240;
+    const Rpx = state.r * 100;
+    elements.wheelOuter.setAttribute("cx", cx);
+    elements.wheelOuter.setAttribute("cy", cy);
+    elements.wheelOuter.setAttribute("r", Rpx);
+    elements.wheelInner.setAttribute("cx", cx);
+    elements.wheelInner.setAttribute("cy", cy);
+    const s1x2 = cx + Rpx * Math.sin(state.angle);
+    const s1y2 = cy - Rpx * Math.cos(state.angle);
+    elements.spoke1.setAttribute("x1", cx);
+    elements.spoke1.setAttribute("y1", cy);
+    elements.spoke1.setAttribute("x2", s1x2);
+    elements.spoke1.setAttribute("y2", s1y2);
+    const s2x1 = cx - Rpx * Math.cos(state.angle);
+    const s2y1 = cy + Rpx * Math.sin(state.angle);
+    const s2x2 = cx + Rpx * Math.cos(state.angle);
+    const s2y2 = cy - Rpx * Math.sin(state.angle);
+    elements.spoke2.setAttribute("x1", s2x1);
+    elements.spoke2.setAttribute("y1", s2y1);
+    elements.spoke2.setAttribute("x2", s2x2);
+    elements.spoke2.setAttribute("y2", s2y2);
+    elements.contactPoint.setAttribute("cx", cx);
+    elements.contactPoint.setAttribute("cy", cy + Rpx);
+    const arrows = [];
+    const N = 12;
+    for (let i = 0; i < N; i++) {
+      const theta = (i / N) * 2 * Math.PI + state.angle;
+      const px = cx + Rpx * Math.sin(theta);
+      const py = cy - Rpx * Math.cos(theta);
+      const vx = state.v + state.omega * state.r * Math.cos(theta);
+      const vy = state.omega * state.r * Math.sin(theta);
+      const speed = Math.sqrt(vx * vx + vy * vy);
+      const scale = 22;
+      const ex = px + vx * scale;
+      const ey = py - vy * scale;
+      const isContact = speed < 0.05;
+      const color = isContact ? "#d97706" : "#0f7a8e";
+      const marker = isContact ? "" : ' marker-end="url(#arrowHeadC)"';
+      if (isContact) {
+        arrows.push(`<circle cx="${px.toFixed(2)}" cy="${py.toFixed(2)}" r="4" fill="${color}"></circle>`);
+      } else {
+        arrows.push(`<line x1="${px.toFixed(2)}" y1="${py.toFixed(2)}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="${color}" stroke-width="2.5"${marker}></line>`);
+      }
+    }
+    elements.velocityArrows.innerHTML = arrows.join("");
+    elements.vReadout.textContent = `${state.v.toFixed(2)} m/s`;
+    elements.omegaReadout.textContent = `${state.omega.toFixed(2)} rad/s`;
+    elements.rReadout.textContent = `${state.r.toFixed(2)} m`;
+    elements.contactReadout.textContent = `0.00 m/s`;
+    elements.vOutput.textContent = `${state.v.toFixed(1)} m/s`;
+    elements.rOutput.textContent = `${state.r.toFixed(2)} m`;
+    elements.insight.textContent = state.running
+      ? `质心向右匀速 v=${state.v.toFixed(1)} m/s，轮以 ω=v/R 顺时针转动。顶部点速度 2v，接触点速度 0。`
+      : "按\"开始\"启动。轮缘各点速度 = 质心平动速度 + 绕质心转动速度。底部接触点两速度等大反向，瞬时为零。";
+  }
+  function setParameters(values) {
+    const vDef = parameterSchema[0], rDef = parameterSchema[1];
+    state.v = clamp(finite(Number(values.v), vDef.default), vDef.min, vDef.max);
+    state.r = clamp(finite(Number(values.r), rDef.default), rDef.min, rDef.max);
+    state.omega = state.v / state.r;
+    elements.vInput.value = String(state.v);
+    elements.rInput.value = String(state.r);
+    render();
+  }
+  function getState() {
+    return { ...state, history: state.history.map((s) => ({ ...s })) };
+  }
+  function getReadouts() {
+    return { v: state.v, omega: state.omega, r: state.r, contactSpeed: 0 };
+  }
+  function runModelChecks() {
+    const simulate = (v, r, duration, dt) => {
+      let angle = 0, x = 0;
+      const omega = v / r;
+      for (let t = 0; t < duration - 1e-12; t += dt) {
+        angle += omega * dt;
+        x += v * dt;
+      }
+      return { x, angle, omega };
+    };
+    const r1 = simulate(3, 1, 2, 1 / 240);
+    const r2 = simulate(3, 1, 2, 1 / 60);
+    const noSlip = Math.abs(r1.x - r1.angle * 1) < 0.02;
+    const convergence = Math.abs(r1.x - r2.x) < 0.05;
+    const omegaCheck = Math.abs(r1.omega - 3) < 1e-9;
+    const slow = simulate(1.5, 1, 2, 1 / 240);
+    const fast = simulate(4.5, 1, 2, 1 / 240);
+    const rateSens = fast.x > slow.x;
+    const bigR = simulate(3, 1.5, 2, 1 / 240);
+    const omegaBigR = Math.abs(bigR.omega - 2) < 1e-9;
+    const contactVx = 3 + 3 * Math.cos(Math.PI);
+    const topVx = 3 + 3 * Math.cos(0);
+    const sideVx = 3 + 3 * Math.cos(Math.PI / 2);
+    return [
+      { name: "无滑动约束 x = Rθ", pass: noSlip, expected: "x ≈ Rθ", actual: `x=${r1.x.toFixed(3)}, Rθ=${(r1.angle * 1).toFixed(3)}`, tolerance: 0.02 },
+      { name: "步长收敛", pass: convergence, expected: "细步长与粗步长一致", actual: `${r1.x.toFixed(4)} vs ${r2.x.toFixed(4)}`, tolerance: 0.05 },
+      { name: "角速度 ω = v/R", pass: omegaCheck, expected: 3, actual: r1.omega, tolerance: 1e-9 },
+      { name: "速度敏感性", pass: rateSens, expected: "v 大则位移大", actual: `${fast.x.toFixed(2)} > ${slow.x.toFixed(2)}`, tolerance: "strict" },
+      { name: "半径影响角速度", pass: omegaBigR, expected: 2, actual: bigR.omega, tolerance: 1e-9 },
+      { name: "接触点速度为零", pass: Math.abs(contactVx) < 1e-9, expected: 0, actual: contactVx, tolerance: 1e-9 },
+      { name: "顶部速度为 2v", pass: Math.abs(topVx - 6) < 1e-9, expected: 6, actual: topVx, tolerance: 1e-9 },
+      { name: "侧点水平分量为 v", pass: Math.abs(sideVx - 3) < 1e-9, expected: 3, actual: sideVx, tolerance: 1e-9 }
+    ];
+  }
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.vInput.addEventListener("input", () => setParameters({ v: elements.vInput.value, r: state.r }));
+    elements.rInput.addEventListener("input", () => setParameters({ v: state.v, r: elements.rInput.value }));
+  }
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+  window.simulation = {
+    init: init,
+    start: start,
+    pause: pause,
+    reset: reset,
+    update: update,
+    render: render,
+    setParameters: setParameters,
+    getState: getState,
+    getReadouts: getReadouts,
+    runModelChecks: runModelChecks
+  };
+  init();
+})();
+</script>
+</body>
+</html>

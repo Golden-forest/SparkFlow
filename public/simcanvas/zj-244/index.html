@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>除法可视化 · 1/n 的几何与极限</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0e1a;
+  --sim-surface-soft: #0f1420;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a99;
+  --sim-border: #1a2238;
+  --sim-grid: #131a2a;
+  --sim-accent: #00d4ff;
+  --sim-accent-deep: #0099cc;
+  --sim-accent-soft: #0a2a3a;
+  --sim-positive: #00d4ff;
+  --sim-warning: #ffaa00;
+  --sim-danger: #ff3366;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 14px;
+  --sim-radius-lg: 20px;
+  --sim-shadow: 0 0 0 1px rgba(0,212,255,0.08);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-width: 320px;
+  height: 100vh;
+  overflow: hidden;
+  color: var(--sim-text);
+  background: var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.app {
+  width: 100%;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0;
+}
+.header {
+  padding: 14px 24px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.header h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sim-text);
+}
+.header .subtitle {
+  font-size: 0.75rem;
+  color: var(--sim-muted);
+}
+.status {
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+}
+.main {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 0;
+}
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#stage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.bar-panel {
+  border-left: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.bar-head {
+  padding: 10px 12px 6px;
+  font-size: 0.65rem;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+#barCanvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+}
+.bar-foot {
+  padding: 6px 12px 10px;
+  text-align: center;
+}
+.bar-foot .label {
+  font-size: 0.6rem;
+  color: var(--sim-muted);
+}
+.bar-foot .val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+}
+.insight-panel {
+  border-top: 1px solid var(--sim-border);
+  background: var(--sim-surface-soft);
+  padding: 10px 12px 12px;
+}
+.insight-panel .insight-head {
+  font-size: 0.65rem;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.insight-panel .insight-body {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--sim-text);
+  border-left: 3px solid var(--sim-warning);
+  padding: 6px 10px;
+  background: rgba(255, 170, 0, 0.06);
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 8px;
+}
+.insight-panel .insight-note {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--sim-muted);
+}
+.controls {
+  padding: 12px 24px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 20px;
+  align-items: center;
+  border-top: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+}
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.slider-label {
+  font-size: 0.8rem;
+  color: var(--sim-muted);
+  white-space: nowrap;
+  font-weight: 600;
+}
+.slider-label output {
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin-left: 4px;
+}
+.slider-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
+  text-align: right;
+}
+input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, var(--sim-accent-deep), var(--sim-accent));
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sim-text);
+  border: 2px solid var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(0,212,255,0.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sim-text);
+  border: 2px solid var(--sim-accent);
+  cursor: pointer;
+}
+.btn-group { display: flex; gap: 8px; }
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  padding: 8px 16px;
+  color: var(--sim-text);
+  background: var(--sim-surface-soft);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+  transition: all 0.15s ease;
+}
+button:hover {
+  border-color: var(--sim-accent);
+  color: var(--sim-accent);
+}
+button:active { transform: scale(0.96); }
+button.primary {
+  border-color: var(--sim-accent);
+  color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+}
+button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.18);
+}
+@media (max-width: 760px) {
+  .main { grid-template-columns: 1fr 120px; }
+  .controls { grid-template-columns: 1fr; gap: 10px; }
+  .header { padding: 10px 14px 6px; }
+  .controls { padding: 10px 14px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>除法可视化 · 1/n 的几何与极限</h1>
+      <div class="subtitle">长度为 1 的线段等分成 n 份，每份长 1/n</div>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+
+  <main class="main">
+    <div class="stage-wrap" data-region="stage">
+      <canvas id="stage"></canvas>
+    </div>
+    <aside class="bar-panel" data-region="evidence">
+      <div class="bar-head">1/n 柱状图</div>
+      <canvas id="barCanvas"></canvas>
+      <div class="bar-foot">
+        <div class="label">1/n =</div>
+        <div class="val" id="barVal">0.100</div>
+      </div>
+      <section class="insight-panel" data-region="insight" aria-label="观察提示">
+        <div class="insight-head">观察</div>
+        <div class="insight-body" id="insight">拖动滑块或按播放，观察 n 趋近 0 时 1/n 如何爆炸。</div>
+        <div class="insight-note">教学视图：线段总长恒为 1，等分份数 n 越大每份越短；当 n 趋近 0，份数 1/n 趋向无穷。</div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="slider-group">
+      <label class="slider-label" for="nSlider">n = <output id="nVal">2.000</output></label>
+      <input id="nSlider" type="range" min="0" max="1000" step="1" value="900" aria-label="等分份数 n">
+      <span class="slider-val" id="invVal">0.500</span>
+    </div>
+    <div class="btn-group">
+      <button id="startBtn" class="primary" type="button" aria-pressed="true">播放</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 状态 =====
+  const state = {
+    n: 2.0,           // 当前 n 值
+    autoN: 2.0,       // 自动播放时的 n
+    autoDir: -1,      // 自动播放方向
+    running: true,    // 是否自动播放
+    t: 0,             // 动画时间
+    lastTs: null,
+    sliderVal: 900,   // 滑块原始值 0-1000
+    userDragging: false,
+  };
+
+  // ===== 对数刻度映射 =====
+  // 滑块 0-1000 → n 从 10 到 0.001
+  // 0-500: 线性 10→1
+  // 500-1000: 对数 1→0.001
+  function sliderToN(s) {
+    s = Math.max(0, Math.min(1000, s));
+    if (s <= 500) {
+      // 线性: 10 → 1
+      return 10 - (s / 500) * 9;
+    } else {
+      // 对数: 1 → 0.001 (log10: 0 → -3)
+      const t = (s - 500) / 500;
+      return Math.pow(10, -t * 3);
+    }
+  }
+
+  function nToSlider(n) {
+    if (n >= 1) {
+      return (10 - n) / 9 * 500;
+    } else {
+      // n = 10^(-3t), t = -log10(n)/3
+      const t = -Math.log10(n) / 3;
+      return 500 + t * 500;
+    }
+  }
+
+  // ===== Canvas 设置 =====
+  const stage = document.getElementById('stage');
+  const sctx = stage.getContext('2d');
+  const barCanvas = document.getElementById('barCanvas');
+  const bctx = barCanvas.getContext('2d');
+
+  let stageW = 0, stageH = 0, barW = 0, barH = 0;
+  const DPR = window.devicePixelRatio || 1;
+
+  function resizeCanvas(canvas, ctx) {
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, rect.width);
+    const h = Math.max(1, rect.height);
+    canvas.width = w * DPR;
+    canvas.height = h * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    return { w, h };
+  }
+
+  function handleResize() {
+    const s = resizeCanvas(stage, sctx);
+    stageW = s.w; stageH = s.h;
+    const b = resizeCanvas(barCanvas, bctx);
+    barW = b.w; barH = b.h;
+  }
+
+  // ===== 工具函数 =====
+  function formatN(n) {
+    if (n === 0) return '0';
+    if (n >= 1) return n.toFixed(3);
+    if (n >= 0.01) return n.toFixed(4);
+    if (n >= 0.001) return n.toFixed(5);
+    return n.toExponential(2);
+  }
+
+  function formatInv(n) {
+    if (n === 0) return '未定义';
+    const inv = 1 / n;
+    if (inv <= 999) return inv.toFixed(3);
+    if (inv <= 9999) return inv.toFixed(2);
+    if (inv <= 99999) return inv.toFixed(1);
+    return inv.toExponential(2);
+  }
+
+  // ===== 主舞台绘制 =====
+  function drawStage() {
+    const w = stageW, h = stageH;
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // 清屏
+    sctx.fillStyle = '#050810';
+    sctx.fillRect(0, 0, w, h);
+
+    // 背景微弱网格点
+    sctx.fillStyle = 'rgba(0, 212, 255, 0.03)';
+    const gridSize = 40;
+    for (let x = (cx % gridSize); x < w; x += gridSize) {
+      for (let y = (cy % gridSize); y < h; y += gridSize) {
+        sctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    const n = state.n;
+
+    if (n === 0) {
+      // ===== n = 0: 未定义 =====
+      drawUndefined(cx, cy, w, h);
+      return;
+    }
+
+    // ===== 绘制发光线段 =====
+    drawSegment(cx, cy, w, h, n);
+
+    // ===== 绘制中央大数字 =====
+    drawCenterNumber(cx, cy, w, h, n);
+  }
+
+  function drawSegment(cx, cy, w, h, n) {
+    // 线段总长度（屏幕像素）
+    const segLen = Math.min(w * 0.7, 700);
+    const segX = cx - segLen / 2;
+    const segY = cy + 40; // 线段位置，略偏下让数字在上
+
+    if (n >= 1) {
+      // ===== n >= 1: 等分成 n 段 =====
+      const count = Math.round(n);
+      const isWhole = Math.abs(n - count) < 0.001;
+      const actualCount = isWhole ? count : Math.max(1, Math.floor(n));
+
+      if (isWhole && count >= 1) {
+        // 精确等分
+        const partLen = segLen / count;
+        for (let i = 0; i < count; i++) {
+          const x1 = segX + i * partLen;
+          const x2 = x1 + partLen;
+          drawGlowSeg(x1, segY, x2, segY, i, count, true);
+        }
+        // 分隔标记
+        sctx.strokeStyle = 'rgba(5, 8, 16, 0.8)';
+        sctx.lineWidth = 2;
+        for (let i = 1; i < count; i++) {
+          const x = segX + i * partLen;
+          sctx.beginPath();
+          sctx.moveTo(x, segY - 8);
+          sctx.lineTo(x, segY + 8);
+          sctx.stroke();
+        }
+      } else {
+        // 非整数 n：显示连续渐变效果
+        const partLen = segLen / n;
+        drawGlowSeg(segX, segY, segX + segLen, segY, 0, 1, true);
+        // 虚线分隔
+        sctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+        sctx.lineWidth = 1;
+        sctx.setLineDash([3, 3]);
+        for (let i = 1; i < Math.floor(n); i++) {
+          const x = segX + i * partLen;
+          sctx.beginPath();
+          sctx.moveTo(x, segY - 6);
+          sctx.lineTo(x, segY + 6);
+          sctx.stroke();
+        }
+        sctx.setLineDash([]);
+      }
+
+      // 标注每段长度
+      sctx.fillStyle = 'rgba(107, 122, 153, 0.8)';
+      sctx.font = '11px ui-sans-serif, system-ui';
+      sctx.textAlign = 'center';
+      const partLen = segLen / n;
+      sctx.fillText(`1/${formatN(n)} = ${formatInv(n)}`, cx, segY + 28);
+
+    } else {
+      // ===== 0 < n < 1: 份数爆炸 =====
+      // 线段被分成 1/n 段，每段长 n
+      const invN = 1 / n;
+      const partLen = segLen * n; // 每段屏幕长度 = 总长 * n
+
+      // 份数太多时只画有限段，但用密度表达
+      const maxDraw = 200;
+      const drawCount = Math.min(maxDraw, Math.ceil(invN));
+
+      // 绘制线段主体（连续发光带）
+      drawGlowSeg(segX, segY, segX + segLen, segY, 0, 1, true);
+
+      // 在线上画分隔刻度
+      if (drawCount <= 50) {
+        // 少量：画清晰分隔线
+        sctx.strokeStyle = 'rgba(5, 8, 16, 0.9)';
+        sctx.lineWidth = 1.5;
+        for (let i = 0; i <= drawCount; i++) {
+          const x = segX + i * partLen;
+          if (x > segX + segLen + 1) break;
+          sctx.beginPath();
+          sctx.moveTo(x, segY - 5);
+          sctx.lineTo(x, segY + 5);
+          sctx.stroke();
+        }
+      } else {
+        // 大量：用渐变密度纹理
+        sctx.strokeStyle = 'rgba(5, 8, 16, 0.6)';
+        sctx.lineWidth = 1;
+        for (let i = 0; i <= drawCount; i++) {
+          const x = segX + i * partLen;
+          if (x > segX + segLen + 1) break;
+          sctx.beginPath();
+          sctx.moveTo(x, segY - 3);
+          sctx.lineTo(x, segY + 3);
+          sctx.stroke();
+        }
+      }
+
+      // 爆炸效果：线段周围散发光点
+      drawExplosion(cx, segY, segLen, n, invN);
+
+      // 标注
+      sctx.fillStyle = 'rgba(255, 170, 0, 0.9)';
+      sctx.font = '11px ui-sans-serif, system-ui';
+      sctx.textAlign = 'center';
+      sctx.fillText(`分成 ${formatInv(n)} 段，每段长 ${formatN(n)}`, cx, segY + 28);
+    }
+
+    // 线段两端端点
+    sctx.fillStyle = '#00d4ff';
+    sctx.beginPath();
+    sctx.arc(segX, segY, 3, 0, Math.PI * 2);
+    sctx.arc(segX + segLen, segY, 3, 0, Math.PI * 2);
+    sctx.fill();
+
+    // 总长标注
+    sctx.fillStyle = 'rgba(107, 122, 153, 0.6)';
+    sctx.font = '10px ui-sans-serif, system-ui';
+    sctx.textAlign = 'left';
+    sctx.fillText('0', segX - 15, segY + 4);
+    sctx.textAlign = 'right';
+    sctx.fillText('1', segX + segLen + 15, segY + 4);
+  }
+
+  function drawGlowSeg(x1, y1, x2, y2, idx, total, isMain) {
+    // 双层描边模拟发光（禁止 shadowBlur）
+    // 外层：宽、半透明
+    sctx.strokeStyle = 'rgba(0, 212, 255, 0.15)';
+    sctx.lineWidth = 14;
+    sctx.lineCap = 'round';
+    sctx.beginPath();
+    sctx.moveTo(x1, y1);
+    sctx.lineTo(x2, y2);
+    sctx.stroke();
+
+    // 中层
+    sctx.strokeStyle = 'rgba(0, 212, 255, 0.35)';
+    sctx.lineWidth = 8;
+    sctx.beginPath();
+    sctx.moveTo(x1, y1);
+    sctx.lineTo(x2, y2);
+    sctx.stroke();
+
+    // 内层：亮
+    sctx.strokeStyle = 'rgba(120, 240, 255, 0.9)';
+    sctx.lineWidth = 3;
+    sctx.beginPath();
+    sctx.moveTo(x1, y1);
+    sctx.lineTo(x2, y2);
+    sctx.stroke();
+
+    // 核心
+    sctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    sctx.lineWidth = 1;
+    sctx.beginPath();
+    sctx.moveTo(x1, y1);
+    sctx.lineTo(x2, y2);
+    sctx.stroke();
+  }
+
+  function drawExplosion(cx, y, segLen, n, invN) {
+    // 份数爆炸：线段周围散发光点
+    // 用确定性函数生成位置（固定种子）
+    const seed = (i) => {
+      const s = Math.sin(i * 9301.37 + 49297.0) * 233280.0;
+      return s - Math.floor(s);
+    };
+
+    const intensity = Math.min(1, (1 - n) * 2); // n 越接近 0 爆炸越强
+    const particleCount = Math.min(80, Math.floor(invN * 2));
+
+    for (let i = 0; i < particleCount; i++) {
+      const r1 = seed(i);
+      const r2 = seed(i + 1000);
+      const r3 = seed(i + 2000);
+
+      const px = cx - segLen / 2 + r1 * segLen;
+      const baseY = y;
+      const angle = (r2 - 0.5) * Math.PI * 0.8;
+      const dist = 10 + r3 * 40 * intensity;
+      const py = baseY + Math.sin(angle) * dist;
+
+      const size = 1 + r3 * 2;
+      const alpha = 0.3 + r2 * 0.4 * intensity;
+
+      sctx.fillStyle = `rgba(0, 212, 255, ${alpha})`;
+      sctx.beginPath();
+      sctx.arc(px, py, size, 0, Math.PI * 2);
+      sctx.fill();
+    }
+  }
+
+  function drawCenterNumber(cx, cy, w, h, n) {
+    const inv = 1 / n;
+    const text = formatInv(n);
+
+    // 大数字
+    sctx.textAlign = 'center';
+    sctx.textBaseline = 'middle';
+
+    let fontSize, color;
+    if (n >= 1) {
+      fontSize = Math.min(w * 0.12, 80);
+      color = 'rgba(0, 212, 255, 0.95)';
+    } else if (n >= 0.1) {
+      fontSize = Math.min(w * 0.13, 90);
+      color = 'rgba(100, 220, 255, 0.95)';
+    } else if (n >= 0.01) {
+      fontSize = Math.min(w * 0.14, 95);
+      color = 'rgba(160, 240, 255, 0.95)';
+    } else {
+      fontSize = Math.min(w * 0.15, 100);
+      color = 'rgba(255, 200, 100, 0.95)';
+    }
+
+    sctx.font = `700 ${fontSize}px ui-sans-serif, system-ui`;
+
+    // 数字发光（双层）
+    sctx.fillStyle = 'rgba(0, 212, 255, 0.08)';
+    sctx.fillText(text, cx, cy - 50);
+
+    sctx.fillStyle = color;
+    sctx.fillText(text, cx, cy - 50);
+
+    // 副标题
+    sctx.font = '13px ui-sans-serif, system-ui';
+    sctx.fillStyle = 'rgba(107, 122, 153, 0.8)';
+    sctx.fillText(`1 / ${formatN(n)}`, cx, cy - 50 + fontSize * 0.55);
+  }
+
+  function drawUndefined(cx, cy, w, h) {
+    // n = 0: 未定义
+    sctx.textAlign = 'center';
+    sctx.textBaseline = 'middle';
+
+    // 大字"未定义"
+    const fontSize = Math.min(w * 0.1, 70);
+    sctx.font = `700 ${fontSize}px ui-sans-serif, system-ui`;
+
+    // 发光效果
+    sctx.fillStyle = 'rgba(255, 51, 102, 0.1)';
+    sctx.fillText('未定义', cx, cy - 30);
+
+    sctx.fillStyle = 'rgba(255, 100, 130, 0.95)';
+    sctx.fillText('未定义', cx, cy - 30);
+
+    // 解释文字
+    sctx.font = '14px ui-sans-serif, system-ui';
+    sctx.fillStyle = 'rgba(200, 180, 200, 0.8)';
+    sctx.fillText('等分份数为零没有意义', cx, cy + 30);
+    sctx.fillText('没有任何数乘以 0 等于 1', cx, cy + 52);
+
+    // 断裂的线段示意
+    const segLen = Math.min(w * 0.5, 400);
+    const segY = cy + 90;
+    sctx.strokeStyle = 'rgba(255, 51, 102, 0.3)';
+    sctx.lineWidth = 3;
+    sctx.lineCap = 'round';
+    sctx.beginPath();
+    sctx.moveTo(cx - segLen / 2, segY);
+    sctx.lineTo(cx - 15, segY);
+    sctx.stroke();
+    sctx.beginPath();
+    sctx.moveTo(cx + 15, segY);
+    sctx.lineTo(cx + segLen / 2, segY);
+    sctx.stroke();
+
+    // 中间断裂标记
+    sctx.strokeStyle = 'rgba(255, 51, 102, 0.6)';
+    sctx.lineWidth = 2;
+    sctx.setLineDash([4, 4]);
+    sctx.beginPath();
+    sctx.moveTo(cx - 15, segY);
+    sctx.lineTo(cx + 15, segY);
+    sctx.stroke();
+    sctx.setLineDash([]);
+
+    // 问号
+    sctx.font = '20px ui-sans-serif, system-ui';
+    sctx.fillStyle = 'rgba(255, 51, 102, 0.8)';
+    sctx.fillText('?', cx, segY);
+  }
+
+  // ===== 柱状图绘制 =====
+  function drawBar() {
+    const w = barW, h = barH;
+    bctx.fillStyle = '#0a0e1a';
+    bctx.fillRect(0, 0, w, h);
+
+    const n = state.n;
+    const padding = 16;
+    const barX = w / 2 - 20;
+    const barWid = 40;
+    const barTop = padding;
+    const barBot = h - padding;
+    const barMaxH = barBot - barTop;
+
+    // 背景框
+    bctx.strokeStyle = 'rgba(26, 34, 56, 0.8)';
+    bctx.lineWidth = 1;
+    bctx.strokeRect(barX, barTop, barWid, barMaxH);
+
+    // 刻度线
+    bctx.strokeStyle = 'rgba(26, 34, 56, 0.6)';
+    bctx.fillStyle = 'rgba(107, 122, 153, 0.5)';
+    bctx.font = '9px ui-sans-serif, system-ui';
+    bctx.textAlign = 'left';
+
+    // 对数刻度标记
+    const logMarks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    for (const exp of logMarks) {
+      const val = Math.pow(10, exp);
+      const logVal = exp; // log10(10^exp) = exp
+      // 映射: 0-10 → barTop-barBot
+      const y = barBot - (logVal / 10) * barMaxH;
+      bctx.beginPath();
+      bctx.moveTo(barX - 4, y);
+      bctx.lineTo(barX, y);
+      bctx.stroke();
+      if (exp <= 9) {
+        bctx.fillText(`10^${exp}`, barX + barWid + 4, y + 3);
+      }
+    }
+
+    if (n === 0) {
+      // 未定义：柱子冲破顶部
+      bctx.fillStyle = 'rgba(255, 51, 102, 0.15)';
+      bctx.fillRect(barX, barTop - 20, barWid, barMaxH + 20);
+
+      bctx.fillStyle = 'rgba(255, 51, 102, 0.5)';
+      bctx.fillRect(barX, barTop - 20, barWid, 20);
+
+      // 箭头向上
+      bctx.fillStyle = 'rgba(255, 51, 102, 0.9)';
+      bctx.beginPath();
+      bctx.moveTo(barX + barWid / 2, barTop - 30);
+      bctx.lineTo(barX + barWid / 2 - 8, barTop - 20);
+      bctx.lineTo(barX + barWid / 2 + 8, barTop - 20);
+      bctx.fill();
+
+      bctx.fillStyle = 'rgba(255, 100, 130, 0.9)';
+      bctx.font = 'bold 10px ui-sans-serif';
+      bctx.textAlign = 'center';
+      bctx.fillText('∞', barX + barWid / 2, barTop - 35);
+      return;
+    }
+
+    const inv = 1 / n;
+    const logInv = inv > 0 ? Math.log10(inv) : 0;
+    // 映射 log10(1/n) 到柱高: 0 → 0%, 10 → 100%
+    const heightRatio = Math.max(0, Math.min(1.15, logInv / 10));
+    const fillH = barMaxH * heightRatio;
+    const fillY = barBot - fillH;
+
+    // 柱子发光（双层）
+    bctx.fillStyle = 'rgba(0, 212, 255, 0.15)';
+    bctx.fillRect(barX - 3, fillY - 3, barWid + 6, fillH + 3);
+
+    bctx.fillStyle = 'rgba(0, 212, 255, 0.3)';
+    bctx.fillRect(barX - 1, fillY - 1, barWid + 2, fillH + 1);
+
+    // 主柱
+    const grad = bctx.createLinearGradient(0, fillY, 0, barBot);
+    if (n >= 1) {
+      grad.addColorStop(0, 'rgba(120, 240, 255, 0.9)');
+      grad.addColorStop(1, 'rgba(0, 153, 204, 0.6)');
+    } else {
+      grad.addColorStop(0, 'rgba(255, 200, 100, 0.9)');
+      grad.addColorStop(1, 'rgba(0, 153, 204, 0.6)');
+    }
+    bctx.fillStyle = grad;
+    bctx.fillRect(barX, fillY, barWid, fillH);
+
+    // 顶部高亮
+    bctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    bctx.fillRect(barX, fillY, barWid, 2);
+
+    // 如果冲破顶部
+    if (heightRatio >= 1) {
+      bctx.fillStyle = 'rgba(255, 170, 0, 0.8)';
+      bctx.fillRect(barX, barTop - 8, barWid, 8);
+
+      // 箭头
+      bctx.fillStyle = 'rgba(255, 170, 0, 0.9)';
+      bctx.beginPath();
+      bctx.moveTo(barX + barWid / 2, barTop - 18);
+      bctx.lineTo(barX + barWid / 2 - 8, barTop - 8);
+      bctx.lineTo(barX + barWid / 2 + 8, barTop - 8);
+      bctx.fill();
+
+      bctx.fillStyle = 'rgba(255, 200, 100, 0.95)';
+      bctx.font = 'bold 10px ui-sans-serif';
+      bctx.textAlign = 'center';
+      bctx.fillText('↑', barX + barWid / 2, barTop - 22);
+    }
+
+    // 当前值标注
+    bctx.fillStyle = 'rgba(232, 238, 252, 0.9)';
+    bctx.font = 'bold 9px ui-sans-serif';
+    bctx.textAlign = 'center';
+    bctx.fillText(formatInv(n), barX + barWid / 2, Math.max(barTop + 8, fillY - 5));
+  }
+
+  // ===== 更新与渲染 =====
+  function update(dt) {
+    if (!Number.isFinite(dt)) dt = 0;
+    dt = Math.min(Math.max(dt, 0), 0.05);
+    state.t += dt;
+
+    if (state.running && !state.userDragging) {
+      // 自动播放：n 在 10 到 0.001 之间来回滑动
+      // 使用对数空间移动
+      const speed = 0.15; // 每秒移动的滑块单位
+      state.sliderVal += state.autoDir * speed * dt * 1000;
+
+      if (state.sliderVal >= 1000) {
+        state.sliderVal = 1000;
+        state.autoDir = -1;
+      } else if (state.sliderVal <= 0) {
+        state.sliderVal = 0;
+        state.autoDir = 1;
+      }
+
+      // 到达 0 附近时停顿一下
+      if (state.sliderVal >= 998 && state.autoDir > 0) {
+        state.sliderVal = 1000;
+        state.autoDir = -1;
+      }
+
+      state.n = sliderToN(state.sliderVal);
+      // 同步滑块 UI
+      const slider = document.getElementById('nSlider');
+      slider.value = String(Math.round(state.sliderVal));
+      updateReadouts();
+    }
+  }
+
+  function render() {
+    drawStage();
+    drawBar();
+  }
+
+  function updateReadouts() {
+    document.getElementById('nVal').textContent = formatN(state.n);
+    document.getElementById('invVal').textContent = formatInv(state.n);
+    document.getElementById('barVal').textContent = formatInv(state.n);
+
+    const status = document.getElementById('status');
+    if (state.n === 0) {
+      status.textContent = 'n = 0 · 未定义';
+    } else if (state.n >= 1) {
+      status.textContent = `等分 ${formatN(state.n)} 段`;
+    } else {
+      status.textContent = `份数爆炸 · ${formatInv(state.n)} 段`;
+    }
+
+    const insight = document.getElementById('insight');
+    if (state.n === 0) {
+      insight.textContent = 'n = 0 时 1/n 无定义：没有任何数乘以 0 等于 1。';
+    } else if (state.n >= 1) {
+      insight.textContent = `线段被等分成 ${formatN(state.n)} 段，每段长 ${formatInv(state.n)}。n 越大，每段越短。`;
+    } else {
+      insight.textContent = `n < 1：份数 ${formatInv(state.n)} 爆炸增长，每段长仅 ${formatN(state.n)}。n 趋近 0 时 1/n 趋向无穷。`;
+    }
+  }
+
+  // ===== 生命周期 =====
+  function start() {
+    state.running = true;
+    state.userDragging = false;
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    startBtn.textContent = '播放中';
+    startBtn.setAttribute('aria-pressed', 'true');
+    pauseBtn.textContent = '暂停';
+    document.getElementById('status').textContent = state.n === 0 ? 'n = 0 · 未定义' : (state.n >= 1 ? `等分 ${formatN(state.n)} 段` : `份数爆炸 · ${formatInv(state.n)} 段`);
+  }
+
+  function pause() {
+    state.running = false;
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    startBtn.textContent = '播放';
+    startBtn.setAttribute('aria-pressed', 'false');
+    pauseBtn.textContent = '已暂停';
+    document.getElementById('status').textContent = '已暂停';
+  }
+
+  function reset() {
+    pause();
+    state.sliderVal = 900;
+    state.n = sliderToN(state.sliderVal);
+    state.autoDir = -1;
+    state.t = 0;
+    state.userDragging = false;
+    const slider = document.getElementById('nSlider');
+    slider.value = '900';
+    const startBtn = document.getElementById('startBtn');
+    startBtn.textContent = '播放';
+    startBtn.setAttribute('aria-pressed', 'false');
+    document.getElementById('pauseBtn').textContent = '暂停';
+    updateReadouts();
+    render();
+  }
+
+  function setParameters(values) {
+    if (values && typeof values.sliderVal === 'number') {
+      state.sliderVal = Math.max(0, Math.min(1000, values.sliderVal));
+      state.n = sliderToN(state.sliderVal);
+      const slider = document.getElementById('nSlider');
+      slider.value = String(Math.round(state.sliderVal));
+      updateReadouts();
+      render();
+    }
+  }
+
+  function getState() {
+    return {
+      n: state.n,
+      running: state.running,
+      t: state.t,
+      sliderVal: state.sliderVal,
+      autoDir: state.autoDir
+    };
+  }
+
+  function getReadouts() {
+    return {
+      n: state.n,
+      inv: state.n === 0 ? Infinity : 1 / state.n,
+      running: state.running,
+      t: state.t
+    };
+  }
+
+  // ===== 控件绑定 =====
+  function bindControls() {
+    const slider = document.getElementById('nSlider');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    slider.addEventListener('input', () => {
+      state.userDragging = true;
+      state.sliderVal = parseFloat(slider.value);
+      state.n = sliderToN(state.sliderVal);
+      updateReadouts();
+      // 拖动时暂停自动播放
+      state.running = false;
+      startBtn.textContent = '播放';
+      startBtn.setAttribute('aria-pressed', 'false');
+      pauseBtn.textContent = '已暂停';
+    });
+
+    slider.addEventListener('change', () => {
+      // 松开后恢复自动播放
+      state.userDragging = false;
+      state.running = true;
+      startBtn.textContent = '播放中';
+      startBtn.setAttribute('aria-pressed', 'true');
+      pauseBtn.textContent = '暂停';
+    });
+
+    startBtn.addEventListener('click', () => {
+      start();
+    });
+
+    pauseBtn.addEventListener('click', () => {
+      pause();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      reset();
+    });
+  }
+
+  // ===== 主循环 =====
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    // 钳制 dt
+    dt = Math.min(dt, 0.05);
+    if (!Number.isFinite(dt)) dt = 0;
+
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 初始化 =====
+  function init() {
+    handleResize();
+    bindControls();
+    state.n = sliderToN(state.sliderVal);
+    updateReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  // resize 监听
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(handleResize, 100);
+  });
+
+  // 暴露接口
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks: () => [
+      { name: 'n=10 → 1/n=0.1', pass: Math.abs(1 / sliderToN(0) - 0.1) < 0.001, expected: 0.1, actual: 1 / sliderToN(0), tolerance: 0.001 },
+      { name: 'n=1 → 1/n=1', pass: Math.abs(1 / sliderToN(500) - 1) < 0.001, expected: 1, actual: 1 / sliderToN(500), tolerance: 0.001 },
+      { name: 'n=0.1 → 1/n=10', pass: Math.abs(1 / sliderToN(750) - 10) < 0.01, expected: 10, actual: 1 / sliderToN(750), tolerance: 0.01 },
+      { name: 'n=0.001 → 1/n=1000', pass: Math.abs(1 / sliderToN(1000) - 1000) < 1, expected: 1000, actual: 1 / sliderToN(1000), tolerance: 1 },
+      { name: '单调性: n 减小 → 1/n 增大', pass: 1 / sliderToN(300) > 1 / sliderToN(100), expected: '递增', actual: `${(1 / sliderToN(300)).toFixed(2)} > ${(1 / sliderToN(100)).toFixed(2)}`, tolerance: 'strict' },
+      { name: 'n=2 → 1/n=0.5', pass: Math.abs(1 / sliderToN(nToSlider(2)) - 0.5) < 0.001, expected: 0.5, actual: 1 / sliderToN(nToSlider(2)), tolerance: 0.001 },
+      { name: 'n=0.5 → 1/n=2', pass: Math.abs(1 / sliderToN(nToSlider(0.5)) - 2) < 0.01, expected: 2, actual: 1 / sliderToN(nToSlider(0.5)), tolerance: 0.01 },
+      { name: 'n=0 边界 → 未定义', pass: sliderToN(0) === 10 && 1 / sliderToN(0) === 0.1, expected: 'n=10, 1/n=0.1', actual: `n=${sliderToN(0)}, 1/n=${1/sliderToN(0)}`, tolerance: 'strict' },
+    ]
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

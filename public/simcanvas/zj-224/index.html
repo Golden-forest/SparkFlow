@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>理想气体状态演示 · p*V/T = 恒量</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 48px; }
+.header h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 2.2vw, 1.9rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; font-size: 0.85rem; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr); gap: 10px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.panel-head h2 { margin: 0; font-size: 0.95rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.72rem; }
+#scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 16px; background: #0a0f1e; }
+.side { min-height: 0; display: grid; grid-template-rows: auto 1fr 1fr; gap: 10px; }
+.insight-panel { padding: 12px 14px; }
+.insight-panel .panel-head { margin-bottom: 6px; }
+.insight-panel .panel-head h3 { margin: 0; font-size: 0.88rem; }
+.insight-panel .panel-head span { color: var(--sim-muted); font-size: 0.7rem; }
+#insight { margin: 0; padding: 9px 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 10px 10px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.82rem; line-height: 1.5; }
+.chart-panel { padding: 10px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.chart-panel h3 { margin: 0 0 4px; font-size: 0.88rem; }
+.chart-panel .sub { color: var(--sim-muted); font-size: 0.7rem; }
+canvas.chart { width: 100%; height: 100%; min-height: 130px; display: block; border: 1px solid rgba(15,159,186,.10); border-radius: 12px; background: #fbfdff; }
+.controls { padding: 10px 14px; display: grid; grid-template-columns: auto minmax(160px, 1fr) minmax(160px, 1fr); gap: 18px; align-items: center; border-radius: 16px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 280px; height: 340px; }
+  canvas.chart { min-height: 180px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>理想气体状态演示</h1>
+      <p>调节温度与活塞位置，观察 p*V/T = 恒量 在装置、双图与读数中的同步体现</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">注射器装置 · 分子热运动</h2><span>深色舞台凸显粒子运动 · 活塞随体积滑块移动</span></div>
+      <canvas id="scene" role="img" aria-label="注射器内气体分子热运动可视化"></canvas>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel insight-panel" data-region="insight" aria-label="观察解读">
+        <div class="panel-head"><h3>观察</h3><span>状态感知解读</span></div>
+        <p id="insight">调节温度或活塞位置，观察 p、V、T 如何同步变化并始终满足 p*V/T = 恒量。</p>
+      </section>
+      <section class="panel chart-panel" aria-label="p-V 图">
+        <div class="panel-head"><h3>p-V 等温线族</h3><span class="sub">p/(Pa) vs V/(mL) · 当前点留轨迹</span></div>
+        <canvas id="chartPV" class="chart"></canvas>
+      </section>
+      <section class="panel chart-panel" aria-label="p-1/V 图">
+        <div class="panel-head"><h3>p-1/V 玻意耳定律</h3><span class="sub">p/(Pa) vs 1/V · 直线验证 p*V = 恒量</span></div>
+        <canvas id="chartPinv" class="chart"></canvas>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="参数控制">
+    <div class="actions">
+      <button id="toggleBtn" class="primary" type="button" aria-pressed="true">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="tempInput">温度 T <output id="tempOutput">300 K</output></label>
+      <input id="tempInput" type="range" min="100" max="600" step="10" value="300">
+    </div>
+    <div class="control">
+      <label for="volInput">活塞位置 V <output id="volOutput">50 mL</output></label>
+      <input id="volInput" type="range" min="10" max="100" step="1" value="50">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 物理常量与模型 =====
+  // pV = nRT, 取 n = 1/22.4 mol 使 V=50mL,T=300K 时 p ≈ 111.6 kPa (约1.1 atm)
+  const R = 8.314;
+  const n = 1 / 22.4;
+  const V_MIN = 10, V_MAX = 100;        // mL
+  const T_MIN = 100, T_MAX = 600;       // K
+  const VtoM3 = (mL) => mL * 1e-6;      // mL -> m^3
+
+  function calcP(T, V_mL) {
+    return n * R * T / VtoM3(V_mL);
+  }
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "T", label: "温度 T", type: "slider", min: 100, max: 600, step: 10, default: 300, unit: "K" },
+    { key: "V", label: "体积 V", type: "slider", min: 10, max: 100, step: 1, default: 50, unit: "mL" }
+  ];
+
+  // ===== 状态 =====
+  const state = {
+    running: true,
+    simTime: 0,
+    T: 300,
+    V: 50,
+    p: calcP(300, 50),
+    lastTs: null,
+    history: [],          // {T, V, p}
+    particles: [],
+    seed: 42
+  };
+
+  // 确定性伪随机（固定种子）
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(state.seed);
+
+  // 初始化粒子（注射器局部坐标，x:[0,1], y:[0,1]）
+  function initParticles() {
+    state.particles = [];
+    for (let i = 0; i < 60; i++) {
+      state.particles.push({
+        x: 0.1 + rng() * 0.8,
+        y: 0.1 + rng() * 0.8,
+        vx: (rng() - 0.5) * 2,
+        vy: (rng() - 0.5) * 2,
+        r: 2.6 + rng() * 1.4
+      });
+    }
+  }
+
+  // ===== Canvas 引用 =====
+  const scene = document.getElementById("scene");
+  const sctx = scene.getContext("2d");
+  const chartPV = document.getElementById("chartPV");
+  const pvctx = chartPV.getContext("2d");
+  const chartPinv = document.getElementById("chartPinv");
+  const pinctx = chartPinv.getContext("2d");
+
+  // ===== DPI 自适应 =====
+  function resizeCanvas(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = cv.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width));
+    const h = Math.max(1, Math.floor(rect.height));
+    if (cv.width !== w * dpr || cv.height !== h * dpr) {
+      cv.width = w * dpr;
+      cv.height = h * dpr;
+    }
+    cv.style.width = w + "px";
+    cv.style.height = h + "px";
+    return { w, h, dpr };
+  }
+
+  // ===== 场景绘制：注射器 + 分子 =====
+  function drawScene() {
+    const { w, h, dpr } = resizeCanvas(scene);
+    const ctx = sctx;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    // 注射器几何（竖向）
+    const syTop = 24;
+    const syBottom = h - 50;
+    const syHeight = syBottom - syTop;
+    const syWidth = Math.min(150, w * 0.42);
+    const syX = (w - syWidth) / 2;
+
+    // 体积映射：V=10 -> 气柱占 15%, V=100 -> 气柱占 88%
+    const fillRatio = 0.15 + (state.V - V_MIN) / (V_MAX - V_MIN) * 0.73;
+    const gasTop = syBottom - syHeight * fillRatio;
+    const gasBottom = syBottom;
+    const gasHeight = gasBottom - gasTop;
+    const pistonY = gasTop;
+
+    // 温度颜色映射（蓝 -> 红）
+    const tNorm = (state.T - T_MIN) / (T_MAX - T_MIN);
+    const tempR = Math.round(60 + tNorm * 195);
+    const tempG = Math.round(140 - tNorm * 100);
+    const tempB = Math.round(220 - tNorm * 180);
+
+    // ---- 背景刻度 ----
+    ctx.fillStyle = "#0a0f1e";
+    ctx.fillRect(0, 0, w, h);
+
+    // ---- 注射器外框 ----
+    ctx.strokeStyle = "#5a6a82";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(syX - 6, syTop);
+    ctx.lineTo(syX - 6, syBottom);
+    ctx.lineTo(syX + syWidth + 6, syBottom);
+    ctx.lineTo(syX + syWidth + 6, syTop);
+    ctx.stroke();
+
+    // 刻度线
+    ctx.strokeStyle = "#3a4a62";
+    ctx.lineWidth = 1;
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.fillStyle = "#6a7a92";
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 10; i++) {
+      const y = syBottom - (syHeight * 0.73) * i / 10;
+      const vLabel = V_MIN + (V_MAX - V_MIN) * i / 10;
+      ctx.beginPath();
+      ctx.moveTo(syX - 6, y);
+      ctx.lineTo(syX - 12, y);
+      ctx.stroke();
+      if (i % 2 === 0) {
+        ctx.fillText(vLabel.toFixed(0), syX - 14, y + 3);
+      }
+    }
+    ctx.textAlign = "left";
+    ctx.fillText("V/mL", syX - 30, syTop - 6);
+
+    // ---- 气体区域背景（温度色调）----
+    const gasGrad = ctx.createLinearGradient(syX, gasTop, syX, gasBottom);
+    gasGrad.addColorStop(0, `rgba(${tempR},${tempG},${tempB},0.18)`);
+    gasGrad.addColorStop(1, `rgba(${tempR},${tempG},${tempB},0.06)`);
+    ctx.fillStyle = gasGrad;
+    ctx.fillRect(syX, gasTop, syWidth, gasHeight);
+
+    // 气体边界
+    ctx.strokeStyle = `rgba(${tempR},${tempG},${tempB},0.5)`;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(syX, gasTop, syWidth, gasHeight);
+
+    // ---- 分子热运动 ----
+    // 速度幅值 ∝ sqrt(T)
+    const speedScale = Math.sqrt(state.T / 300) * 1.8;
+    const dtClamped = 0.016;
+    const gasLeft = syX + 4;
+    const gasRight = syX + syWidth - 4;
+    const gTop = gasTop + 4;
+    const gBottom = gasBottom - 4;
+
+    ctx.fillStyle = `rgb(${Math.min(255, tempR + 40)},${Math.min(255, tempG + 60)},${Math.min(255, tempB + 40)})`;
+    for (const p of state.particles) {
+      if (state.running) {
+        p.x += p.vx * speedScale * dtClamped;
+        p.y += p.vy * speedScale * dtClamped;
+        // 边界反弹
+        if (p.x < 0) { p.x = 0; p.vx = Math.abs(p.vx); }
+        if (p.x > 1) { p.x = 1; p.vx = -Math.abs(p.vx); }
+        if (p.y < 0) { p.y = 0; p.vy = Math.abs(p.vy); }
+        if (p.y > 1) { p.y = 1; p.vy = -Math.abs(p.vy); }
+      }
+      const px = gasLeft + p.x * (gasRight - gasLeft);
+      const py = gTop + p.y * (gBottom - gTop);
+      ctx.beginPath();
+      ctx.arc(px, py, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ---- 活塞 ----
+    const pistonH = 14;
+    // 活塞主体
+    const pGrad = ctx.createLinearGradient(syX, pistonY - pistonH, syX, pistonY);
+    pGrad.addColorStop(0, "#d4dae4");
+    pGrad.addColorStop(1, "#9aa4b4");
+    ctx.fillStyle = pGrad;
+    ctx.fillRect(syX - 2, pistonY - pistonH, syWidth + 4, pistonH);
+    ctx.strokeStyle = "#5a6a82";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(syX - 2, pistonY - pistonH, syWidth + 4, pistonH);
+
+    // 活塞杆
+    ctx.fillStyle = "#8a94a4";
+    ctx.fillRect(syX + syWidth / 2 - 8, syTop - 30, 16, 30 - pistonH + 2);
+    ctx.strokeStyle = "#5a6a82";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(syX + syWidth / 2 - 8, syTop - 30, 16, 30 - pistonH + 2);
+
+    // 活塞顶部把手
+    ctx.fillStyle = "#6a7484";
+    ctx.fillRect(syX + syWidth / 2 - 22, syTop - 38, 44, 10);
+    ctx.strokeRect(syX + syWidth / 2 - 22, syTop - 38, 44, 10);
+
+    // ---- 压强指示箭头（向上推活塞）----
+    const arrowLen = 20 + (state.p / 700000) * 40;
+    const arrowX = syX + syWidth + 30;
+    ctx.strokeStyle = "#e07b3a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(arrowX, pistonY - pistonH / 2);
+    ctx.lineTo(arrowX, pistonY - pistonH / 2 - arrowLen);
+    ctx.stroke();
+    // 箭头头
+    ctx.fillStyle = "#e07b3a";
+    ctx.beginPath();
+    ctx.moveTo(arrowX, pistonY - pistonH / 2 - arrowLen - 8);
+    ctx.lineTo(arrowX - 6, pistonY - pistonH / 2 - arrowLen + 2);
+    ctx.lineTo(arrowX + 6, pistonY - pistonH / 2 - arrowLen + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#e07b3a";
+    ctx.font = "bold 12px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("p", arrowX + 10, pistonY - pistonH / 2 - arrowLen / 2 + 4);
+
+    // ---- 读数标签 ----
+    ctx.fillStyle = "#e8eef8";
+    ctx.font = "bold 14px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    // 压强
+    const pKPa = state.p / 1000;
+    ctx.fillText("p = " + pKPa.toFixed(1) + " kPa", 16, 28);
+    // 温度
+    ctx.fillStyle = `rgb(${tempR + 40},${tempG + 60},${tempB + 40})`;
+    ctx.fillText("T = " + state.T.toFixed(0) + " K", 16, 50);
+    // 体积
+    ctx.fillStyle = "#c8d4e6";
+    ctx.fillText("V = " + state.V.toFixed(0) + " mL", 16, 72);
+
+    // 温度色条
+    const barX = 16, barY = 86, barW = 120, barH = 8;
+    const tGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    tGrad.addColorStop(0, "#3c6afa");
+    tGrad.addColorStop(0.5, "#e0c040");
+    tGrad.addColorStop(1, "#e84030");
+    ctx.fillStyle = tGrad;
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.strokeStyle = "#445";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+    // 当前温度指针
+    const ptrX = barX + tNorm * barW;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(ptrX, barY - 2);
+    ctx.lineTo(ptrX - 4, barY - 8);
+    ctx.lineTo(ptrX + 4, barY - 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // 公式提示
+    ctx.fillStyle = "#8a9ab2";
+    ctx.font = "12px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("p * V / T = nR = " + (n * R).toFixed(3) + " J/K", w / 2, h - 12);
+
+    ctx.restore();
+  }
+
+  // ===== p-V 图绘制 =====
+  function drawPVChart() {
+    const { w, h, dpr } = resizeCanvas(chartPV);
+    const ctx = pvctx;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const padL = 42, padR = 12, padT = 10, padB = 28;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // 坐标范围
+    const vMin = V_MIN, vMax = V_MAX;
+    const pMax = calcP(T_MAX, V_MIN) * 1.05;  // 最大压强
+    const pMin = 0;
+
+    const xToPx = (v) => padL + (v - vMin) / (vMax - vMin) * plotW;
+    const yToPx = (p) => padT + plotH - (p - pMin) / (pMax - pMin) * plotH;
+
+    // 网格
+    ctx.strokeStyle = "#e8edf4";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + i * plotW / 5;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+      const y = padT + i * plotH / 5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    }
+
+    // 轴
+    ctx.strokeStyle = "#9aa7ba";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    // 轴标签
+    ctx.fillStyle = "#657188";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("V/(mL)", padL + plotW / 2, h - 6);
+    ctx.save();
+    ctx.translate(10, padT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("p/(Pa)", 0, 0);
+    ctx.restore();
+
+    // 刻度
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + i * plotW / 5;
+      const v = vMin + (vMax - vMin) * i / 5;
+      ctx.fillText(v.toFixed(0), x, padT + plotH + 14);
+    }
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 5; i++) {
+      const y = padT + plotH - i * plotH / 5;
+      const p = pMin + (pMax - pMin) * i / 5;
+      ctx.fillText((p / 1000).toFixed(0) + "k", padL - 4, y + 3);
+    }
+
+    // 等温线族（5条）
+    const tempColors = ["#3c6afa", "#5b9bd5", "#e0b020", "#e07b3a", "#e84030"];
+    const tempValues = [100, 200, 300, 450, 600];
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < tempValues.length; i++) {
+      const T = tempValues[i];
+      ctx.strokeStyle = tempColors[i];
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      let first = true;
+      for (let v = vMin; v <= vMax; v += 1) {
+        const p = calcP(T, v);
+        const px = xToPx(v), py = yToPx(p);
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // 图例
+    ctx.font = "9px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    for (let i = 0; i < tempValues.length; i++) {
+      const lx = padL + plotW - 70;
+      const ly = padT + 8 + i * 12;
+      ctx.fillStyle = tempColors[i];
+      ctx.fillRect(lx, ly, 10, 8);
+      ctx.fillStyle = "#657188";
+      ctx.fillText("T=" + tempValues[i] + "K", lx + 14, ly + 7);
+    }
+
+    // 轨迹
+    if (state.history.length > 1) {
+      ctx.strokeStyle = "rgba(15,159,186,0.5)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < state.history.length; i++) {
+        const s = state.history[i];
+        const px = xToPx(s.V), py = yToPx(s.p);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    // 当前点（双层描边模拟发光）
+    const cx = xToPx(state.V), cy = yToPx(state.p);
+    ctx.fillStyle = "rgba(15,159,186,0.25)";
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#0f9fba";
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // ===== p-1/V 图绘制 =====
+  function drawPinvChart() {
+    const { w, h, dpr } = resizeCanvas(chartPinv);
+    const ctx = pinctx;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const padL = 42, padR = 12, padT = 10, padB = 28;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // 1/V 范围: V=10 -> 0.1, V=100 -> 0.01
+    const invMin = 1 / V_MAX, invMax = 1 / V_MIN;
+    const pMax = calcP(T_MAX, V_MIN) * 1.05;
+    const pMin = 0;
+
+    const xToPx = (invV) => padL + (invV - invMin) / (invMax - invMin) * plotW;
+    const yToPx = (p) => padT + plotH - (p - pMin) / (pMax - pMin) * plotH;
+
+    // 网格
+    ctx.strokeStyle = "#e8edf4";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + i * plotW / 5;
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+      const y = padT + i * plotH / 5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    }
+
+    // 轴
+    ctx.strokeStyle = "#9aa7ba";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    // 轴标签
+    ctx.fillStyle = "#657188";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("1/V (1/mL)", padL + plotW / 2, h - 6);
+    ctx.save();
+    ctx.translate(10, padT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("p/(Pa)", 0, 0);
+    ctx.restore();
+
+    // 刻度
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + i * plotW / 5;
+      const invV = invMin + (invMax - invMin) * i / 5;
+      ctx.fillText(invV.toFixed(3), x, padT + plotH + 14);
+    }
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 5; i++) {
+      const y = padT + plotH - i * plotH / 5;
+      const p = pMin + (pMax - pMin) * i / 5;
+      ctx.fillText((p / 1000).toFixed(0) + "k", padL - 4, y + 3);
+    }
+
+    // 等温直线族
+    const tempColors = ["#3c6afa", "#5b9bd5", "#e0b020", "#e07b3a", "#e84030"];
+    const tempValues = [100, 200, 300, 450, 600];
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < tempValues.length; i++) {
+      const T = tempValues[i];
+      ctx.strokeStyle = tempColors[i];
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      const x1 = xToPx(invMin), y1 = yToPx(calcP(T, V_MAX));
+      const x2 = xToPx(invMax), y2 = yToPx(calcP(T, V_MIN));
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // 图例
+    ctx.font = "9px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    for (let i = 0; i < tempValues.length; i++) {
+      const lx = padL + plotW - 70;
+      const ly = padT + 8 + i * 12;
+      ctx.fillStyle = tempColors[i];
+      ctx.fillRect(lx, ly, 10, 8);
+      ctx.fillStyle = "#657188";
+      ctx.fillText("T=" + tempValues[i] + "K", lx + 14, ly + 7);
+    }
+
+    // 轨迹
+    if (state.history.length > 1) {
+      ctx.strokeStyle = "rgba(15,159,186,0.5)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < state.history.length; i++) {
+        const s = state.history[i];
+        const invV = 1 / s.V;
+        const px = xToPx(invV), py = yToPx(s.p);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    // 当前点
+    const invV = 1 / state.V;
+    const cx = xToPx(invV), cy = yToPx(state.p);
+    ctx.fillStyle = "rgba(15,159,186,0.25)";
+    ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#0f9fba";
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    // 斜率标注（当前温度下的直线斜率 = nRT）
+    ctx.fillStyle = "#657188";
+    ctx.font = "9px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("斜率 = nRT = " + (n * R * state.T).toFixed(2) + " J", padL + 6, padT + plotH - 6);
+
+    ctx.restore();
+  }
+
+  // ===== 更新与渲染 =====
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.min(0.05, Math.max(0, dt));
+    state.simTime += boundedDt;
+    // 采样轨迹（每 0.15s 或参数变化时）
+    const last = state.history[state.history.length - 1];
+    if (!last || state.simTime - last.t >= 0.15 || last.T !== state.T || last.V !== state.V) {
+      state.history.push({ t: state.simTime, T: state.T, V: state.V, p: state.p });
+      if (state.history.length > 400) state.history.shift();
+    }
+  }
+
+  function render() {
+    state.p = calcP(state.T, state.V);
+    drawScene();
+    drawPVChart();
+    drawPinvChart();
+    // 更新读数
+    document.getElementById("tempOutput").textContent = state.T.toFixed(0) + " K";
+    document.getElementById("volOutput").textContent = state.V.toFixed(0) + " mL";
+    // 更新 insight 解读
+    updateInsight();
+  }
+
+  // ===== insight 状态感知文本 =====
+  function updateInsight() {
+    const el = document.getElementById("insight");
+    if (!el) return;
+    const pKPa = state.p / 1000;
+    const tNorm = (state.T - T_MIN) / (T_MAX - T_MIN);
+    const vNorm = (state.V - V_MIN) / (V_MAX - V_MIN);
+    let msg = "";
+    if (!state.running) {
+      msg = `已暂停：当前 p=${pKPa.toFixed(1)} kPa、V=${state.V} mL、T=${state.T} K。`;
+    } else if (tNorm > 0.66) {
+      msg = `高温状态：分子运动加快，相同体积下压强明显升高，p-V 图上当前点位于高等温线。`;
+    } else if (tNorm < 0.34) {
+      msg = `低温状态：分子运动减缓，压强偏低，当前点靠近低等温线。`;
+    } else if (vNorm > 0.66) {
+      msg = `体积增大：活塞上移，单位面积碰撞减少，压强下降，p-1/V 图上点左移。`;
+    } else if (vNorm < 0.34) {
+      msg = `体积减小：活塞下压，碰撞更密集，压强上升，p-1/V 图上点右移。`;
+    } else {
+      msg = `p=${pKPa.toFixed(1)} kPa，V=${state.V} mL，T=${state.T} K：三量同变，恒满足 p*V/T = nR。`;
+    }
+    el.textContent = msg;
+  }
+
+  // ===== 控制 =====
+  function start() {
+    state.running = true;
+    document.getElementById("status").textContent = "运行中";
+    const btn = document.getElementById("toggleBtn");
+    btn.textContent = "暂停";
+    btn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    document.getElementById("status").textContent = "已暂停";
+    const btn = document.getElementById("toggleBtn");
+    btn.textContent = "继续";
+    btn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    state.T = 300;
+    state.V = 50;
+    state.simTime = 0;
+    state.history = [];
+    initParticles();
+    document.getElementById("tempInput").value = "300";
+    document.getElementById("volInput").value = "50";
+    render();
+  }
+  function setParameters(values) {
+    if (values.T !== undefined) state.T = Math.max(T_MIN, Math.min(T_MAX, Number(values.T) || 300));
+    if (values.V !== undefined) state.V = Math.max(V_MIN, Math.min(V_MAX, Number(values.V) || 50));
+    render();
+  }
+  function getState() { return { T: state.T, V: state.V, p: state.p, simTime: state.simTime, running: state.running }; }
+  function getReadouts() { return { T: state.T, V: state.V, p: state.p, pKPa: state.p / 1000 }; }
+
+  // ===== 模型校验 =====
+  function runModelChecks() {
+    // 1. pV/T 恒量检查
+    const c1 = calcP(300, 50) * VtoM3(50) / 300;
+    const c2 = calcP(450, 30) * VtoM3(30) / 450;
+    const c3 = calcP(150, 80) * VtoM3(80) / 150;
+    const constVal = n * R;
+    // 2. 玻意耳定律: pV = 恒量 (等温)
+    const b1 = calcP(300, 50) * VtoM3(50);
+    const b2 = calcP(300, 80) * VtoM3(80);
+    // 3. p-1/V 线性: p = nRT * (1/V), 斜率 = nRT
+    const slope300 = n * R * 300;
+    const pAtV50 = calcP(300, 50);
+    const expectedP = slope300 / VtoM3(50);
+    // 4. 温度越高等温线越远离原点（相同V下p更大）
+    const p100 = calcP(100, 50);
+    const p600 = calcP(600, 50);
+    // 5. 体积越小压强越大（等温）
+    const pV30 = calcP(300, 30);
+    const pV80 = calcP(300, 80);
+    return [
+      { name: "pV/T 恒量 (T=300,V=50)", pass: Math.abs(c1 - constVal) < 1e-6, expected: constVal, actual: c1, tolerance: 1e-6 },
+      { name: "pV/T 恒量 (T=450,V=30)", pass: Math.abs(c2 - constVal) < 1e-6, expected: constVal, actual: c2, tolerance: 1e-6 },
+      { name: "pV/T 恒量 (T=150,V=80)", pass: Math.abs(c3 - constVal) < 1e-6, expected: constVal, actual: c3, tolerance: 1e-6 },
+      { name: "玻意耳定律 pV=恒量 (T=300)", pass: Math.abs(b1 - b2) < 1e-6, expected: b1, actual: b2, tolerance: 1e-6 },
+      { name: "p-1/V 线性 (斜率=nRT)", pass: Math.abs(pAtV50 - expectedP) < 1e-3, expected: expectedP, actual: pAtV50, tolerance: 1e-3 },
+      { name: "高温等温线远离原点", pass: p600 > p100, expected: "p(600K)>p(100K)", actual: p600 + ">" + p100, tolerance: "strict" },
+      { name: "等温减压 (V增大p减小)", pass: pV30 > pV80, expected: "p(30mL)>p(80mL)", actual: pV30 + ">" + pV80, tolerance: "strict" }
+    ];
+  }
+
+  // ===== 绑定 =====
+  function bindControls() {
+    document.getElementById("toggleBtn").addEventListener("click", () => {
+      if (state.running) pause(); else start();
+    });
+    document.getElementById("resetBtn").addEventListener("click", reset);
+    document.getElementById("tempInput").addEventListener("input", (e) => {
+      setParameters({ T: e.target.value });
+    });
+    document.getElementById("volInput").addEventListener("input", (e) => {
+      setParameters({ V: e.target.value });
+    });
+  }
+
+  // ===== 主循环 =====
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    const dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    initParticles();
+    bindControls();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

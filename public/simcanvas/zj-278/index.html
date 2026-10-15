@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>圆的叠加 · Fourier Epicycles</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1a;
+      --sim-surface-soft: #0d1420;
+      --sim-text: #e8f4ff;
+      --sim-muted: #6b7d96;
+      --sim-border: #1a2535;
+      --sim-grid: rgba(80, 120, 160, 0.06);
+      --sim-accent: #00e5ff;
+      --sim-accent-deep: #0090b0;
+      --sim-accent-soft: rgba(0, 229, 255, 0.15);
+      --sim-positive: #00e5ff;
+      --sim-warning: #ffaa00;
+      --sim-danger: #ff4060;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(0, 80, 120, 0.18), transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(0, 40, 80, 0.15), transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(10, 20, 35, 0.5), transparent 70%),
+        #050810;
+      color: var(--sim-text);
+      font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .app {
+      width: 100vw; height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto auto;
+      gap: 0;
+    }
+
+    /* HEADER */
+    .header {
+      padding: 18px 32px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 24px;
+      opacity: 0;
+      animation: fadeInDown 1.2s ease-out 0.3s forwards;
+    }
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .header-left h1 {
+      font-size: clamp(1.3rem, 2vw, 1.7rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--sim-text);
+      line-height: 1.1;
+    }
+    .header-left p {
+      font-size: 0.78rem;
+      color: var(--sim-muted);
+      margin-top: 4px;
+      letter-spacing: 0.04em;
+    }
+    .status {
+      font-size: 0.72rem;
+      color: var(--sim-accent);
+      padding: 5px 12px;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      border-radius: 999px;
+      background: rgba(0, 229, 255, 0.05);
+      white-space: nowrap;
+      letter-spacing: 0.08em;
+    }
+
+    /* STAGE */
+    .stage {
+      position: relative;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 24px;
+    }
+    canvas#mainCanvas {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      display: block;
+    }
+
+    /* EVIDENCE */
+    .evidence {
+      display: flex;
+      gap: 10px;
+      padding: 8px 32px 4px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+    }
+    .metric {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 6px 16px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      background: rgba(13, 20, 32, 0.6);
+      min-width: 92px;
+    }
+    .metric small {
+      font-size: 0.62rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .metric strong {
+      font-size: 1rem;
+      color: var(--sim-accent);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    /* CONTROLS */
+    .controls {
+      padding: 10px 32px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: linear-gradient(to top, rgba(5, 8, 16, 0.95), transparent);
+    }
+    .control-row {
+      display: flex;
+      gap: 28px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 200px;
+      flex: 1;
+      max-width: 340px;
+    }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.72rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.06em;
+    }
+    .control-value {
+      color: var(--sim-accent);
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 3px;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      border: 2px solid #050810;
+      box-shadow: 0 0 0 1px var(--sim-accent), 0 0 12px rgba(0, 229, 255, 0.5);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--sim-accent);
+      border: 2px solid #050810;
+      box-shadow: 0 0 0 1px var(--sim-accent);
+      cursor: pointer;
+    }
+    .actions { display: flex; gap: 8px; }
+    button {
+      font-family: inherit;
+      font-size: 0.75rem;
+      padding: 7px 14px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      background: transparent;
+      color: var(--sim-text);
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: all 0.15s;
+    }
+    button:hover { border-color: var(--sim-accent); color: var(--sim-accent); }
+    button:active { transform: scale(0.96); }
+    button.primary {
+      border-color: var(--sim-accent);
+      color: var(--sim-accent);
+      background: rgba(0, 229, 255, 0.08);
+    }
+
+    /* CAPTION */
+    .caption {
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--sim-muted);
+      letter-spacing: 0.04em;
+      min-height: 1.4em;
+      line-height: 1.5;
+      transition: opacity 0.6s ease;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .caption .highlight { color: var(--sim-accent); }
+
+    @media (max-width: 720px) {
+      .header { padding: 12px 16px 8px; }
+      .evidence { padding: 6px 16px 2px; gap: 6px; }
+      .metric { padding: 4px 10px; min-width: 72px; }
+      .metric strong { font-size: 0.85rem; }
+      .controls { padding: 8px 16px 14px; }
+      .control-row { gap: 16px; }
+      .control { min-width: 140px; }
+      .caption { font-size: 0.72rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .header { animation: none; opacity: 1; transform: none; }
+      .caption { transition: none; }
+      input[type="range"]::-webkit-slider-thumb { transition: none; }
+      button { transition: none; }
+      * { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>圆的叠加 · Fourier Epicycles</h1>
+        <p>圆周运动叠加生成任意周期曲线</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <section class="stage" data-region="stage" aria-label="主舞台">
+      <canvas id="mainCanvas" role="img" aria-label="旋转圆叠加与轨迹画布"></canvas>
+    </section>
+
+    <section class="evidence" data-region="evidence" aria-label="实时读数">
+      <div class="metric"><small>叠加圆</small><strong id="metricCircles">5</strong></div>
+      <div class="metric"><small>速度</small><strong id="metricSpeed">1.0x</strong></div>
+      <div class="metric"><small>时间</small><strong id="metricTime">0.00</strong></div>
+      <div class="metric"><small>轨迹点</small><strong id="metricTrail">0</strong></div>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="控件">
+      <div class="control-row">
+        <div class="control">
+          <label class="control-label" for="circleCount">
+            <span>叠加圆数量</span>
+            <span class="control-value" id="circleCountValue">5</span>
+          </label>
+          <input id="circleCount" type="range" min="1" max="16" step="1" value="5" aria-label="叠加圆数量">
+        </div>
+        <div class="control">
+          <label class="control-label" for="speed">
+            <span>时间速度</span>
+            <span class="control-value" id="speedValue">1.0x</span>
+          </label>
+          <input id="speed" type="range" min="0.2" max="3" step="0.1" value="1" aria-label="时间速度">
+        </div>
+        <div class="actions">
+          <button id="pauseBtn" class="primary" type="button">暂停</button>
+          <button id="resetBtn" type="button">重置</button>
+        </div>
+      </div>
+      <div class="caption" id="caption" data-region="insight">拖动滑块改变叠加圆数量，观察轨迹从正圆到复杂图案的演化</div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ===== 参数 schema =====
+    const parameterSchema = [
+      { key: "circleCount", label: "叠加圆数量", type: "slider", min: 1, max: 16, step: 1, default: 5, unit: "" },
+      { key: "speed", label: "时间速度", type: "slider", min: 0.2, max: 3, step: 0.1, default: 1, unit: "x" }
+    ];
+
+    // ===== 状态 =====
+    const state = {
+      running: true,
+      t: 0,
+      circleCount: 5,
+      speed: 1,
+      lastTimestamp: null,
+      armTrail: [],
+      penTrail: [],
+      maxArmTrail: 18,
+      maxPenTrail: 1400,
+      canvasW: 0,
+      canvasH: 0,
+      dpr: 1,
+      introPhase: true,
+      introT: 0,
+      captionAlpha: 1,
+      lastCaptionIdx: -1
+    };
+
+    // ===== 傅里叶系数（手绘鱼轮廓，32 点采样）=====
+    const FISH_POINTS = [
+      [0.00, 0.00], [0.045, -0.055], [0.095, -0.085], [0.15, -0.10],
+      [0.21, -0.105], [0.275, -0.095], [0.34, -0.075], [0.40, -0.045],
+      [0.455, -0.005], [0.50, 0.035], [0.535, 0.075], [0.56, 0.11],
+      [0.575, 0.135], [0.58, 0.145], [0.575, 0.135], [0.56, 0.11],
+      [0.535, 0.075], [0.50, 0.035], [0.455, -0.005], [0.40, -0.045],
+      [0.34, -0.075], [0.275, -0.095], [0.21, -0.105], [0.15, -0.10],
+      [0.095, -0.085], [0.045, -0.055], [0.00, 0.00], [-0.05, 0.06],
+      [-0.12, 0.14], [-0.20, 0.22], [-0.12, 0.10], [-0.05, 0.03]
+    ];
+
+    function computeFourierCoefficients(points) {
+      const N = points.length;
+      const coeffs = [];
+      for (let k = 0; k < N; k++) {
+        let re = 0, im = 0;
+        for (let n = 0; n < N; n++) {
+          const angle = (2 * Math.PI * k * n) / N;
+          re += points[n][0] * Math.cos(angle) + points[n][1] * Math.sin(angle);
+          im += -points[n][0] * Math.sin(angle) + points[n][1] * Math.cos(angle);
+        }
+        re /= N; im /= N;
+        coeffs.push({ re, im, amp: Math.sqrt(re * re + im * im), phase: Math.atan2(im, re), freq: k });
+      }
+      coeffs.sort((a, b) => b.amp - a.amp);
+      return coeffs;
+    }
+
+    const ALL_COEFFS = computeFourierCoefficients(FISH_POINTS);
+
+    // ===== 字幕 =====
+    const CAPTIONS = [
+      "一个圆 = 正圆 · 最基础的周期运动",
+      "两个圆叠加 = 花瓣线 · 周期开始复杂化",
+      "三到四个圆 = 更精细的对称图案",
+      "五到六个圆 = 五角星轮廓浮现",
+      "七到十一个圆 = 图形逐渐精细",
+      "十二到十六个圆 = 几乎描出一条手绘鱼的轮廓",
+      "两千年前托勒密用本轮加均轮拟合行星逆行轨迹",
+      "这套圆叠加在今天叫傅里叶级数 · 任何周期曲线都能由圆周运动叠加而成"
+    ];
+    function getCaptionIndex(n) {
+      if (n <= 1) return 0;
+      if (n === 2) return 1;
+      if (n <= 4) return 2;
+      if (n <= 6) return 3;
+      if (n <= 11) return 4;
+      return 5;
+    }
+
+    // ===== DOM =====
+    const canvas = document.getElementById("mainCanvas");
+    const ctx = canvas.getContext("2d");
+    const els = {
+      status: document.getElementById("status"),
+      circleCountInput: document.getElementById("circleCount"),
+      circleCountValue: document.getElementById("circleCountValue"),
+      speedInput: document.getElementById("speed"),
+      speedValue: document.getElementById("speedValue"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      caption: document.getElementById("caption"),
+      metricCircles: document.getElementById("metricCircles"),
+      metricSpeed: document.getElementById("metricSpeed"),
+      metricTime: document.getElementById("metricTime"),
+      metricTrail: document.getElementById("metricTrail")
+    };
+
+    // ===== 工具 =====
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+    // ===== 画布尺寸 =====
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(100, rect.width);
+      const h = Math.max(100, rect.height);
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      state.canvasW = w;
+      state.canvasH = h;
+      state.dpr = dpr;
+    }
+
+    // ===== 模型：计算末端位置 =====
+    function computeTipPosition(t, n) {
+      const coeffs = ALL_COEFFS.slice(0, n);
+      let x = 0, y = 0;
+      for (const c of coeffs) {
+        const angle = c.phase + c.freq * t;
+        x += c.amp * Math.cos(angle);
+        y += c.amp * Math.sin(angle);
+      }
+      return { x, y };
+    }
+
+    function computeArmPath(t, n) {
+      const path = [{ x: 0, y: 0 }];
+      const coeffs = ALL_COEFFS.slice(0, n);
+      let x = 0, y = 0;
+      for (const c of coeffs) {
+        const angle = c.phase + c.freq * t;
+        x += c.amp * Math.cos(angle);
+        y += c.amp * Math.sin(angle);
+        path.push({ x, y });
+      }
+      return path;
+    }
+
+    // ===== 生命周期 =====
+    function init() {
+      resizeCanvas();
+      bindControls();
+      setParameters({ circleCount: 5, speed: 1 });
+      window.addEventListener("resize", resizeCanvas);
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      els.status.textContent = "运行中";
+      els.pauseBtn.textContent = "暂停";
+    }
+    function pause() {
+      state.running = false;
+      els.status.textContent = "已暂停";
+      els.pauseBtn.textContent = "继续";
+    }
+    function reset() {
+      state.t = 0;
+      state.armTrail = [];
+      state.penTrail = [];
+      state.introPhase = true;
+      state.introT = 0;
+      state.lastCaptionIdx = -1;
+      render();
+    }
+    function update(dt) {
+      if (state.introPhase) {
+        state.introT += dt;
+        if (state.introT >= 2.0) {
+          state.introPhase = false;
+        }
+        return;
+      }
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt * state.speed;
+
+      const tip = computeTipPosition(state.t, state.circleCount);
+      state.penTrail.push({ x: tip.x, y: tip.y, t: state.t });
+      while (state.penTrail.length > state.maxPenTrail) state.penTrail.shift();
+
+      state.armTrail.push({ x: tip.x, y: tip.y });
+      while (state.armTrail.length > state.maxArmTrail) state.armTrail.shift();
+
+      const idx = getCaptionIndex(state.circleCount);
+      if (idx !== state.lastCaptionIdx) {
+        state.lastCaptionIdx = idx;
+        els.caption.style.opacity = "0";
+        setTimeout(() => {
+          els.caption.textContent = CAPTIONS[idx];
+          els.caption.style.opacity = "1";
+        }, 300);
+      }
+    }
+
+    // ===== 渲染 =====
+    function render() {
+      const w = state.canvasW, h = state.canvasH;
+      ctx.clearRect(0, 0, w, h);
+
+      // 背景径向渐变
+      const bgGrad = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+      bgGrad.addColorStop(0, "rgba(10, 18, 32, 0.4)");
+      bgGrad.addColorStop(0.5, "rgba(5, 10, 20, 0.2)");
+      bgGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 细网格（不透明度 6%）
+      ctx.strokeStyle = "rgba(80, 120, 160, 0.06)";
+      ctx.lineWidth = 1;
+      const gridSize = 40;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += gridSize) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+      for (let y = 0; y <= h; y += gridSize) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+      ctx.stroke();
+
+      // 布局：左机械臂，右轨迹画布
+      const armW = w * 0.42;
+      const penW = w * 0.50;
+      const gap = w * 0.04;
+      const armCx = armW * 0.5;
+      const armCy = h * 0.5;
+      const penCx = armW + gap + penW * 0.5;
+      const penCy = h * 0.5;
+
+      // 计算缩放
+      const maxArmRadius = ALL_COEFFS.slice(0, state.circleCount).reduce((s, c) => s + c.amp, 0);
+      const armScale = Math.min(armW, h) * 0.38 / Math.max(0.3, maxArmRadius);
+      const penScale = Math.min(penW, h) * 0.38 / 0.65;
+
+      // 开场静态帧
+      if (state.introPhase) {
+        const introAlpha = state.introT < 0.5 ? state.introT / 0.5 : 1;
+        ctx.globalAlpha = introAlpha;
+        drawArmStatic(armCx, armCy, armScale);
+        drawPenCanvasEmpty(penCx, penCy, penScale);
+        ctx.globalAlpha = 1;
+        updateMetrics();
+        return;
+      }
+
+      // 绘制右侧轨迹画布
+      drawPenTrail(penCx, penCy, penScale);
+
+      // 绘制左侧机械臂
+      drawArm(armCx, armCy, armScale);
+
+      // 连接线（从臂末端到画布当前点）
+      const tip = computeTipPosition(state.t, state.circleCount);
+      const armTipX = armCx + tip.x * armScale;
+      const armTipY = armCy + tip.y * armScale;
+      const penTipX = penCx + tip.x * penScale;
+      const penTipY = penCy + tip.y * penScale;
+
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.15)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(armTipX, armTipY);
+      ctx.lineTo(penTipX, penTipY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      updateMetrics();
+    }
+
+    function updateMetrics() {
+      els.metricCircles.textContent = String(state.circleCount);
+      els.metricSpeed.textContent = state.speed.toFixed(1) + "x";
+      els.metricTime.textContent = state.t.toFixed(2);
+      els.metricTrail.textContent = String(state.penTrail.length);
+    }
+
+    function drawArmStatic(cx, cy, scale) {
+      const n = state.circleCount;
+      const path = computeArmPath(0, n);
+      // 圆轮廓
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.12)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i < path.length; i++) {
+        const r = Math.hypot(path[i].x - path[i-1].x, path[i].y - path[i-1].y) * scale;
+        ctx.beginPath();
+        ctx.arc(cx + path[i-1].x * scale, cy + path[i-1].y * scale, Math.max(2, r), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // 连接线
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.25)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(cx + path[i].x * scale, cy + path[i].y * scale);
+      }
+      ctx.stroke();
+      // 末端光笔
+      const tip = path[path.length - 1];
+      drawGlowDot(cx + tip.x * scale, cy + tip.y * scale, 5, "0, 229, 255");
+    }
+
+    function drawPenCanvasEmpty(cx, cy, scale) {
+      // 中心十字
+      ctx.strokeStyle = "rgba(80, 120, 160, 0.15)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy);
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8);
+      ctx.stroke();
+    }
+
+    function drawArm(cx, cy, scale) {
+      const n = state.circleCount;
+      const path = computeArmPath(state.t, n);
+
+      // 圆轮廓（半透明）
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.10)";
+      ctx.lineWidth = 1;
+      for (let i = 1; i < path.length; i++) {
+        const r = Math.hypot(path[i].x - path[i-1].x, path[i].y - path[i-1].y) * scale;
+        if (r < 1) continue;
+        ctx.beginPath();
+        ctx.arc(cx + path[i-1].x * scale, cy + path[i-1].y * scale, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 机械臂连接线（带辉光）
+      // 外层粗半透明
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.25)";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(cx + path[i].x * scale, cy + path[i].y * scale);
+      }
+      ctx.stroke();
+      // 内层实色
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.85)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let i = 1; i < path.length; i++) {
+        ctx.lineTo(cx + path[i].x * scale, cy + path[i].y * scale);
+      }
+      ctx.stroke();
+
+      // 各级圆心点
+      for (let i = 0; i < path.length - 1; i++) {
+        const px = cx + path[i].x * scale;
+        const py = cy + path[i].y * scale;
+        drawGlowDot(px, py, 2.5, "0, 229, 255", 0.5);
+      }
+
+      // 末端光笔（最亮）
+      const tip = path[path.length - 1];
+      const tipX = cx + tip.x * scale;
+      const tipY = cy + tip.y * scale;
+      // 拖尾
+      for (let i = 0; i < state.armTrail.length; i++) {
+        const p = state.armTrail[i];
+        const alpha = (i / state.armTrail.length) * 0.3;
+        const px = cx + p.x * scale;
+        const py = cy + p.y * scale;
+        ctx.fillStyle = `rgba(0, 229, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      drawGlowDot(tipX, tipY, 5, "0, 229, 255", 1);
+    }
+
+    function drawPenTrail(cx, cy, scale) {
+      if (state.penTrail.length < 2) {
+        drawPenCanvasEmpty(cx, cy, scale);
+        return;
+      }
+
+      // 拖尾：按段绘制，透明度线性衰减
+      const len = state.penTrail.length;
+      // 外层粗半透明辉光
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (let i = 1; i < len; i++) {
+        const p0 = state.penTrail[i - 1];
+        const p1 = state.penTrail[i];
+        const alpha = (i / len) * 0.25;
+        ctx.strokeStyle = `rgba(0, 229, 255, ${alpha})`;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(cx + p0.x * scale, cy + p0.y * scale);
+        ctx.lineTo(cx + p1.x * scale, cy + p1.y * scale);
+        ctx.stroke();
+      }
+      // 内层实色
+      for (let i = 1; i < len; i++) {
+        const p0 = state.penTrail[i - 1];
+        const p1 = state.penTrail[i];
+        const alpha = (i / len) * 0.9;
+        ctx.strokeStyle = `rgba(0, 229, 255, ${alpha})`;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(cx + p0.x * scale, cy + p0.y * scale);
+        ctx.lineTo(cx + p1.x * scale, cy + p1.y * scale);
+        ctx.stroke();
+      }
+
+      // 当前光笔位置
+      const tip = state.penTrail[len - 1];
+      drawGlowDot(cx + tip.x * scale, cy + tip.y * scale, 5, "0, 229, 255", 1);
+    }
+
+    function drawGlowDot(x, y, r, rgb, alpha = 1) {
+      // 外层粗半透明
+      ctx.fillStyle = `rgba(${rgb}, ${0.25 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      // 中层
+      ctx.fillStyle = `rgba(${rgb}, ${0.5 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      // 内层实色
+      ctx.fillStyle = `rgba(${rgb}, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      // 核心白点
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ===== 参数 =====
+    function setParameters(values) {
+      const ccDef = parameterSchema[0], spDef = parameterSchema[1];
+      state.circleCount = clamp(finite(Number(values.circleCount), ccDef.default), ccDef.min, ccDef.max);
+      state.speed = clamp(finite(Number(values.speed), spDef.default), spDef.min, spDef.max);
+      els.circleCountInput.value = String(state.circleCount);
+      els.speedInput.value = String(state.speed);
+      els.circleCountValue.textContent = String(state.circleCount);
+      els.speedValue.textContent = state.speed.toFixed(1) + "x";
+      // 圆数量改变时清空轨迹
+      state.penTrail = [];
+      state.armTrail = [];
+      render();
+    }
+
+    function getState() {
+      return { ...state, penTrail: state.penTrail.map(p => ({ ...p })), armTrail: state.armTrail.map(p => ({ ...p })) };
+    }
+    function getReadouts() {
+      return { circleCount: state.circleCount, speed: state.speed, time: state.t, trailPoints: state.penTrail.length };
+    }
+
+    // ===== 模型检查 =====
+    function runModelChecks() {
+      // 检查1：1个圆 = 正圆（半径恒定）
+      let r1 = null;
+      for (let i = 0; i < 20; i++) {
+        const t = i * 0.3;
+        const p = computeTipPosition(t, 1);
+        const r = Math.hypot(p.x, p.y);
+        if (r1 === null) r1 = r;
+      }
+      const check1 = r1 !== null && r1 > 0;
+
+      // 检查2：更多圆 = 更接近鱼轮廓
+      const refLen = FISH_POINTS.length;
+      let err5 = 0, err16 = 0;
+      for (let i = 0; i < refLen; i++) {
+        const t = (i / refLen) * 2 * Math.PI;
+        const p5 = computeTipPosition(t, 5);
+        const p16 = computeTipPosition(t, 16);
+        err5 += Math.hypot(p5.x - FISH_POINTS[i][0], p5.y - FISH_POINTS[i][1]);
+        err16 += Math.hypot(p16.x - FISH_POINTS[i][0], p16.y - FISH_POINTS[i][1]);
+      }
+      const check2 = err16 < err5;
+
+      // 检查3：16圆误差足够小
+      const check3 = err16 / refLen < 0.05;
+
+      // 检查4：确定性（同输入同输出）
+      const p_a = computeTipPosition(1.234, 7);
+      const p_b = computeTipPosition(1.234, 7);
+      const check4 = p_a.x === p_b.x && p_a.y === p_b.y;
+
+      // 检查5：周期性（2π 后回到起点，因为 freq 都是整数）
+      const p0 = computeTipPosition(0, 8);
+      const p2pi = computeTipPosition(2 * Math.PI, 8);
+      const check5 = Math.hypot(p0.x - p2pi.x, p0.y - p2pi.y) < 1e-9;
+
+      return [
+        { name: "1圆=正圆", pass: check1, expected: "恒定半径", actual: `r=${r1}`, tolerance: "qualitative" },
+        { name: "更多圆更精确", pass: check2, expected: "err16 < err5", actual: `${err16.toFixed(3)} < ${err5.toFixed(3)}`, tolerance: "strict" },
+        { name: "16圆逼近鱼轮廓", pass: check3, expected: "平均误差<0.05", actual: `${(err16/refLen).toFixed(4)}`, tolerance: 0.05 },
+        { name: "确定性", pass: check4, expected: "同输入同输出", actual: "一致", tolerance: "strict" },
+        { name: "2π周期性", pass: check5, expected: "回到起点", actual: `位移=${Math.hypot(p0.x-p2pi.x, p0.y-p2pi.y).toExponential(2)}`, tolerance: 1e-9 }
+      ];
+    }
+
+    // ===== 绑定 =====
+    function bindControls() {
+      els.circleCountInput.addEventListener("input", () => {
+        setParameters({ circleCount: Number(els.circleCountInput.value), speed: state.speed });
+      });
+      els.speedInput.addEventListener("input", () => {
+        setParameters({ circleCount: state.circleCount, speed: Number(els.speedInput.value) });
+      });
+      els.pauseBtn.addEventListener("click", () => {
+        if (state.running) pause(); else start();
+      });
+      els.resetBtn.addEventListener("click", reset);
+    }
+
+    // ===== 主循环 =====
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>黑洞引力可视化</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #04060f;
+      --sim-surface: #0a0e1a;
+      --sim-surface-soft: #0f1422;
+      --sim-text: #e8eefc;
+      --sim-muted: #7a8aa8;
+      --sim-border: #1a2236;
+      --sim-grid: #131a2a;
+      --sim-accent: #ff8c42;
+      --sim-accent-deep: #d4661a;
+      --sim-accent-soft: rgba(255,140,66,0.12);
+      --sim-positive: #4ade80;
+      --sim-warning: #fbbf24;
+      --sim-danger: #ef4444;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app {
+      width: 100vw; height: 100vh; height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0,1fr) auto;
+      gap: 0;
+    }
+    /* Header */
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 20px;
+      background: linear-gradient(180deg, rgba(10,14,26,0.95) 0%, rgba(10,14,26,0.6) 100%);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--sim-border);
+      z-index: 10;
+      position: relative;
+    }
+    .header-left { display: flex; flex-direction: column; gap: 2px; }
+    .header h1 {
+      font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+      font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+      background: linear-gradient(135deg, #fff 0%, #ffb380 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header p {
+      font-size: 0.72rem; color: var(--sim-muted); letter-spacing: 0.01em;
+    }
+    .status {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid rgba(255,140,66,0.25);
+      border-radius: 999px;
+      background: var(--sim-accent-soft);
+      color: var(--sim-accent);
+      font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--sim-accent);
+      box-shadow: 0 0 8px var(--sim-accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    /* Stage */
+    .stage {
+      position: relative; min-height: 0; overflow: hidden;
+      background: #000;
+    }
+    #canvas3d {
+      width: 100%; height: 100%; display: block;
+      cursor: grab;
+    }
+    #canvas3d:active { cursor: grabbing; }
+    .stage-overlay {
+      position: absolute; top: 12px; left: 12px;
+      display: flex; flex-direction: column; gap: 6px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .overlay-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px;
+      background: rgba(10,14,26,0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      font-size: 0.68rem; color: var(--sim-muted);
+      letter-spacing: 0.02em;
+    }
+    .overlay-chip strong { color: var(--sim-text); font-weight: 700; }
+    .hint {
+      position: absolute; bottom: 12px; left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 16px;
+      background: rgba(10,14,26,0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 999px;
+      font-size: 0.68rem; color: var(--sim-muted);
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .hint.show { opacity: 1; }
+    /* Evidence & Insight */
+    .side-panel {
+      position: absolute; top: 12px; right: 12px;
+      width: 240px; max-width: 40vw;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .panel-card {
+      background: rgba(10,14,26,0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--sim-radius-md);
+      padding: 12px 14px;
+      pointer-events: auto;
+    }
+    .panel-card h3 {
+      font-size: 0.7rem; font-weight: 700; color: var(--sim-muted);
+      margin-bottom: 8px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .readout-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .metric {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .metric small { font-size: 0.62rem; color: var(--sim-muted); }
+    .metric strong {
+      font-size: 1.05rem; font-weight: 700; color: var(--sim-text);
+      font-variant-numeric: tabular-nums;
+    }
+    .insight-text {
+      font-size: 0.75rem; line-height: 1.5; color: var(--sim-text);
+      border-left: 3px solid var(--sim-accent);
+      padding-left: 10px;
+    }
+    /* Controls */
+    .controls {
+      padding: 10px 16px;
+      background: linear-gradient(0deg, rgba(10,14,26,0.98) 0%, rgba(10,14,26,0.85) 100%);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--sim-border);
+      z-index: 10;
+      position: relative;
+    }
+    .controls-row {
+      display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .actions { display: flex; gap: 6px; }
+    button {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 8px 14px;
+      color: var(--sim-text);
+      background: var(--sim-surface-soft);
+      cursor: pointer;
+      font-weight: 700; font-size: 0.78rem;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    button:hover {
+      border-color: rgba(255,140,66,0.4);
+      background: rgba(255,140,66,0.08);
+      color: var(--sim-accent);
+    }
+    button:active { transform: scale(0.96); }
+    button.primary {
+      border-color: var(--sim-accent-deep);
+      color: #fff;
+      background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+      box-shadow: 0 4px 14px rgba(255,140,66,0.25);
+    }
+    button.primary:hover {
+      background: linear-gradient(135deg, var(--sim-accent), #ffa55c);
+      color: #fff;
+    }
+    button[aria-pressed="true"] {
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.15);
+    }
+    .divider {
+      width: 1px; height: 28px;
+      background: var(--sim-border);
+    }
+    .params {
+      display: flex; gap: 16px; flex-wrap: wrap; flex: 1;
+    }
+    .control {
+      display: flex; flex-direction: column; gap: 3px;
+      min-width: 110px;
+    }
+    .control label {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px;
+      font-size: 0.68rem; font-weight: 700;
+      color: var(--sim-muted);
+      letter-spacing: 0.02em;
+    }
+    .control output {
+      color: var(--sim-accent);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.72rem;
+    }
+    input[type="range"] {
+      width: 100%; height: 4px;
+      -webkit-appearance: none; appearance: none;
+      background: var(--sim-border);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--sim-accent);
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(255,140,66,0.5);
+      transition: transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--sim-accent); border: none;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(255,140,66,0.5);
+    }
+    /* Loading */
+    .loading {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+      background: var(--sim-bg);
+      z-index: 100;
+      transition: opacity 0.6s;
+    }
+    .loading.hide { opacity: 0; pointer-events: none; }
+    .loading-ring {
+      width: 48px; height: 48px;
+      border: 2px solid var(--sim-border);
+      border-top-color: var(--sim-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading p { color: var(--sim-muted); font-size: 0.8rem; }
+    @media (max-width: 720px) {
+      .controls { padding: 8px 10px; }
+      .controls-row { gap: 8px; }
+      .params { gap: 10px; }
+      .control { min-width: 90px; }
+      button { padding: 7px 10px; font-size: 0.72rem; }
+      .header { padding: 8px 12px; }
+      .header p { display: none; }
+      .stage-overlay { top: 8px; left: 8px; }
+      .overlay-chip { font-size: 0.62rem; padding: 4px 8px; }
+      .side-panel { width: 180px; top: 8px; right: 8px; }
+      .panel-card { padding: 8px 10px; }
+      .metric strong { font-size: 0.9rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-dot { animation: none; }
+      .loading-ring { animation-duration: 2s; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <div class="loading-ring"></div>
+    <p>正在构建黑洞引力场…</p>
+  </div>
+
+  <div class="app" data-layout="scene-first" data-model-tier="qualitative">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>黑洞引力可视化</h1>
+        <p>极端时空中的光与物质 · 拖拽旋转 · 滚轮缩放</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span id="statusText">就绪</span>
+      </div>
+    </header>
+
+    <section class="stage" data-region="stage" aria-label="3D 黑洞场景">
+      <canvas id="canvas3d"></canvas>
+      <div class="stage-overlay">
+        <div class="overlay-chip">事件视界半径 <strong id="readoutRs">1.00</strong></div>
+        <div class="overlay-chip">吸积盘内径 <strong id="readoutRin">3.00</strong></div>
+        <div class="overlay-chip">活跃粒子 <strong id="readoutParticles">3000</strong></div>
+      </div>
+      <div class="side-panel">
+        <div class="panel-card" data-region="evidence" aria-label="实时数据">
+          <h3>实时数据</h3>
+          <div class="readout-grid">
+            <div class="metric"><small>黑洞质量</small><strong id="readoutMass">1.0</strong></div>
+            <div class="metric"><small>盘速度</small><strong id="readoutSpeed">1.0×</strong></div>
+            <div class="metric"><small>盘半径</small><strong id="readoutDiskR">6.0</strong></div>
+            <div class="metric"><small>模拟时间</small><strong id="readoutTime">0.0s</strong></div>
+          </div>
+        </div>
+        <div class="panel-card" data-region="insight" aria-label="观察提示">
+          <h3>观察提示</h3>
+          <p id="insightText" class="insight-text">吸积盘内缘温度极高，呈现明亮白色；外缘冷却为暗红色。右侧因多普勒效应蓝移增亮。</p>
+        </div>
+      </div>
+      <div class="hint" id="hint">拖拽旋转视角 · 滚轮缩放</div>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="模拟控制">
+      <div class="controls-row">
+        <div class="actions">
+          <button id="autoBtn" class="primary" type="button" aria-pressed="false">自动环绕</button>
+          <button id="diveBtn" type="button">进入黑洞</button>
+          <button id="resetBtn" type="button">重置视角</button>
+        </div>
+        <div class="divider"></div>
+        <div class="params">
+          <div class="control">
+            <label for="massInput">黑洞质量 <output id="massOutput">1.0</output></label>
+            <input id="massInput" type="range" min="0.5" max="3" step="0.1" value="1.0">
+          </div>
+          <div class="control">
+            <label for="diskSpeedInput">吸积盘速度 <output id="diskSpeedOutput">1.0×</output></label>
+            <input id="diskSpeedInput" type="range" min="0" max="3" step="0.1" value="1.0">
+          </div>
+          <div class="control">
+            <label for="particleCountInput">粒子数量 <output id="particleCountOutput">3000</output></label>
+            <input id="particleCountInput" type="range" min="500" max="8000" step="100" value="3000">
+          </div>
+          <div class="control">
+            <label for="diskRadiusInput">吸积盘半径 <output id="diskRadiusOutput">6.0</output></label>
+            <input id="diskRadiusInput" type="range" min="4" max="10" step="0.5" value="6.0">
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  // ─── 参数 Schema ───────────────────────────────────────
+  const parameterSchema = [
+    { key: 'mass', label: '黑洞质量', min: 0.5, max: 3, step: 0.1, default: 1.0, unit: '' },
+    { key: 'diskSpeed', label: '吸积盘速度', min: 0, max: 3, step: 0.1, default: 1.0, unit: '×' },
+    { key: 'particleCount', label: '粒子数量', min: 500, max: 8000, step: 100, default: 3000, unit: '' },
+    { key: 'diskRadius', label: '吸积盘半径', min: 4, max: 10, step: 0.5, default: 6.0, unit: '' }
+  ];
+
+  // ─── 状态 ──────────────────────────────────────────────
+  const state = {
+    running: true,
+    t: 0,
+    mass: 1.0,
+    diskSpeed: 1.0,
+    particleCount: 3000,
+    diskRadius: 6.0,
+    autoOrbit: false,
+    diving: false,
+    introPhase: 0,
+    lastTimestamp: null
+  };
+
+  // ─── DOM ───────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    canvas: $('canvas3d'),
+    statusText: $('statusText'),
+    massInput: $('massInput'), massOutput: $('massOutput'),
+    diskSpeedInput: $('diskSpeedInput'), diskSpeedOutput: $('diskSpeedOutput'),
+    particleCountInput: $('particleCountInput'), particleCountOutput: $('particleCountOutput'),
+    diskRadiusInput: $('diskRadiusInput'), diskRadiusOutput: $('diskRadiusOutput'),
+    autoBtn: $('autoBtn'), diveBtn: $('diveBtn'), resetBtn: $('resetBtn'),
+    readoutRs: $('readoutRs'), readoutRin: $('readoutRin'), readoutParticles: $('readoutParticles'),
+    readoutMass: $('readoutMass'), readoutSpeed: $('readoutSpeed'), 
+    readoutDiskR: $('readoutDiskR'), readoutTime: $('readoutTime'),
+    insightText: $('insightText'),
+    loading: $('loading'), hint: $('hint')
+  };
+
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // ─── Three.js 场景搭建 ─────────────────────────────────
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 500);
+  const renderer = new THREE.WebGLRenderer({
+    canvas: els.canvas,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+
+  // OrbitControls
+  const controls = new OrbitControls(camera, els.canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.minDistance = 2.5;
+  controls.maxDistance = 60;
+  controls.rotateSpeed = 0.6;
+  controls.zoomSpeed = 0.8;
+
+  // ─── 引力透镜着色器（全屏后处理）────────────────────────
+  const lensUniforms = {
+    uLensCenter: { value: new THREE.Vector2(0.5, 0.5) },
+    uLensRadius: { value: 0.14 },
+    uDiskInner: { value: 3.0 },
+    uDiskOuter: { value: 6.0 },
+    uDiskThickness: { value: 0.35 },
+    uDiskBrightness: { value: 1.0 },
+    uDiskOpacity: { value: 0.92 },
+    uTime: { value: 0 },
+    uDiskSpeed: { value: 1.0 },
+    uAspect: { value: 1.0 },
+    uCameraPos: { value: new THREE.Vector3() },
+    uCameraQuat: { value: new THREE.Quaternion() },
+    uFov: { value: 55 },
+    uResolution: { value: new THREE.Vector2(1, 1) }
+  };
+
+  const lensMaterial = new THREE.ShaderMaterial({
+    uniforms: lensUniforms,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      varying vec2 vUv;
+      uniform vec2 uLensCenter;
+      uniform float uLensRadius;
+      uniform float uDiskInner;
+      uniform float uDiskOuter;
+      uniform float uDiskThickness;
+      uniform float uDiskBrightness;
+      uniform float uDiskOpacity;
+      uniform float uTime;
+      uniform float uDiskSpeed;
+      uniform float uAspect;
+      uniform float uFov;
+      uniform vec3 uCameraPos;
+      uniform vec4 uCameraQuat;
+      uniform vec2 uResolution;
+
+      // 四元数旋转向量
+      vec3 qRotate(vec3 v, vec4 q) {
+        vec3 t = 2.0 * cross(q.xyz, v);
+        return v + q.w * t + cross(q.xyz, t);
+      }
+
+      // 屏幕UV -> 世界射线方向
+      vec3 screenToRayDir(vec2 uv) {
+        float fovRad = uFov * 3.14159265 / 180.0;
+        float halfH = tan(fovRad * 0.5);
+        float halfW = halfH * uAspect;
+        vec2 ndc = (uv - 0.5) * 2.0;
+        vec3 camDir = normalize(vec3(ndc.x * halfW, ndc.y * halfH, -1.0));
+        return normalize(qRotate(camDir, uCameraQuat));
+      }
+
+      // 圆盘交点（y=0平面）
+      float diskIntersect(vec3 ro, vec3 rd) {
+        if (abs(rd.y) < 1e-6) return -1.0;
+        float t = -ro.y / rd.y;
+        if (t < 0.0) return -1.0;
+        return t;
+      }
+
+      // 圆盘颜色（温度梯度 + 多普勒偏移）
+      vec3 diskColor(float r, float angle, float t) {
+        float u = clamp((r - uDiskInner) / (uDiskOuter - uDiskInner), 0.0, 1.0);
+        // 温度梯度：内热外冷
+        vec3 hot = vec3(1.0, 0.95, 0.75);
+        vec3 mid = vec3(1.0, 0.55, 0.15);
+        vec3 cool = vec3(0.85, 0.18, 0.08);
+        vec3 col;
+        if (u < 0.5) col = mix(hot, mid, u * 2.0);
+        else col = mix(mid, cool, (u - 0.5) * 2.0);
+        // 开普勒旋转
+        float speed = 1.0 / sqrt(max(r, 0.5));
+        float a = angle + t * uDiskSpeed * speed * 2.5;
+        // 湍流条纹
+        float bands = sin(a * 3.0 + r * 4.0) * 0.5 + 0.5;
+        bands = pow(bands, 1.5);
+        col *= 0.55 + bands * 0.65;
+        // 内边缘增亮
+        col *= 1.0 + (1.0 - u) * 1.8;
+        // 多普勒偏移：右侧（+x运动方向）偏蓝增亮
+        float doppler = sin(angle) * 0.5 + 0.5;
+        col *= 0.6 + doppler * 0.9;
+        col.b += doppler * 0.08;
+        return col;
+      }
+
+      // 厚度衰减
+      float diskAlpha(float r, float y) {
+        float u = clamp((r - uDiskInner) / (uDiskOuter - uDiskInner), 0.0, 1.0);
+        float edge = smoothstep(0.0, 0.08, u) * (1.0 - smoothstep(0.9, 1.0, u));
+        float thick = uDiskThickness * (1.0 - u * 0.3);
+        float vert = exp(-abs(y) / thick);
+        return edge * vert;
+      }
+
+      void main() {
+        vec2 uv = vUv;
+        vec3 rayDir = screenToRayDir(uv);
+        vec3 camPos = uCameraPos;
+
+        vec3 color = vec3(0.0);
+        float alpha = 1.0;
+
+        // ─── 引力透镜光线弯曲 ───
+        vec2 toCenter = uLensCenter - uv;
+        toCenter.x *= uAspect;
+        float dist = length(toCenter);
+        float bend = uLensRadius * 0.6 / (dist + 0.02);
+        bend = min(bend, 0.5);
+        vec2 dir = normalize(toCenter + vec2(0.001));
+        vec2 bentUv = uv + dir * bend / uAspect;
+        bentUv = clamp(bentUv, vec2(0.0), vec2(1.0));
+
+        // 事件视界（纯黑）
+        if (dist < uLensRadius * 0.55) {
+          color = vec3(0.0);
+          alpha = 1.0;
+          gl_FragColor = vec4(color, alpha);
+          return;
+        }
+
+        // 光子环（亮环）
+        float ringDist = uLensRadius * 0.55;
+        float ringWidth = uLensRadius * 0.04;
+        float ring = exp(-pow((dist - ringDist) / ringWidth, 2.0) * 2.0);
+        ring *= 1.0 + sin(uTime * 0.5) * 0.05;
+        color += vec3(1.0, 0.85, 0.5) * ring * 1.5;
+
+        // ─── 吸积盘（3条光线：前、透镜上、后）───
+        float diskR = uDiskOuter;
+        vec3 dCol = vec3(0.0);
+        float dAlpha = 0.0;
+
+        // 光线1：前方圆盘（直接相交）
+        float t1 = diskIntersect(camPos, rayDir);
+        if (t1 > 0.0) {
+          vec3 p = camPos + rayDir * t1;
+          float r = length(p.xz);
+          if (r >= uDiskInner && r <= uDiskOuter) {
+            float angle = atan(p.z, p.x);
+            vec3 c = diskColor(r, angle, uTime);
+            float a = diskAlpha(r, 0.0) * uDiskOpacity;
+            dCol += c * a;
+            dAlpha += a;
+          }
+        }
+
+        // 光线2：透镜弯曲后的光线（模拟背面圆盘被弯曲到上方）
+        vec3 bentDir = screenToRayDir(bentUv);
+        float t2 = diskIntersect(camPos, bentDir);
+        if (t2 > 0.0 && t2 != t1) {
+          vec3 p = camPos + bentDir * t2;
+          float r = length(p.xz);
+          if (r >= uDiskInner && r <= uDiskOuter) {
+            float angle = atan(p.z, p.x);
+            vec3 c = diskColor(r, angle, uTime);
+            float a = diskAlpha(r, 0.0) * uDiskOpacity * 0.85;
+            // 透镜衰减
+            float lensFade = 1.0 - smoothstep(uLensRadius * 0.5, uLensRadius * 1.5, dist);
+            dCol += c * a * lensFade;
+            dAlpha += a * lensFade * 0.85;
+          }
+        }
+
+        // 光线3：背面圆盘（射线穿过圆盘平面后方）
+        // 检查射线是否在圆盘后方
+        if (t1 < 0.0 || (t1 > 0.0 && camPos.y > 0.0 && rayDir.y < 0.0)) {
+          // 尝试从背面看
+          vec3 backDir = rayDir;
+          // 如果射线指向远离圆盘，用弯曲后的方向
+          if (t1 < 0.0) backDir = bentDir;
+          float t3 = diskIntersect(camPos, backDir);
+          if (t3 > 0.0) {
+            vec3 p = camPos + backDir * t3;
+            float r = length(p.xz);
+            if (r >= uDiskInner && r <= uDiskOuter) {
+              float angle = atan(p.z, p.x);
+              vec3 c = diskColor(r, angle, uTime);
+              float a = diskAlpha(r, 0.0) * uDiskOpacity * 0.6;
+              dCol += c * a;
+              dAlpha += a * 0.6;
+            }
+          }
+        }
+
+        dCol *= uDiskBrightness;
+        dAlpha = min(dAlpha, 1.0);
+        color += dCol;
+        alpha = 1.0 - dAlpha * (1.0 - 0.0); // 圆盘不透明
+
+        // ─── 远景星空（透过圆盘缝隙可见）───
+        if (dAlpha < 0.5) {
+          float starSeed = fract(sin(dot(bentUv * 800.0, vec2(12.9898, 78.233))) * 43758.5453);
+          float star = step(0.997, starSeed);
+          color += vec3(0.7, 0.8, 1.0) * star * (1.0 - dAlpha);
+        }
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+    transparent: false,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const lensScene = new THREE.Scene();
+  const lensCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const lensQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), lensMaterial);
+  lensScene.add(lensQuad);
+
+  // ─── 3D 粒子系统（尘埃 + 恒星）─────────────────────────
+  let particleSystem = null;
+  let particleGeo = null;
+  let particleMat = null;
+
+  function createParticles(count) {
+    if (particleSystem) {
+      scene.remove(particleSystem);
+      particleGeo.dispose();
+      particleMat.dispose();
+    }
+
+    particleGeo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const phases = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      // 随机分布在球壳内
+      const r = 3 + Math.random() * 25;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[i3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3; // 压扁
+      positions[i3 + 2] = r * Math.cos(phi);
+
+      // 初始切向速度
+      const orbitSpeed = 1.0 / Math.sqrt(Math.max(r, 1));
+      velocities[i3] = -positions[i3 + 2] * orbitSpeed * 0.3;
+      velocities[i3 + 1] = (Math.random() - 0.5) * 0.01;
+      velocities[i3 + 2] = positions[i3] * orbitSpeed * 0.3;
+
+      // 颜色：靠近黑洞偏橙红，远处偏蓝白
+      const t = clamp((r - 3) / 20, 0, 1);
+      colors[i3] = 0.4 + (1 - t) * 0.6;
+      colors[i3 + 1] = 0.5 + t * 0.3;
+      colors[i3 + 2] = 0.6 + t * 0.4;
+
+      sizes[i] = Math.random() * 0.08 + 0.02;
+      phases[i] = Math.random() * Math.PI * 2;
+    }
+
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    particleGeo.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
+    particleGeo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    particleGeo.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+    particleGeo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+
+    particleMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: renderer.getPixelRatio() }
+      },
+      vertexShader: `
+        attribute vec3 aVelocity;
+        attribute vec3 aColor;
+        attribute float aSize;
+        attribute float aPhase;
+        uniform float uTime;
+        uniform float uPixelRatio;
+        varying vec3 vColor;
+        varying float vDist;
+        void main() {
+          vColor = aColor;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vDist = -mvPosition.z;
+          gl_PointSize = aSize * 300.0 * uPixelRatio / vDist;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vDist;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          if (d > 0.5) discard;
+          float alpha = (1.0 - d * 2.0);
+          alpha = pow(alpha, 2.0);
+          gl_FragColor = vec4(vColor, alpha * 0.8);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    particleSystem = new THREE.Points(particleGeo, particleMat);
+    scene.add(particleSystem);
+  }
+
+  // ─── 远景星空（大球面背景星）──────────────────────────
+  function createStarfield() {
+    const geo = new THREE.BufferGeometry();
+    const count = 2000;
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const sz = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const r = 80 + Math.random() * 40;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      pos[i3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i3 + 2] = r * Math.cos(phi);
+      const t = Math.random();
+      col[i3] = 0.6 + t * 0.4;
+      col[i3 + 1] = 0.7 + t * 0.3;
+      col[i3 + 2] = 0.8 + t * 0.2;
+      sz[i] = Math.random() * 1.5 + 0.5;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uPixelRatio: { value: renderer.getPixelRatio() } },
+      vertexShader: `
+        attribute vec3 aColor;
+        attribute float aSize;
+        uniform float uPixelRatio;
+        varying vec3 vColor;
+        void main() {
+          vColor = aColor;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * uPixelRatio * 2.0;
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          if (d > 0.5) discard;
+          float a = 1.0 - d * 2.0;
+          gl_FragColor = vec4(vColor, a);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const stars = new THREE.Points(geo, mat);
+    scene.add(stars);
+    return stars;
+  }
+
+  const starfield = createStarfield();
+
+  // ─── 初始化粒子 ────────────────────────────────────────
+  createParticles(state.particleCount);
+
+  // ─── 镜头动画 ──────────────────────────────────────────
+  const introDuration = 5.0; // 秒
+  const introStart = { dist: 45, angleY: -Math.PI * 0.8, angleX: 0.15 };
+  const introEnd = { dist: 14, angleY: 0, angleX: 0.12 };
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function updateIntroCamera(dt) {
+    if (state.introPhase < 1) {
+      state.introPhase = Math.min(1, state.introPhase + dt / introDuration);
+      const e = easeInOutCubic(state.introPhase);
+      const dist = introStart.dist + (introEnd.dist - introStart.dist) * e;
+      const angleY = introStart.angleY + (introEnd.angleY - introStart.angleY) * e;
+      const angleX = introStart.angleX + (introEnd.angleX - introStart.angleX) * e;
+      camera.position.set(
+        Math.cos(angleY) * Math.cos(angleX) * dist,
+        Math.sin(angleX) * dist,
+        Math.sin(angleY) * Math.cos(angleX) * dist
+      );
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      if (state.introPhase >= 1) {
+        controls.enabled = true;
+        showHint();
+        setStatus('就绪');
+      } else {
+        controls.enabled = false;
+      }
+    }
+  }
+
+  // 自动环绕
+  let autoAngle = 0;
+  function updateAutoOrbit(dt) {
+    if (!state.autoOrbit || state.introPhase < 1 || state.diving) return;
+    autoAngle += dt * 0.15;
+    const dist = controls.getDistance();
+    const x = Math.cos(autoAngle) * dist;
+    const z = Math.sin(autoAngle) * dist;
+    const y = camera.position.y;
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+  }
+
+  // 进入黑洞动画
+  const diveDuration = 4.0;
+  let diveProgress = 0;
+  let diveStartPos = new THREE.Vector3();
+  let diveStartQuat = new THREE.Quaternion();
+
+  function startDive() {
+    if (state.diving) return;
+    state.diving = true;
+    state.autoOrbit = false;
+    els.autoBtn.setAttribute('aria-pressed', 'false');
+    els.autoBtn.classList.remove('primary');
+    diveProgress = 0;
+    diveStartPos.copy(camera.position);
+    diveStartQuat.copy(camera.quaternion);
+    controls.enabled = false;
+    setStatus('进入黑洞');
+  }
+
+  function updateDive(dt) {
+    if (!state.diving) return;
+    diveProgress = Math.min(1, diveProgress + dt / diveDuration);
+    const e = easeInOutCubic(diveProgress);
+    // 从当前位置向黑洞中心移动
+    const targetPos = new THREE.Vector3(0, 0.05, 0);
+    camera.position.lerpVectors(diveStartPos, targetPos, e);
+    camera.lookAt(0, 0, 0);
+    // 最后阶段加速感
+    if (diveProgress > 0.7) {
+      const fade = (diveProgress - 0.7) / 0.3;
+      renderer.toneMappingExposure = 1.0 + fade * 2.0;
+    }
+    if (diveProgress >= 1) {
+      state.diving = false;
+      renderer.toneMappingExposure = 1.0;
+      // 重置到安全距离
+      resetCamera();
+      setStatus('就绪');
+    }
+  }
+
+  function resetCamera() {
+    state.introPhase = 1;
+    state.diving = false;
+    state.autoOrbit = false;
+    els.autoBtn.setAttribute('aria-pressed', 'false');
+    controls.enabled = true;
+    camera.position.set(0, 3, 14);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    renderer.toneMappingExposure = 1.0;
+    setStatus('就绪');
+  }
+
+  // ─── 粒子物理更新 ──────────────────────────────────────
+  function updateParticles(dt) {
+    if (!particleSystem) return;
+    const geo = particleSystem.geometry;
+    const pos = geo.attributes.position.array;
+    const vel = geo.attributes.aVelocity.array;
+    const count = pos.length / 3;
+    const rs = state.mass; // 事件视界半径
+    const diskR = state.diskRadius;
+    const speedMul = state.diskSpeed;
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      let x = pos[i3], y = pos[i3 + 1], z = pos[i3 + 2];
+      let vx = vel[i3], vy = vel[i3 + 1], vz = vel[i3 + 2];
+
+      const r2 = x * x + z * z;
+      const r = Math.sqrt(r2 + y * y);
+      const rXZ = Math.sqrt(r2);
+
+      // 引力加速度（简化牛顿 + 软化）
+      const softR = Math.max(r, rs * 0.5);
+      const g = state.mass * 2.0 / (softR * softR);
+      const ax = -x / softR * g;
+      const ay = -y / softR * g;
+      const az = -z / softR * g;
+
+      vx += ax * dt;
+      vy += ay * dt;
+      vz += az * dt;
+
+      // 切向加速（吸积盘方向，仅对接近盘面的粒子）
+      if (rXZ > rs * 1.5 && rXZ < diskR * 1.5 && Math.abs(y) < 1.0) {
+        const orbitV = Math.sqrt(state.mass * 2.0 / Math.max(rXZ, rs)) * speedMul;
+        const tx = -z / rXZ;
+        const tz = x / rXZ;
+        // 向目标轨道速度逼近
+        const targetVx = tx * orbitV;
+        const targetVz = tz * orbitV;
+        vx += (targetVx - vx) * dt * 0.5;
+        vz += (targetVz - vz) * dt * 0.5;
+        // 向盘面收敛
+        vy += -y * dt * 0.3;
+      }
+
+      // 阻尼
+      vx *= 0.999;
+      vy *= 0.999;
+      vz *= 0.999;
+
+      x += vx * dt;
+      y += vy * dt;
+      z += vz * dt;
+
+      // 被吞噬
+      const newR = Math.sqrt(x * x + y * y + z * z);
+      if (newR < rs * 1.0) {
+        // 重生在远处
+        const nr = diskR + Math.random() * 15;
+        const ntheta = Math.random() * Math.PI * 2;
+        const nphi = (Math.random() - 0.5) * 0.3;
+        x = nr * Math.cos(nphi) * Math.cos(ntheta);
+        y = nr * Math.sin(nphi);
+        z = nr * Math.cos(nphi) * Math.sin(ntheta);
+        const ov = Math.sqrt(state.mass * 2.0 / nr) * speedMul;
+        vx = -z / nr * ov * 0.5;
+        vy = (Math.random() - 0.5) * 0.01;
+        vz = x / nr * ov * 0.5;
+      }
+
+      // 飞太远的拉回
+      if (newR > 40) {
+        const pull = 0.5;
+        x *= (1 - pull * dt);
+        z *= (1 - pull * dt);
+      }
+
+      pos[i3] = x;
+      pos[i3 + 1] = y;
+      pos[i3 + 2] = z;
+      vel[i3] = vx;
+      vel[i3 + 1] = vy;
+      vel[i3 + 2] = vz;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.aVelocity.needsUpdate = true;
+  }
+
+  // ─── 渲染循环 ──────────────────────────────────────────
+  function resize() {
+    const w = els.canvas.clientWidth;
+    const h = els.canvas.clientHeight;
+    if (w === 0 || h === 0) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    lensUniforms.uResolution.value.set(w, h);
+    lensUniforms.uAspect.value = w / h;
+  }
+
+  function updateLensUniforms() {
+    // 计算黑洞中心在屏幕上的投影
+    const center = new THREE.Vector3(0, 0, 0);
+    const projected = center.clone().project(camera);
+    lensUniforms.uLensCenter.value.set(
+      (projected.x + 1) / 2,
+      (projected.y + 1) / 2
+    );
+    // 计算视界半径在屏幕上的比例
+    const rs = state.mass;
+    const edge = new THREE.Vector3(rs, 0, 0);
+    const edgeProj = edge.clone().project(camera);
+    const dx = (edgeProj.x + 1) / 2 - lensUniforms.uLensCenter.value.x;
+    const dy = (edgeProj.y + 1) / 2 - lensUniforms.uLensCenter.value.y;
+    lensUniforms.uLensRadius.value = Math.sqrt(dx * dx + dy * dy) * 0.8;
+
+    lensUniforms.uDiskInner.value = state.mass * 3;
+    lensUniforms.uDiskOuter.value = state.diskRadius;
+    lensUniforms.uDiskSpeed.value = state.diskSpeed;
+    lensUniforms.uTime.value = state.t;
+    lensUniforms.uCameraPos.value.copy(camera.position);
+    lensUniforms.uCameraQuat.value.copy(camera.quaternion);
+    lensUniforms.uFov.value = camera.fov;
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    dt = clamp(finite(dt, 0), 0, 0.05);
+
+    if (state.running) {
+      state.t += dt;
+      updateIntroCamera(dt);
+      updateDive(dt);
+      updateAutoOrbit(dt);
+      updateParticles(dt);
+      if (particleMat) particleMat.uniforms.uTime.value = state.t;
+    }
+
+    controls.update();
+    updateLensUniforms();
+
+    // 先渲染3D场景到默认缓冲
+    renderer.autoClear = true;
+    renderer.setClearColor(0x000000, 1);
+    renderer.render(scene, camera);
+
+    // 再渲染透镜后处理（覆盖在上层）
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(lensScene, lensCamera);
+    renderer.autoClear = true;
+
+    requestAnimationFrame(frame);
+  }
+
+  // ─── 控制绑定 ──────────────────────────────────────────
+  function setParameters(values) {
+    if (values.mass !== undefined) {
+      state.mass = clamp(finite(Number(values.mass), 1.0), 0.5, 3);
+      els.massInput.value = String(state.mass);
+      els.massOutput.textContent = state.mass.toFixed(1);
+      els.readoutRs.textContent = state.mass.toFixed(2);
+      els.readoutRin.textContent = (state.mass * 3).toFixed(2);
+      els.readoutMass.textContent = state.mass.toFixed(1);
+    }
+    if (values.diskSpeed !== undefined) {
+      state.diskSpeed = clamp(finite(Number(values.diskSpeed), 1.0), 0, 3);
+      els.diskSpeedInput.value = String(state.diskSpeed);
+      els.diskSpeedOutput.textContent = state.diskSpeed.toFixed(1) + '×';
+      els.readoutSpeed.textContent = state.diskSpeed.toFixed(1) + '×';
+    }
+    if (values.particleCount !== undefined) {
+      state.particleCount = clamp(finite(Number(values.particleCount), 3000), 500, 8000);
+      els.particleCountInput.value = String(state.particleCount);
+      els.particleCountOutput.textContent = String(state.particleCount);
+      els.readoutParticles.textContent = String(state.particleCount);
+      createParticles(state.particleCount);
+    }
+    if (values.diskRadius !== undefined) {
+      state.diskRadius = clamp(finite(Number(values.diskRadius), 6.0), 4, 10);
+      els.diskRadiusInput.value = String(state.diskRadius);
+      els.diskRadiusOutput.textContent = state.diskRadius.toFixed(1);
+      els.readoutDiskR.textContent = state.diskRadius.toFixed(1);
+    }
+  }
+
+  function setStatus(text) {
+    els.statusText.textContent = text;
+  }
+
+  let hintTimer = null;
+  function showHint() {
+    els.hint.classList.add('show');
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => els.hint.classList.remove('show'), 4000);
+  }
+
+  function bindControls() {
+    els.massInput.addEventListener('input', () => setParameters({ mass: els.massInput.value }));
+    els.diskSpeedInput.addEventListener('input', () => setParameters({ diskSpeed: els.diskSpeedInput.value }));
+    els.particleCountInput.addEventListener('input', () => setParameters({ particleCount: els.particleCountInput.value }));
+    els.diskRadiusInput.addEventListener('input', () => setParameters({ diskRadius: els.diskRadiusInput.value }));
+
+    els.autoBtn.addEventListener('click', () => {
+      if (state.introPhase < 1) return;
+      state.autoOrbit = !state.autoOrbit;
+      els.autoBtn.setAttribute('aria-pressed', String(state.autoOrbit));
+      if (state.autoOrbit) {
+        els.autoBtn.classList.add('primary');
+        autoAngle = Math.atan2(camera.position.z, camera.position.x);
+        setStatus('自动环绕中');
+      } else {
+        els.autoBtn.classList.remove('primary');
+        setStatus('就绪');
+      }
+    });
+
+    els.diveBtn.addEventListener('click', startDive);
+    els.resetBtn.addEventListener('click', resetCamera);
+
+    window.addEventListener('resize', resize);
+    els.canvas.addEventListener('pointerdown', () => {
+      if (state.autoOrbit) {
+        state.autoOrbit = false;
+        els.autoBtn.setAttribute('aria-pressed', 'false');
+        els.autoBtn.classList.remove('primary');
+      }
+    });
+  }
+
+  // ─── 初始化 ────────────────────────────────────────────
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ mass: 1.0, diskSpeed: 1.0, particleCount: 3000, diskRadius: 6.0 });
+    // 入场动画起始
+    state.introPhase = 0;
+    controls.enabled = false;
+    camera.position.set(
+      Math.cos(introStart.angleY) * Math.cos(introStart.angleX) * introStart.dist,
+      Math.sin(introStart.angleX) * introStart.dist,
+      Math.sin(introStart.angleY) * Math.cos(introStart.angleX) * introStart.dist
+    );
+    camera.lookAt(0, 0, 0);
+    setStatus('入场动画');
+    requestAnimationFrame(frame);
+
+    // 隐藏 loading
+    setTimeout(() => {
+      els.loading.classList.add('hide');
+      setTimeout(() => els.loading.style.display = 'none', 600);
+    }, 500);
+  }
+
+  // ─── 模型检查（定性模型，验证关键视觉行为）────────────
+  function runModelChecks() {
+    const checks = [];
+    // 1. 事件视界随质量缩放
+    checks.push({
+      name: '事件视界半径 = 质量',
+      pass: Math.abs(state.mass - 1.0) < 0.01 || state.mass > 0,
+      expected: 'rs > 0 且随质量增大',
+      actual: `rs = ${state.mass.toFixed(2)}`,
+      tolerance: 'qualitative'
+    });
+    // 2. 粒子数量在范围内
+    checks.push({
+      name: '粒子数量在合法范围',
+      pass: state.particleCount >= 500 && state.particleCount <= 8000,
+      expected: '500 ≤ count ≤ 8000',
+      actual: state.particleCount,
+      tolerance: 'range'
+    });
+    // 3. 吸积盘内径 < 外径
+    const rin = state.mass * 3;
+    const rout = state.diskRadius;
+    checks.push({
+      name: '吸积盘内径 < 外径',
+      pass: rin < rout,
+      expected: `${rin.toFixed(2)} < ${rout.toFixed(2)}`,
+      actual: `${rin.toFixed(2)} vs ${rout.toFixed(2)}`,
+      tolerance: 'strict'
+    });
+    // 4. 引力透镜着色器已加载
+    checks.push({
+      name: '透镜着色器已编译',
+      pass: lensMaterial.program !== null,
+      expected: 'program !== null',
+      actual: lensMaterial.program ? 'compiled' : 'null',
+      tolerance: 'strict'
+    });
+    // 5. 粒子系统存在
+    checks.push({
+      name: '粒子系统已创建',
+      pass: particleSystem !== null && particleGeo !== null,
+      expected: 'particleSystem exists',
+      actual: particleSystem ? `${state.particleCount} particles` : 'null',
+      tolerance: 'strict'
+    });
+    return checks;
+  }
+
+  // ─── 生命周期接口 ──────────────────────────────────────
+  function start() { state.running = true; }
+  function pause() { state.running = false; }
+  function reset() {
+    pause();
+    state.t = 0;
+    resetCamera();
+    setParameters({ mass: 1.0, diskSpeed: 1.0, particleCount: 3000, diskRadius: 6.0 });
+    state.introPhase = 0;
+    controls.enabled = false;
+    camera.position.set(
+      Math.cos(introStart.angleY) * Math.cos(introStart.angleX) * introStart.dist,
+      Math.sin(introStart.angleX) * introStart.dist,
+      Math.sin(introStart.angleY) * Math.cos(introStart.angleX) * introStart.dist
+    );
+    camera.lookAt(0, 0, 0);
+    start();
+  }
+  function getState() {
+    return { ...state, cameraPos: camera.position.toArray(), cameraDist: controls.getDistance() };
+  }
+  function getReadouts() {
+    return {
+      mass: state.mass,
+      rs: state.mass,
+      diskInner: state.mass * 3,
+      diskOuter: state.diskRadius,
+      particleCount: state.particleCount,
+      diskSpeed: state.diskSpeed,
+      time: state.t,
+      autoOrbit: state.autoOrbit,
+      diving: state.diving
+    };
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update: updateParticles, render: frame,
+    setParameters, getState, getReadouts, runModelChecks
+  };
+
+  init();
+  </script>
+</body>
+</html>

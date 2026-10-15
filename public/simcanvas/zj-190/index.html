@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klein Bottle · Wireframe</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sim-bg: #050810;
+    --sim-surface: #0a0f1c;
+    --sim-surface-soft: #0d1424;
+    --sim-text: #e8eefc;
+    --sim-muted: #6b7a92;
+    --sim-border: #1a2438;
+    --sim-grid: #131c2e;
+    --sim-accent: #5fe3d6;
+    --sim-accent-deep: #2bb5a8;
+    --sim-accent-soft: rgba(95, 227, 214, 0.12);
+    --sim-positive: #5fe3d6;
+    --sim-warning: #f59e0b;
+    --sim-danger: #ef4444;
+    --sim-radius-sm: 10px;
+    --sim-radius-md: 16px;
+    --sim-radius-lg: 22px;
+    --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--sim-bg);
+    color: var(--sim-text);
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    overflow: hidden;
+  }
+  .app {
+    width: 100vw; height: 100vh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: var(--sim-space-3);
+    padding: var(--sim-space-3) var(--sim-space-4);
+  }
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--sim-space-4); min-height: 48px;
+  }
+  .header h1 {
+    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+    letter-spacing: 0.04em; line-height: 1.1;
+    color: var(--sim-accent);
+  }
+  .header p {
+    margin-top: 2px; color: var(--sim-muted);
+    font-size: 0.72rem; letter-spacing: 0.02em;
+  }
+  .status {
+    border: 1px solid rgba(95, 227, 214, 0.22);
+    border-radius: 999px;
+    padding: 7px 14px;
+    background: var(--sim-accent-soft);
+    color: var(--sim-accent);
+    font-weight: 700; font-size: 0.72rem;
+    white-space: nowrap; letter-spacing: 0.04em;
+  }
+  .main {
+    min-height: 0; position: relative;
+    border: 1px solid var(--sim-border);
+    border-radius: var(--sim-radius-lg);
+    background: var(--sim-surface);
+    overflow: hidden;
+    box-shadow: var(--sim-shadow);
+  }
+  #scene {
+    display: block; width: 100%; height: 100%;
+    cursor: crosshair;
+  }
+  .corner-text {
+    position: absolute;
+    bottom: var(--sim-space-4);
+    left: var(--sim-space-4);
+    font-size: 11px; line-height: 1.7;
+    color: rgba(95, 227, 214, 0.38);
+    pointer-events: none; user-select: none;
+    letter-spacing: 0.02em; max-width: 340px;
+    z-index: 2;
+  }
+  .corner-text .title {
+    color: rgba(95, 227, 214, 0.55);
+    font-size: 12px; margin-bottom: 6px;
+    letter-spacing: 0.08em;
+  }
+  .corner-text .eq { color: rgba(232, 238, 252, 0.30); }
+  .corner-text .note {
+    margin-top: 8px;
+    color: rgba(107, 122, 146, 0.5);
+    font-size: 10px;
+  }
+  .side {
+    position: absolute;
+    top: var(--sim-space-3);
+    right: var(--sim-space-3);
+    width: 200px;
+    display: grid; gap: var(--sim-space-3);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .side > * { pointer-events: auto; }
+  .readouts {
+    padding: var(--sim-space-3);
+    border: 1px solid var(--sim-border);
+    border-radius: var(--sim-radius-md);
+    background: rgba(10, 15, 28, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .readout-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sim-space-2);
+  }
+  .metric {
+    padding: var(--sim-space-2) var(--sim-space-3);
+    border: 1px solid rgba(95, 227, 214, 0.10);
+    border-radius: var(--sim-radius-sm);
+    background: rgba(13, 20, 36, 0.6);
+  }
+  .metric small {
+    display: block; margin-bottom: 3px;
+    color: var(--sim-muted); font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+  .metric strong {
+    font-size: 1.05rem; letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--sim-text);
+  }
+  .insight {
+    padding: var(--sim-space-3);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-left: 3px solid var(--sim-warning);
+    border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+    background: rgba(245, 158, 11, 0.06);
+    color: rgba(245, 158, 11, 0.85);
+    font-weight: 600; font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  .controls {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--sim-space-4);
+    padding: var(--sim-space-2) var(--sim-space-3);
+    border: 1px solid var(--sim-border);
+    border-radius: var(--sim-radius-md);
+    background: rgba(10, 15, 28, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .actions { display: flex; gap: var(--sim-space-2); }
+  button {
+    border: 1px solid var(--sim-border);
+    border-radius: var(--sim-radius-sm);
+    padding: 8px 14px;
+    color: var(--sim-text);
+    background: var(--sim-surface-soft);
+    cursor: pointer;
+    font: inherit; font-weight: 700; font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    transition: transform .16s ease, background .16s ease, border-color .16s ease, color .16s ease;
+  }
+  button:hover {
+    border-color: rgba(95, 227, 214, 0.45);
+    background: rgba(95, 227, 214, 0.06);
+    color: var(--sim-accent);
+  }
+  button:active { transform: scale(.97); }
+  button:focus-visible {
+    outline: 2px solid rgba(95, 227, 214, 0.5);
+    outline-offset: 2px;
+  }
+  button.primary {
+    border-color: var(--sim-accent-deep);
+    color: #050810;
+    background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep));
+  }
+  button.primary:hover {
+    color: #050810;
+    background: linear-gradient(135deg, #7af0e3, var(--sim-accent));
+  }
+  .control { display: flex; align-items: center; gap: var(--sim-space-3); }
+  .control label {
+    display: flex; flex-direction: column; gap: 2px;
+    font-size: 0.68rem; font-weight: 700;
+    color: var(--sim-muted); letter-spacing: 0.04em;
+  }
+  .control output {
+    color: var(--sim-accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+  }
+  input[type="range"] {
+    width: 130px; accent-color: var(--sim-accent);
+    cursor: pointer;
+  }
+  @media (max-width: 720px) {
+    .app { padding: var(--sim-space-2); gap: var(--sim-space-2); }
+    .header h1 { font-size: 1rem; }
+    .header p { display: none; }
+    .side { width: 150px; top: var(--sim-space-2); right: var(--sim-space-2); }
+    .metric { padding: 6px 8px; }
+    .metric strong { font-size: 0.9rem; }
+    .corner-text { font-size: 10px; bottom: var(--sim-space-2); left: var(--sim-space-2); max-width: 220px; }
+    .controls { flex-wrap: wrap; gap: var(--sim-space-2); padding: var(--sim-space-2); }
+    .control { flex: 1 1 auto; }
+    input[type="range"] { width: 100px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* 保留极慢自转以维持"活"感，但移除倾摆 */
+  }
+</style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="qualitative">
+    <header class="header" data-region="header">
+      <div>
+        <h1>Klein Bottle · Wireframe</h1>
+        <p>figure-8 浸入式不可定向曲面 · 深度排序线框</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">Running</div>
+    </header>
+
+    <main class="main" data-region="stage" aria-labelledby="scene-title">
+      <h2 id="scene-title" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Klein bottle wireframe</h2>
+      <canvas id="scene" aria-label="Klein bottle wireframe animation"></canvas>
+
+      <div class="corner-text" aria-hidden="true">
+        <div class="title">KLEIN BOTTLE</div>
+        <div class="eq">x = (R + r·cos(v/2)·sin(u) − r·sin(v/2)·sin(2u))·cos(u)</div>
+        <div class="eq">y = (R + r·cos(v/2)·sin(u) − r·sin(v/2)·sin(2u))·sin(u)</div>
+        <div class="eq">z = r·cos(v/2)·sin(u) + r·sin(v/2)·sin(2u)</div>
+        <div class="eq">z' = r·sin(v)·sin(u/2)</div>
+        <div class="note">u ∈ [0, 2π] · v ∈ [0, 2π] · 不可定向曲面</div>
+      </div>
+
+      <aside class="side" data-region="evidence">
+        <section class="readouts" aria-label="Live values">
+          <div class="readout-grid">
+            <div class="metric"><small>Time</small><strong id="timeReadout">0.00 s</strong></div>
+            <div class="metric"><small>Segments</small><strong id="segReadout">0</strong></div>
+          </div>
+        </section>
+        <section class="insight" data-region="insight" aria-live="polite">
+          瓶颈自然穿过瓶体并翻转对接——同一曲面在三维中必自交，但拓扑上无内外之分。
+        </section>
+      </aside>
+    </main>
+
+    <section class="controls" data-region="controls" aria-label="Simulation controls">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">Start</button>
+        <button id="pauseBtn" type="button">Pause</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+      <div class="control">
+        <label for="rotateInput">自转角速度 <output id="rotateOutput">0.18</output></label>
+        <input id="rotateInput" type="range" min="0" max="0.6" step="0.02" value="0.18">
+      </div>
+      <div class="control">
+        <label for="tiltInput">倾摆幅度 <output id="tiltOutput">0.32</output></label>
+        <input id="tiltInput" type="range" min="0" max="0.6" step="0.02" value="0.32">
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const rotateInput = document.getElementById("rotateInput");
+  const rotateOutput = document.getElementById("rotateOutput");
+  const tiltInput = document.getElementById("tiltInput");
+  const tiltOutput = document.getElementById("tiltOutput");
+  const statusEl = document.getElementById("status");
+  const timeReadout = document.getElementById("timeReadout");
+  const segReadout = document.getElementById("segReadout");
+
+  // ---- 参数化模型：figure-8 浸入式克莱因瓶 ----
+  // u ∈ [0, 2π) 绕瓶身；v ∈ [0, 2π) 绕截面
+  // 瓶颈自然穿过瓶体并翻转对接，体现不可定向拓扑
+  const R = 2.2;   // 瓶身主半径
+  const r = 0.75;  // 截面半径
+
+  function kleinPoint(u, v) {
+    const cu = Math.cos(u), su = Math.sin(u);
+    const cv2 = Math.cos(v / 2), sv2 = Math.sin(v / 2);
+    const su2 = Math.sin(2 * u);
+    const radial = R + r * cv2 * su - r * sv2 * su2;
+    const x = radial * cu;
+    const y = radial * su;
+    const z = r * cv2 * su + r * sv2 * su2;
+    const z2 = r * Math.sin(v) * Math.sin(u / 2);
+    return [x, y, z + z2];
+  }
+
+  // ---- 网格采样 ----
+  const NU = 40;  // u 方向线条数
+  const NV = 40;  // v 方向线条数
+  const grid = [];
+  for (let i = 0; i <= NU; i++) {
+    const row = [];
+    const u = (i / NU) * Math.PI * 2;
+    for (let j = 0; j <= NV; j++) {
+      const v = (j / NV) * Math.PI * 2;
+      row.push(kleinPoint(u, v));
+    }
+    grid.push(row);
+  }
+
+  // ---- 运行状态 ----
+  const state = {
+    running: true,
+    time: 0,           // 累计模拟时间（秒）
+    lastTs: null,
+    autoRotate: 0.18,  // 自转角速度 rad/s
+    tiltAmp: 0.32,     // 倾摆幅度 rad
+    viewDist: 7.2,
+    fovScale: 5.2,
+    cx: 0, cy: 0,
+    W: 0, H: 0,
+    dpr: 1
+  };
+
+  // ---- 尺寸 / DPR ----
+  function resize() {
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.W = canvas.clientWidth || window.innerWidth;
+    state.H = canvas.clientHeight || window.innerHeight;
+    canvas.width = Math.floor(state.W * state.dpr);
+    canvas.height = Math.floor(state.H * state.dpr);
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    state.cx = state.W / 2;
+    state.cy = state.H / 2;
+  }
+  window.addEventListener("resize", resize);
+
+  // ---- 旋转：绕竖直轴自转 + 12 秒周期倾摆 ----
+  function getRot(time) {
+    const yaw = time * state.autoRotate;
+    // 12 秒周期，倾角在 -tiltAmp ~ +tiltAmp rad 之间平滑往复
+    const tiltPhase = (time / 12) * Math.PI * 2;
+    const tilt = Math.sin(tiltPhase) * state.tiltAmp;
+    return { yaw, tilt };
+  }
+
+  function rotate3D(p, yaw, tilt) {
+    const [x, y, z] = p;
+    // 先绕 Z 轴（竖直轴）自转
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const x1 = x * cy - y * sy;
+    const y1 = x * sy + y * cy;
+    const z1 = z;
+    // 再绕 X 轴倾摆
+    const ct = Math.cos(tilt), st = Math.sin(tilt);
+    const y2 = y1 * ct - z1 * st;
+    const z2 = y1 * st + z1 * ct;
+    return [x1, y2, z2];
+  }
+
+  function project(p) {
+    const denom = p[2] + state.viewDist;
+    if (denom < 0.1) return null; // 避免除以零或负
+    const scale = state.fovScale / denom;
+    return {
+      sx: state.cx + p[0] * scale * 100,
+      sy: state.cy - p[1] * scale * 100,
+      depth: p[2]
+    };
+  }
+
+  // ---- 深度 → 颜色（近亮远暗，青蓝主色） ----
+  // z 范围约 [-2.5, 2.5]，映射到 [0, 1]
+  function depthToColor(depth, alpha) {
+    const t = Math.max(0, Math.min(1, (depth + 2.6) / 5.2));
+    const fade = 0.18 + (1 - t) * 0.82; // 远处暗
+    const a = alpha * fade;
+    // 近处偏亮青，远处偏深蓝
+    const cr = Math.round(40 + (1 - t) * 30);
+    const cg = Math.round(150 + (1 - t) * 90);
+    const cb = Math.round(200 + (1 - t) * 30);
+    return `rgba(${cr},${cg},${cb},${a})`;
+  }
+
+  // ---- 收集所有线段并按深度排序 ----
+  const segments = [];
+
+  function collectSegments(yaw, tilt) {
+    segments.length = 0;
+    // u 方向线（固定 i，沿 j 走）
+    for (let i = 0; i <= NU; i++) {
+      for (let j = 0; j < NV; j++) {
+        const a = rotate3D(grid[i][j], yaw, tilt);
+        const b = rotate3D(grid[i][j + 1], yaw, tilt);
+        const pa = project(a);
+        const pb = project(b);
+        if (pa && pb) {
+          segments.push({
+            x1: pa.sx, y1: pa.sy, x2: pb.sx, y2: pb.sy,
+            depth: (a[2] + b[2]) * 0.5
+          });
+        }
+      }
+    }
+    // v 方向线（固定 j，沿 i 走）
+    for (let j = 0; j <= NV; j++) {
+      for (let i = 0; i < NU; i++) {
+        const a = rotate3D(grid[i][j], yaw, tilt);
+        const b = rotate3D(grid[i + 1][j], yaw, tilt);
+        const pa = project(a);
+        const pb = project(b);
+        if (pa && pb) {
+          segments.push({
+            x1: pa.sx, y1: pa.sy, x2: pb.sx, y2: pb.sy,
+            depth: (a[2] + b[2]) * 0.5
+          });
+        }
+      }
+    }
+    // 按深度升序：远处先画，近处后画（painter's algorithm）
+    segments.sort((s1, s2) => s1.depth - s2.depth);
+  }
+
+  function render() {
+    // 纯黑背景
+    ctx.fillStyle = "#050810";
+    ctx.fillRect(0, 0, state.W, state.H);
+
+    const { yaw, tilt } = getRot(state.time);
+    collectSegments(yaw, tilt);
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // 第一层：粗线低透明度模拟外发光
+    ctx.lineWidth = 3.2;
+    for (let k = 0; k < segments.length; k++) {
+      const s = segments[k];
+      ctx.strokeStyle = depthToColor(s.depth, 0.10);
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+    }
+
+    // 第二层：细线高透明度模拟核心亮线
+    ctx.lineWidth = 1.1;
+    for (let k = 0; k < segments.length; k++) {
+      const s = segments[k];
+      ctx.strokeStyle = depthToColor(s.depth, 0.85);
+      ctx.beginPath();
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+      ctx.stroke();
+    }
+
+    // 派生读数：从同一权威状态派生
+    timeReadout.textContent = state.time.toFixed(2) + " s";
+    segReadout.textContent = String(segments.length);
+  }
+
+  // ---- 模型更新：基于经过时间推进自转与倾摆 ----
+  function update(dt) {
+    if (!state.running) return;
+    // 钳制帧间隔，防止切回标签页后大跳
+    let boundedDt = dt;
+    if (!Number.isFinite(boundedDt)) boundedDt = 0;
+    if (boundedDt > 0.05) boundedDt = 0.05;
+    if (boundedDt < 0) boundedDt = 0;
+    state.time += boundedDt;
+  }
+
+  // ---- 主循环 ----
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- 生命周期 ----
+  function init() {
+    resize();
+    bindControls();
+    requestAnimationFrame(frame);
+  }
+  function start() {
+    state.running = true;
+    statusEl.textContent = "Running";
+  }
+  function pause() {
+    state.running = false;
+    statusEl.textContent = "Paused";
+  }
+  function reset() {
+    pause();
+    state.time = 0;
+    render();
+  }
+  function setParameters(values) {
+    if (values && typeof values.autoRotate === "number" && Number.isFinite(values.autoRotate)) {
+      state.autoRotate = Math.max(0, Math.min(0.6, values.autoRotate));
+    }
+    if (values && typeof values.tiltAmp === "number" && Number.isFinite(values.tiltAmp)) {
+      state.tiltAmp = Math.max(0, Math.min(0.6, values.tiltAmp));
+    }
+    rotateInput.value = String(state.autoRotate);
+    rotateOutput.textContent = state.autoRotate.toFixed(2);
+    tiltInput.value = String(state.tiltAmp);
+    tiltOutput.textContent = state.tiltAmp.toFixed(2);
+  }
+  function getState() {
+    return {
+      running: state.running,
+      time: state.time,
+      autoRotate: state.autoRotate,
+      tiltAmp: state.tiltAmp
+    };
+  }
+  function getReadouts() {
+    return {
+      time: state.time,
+      segments: segments.length,
+      autoRotate: state.autoRotate,
+      tiltAmp: state.tiltAmp
+    };
+  }
+
+  function bindControls() {
+    startBtn.addEventListener("click", start);
+    pauseBtn.addEventListener("click", pause);
+    resetBtn.addEventListener("click", reset);
+    rotateInput.addEventListener("input", () => {
+      setParameters({ autoRotate: parseFloat(rotateInput.value) });
+    });
+    tiltInput.addEventListener("input", () => {
+      setParameters({ tiltAmp: parseFloat(tiltInput.value) });
+    });
+    // 键盘空格切换播放/暂停
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON") {
+        e.preventDefault();
+        if (state.running) pause(); else start();
+      }
+    });
+  }
+
+  // 暴露给验证
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

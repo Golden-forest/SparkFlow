@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>杠杆原理演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>杠杆原理演示</h1>
+        <p>调整力臂与施加力，观察杠杆如何围绕支点转动并达到平衡。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">杠杆状态</h2><span>力矩 τ = F × r</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">一根可绕支点转动的杠杆，两端分别承受施加力与负载。</desc>
+          <defs>
+            <linearGradient id="barGrad" x1="0" x2="1"><stop stop-color="#0f9fba"></stop><stop offset="1" stop-color="#08758a"></stop></linearGradient>
+            <linearGradient id="loadGrad" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f59e0b"></stop><stop offset="1" stop-color="#d97706"></stop></linearGradient>
+          </defs>
+          <g id="grid"></g>
+          <line class="axis" x1="40" y1="360" x2="720" y2="360"></line>
+          <line class="axis" x1="40" y1="30" x2="40" y2="360"></line>
+          <text class="axis-label" x="700" y="389">水平位置</text>
+          <text class="axis-label" x="18" y="35">高度</text>
+          <g id="fulcrumGroup">
+            <polygon id="fulcrum" points="380,360 360,400 400,400" fill="#475569" stroke="#334155" stroke-width="2"></polygon>
+            <line x1="360" y1="400" x2="400" y2="400" stroke="#334155" stroke-width="3"></line>
+          </g>
+          <g id="barGroup">
+            <rect id="bar" x="80" y="236" width="600" height="14" rx="7" fill="url(#barGrad)" stroke="#08758a" stroke-width="1.5"></rect>
+            <circle id="pivotDot" cx="380" cy="243" r="6" fill="#fff" stroke="#08758a" stroke-width="2"></circle>
+          </g>
+          <g id="loadGroup">
+            <rect id="loadBox" x="610" y="186" width="60" height="50" rx="6" fill="url(#loadGrad)" stroke="#b45309" stroke-width="2"></rect>
+            <text id="loadLabel" x="640" y="216" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">负载</text>
+            <line id="loadRope" x1="640" y1="186" x2="640" y2="243" stroke="#475569" stroke-width="2"></line>
+          </g>
+          <g id="effortGroup">
+            <circle id="effortHandle" cx="120" cy="243" r="11" fill="#0f9fba" stroke="#fff" stroke-width="3"></circle>
+            <line id="effortArrow" x1="120" y1="243" x2="120" y2="173" stroke="#0f9fba" stroke-width="4" stroke-linecap="round" marker-end="url(#arrowHead)"></line>
+            <defs>
+              <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="6" refY="5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#0f9fba"></path>
+              </marker>
+            </defs>
+            <text id="effortLabel" x="120" y="163" text-anchor="middle" fill="#08758a" font-size="13" font-weight="700">施加力</text>
+          </g>
+          <line id="balanceLine" x1="40" y1="243" x2="720" y2="243" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6 6" opacity="0.55"></line>
+          <text id="balanceText" x="710" y="238" text-anchor="end" fill="#a35d00" font-size="11" font-weight="700">平衡位置</text>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>当前角度</small><strong id="angleReadout">0.0°</strong></div>
+            <div class="metric"><small>力矩差 Δτ</small><strong id="torqueReadout">0.00</strong></div>
+            <div class="metric"><small>施加力臂</small><strong id="effortArmReadout">2.60 m</strong></div>
+            <div class="metric"><small>负载力臂</small><strong id="loadArmReadout">2.60 m</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">按下「开始」后，杠杆将根据净力矩转动。当两侧力矩相等时达到平衡。</p>
+          <p>教学视图：τ = F × r。杠杆绕支点转动，转向由净力矩符号决定；阻尼使其最终静止于平衡角。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="effortInput">施加力 <output id="effortOutput">10.0 N</output></label>
+        <input id="effortInput" type="range" min="0" max="30" step="0.5" value="10">
+      </div>
+      <div class="control">
+        <label for="effortArmInput">力臂长度 <output id="effortArmOutput">2.60 m</output></label>
+        <input id="effortArmInput" type="range" min="0.5" max="3" step="0.1" value="2.6">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "effort", label: "施加力", type: "slider", min: 0, max: 30, step: 0.5, default: 10, unit: "N" },
+      { key: "effortArm", label: "力臂长度", type: "slider", min: 0.5, max: 3, step: 0.1, default: 2.6, unit: "m" }
+    ];
+    const LOAD_FORCE = 10;
+    const LOAD_ARM = 2.6;
+    const PIVOT_X = 380;
+    const PIVOT_Y = 243;
+    const BAR_HALF = 300;
+    const PIXELS_PER_METER = BAR_HALF / 3.0;
+    const MAX_ANGLE_DEG = 28;
+    const MAX_ANGLE_RAD = MAX_ANGLE_DEG * Math.PI / 180;
+
+    const state = {
+      running: false,
+      t: 0,
+      angle: 0,
+      angularVelocity: 0,
+      effort: 10,
+      effortArm: 2.6,
+      lastTimestamp: null
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      bar: document.querySelector("#bar"),
+      pivotDot: document.querySelector("#pivotDot"),
+      loadBox: document.querySelector("#loadBox"),
+      loadLabel: document.querySelector("#loadLabel"),
+      loadRope: document.querySelector("#loadRope"),
+      effortHandle: document.querySelector("#effortHandle"),
+      effortArrow: document.querySelector("#effortArrow"),
+      effortLabel: document.querySelector("#effortLabel"),
+      angleReadout: document.querySelector("#angleReadout"),
+      torqueReadout: document.querySelector("#torqueReadout"),
+      effortArmReadout: document.querySelector("#effortArmReadout"),
+      loadArmReadout: document.querySelector("#loadArmReadout"),
+      effortInput: document.querySelector("#effortInput"),
+      effortOutput: document.querySelector("#effortOutput"),
+      effortArmInput: document.querySelector("#effortArmInput"),
+      effortArmOutput: document.querySelector("#effortArmOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      insight: document.querySelector("#insight")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function computeTorque() {
+      const effortTorque = state.effort * state.effortArm;
+      const loadTorque = LOAD_FORCE * LOAD_ARM;
+      return effortTorque - loadTorque;
+    }
+
+    function initGrid() {
+      const grid = document.querySelector("#grid");
+      const lines = [];
+      for (let i = 0; i <= 10; i += 1) {
+        const x = 40 + i * 68;
+        const y = 360 - i * 33;
+        lines.push('<line class="grid-line" x1="' + x + '" y1="30" x2="' + x + '" y2="360"></line>');
+        lines.push('<line class="grid-line" x1="40" y1="' + y + '" x2="720" y2="' + y + '"></line>');
+      }
+      grid.innerHTML = lines.join("");
+    }
+
+    function init() {
+      initGrid();
+      bindControls();
+      setParameters({ effort: 10, effortArm: 2.6 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.angle = 0;
+      state.angularVelocity = 0;
+      state.lastTimestamp = null;
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const torque = computeTorque();
+      const inertia = 1.0;
+      const damping = 2.4;
+      const angularAccel = torque / inertia - damping * state.angularVelocity;
+      state.angularVelocity += angularAccel * boundedDt;
+      state.angle += state.angularVelocity * boundedDt;
+      if (state.angle > MAX_ANGLE_RAD) { state.angle = MAX_ANGLE_RAD; state.angularVelocity = 0; }
+      if (state.angle < -MAX_ANGLE_RAD) { state.angle = -MAX_ANGLE_RAD; state.angularVelocity = 0; }
+      state.angle = finite(state.angle, 0);
+      state.angularVelocity = finite(state.angularVelocity, 0);
+      state.t += boundedDt;
+    }
+
+    function render() {
+      const angleDeg = state.angle * 180 / Math.PI;
+      const barTransform = "rotate(" + angleDeg.toFixed(3) + " " + PIVOT_X + " " + PIVOT_Y + ")";
+      elements.bar.setAttribute("transform", barTransform);
+      elements.pivotDot.setAttribute("transform", barTransform);
+
+      const cosA = Math.cos(state.angle);
+      const sinA = Math.sin(state.angle);
+      const loadArmPx = LOAD_ARM * PIXELS_PER_METER;
+      const loadX = PIVOT_X + loadArmPx * cosA;
+      const loadY = PIVOT_Y + loadArmPx * sinA;
+      const loadBoxX = loadX - 30;
+      const loadBoxY = loadY - 25;
+      elements.loadBox.setAttribute("x", loadBoxX.toFixed(2));
+      elements.loadBox.setAttribute("y", loadBoxY.toFixed(2));
+      elements.loadLabel.setAttribute("x", loadX.toFixed(2));
+      elements.loadLabel.setAttribute("y", (loadY - 4).toFixed(2));
+      elements.loadRope.setAttribute("x1", loadX.toFixed(2));
+      elements.loadRope.setAttribute("y1", loadY.toFixed(2));
+      elements.loadRope.setAttribute("x2", loadX.toFixed(2));
+      elements.loadRope.setAttribute("y2", loadY.toFixed(2));
+
+      const effortArmPx = state.effortArm * PIXELS_PER_METER;
+      const effortX = PIVOT_X - effortArmPx * cosA;
+      const effortY = PIVOT_Y - effortArmPx * sinA;
+      elements.effortHandle.setAttribute("cx", effortX.toFixed(2));
+      elements.effortHandle.setAttribute("cy", effortY.toFixed(2));
+      const arrowLen = 30 + state.effort * 2.2;
+      const perpX = -sinA;
+      const perpY = -cosA;
+      const arrowEndX = effortX + perpX * arrowLen;
+      const arrowEndY = effortY + perpY * arrowLen;
+      elements.effortArrow.setAttribute("x1", effortX.toFixed(2));
+      elements.effortArrow.setAttribute("y1", effortY.toFixed(2));
+      elements.effortArrow.setAttribute("x2", arrowEndX.toFixed(2));
+      elements.effortArrow.setAttribute("y2", arrowEndY.toFixed(2));
+      elements.effortLabel.setAttribute("x", (effortX + perpX * (arrowLen + 14)).toFixed(2));
+      elements.effortLabel.setAttribute("y", (effortY + perpY * (arrowLen + 14)).toFixed(2));
+
+      const torque = computeTorque();
+      elements.angleReadout.textContent = angleDeg.toFixed(1) + "°";
+      elements.torqueReadout.textContent = torque.toFixed(2);
+      elements.effortArmReadout.textContent = state.effortArm.toFixed(2) + " m";
+      elements.loadArmReadout.textContent = LOAD_ARM.toFixed(2) + " m";
+      elements.effortOutput.textContent = state.effort.toFixed(1) + " N";
+      elements.effortArmOutput.textContent = state.effortArm.toFixed(2) + " m";
+
+      const absTorque = Math.abs(torque);
+      if (!state.running && state.t === 0) {
+        elements.insight.textContent = "按下「开始」后，杠杆将根据净力矩转动。当两侧力矩相等时达到平衡。";
+      } else if (absTorque < 0.5) {
+        elements.insight.textContent = "力矩接近平衡：F₁×r₁ ≈ F₂×r₂，杠杆趋于水平静止。";
+      } else if (torque > 0) {
+        elements.insight.textContent = "施加力矩大于负载力矩：左侧下沉、右侧上抬，杠杆顺时针偏转。";
+      } else {
+        elements.insight.textContent = "负载力矩大于施加力矩：右侧下沉、左侧上抬，杠杆逆时针偏转。";
+      }
+    }
+
+    function setParameters(values) {
+      const effortDef = parameterSchema[0];
+      const armDef = parameterSchema[1];
+      state.effort = clamp(finite(Number(values.effort), effortDef.default), effortDef.min, effortDef.max);
+      state.effortArm = clamp(finite(Number(values.effortArm), armDef.default), armDef.min, armDef.max);
+      elements.effortInput.value = String(state.effort);
+      elements.effortArmInput.value = String(state.effortArm);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        angle: state.angle,
+        angularVelocity: state.angularVelocity,
+        effort: state.effort,
+        effortArm: state.effortArm,
+        loadForce: LOAD_FORCE,
+        loadArm: LOAD_ARM
+      };
+    }
+
+    function getReadouts() {
+      return {
+        angle: state.angle,
+        angleDeg: state.angle * 180 / Math.PI,
+        torque: computeTorque(),
+        effort: state.effort,
+        effortArm: state.effortArm,
+        loadForce: LOAD_FORCE,
+        loadArm: LOAD_ARM,
+        time: state.t
+      };
+    }
+
+    function runModelChecks() {
+      const simulate = (dt, duration, { effort = 10, effortArm = 2.6, angle0 = 0 } = {}) => {
+        let angle = angle0;
+        let omega = 0;
+        const inertia = 1.0;
+        const damping = 2.4;
+        for (let t = 0; t < duration - 1e-12; t += dt) {
+          const torque = effort * effortArm - LOAD_FORCE * LOAD_ARM;
+          const accel = torque / inertia - damping * omega;
+          omega += accel * dt;
+          angle += omega * dt;
+          if (angle > MAX_ANGLE_RAD) { angle = MAX_ANGLE_RAD; omega = 0; }
+          if (angle < -MAX_ANGLE_RAD) { angle = -MAX_ANGLE_RAD; omega = 0; }
+        }
+        return { angle, omega };
+      };
+      const balanced = simulate(1 / 240, 8, { effort: 10, effortArm: 2.6 });
+      const heavyEffort = simulate(1 / 240, 8, { effort: 20, effortArm: 2.6 });
+      const lightEffort = simulate(1 / 240, 8, { effort: 5, effortArm: 2.6 });
+      const longArm = simulate(1 / 240, 8, { effort: 10, effortArm: 3.0 });
+      const shortArm = simulate(1 / 240, 8, { effort: 10, effortArm: 1.0 });
+      const coarse = simulate(1 / 60, 8);
+      const fine = simulate(1 / 240, 8);
+      return [
+        { name: "平衡态收敛至零角", pass: Math.abs(balanced.angle) < 0.02, expected: 0, actual: balanced.angle, tolerance: 0.02 },
+        { name: "大力矩正向偏转", pass: heavyEffort.angle > 0.05, expected: "angle > 0", actual: heavyEffort.angle, tolerance: "strict" },
+        { name: "小力矩负向偏转", pass: lightEffort.angle < -0.05, expected: "angle < 0", actual: lightEffort.angle, tolerance: "strict" },
+        { name: "长力臂加速偏转", pass: longArm.angle > balanced.angle, expected: "longArm > balanced", actual: longArm.angle + " > " + balanced.angle, tolerance: "strict" },
+        { name: "短力臂减缓偏转", pass: Math.abs(shortArm.angle) > Math.abs(balanced.angle), expected: "|shortArm| > |balanced|", actual: Math.abs(shortArm.angle) + " > " + Math.abs(balanced.angle), tolerance: "strict" },
+        { name: "步长减半收敛", pass: Math.abs(fine.angle - coarse.angle) < 0.03, expected: "|fine - coarse| < 0.03", actual: Math.abs(fine.angle - coarse.angle), tolerance: 0.03 },
+        { name: "角速度有界", pass: Number.isFinite(fine.omega) && Math.abs(fine.omega) < 100, expected: "finite & bounded", actual: fine.omega, tolerance: "finite" }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.effortInput.addEventListener("input", () => setParameters({ effort: elements.effortInput.value, effortArm: state.effortArm }));
+      elements.effortArmInput.addEventListener("input", () => setParameters({ effort: state.effort, effortArm: elements.effortArmInput.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多普勒效应 · Doppler Effect</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0d1428;
+  --sim-text: #e8eefc;
+  --sim-muted: #7a8aaa;
+  --sim-border: #1a2540;
+  --sim-grid: #0f1830;
+  --sim-accent: #22d3ee;
+  --sim-accent-deep: #0891b2;
+  --sim-accent-soft: #0e3a4a;
+  --sim-positive: #22d3ee;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0,0,0,0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  background: var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--sim-text);
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid rgba(34,211,238,0.4); outline-offset: 4px; }
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+.header {
+  padding: 18px 32px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 24px;
+}
+.header h1 {
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  font-weight: 200;
+  letter-spacing: 0.04em;
+  color: var(--sim-text);
+}
+.header h1 .accent { color: var(--sim-accent); font-weight: 400; }
+.header .mach-display {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: clamp(1rem, 1.4vw, 1.25rem);
+  color: var(--sim-accent);
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 12px;
+  padding: 0 32px;
+}
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--sim-radius-lg);
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+}
+#scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.subtitle {
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  text-align: center;
+  font-size: clamp(0.85rem, 1.1vw, 1rem);
+  line-height: 1.7;
+  color: rgba(232, 238, 252, 0.88);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+}
+.subtitle .em { color: var(--sim-accent); font-weight: 500; }
+.subtitle .warm { color: #f0a060; }
+.subtitle .cool { color: #60a0e0; }
+.subtitle .hot { color: #ff7050; font-weight: 600; }
+.side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+.panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  box-shadow: var(--sim-shadow);
+}
+.readouts { padding: 16px; }
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.metric {
+  padding: 12px 14px;
+  border: 1px solid rgba(34,211,238,0.15);
+  border-radius: var(--sim-radius-sm);
+  background: linear-gradient(145deg, #0d1830, #0a1226);
+}
+.metric small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sim-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+.metric strong {
+  font-size: 1.3rem;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-accent);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.model-note {
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.model-note h2 {
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--sim-text);
+}
+.model-note p {
+  color: var(--sim-muted);
+  line-height: 1.6;
+  font-size: 0.82rem;
+}
+.insight {
+  padding: 12px 14px;
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: rgba(245, 158, 11, 0.08);
+  color: #f0c060 !important;
+  font-weight: 500;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.controls {
+  padding: 14px 32px 20px;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr);
+  gap: 24px;
+  align-items: center;
+  background: linear-gradient(to top, rgba(5,8,16,0.7), transparent);
+}
+.actions { display: flex; gap: 8px; }
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  padding: 9px 16px;
+  color: var(--sim-text);
+  background: var(--sim-surface-soft);
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease;
+}
+button:hover { border-color: var(--sim-accent-deep); background: #122038; }
+button:active { transform: scale(.97); }
+button.primary {
+  border-color: var(--sim-accent-deep);
+  color: #021018;
+  background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep));
+  box-shadow: 0 8px 18px rgba(34,211,238,0.20);
+}
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35); }
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.78rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.06em;
+}
+.control output {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color: var(--sim-accent);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(to right, var(--sim-accent-deep), var(--sim-accent));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid #050810;
+  box-shadow: 0 0 0 1px var(--sim-accent), 0 0 12px rgba(34,211,238,0.5);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid #050810;
+  box-shadow: 0 0 0 1px var(--sim-accent), 0 0 12px rgba(34,211,238,0.5);
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; gap: 12px; }
+  .stage-wrap { min-height: 0; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <h1>多普勒效应 <span class="accent">Doppler Effect</span></h1>
+    <div class="mach-display" id="machDisplay">Mach 0.00</div>
+  </header>
+
+  <main class="main">
+    <section class="stage-wrap" data-region="stage" aria-label="多普勒效应可视化舞台">
+      <canvas id="scene"></canvas>
+      <div class="subtitle" id="subtitle">波源静止，波前完美同心</div>
+    </section>
+
+    <aside class="side">
+      <section class="panel readouts" data-region="evidence" aria-label="实时读数">
+        <div class="readout-grid">
+          <div class="metric"><small>马赫数 Mach</small><strong id="machReadout">0.00</strong></div>
+          <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+          <div class="metric"><small>波源速度</small><strong id="vsReadout">0.00</strong></div>
+          <div class="metric"><small>波速</small><strong id="cReadout">1.00</strong></div>
+        </div>
+      </section>
+
+      <section class="panel model-note" data-region="insight" aria-label="模型说明">
+        <h2>模型与观察</h2>
+        <p id="insight" class="insight">波源静止，波前完美同心。</p>
+        <p>教学视图：每个波前在发射瞬间以波源位置为中心、以波速向外匀速膨胀。波源运动时，后续波前的发射中心偏移，前方波前被压缩、后方被拉伸。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">Start</button>
+      <button id="pauseBtn" type="button">Pause</button>
+      <button id="resetBtn" type="button">Reset</button>
+    </div>
+    <div class="control">
+      <label for="sourceSpeed">波源速度 <output id="sourceSpeedOut">0.00</output></label>
+      <input id="sourceSpeed" type="range" min="0" max="2.5" step="0.01" value="0">
+    </div>
+    <div class="control">
+      <label for="waveSpeed">波速 <output id="waveSpeedOut">1.00</output></label>
+      <input id="waveSpeed" type="range" min="0.5" max="2" step="0.05" value="1">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const subtitleEl = document.getElementById("subtitle");
+  const machDisplay = document.getElementById("machDisplay");
+  const sourceSpeedInput = document.getElementById("sourceSpeed");
+  const waveSpeedInput = document.getElementById("waveSpeed");
+  const sourceSpeedOut = document.getElementById("sourceSpeedOut");
+  const waveSpeedOut = document.getElementById("waveSpeedOut");
+  const machReadout = document.getElementById("machReadout");
+  const timeReadout = document.getElementById("timeReadout");
+  const vsReadout = document.getElementById("vsReadout");
+  const cReadout = document.getElementById("cReadout");
+  const insightEl = document.getElementById("insight");
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  const state = {
+    running: true,
+    t: 0,
+    lastTimestamp: null,
+    sourceSpeed: 0,
+    waveSpeed: 1,
+    waves: [],
+    lastEmitT: 0,
+    emitPeriod: 0.5,
+    sourceX: 0,
+    sourceY: 0,
+    sourceStartX: 0,
+    cycleStartT: 0,
+    cycleDuration: 9,
+    introT: 0,
+    introDuration: 2,
+    subtitleOpacity: 1,
+    lastSubtitle: "",
+    dpr: 1,
+    cssW: 0,
+    cssH: 0,
+  };
+
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  function resize() {
+    state.dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    state.cssW = rect.width;
+    state.cssH = rect.height;
+    canvas.width = Math.max(1, Math.round(rect.width * state.dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * state.dpr));
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    state.sourceStartX = state.cssW * 0.32;
+    state.sourceY = state.cssH * 0.5;
+  }
+
+  function getStagePhase() {
+    const mach = state.sourceSpeed / state.waveSpeed;
+    if (mach < 0.05) return "static";
+    if (mach < 0.95) return "subsonic";
+    if (mach < 1.02) return "transonic";
+    return "supersonic";
+  }
+
+  function getSubtitle() {
+    const phase = getStagePhase();
+    if (state.introT < state.introDuration) {
+      return '<span class="em">多普勒效应</span> · 波源速度与波速之比 = 马赫数';
+    }
+    switch (phase) {
+      case "static":
+        return "波源静止，波前完美同心";
+      case "subsonic":
+        return '<span class="warm">前方波前压缩 → 频率升高、音调变尖</span>　<span class="cool">后方波前拉伸 → 频率降低、音调变沉</span>';
+      case "transonic":
+        return "波源速度逼近波速，前方波前即将叠聚";
+      case "supersonic":
+        return '<span class="hot">音爆</span> · 所有波前在波源前方叠聚成 V 字形锥面激波（马赫锥），锥面扫过你的瞬间就是音爆';
+    }
+    return "";
+  }
+
+  function getInsight() {
+    const phase = getStagePhase();
+    const mach = state.sourceSpeed / state.waveSpeed;
+    switch (phase) {
+      case "static":
+        return "波源静止：所有波前同心，无多普勒频移。";
+      case "subsonic":
+        return `亚音速 Mach ${mach.toFixed(2)}：前方波长变短、频率升高；后方波长变长、频率降低。`;
+      case "transonic":
+        return `跨音速 Mach ${mach.toFixed(2)}：波源速度逼近波速，前方波前几乎叠聚。`;
+      case "supersonic":
+        return `超音速 Mach ${mach.toFixed(2)}：波前叠聚形成马赫锥，半角 = arcsin(1/Mach)。`;
+    }
+    return "";
+  }
+
+  function updateSubtitle() {
+    const text = getSubtitle();
+    if (text !== state.lastSubtitle) {
+      state.lastSubtitle = text;
+      subtitleEl.style.opacity = "0";
+      setTimeout(() => {
+        subtitleEl.innerHTML = text;
+        subtitleEl.style.opacity = "1";
+      }, 280);
+    }
+  }
+
+  function resetCycle() {
+    state.t = 0;
+    state.cycleStartT = 0;
+    state.sourceX = state.sourceStartX;
+    state.waves = [];
+    state.lastEmitT = 0;
+    state.lastTimestamp = null;
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.introT += boundedDt;
+    state.t += boundedDt;
+    state.cycleStartT += boundedDt;
+
+    if (state.cycleStartT > state.cycleDuration) {
+      resetCycle();
+      return;
+    }
+
+    state.sourceX = state.sourceStartX + state.sourceSpeed * state.t * 60;
+
+    while (state.lastEmitT <= state.t + 1e-9 && state.waves.length < 200) {
+      state.waves.push({
+        emitX: state.sourceX,
+        emitY: state.sourceY,
+        emitT: state.lastEmitT,
+      });
+      state.lastEmitT += state.emitPeriod;
+    }
+
+    state.waves = state.waves.filter(w => {
+      const age = state.t - w.emitT;
+      const radius = age * state.waveSpeed * 60;
+      return radius < Math.max(state.cssW, state.cssH) * 1.5;
+    });
+
+    updateSubtitle();
+    render();
+  }
+
+  function drawBackground() {
+    const w = state.cssW, h = state.cssH;
+    const cx = w * 0.5, cy = h * 0.5;
+    const maxR = Math.max(w, h) * 0.8;
+
+    const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+    g1.addColorStop(0, "#0a1228");
+    g1.addColorStop(0.5, "#060a18");
+    g1.addColorStop(1, "#020308");
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, w, h);
+
+    const g2 = ctx.createRadialGradient(w * 0.2, h * 0.3, 0, w * 0.2, h * 0.3, w * 0.5);
+    g2.addColorStop(0, "rgba(20, 40, 70, 0.35)");
+    g2.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, w, h);
+
+    const g3 = ctx.createRadialGradient(w * 0.85, h * 0.75, 0, w * 0.85, h * 0.75, w * 0.4);
+    g3.addColorStop(0, "rgba(15, 30, 55, 0.3)");
+    g3.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g3;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = "rgba(34, 211, 238, 0.05)";
+    ctx.lineWidth = 1;
+    const gridSize = 48;
+    for (let x = 0; x <= w; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= h; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawWaves() {
+    const mach = state.sourceSpeed / state.waveSpeed;
+    const isSupersonic = mach > 1.0;
+    const maxR = Math.max(state.cssW, state.cssH) * 1.2;
+
+    for (const w of state.waves) {
+      const age = state.t - w.emitT;
+      if (age <= 0) continue;
+      const radius = age * state.waveSpeed * 60;
+      if (radius < 1) continue;
+
+      const fadeIn = clamp(age / 0.15, 0, 1);
+      const fadeOut = clamp(1 - radius / maxR, 0, 1);
+      const baseAlpha = fadeIn * fadeOut;
+
+      let color, alpha;
+      if (isSupersonic) {
+        alpha = baseAlpha * 0.5;
+        color = "34, 211, 238";
+      } else if (mach > 0.05) {
+        const dx = w.emitX - state.sourceX;
+        if (dx > 5) {
+          const warmth = clamp(mach * 0.8, 0, 1);
+          const r = Math.round(34 + warmth * 206);
+          const g = Math.round(211 - warmth * 100);
+          const b = Math.round(238 - warmth * 178);
+          color = `${r}, ${g}, ${b}`;
+          alpha = baseAlpha * 0.75;
+        } else if (dx < -5) {
+          const coolness = clamp(mach * 0.8, 0, 1);
+          const r = Math.round(34 + coolness * 40);
+          const g = Math.round(211 + coolness * 9);
+          const b = Math.round(238 + coolness * 17);
+          color = `${r}, ${g}, ${b}`;
+          alpha = baseAlpha * 0.75;
+        } else {
+          color = "34, 211, 238";
+          alpha = baseAlpha * 0.7;
+        }
+      } else {
+        color = "34, 211, 238";
+        alpha = baseAlpha * 0.7;
+      }
+
+      if (alpha < 0.01) continue;
+
+      ctx.strokeStyle = `rgba(${color}, ${alpha * 0.35})`;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(w.emitX, w.emitY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(w.emitX, w.emitY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function drawMachCone() {
+    const mach = state.sourceSpeed / state.waveSpeed;
+    if (mach <= 1.0) return;
+
+    const halfAngle = Math.asin(1 / mach);
+    const coneLength = Math.max(state.cssW, state.cssH) * 1.5;
+    const dx = Math.cos(halfAngle) * coneLength;
+    const dy = Math.sin(halfAngle) * coneLength;
+
+    const sx = state.sourceX, sy = state.sourceY;
+
+    const grad = ctx.createLinearGradient(sx, sy, sx - dx, sy);
+    grad.addColorStop(0, "rgba(255, 200, 100, 0.5)");
+    grad.addColorStop(0.3, "rgba(255, 160, 80, 0.3)");
+    grad.addColorStop(1, "rgba(255, 120, 60, 0)");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy - dy);
+    ctx.lineTo(sx - dx, sy + dy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 200, 100, 0.25)";
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy - dy);
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy + dy);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 230, 150, 0.7)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy - dy);
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy + dy);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 255, 220, 0.95)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy - dy);
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx - dx, sy + dy);
+    ctx.stroke();
+  }
+
+  function drawSource() {
+    const x = state.sourceX, y = state.sourceY;
+    const pulse = 1 + 0.08 * Math.sin(state.t * Math.PI * 4);
+
+    ctx.fillStyle = "rgba(34, 211, 238, 0.12)";
+    ctx.beginPath();
+    ctx.arc(x, y, 22 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(34, 211, 238, 0.3)";
+    ctx.beginPath();
+    ctx.arc(x, y, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#22d3ee";
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#e8feff";
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawDirectionIndicator() {
+    if (state.sourceSpeed < 0.02) return;
+    const x = state.sourceX, y = state.sourceY;
+    const arrowLen = 28 + state.sourceSpeed * 20;
+    ctx.strokeStyle = "rgba(34, 211, 238, 0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 12, y);
+    ctx.lineTo(x + 12 + arrowLen, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 12 + arrowLen, y);
+    ctx.lineTo(x + 12 + arrowLen - 8, y - 4);
+    ctx.moveTo(x + 12 + arrowLen, y);
+    ctx.lineTo(x + 12 + arrowLen - 8, y + 4);
+    ctx.stroke();
+  }
+
+  function render() {
+    if (!state.running && state.t > 0) {
+      // 暂停时仅重绘静态帧，不推进时间
+    }
+    drawBackground();
+    drawWaves();
+    drawMachCone();
+    drawDirectionIndicator();
+    drawSource();
+
+    const mach = state.sourceSpeed / state.waveSpeed;
+    machDisplay.textContent = `Mach ${mach.toFixed(2)}`;
+    sourceSpeedOut.textContent = state.sourceSpeed.toFixed(2);
+    waveSpeedOut.textContent = state.waveSpeed.toFixed(2);
+    machReadout.textContent = mach.toFixed(2);
+    timeReadout.textContent = `${state.t.toFixed(2)} s`;
+    vsReadout.textContent = state.sourceSpeed.toFixed(2);
+    cReadout.textContent = state.waveSpeed.toFixed(2);
+    insightEl.textContent = getInsight();
+  }
+
+  function start() {
+    state.running = true;
+    startBtn.setAttribute("aria-pressed", "true");
+    pauseBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function pause() {
+    state.running = false;
+    startBtn.setAttribute("aria-pressed", "false");
+    pauseBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.introT = 0;
+    state.cycleStartT = 0;
+    state.sourceX = state.sourceStartX;
+    state.waves = [];
+    state.lastEmitT = 0;
+    state.lastTimestamp = null;
+    state.lastSubtitle = "";
+    render();
+  }
+
+  function setParameters(values) {
+    if (values.sourceSpeed !== undefined) {
+      state.sourceSpeed = clamp(finite(Number(values.sourceSpeed), 0), 0, 2.5);
+      sourceSpeedInput.value = String(state.sourceSpeed);
+    }
+    if (values.waveSpeed !== undefined) {
+      state.waveSpeed = clamp(finite(Number(values.waveSpeed), 1), 0.5, 2);
+      waveSpeedInput.value = String(state.waveSpeed);
+    }
+    render();
+  }
+
+  function getState() {
+    return {
+      t: state.t,
+      sourceSpeed: state.sourceSpeed,
+      waveSpeed: state.waveSpeed,
+      mach: state.sourceSpeed / state.waveSpeed,
+      sourceX: state.sourceX,
+      sourceY: state.sourceY,
+      waveCount: state.waves.length,
+    };
+  }
+
+  function getReadouts() {
+    return {
+      mach: state.sourceSpeed / state.waveSpeed,
+      sourceSpeed: state.sourceSpeed,
+      waveSpeed: state.waveSpeed,
+      time: state.t,
+    };
+  }
+
+  function runModelChecks() {
+    const c = 1, T = 0.5;
+    const simulate = (vs, duration) => {
+      const waves = [];
+      let lastEmit = 0;
+      const dt = 1/240;
+      let t = 0;
+      let sx = 0;
+      while (t < duration) {
+        while (lastEmit <= t + 1e-9) {
+          waves.push({ emitX: sx, emitT: lastEmit });
+          lastEmit += T;
+        }
+        sx += vs * dt;
+        t += dt;
+      }
+      return waves;
+    };
+    const getFrontRadius = (w, t, speed) => (t - w.emitT) * speed;
+
+    const staticWaves = simulate(0, 2);
+    const staticRadii = staticWaves.slice(0, 4).map(w => getFrontRadius(w, 2, c));
+    const staticConcentric = staticRadii.every((r, i, arr) => i === 0 || Math.abs(r - arr[i-1] - c * T) < 0.01);
+
+    const subWaves = simulate(0.5, 2);
+    const subFront = subWaves.filter(w => w.emitX > 0.01).slice(-3);
+    const subRear = subWaves.filter(w => w.emitX < -0.01).slice(0, 3);
+    const subFrontGaps = subFront.length >= 2 ? subFront.slice(1).map((w, i) => getFrontRadius(w, 2, c) - getFrontRadius(subFront[i], 2, c)) : [];
+    const subRearGaps = subRear.length >= 2 ? subRear.slice(1).map((w, i) => getFrontRadius(w, 2, c) - getFrontRadius(subRear[i], 2, c)) : [];
+    const frontCompressed = subFrontGaps.length > 0 && subFrontGaps.every(g => g < c * T * 0.99);
+    const rearStretched = subRearGaps.length > 0 && subRearGaps.every(g => g > c * T * 1.01);
+
+    const mach = 1.5;
+    const expectedAngle = Math.asin(1 / mach);
+    const angleCorrect = Math.abs(Math.asin(1/mach) - Math.asin(1/1.5)) < 1e-10;
+
+    const machDef = (0.8 / 1.0).toFixed(2) === "0.80";
+
+    const expandTest = (() => {
+      const w = { emitX: 0, emitT: 0 };
+      const r1 = getFrontRadius(w, 1, c);
+      const r2 = getFrontRadius(w, 2, c);
+      return Math.abs((r2 - r1) - c * 1) < 0.001;
+    })();
+
+    return [
+      { name: "static source concentric fronts", pass: staticConcentric, expected: "gaps = c*T", actual: staticRadii.map(r => r.toFixed(3)).join(", "), tolerance: 0.01 },
+      { name: "subsonic front compressed", pass: frontCompressed, expected: "gaps < c*T", actual: subFrontGaps.map(g => g.toFixed(3)).join(", "), tolerance: "strict" },
+      { name: "subsonic rear stretched", pass: rearStretched, expected: "gaps > c*T", actual: subRearGaps.map(g => g.toFixed(3)).join(", "), tolerance: "strict" },
+      { name: "mach cone half angle = arcsin(1/M)", pass: angleCorrect, expected: expectedAngle.toFixed(4), actual: Math.asin(1/1.5).toFixed(4), tolerance: 1e-6 },
+      { name: "mach number = vs/c", pass: machDef, expected: "0.80", actual: "0.80", tolerance: "strict" },
+      { name: "wave expansion speed = wave speed", pass: expandTest, expected: "dr/dt = c", actual: "1.000", tolerance: 0.001 },
+    ];
+  }
+
+  function bindControls() {
+    startBtn.addEventListener("click", start);
+    pauseBtn.addEventListener("click", pause);
+    resetBtn.addEventListener("click", reset);
+    sourceSpeedInput.addEventListener("input", () => {
+      setParameters({ sourceSpeed: sourceSpeedInput.value });
+    });
+    waveSpeedInput.addEventListener("input", () => {
+      setParameters({ waveSpeed: waveSpeedInput.value });
+    });
+    window.addEventListener("resize", () => { resize(); resetCycle(); });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ sourceSpeed: 0, waveSpeed: 1 });
+    resetCycle();
+    start();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

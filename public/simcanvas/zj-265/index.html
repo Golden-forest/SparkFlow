@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>希尔伯特曲线 · 一条线走遍整个方块</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#070b18;
+  --sim-surface:#0f1626;
+  --sim-surface-soft:#141d2f;
+  --sim-text:#e8eefc;
+  --sim-muted:#7e8aa6;
+  --sim-border:#1f2a3f;
+  --sim-grid:rgba(120,160,220,.06);
+  --sim-accent:#22d3ee;
+  --sim-accent-deep:#0891b2;
+  --sim-accent-soft:rgba(34,211,238,.16);
+  --sim-positive:#22d3ee;
+  --sim-warning:#f59e0b;
+  --sim-danger:#ef4444;
+  --sim-radius-sm:10px;
+  --sim-radius-md:16px;
+  --sim-radius-lg:22px;
+  --sim-shadow:0 18px 46px rgba(0,0,0,.45);
+  --sim-space-1:4px;--sim-space-2:8px;--sim-space-3:12px;--sim-space-4:16px;--sim-space-5:24px;--sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;width:100%;overflow:hidden}
+body{
+  color:var(--sim-text);
+  background:var(--sim-bg);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+.app{width:100vw;height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto;gap:10px;padding:14px 18px 12px;overflow:hidden}
+.header{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:0 4px 6px}
+.header h1{margin:0;font-size:clamp(1.3rem,2.1vw,1.8rem);letter-spacing:-.02em;font-weight:800}
+.header p{margin:4px 0 0;color:var(--sim-muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+.status{border:1px solid rgba(34,211,238,.28);border-radius:999px;padding:6px 12px;background:rgba(34,211,238,.08);color:var(--sim-accent);font-size:.78rem;font-weight:700;white-space:nowrap}
+.main{min-height:0;position:relative}
+.scene-panel{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,rgba(20,32,58,.55),transparent 62%),radial-gradient(circle at 50% 50%,#0a1220 0%,#050810 100%);border:1px solid var(--sim-border);border-radius:var(--sim-radius-lg);overflow:hidden}
+#scene{display:block;width:100%;height:100%}
+.readouts{display:flex;justify-content:center;gap:0;padding:0 4px}
+.readout{display:flex;align-items:baseline;gap:8px;padding:4px 18px}
+.readout+.readout{border-left:1px solid var(--sim-border)}
+.readout small{color:var(--sim-muted);font-size:.74rem;letter-spacing:.02em}
+.readout strong{font-size:1.02rem;font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--sim-text)}
+.insight{padding:10px 16px;border:1px solid var(--sim-border);border-left:3px solid var(--sim-warning);border-radius:var(--sim-radius-sm);background:rgba(245,158,11,.06);color:#fcd9a0;font-size:.82rem;line-height:1.5;font-weight:600}
+.controls{display:grid;grid-template-columns:auto minmax(160px,1fr) auto auto;gap:18px;align-items:center;padding:10px 14px;border:1px solid var(--sim-border);border-radius:var(--sim-radius-md);background:rgba(15,22,38,.6)}
+.actions{display:flex;gap:8px}
+button{border:1px solid var(--sim-border);border-radius:var(--sim-radius-sm);padding:8px 14px;color:var(--sim-text);background:var(--sim-surface-soft);cursor:pointer;font-weight:700;font-size:.85rem;transition:transform .14s ease,background .14s ease,border-color .14s ease}
+button:hover{border-color:#2c3a55;background:#1a2438}
+button:active{transform:scale(.97)}
+button.primary{border-color:var(--sim-accent-deep);color:#021018;background:linear-gradient(135deg,#22d3ee,#0891b2)}
+button.primary[aria-pressed="true"]{box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.control{display:flex;flex-direction:column;gap:4px;min-width:0}
+.control label{display:flex;justify-content:space-between;gap:10px;font-size:.78rem;font-weight:700;color:var(--sim-muted)}
+.control output{color:var(--sim-accent);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--sim-accent);height:4px}
+.mode-group{display:flex;gap:0;border:1px solid var(--sim-border);border-radius:var(--sim-radius-sm);overflow:hidden}
+.mode-group button{border:0;border-radius:0;padding:8px 12px;background:var(--sim-surface-soft);font-size:.8rem}
+.mode-group button+button{border-left:1px solid var(--sim-border)}
+.mode-group button[aria-pressed="true"]{background:var(--sim-accent);color:#021018}
+@media (max-width:760px){
+  .app{padding:10px;gap:8px}
+  .header h1{font-size:1.15rem}
+  .header p{font-size:.75rem}
+  .controls{grid-template-columns:1fr;gap:10px}
+  .readout{padding:4px 10px}
+  .readout small{font-size:.68rem}
+  .readout strong{font-size:.88rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>希尔伯特曲线 · 一条线走遍整个方块</h1>
+      <p>阶数 n · 格子数 4^n · 曲线总长</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+
+  <main class="main">
+    <section class="scene-panel" data-region="stage" aria-label="希尔伯特曲线主舞台">
+      <canvas id="scene"></canvas>
+    </section>
+  </main>
+
+  <section class="readouts" data-region="evidence" aria-label="读数">
+    <div class="readout"><small>阶数 n</small><strong id="r-order">3</strong></div>
+    <div class="readout"><small>格子数</small><strong id="r-cells">64</strong></div>
+    <div class="readout"><small>曲线总长</small><strong id="r-length">448</strong></div>
+    <div class="readout"><small>铺满率</small><strong id="r-fill">87.5%</strong></div>
+  </section>
+
+  <section class="insight" data-region="insight" aria-label="观察提示">
+    <span id="insightText">阶数趋于无穷时，一条连续不断的线能任意接近方块里的每一个点——线，可以填满面。</span>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="控件">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button" aria-pressed="false">播放</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="orderInput">阶数 <output id="orderOutput">3</output></label>
+      <input id="orderInput" type="range" min="1" max="6" step="1" value="3">
+    </div>
+    <div class="control" style="min-width:140px">
+      <label>模式</label>
+      <div class="mode-group" id="modeGroup" role="group">
+        <button id="modeWalk" type="button" aria-pressed="true">一笔走完</button>
+        <button id="modeStatic" type="button" aria-pressed="false">静态展示</button>
+      </div>
+    </div>
+    <div></div>
+  </section>
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+// ===== 希尔伯特曲线生成（确定性，无随机）=====
+function hilbertPoints(order){
+  if(order<1) order=1;
+  const n=1<<order;          // 每边格子数 = 2^order
+  const total=n*n;           // 总点数 = 4^order
+  const pts=new Array(total);
+  let x=0,y=0;
+  for(let i=0;i<total;i++){
+    pts[i]={x:x/n,y:y/n};    // 归一化到 [0,1]
+    let bits=i;
+    let rx,ry;
+    let s=1;
+    while(s<n){
+      rx=1&(bits>>1);
+      ry=1&(bits^(bits>>1));
+      // 象限变换
+      if(ry===0){
+        if(rx===1){ x=s-1-x; y=s-1-y; }
+        const t=s-1-y; y=s-1-x; x=t;
+      }
+      // 中心平移
+      if(rx===1) x+=s;
+      if(ry===1) y+=s;
+      bits>>=2;
+      s<<=1;
+    }
+  }
+  return pts;
+}
+
+// ===== 参数 schema =====
+const parameterSchema=[
+  {key:"order",label:"阶数",type:"slider",min:1,max:6,step:1,default:3,unit:""},
+  {key:"mode",label:"模式",type:"toggle",options:["walk","static"],default:"walk"}
+];
+
+// ===== 状态 =====
+const state={
+  running:false,
+  mode:"walk",
+  order:3,
+  prevOrder:3,
+  morphFrom:3,
+  morphTo:3,
+  morphStart:0,
+  morphDur:0.7,
+  walkT:0,
+  walkDur:8,
+  introT:0,
+  introDur:2,
+  outroT:0,
+  outroDur:4,
+  outroShown:false,
+  lastTs:null,
+  simTime:0
+};
+
+const els={
+  status:document.getElementById("status"),
+  canvas:document.getElementById("scene"),
+  rOrder:document.getElementById("r-order"),
+  rCells:document.getElementById("r-cells"),
+  rLength:document.getElementById("r-length"),
+  rFill:document.getElementById("r-fill"),
+  insightText:document.getElementById("insightText"),
+  orderInput:document.getElementById("orderInput"),
+  orderOutput:document.getElementById("orderOutput"),
+  startBtn:document.getElementById("startBtn"),
+  resetBtn:document.getElementById("resetBtn"),
+  modeWalk:document.getElementById("modeWalk"),
+  modeStatic:document.getElementById("modeStatic")
+};
+
+const ctx=els.canvas.getContext("2d");
+let cw=0,ch=0,cssW=0,cssH=0,dpr=1;
+
+function resize(){
+  const r=els.canvas.getBoundingClientRect();
+  cssW=r.width;cssH=r.height;
+  dpr=window.devicePixelRatio||1;
+  els.canvas.width=Math.max(1,Math.round(cssW*dpr));
+  els.canvas.height=Math.max(1,Math.round(cssH*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cw=cssW;ch=cssH;
+}
+
+// ===== 工具 =====
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function easeInOut(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// ===== 生命周期 =====
+function init(){
+  resize();
+  bindControls();
+  setParameters({order:3,mode:"walk"});
+  reset();
+  requestAnimationFrame(frame);
+}
+
+function start(){
+  state.running=true;
+  els.status.textContent="运行中";
+  els.startBtn.setAttribute("aria-pressed","true");
+  els.startBtn.textContent="暂停";
+}
+function pause(){
+  state.running=false;
+  els.status.textContent="已暂停";
+  els.startBtn.setAttribute("aria-pressed","false");
+  els.startBtn.textContent="播放";
+}
+function reset(){
+  pause();
+  state.simTime=0;
+  state.introT=0;
+  state.outroT=0;
+  state.outroShown=false;
+  state.walkT=0;
+  state.morphFrom=state.order;
+  state.morphTo=state.order;
+  state.morphStart=-999;
+  els.status.textContent="就绪";
+  els.startBtn.textContent="播放";
+  els.startBtn.setAttribute("aria-pressed","false");
+}
+
+function setParameters(values){
+  if(values.order!==undefined){
+    const v=clamp(parseInt(values.order,10)||1,1,6);
+    if(v!==state.order){
+      // 触发 morph
+      state.morphFrom=state.order;
+      state.morphTo=v;
+      state.morphStart=state.simTime;
+      state.prevOrder=state.order;
+      state.order=v;
+      els.orderInput.value=String(v);
+      els.orderOutput.textContent=String(v);
+      // morph 时重置 walk 位置到起点，避免跳跃
+      state.walkT=0;
+      state.outroShown=false;
+      state.outroT=0;
+    }
+  }
+  if(values.mode!==undefined){
+    state.mode=values.mode;
+    els.modeWalk.setAttribute("aria-pressed",values.mode==="walk"?"true":"false");
+    els.modeStatic.setAttribute("aria-pressed",values.mode==="static"?"true":"false");
+    if(values.mode==="static"){
+      state.outroShown=false;
+      state.outroT=0;
+    }
+  }
+  renderReadouts();
+}
+
+function getState(){
+  return{
+    running:state.running,mode:state.mode,order:state.order,
+    walkT:state.walkT,introT:state.introT,outroT:state.outroT,
+    simTime:state.simTime
+  };
+}
+function getReadouts(){
+  const cells=Math.pow(4,state.order);
+  const length=(Math.pow(2,state.order)-1)*Math.pow(2,state.order);
+  const fill=cells/(cells+Math.pow(2,state.order));
+  return{order:state.order,cells,length,fill};
+}
+
+// ===== 更新 =====
+function update(dt){
+  state.simTime+=dt;
+  if(state.introT<state.introDur){
+    state.introT+=dt;
+    if(state.introT>state.introDur) state.introT=state.introDur;
+  }
+  if(!state.running) return;
+  if(state.mode==="walk"){
+    state.walkT+=dt/state.walkDur;
+    while(state.walkT>=1){
+      state.walkT-=1;
+      if(!state.outroShown){
+        state.outroShown=true;
+        state.outroT=0;
+      }else{
+        state.outroT=state.outroDur; // 已展示过，保持显示
+      }
+    }
+    if(state.outroShown && state.outroT<state.outroDur){
+      state.outroT+=dt;
+      if(state.outroT>state.outroDur) state.outroT=state.outroDur;
+    }
+  }
+}
+
+// ===== 渲染 =====
+function render(){
+  ctx.clearRect(0,0,cw,ch);
+  drawBackground();
+  const size=Math.min(cw,ch)*0.86;
+  const ox=(cw-size)/2;
+  const oy=(ch-size)/2;
+  drawGrid(ox,oy,size);
+  drawCurve(ox,oy,size);
+  if(state.mode==="walk" && state.introT>=state.introDur){
+    drawWalker(ox,oy,size);
+  }
+  if(state.outroShown || state.mode==="static"){
+    drawOutro(ox,oy,size);
+  }
+  renderInsight();
+}
+
+function drawBackground(){
+  // 已由 CSS 渐变提供，canvas 透明叠加细网格由 drawGrid 处理
+}
+
+function drawGrid(ox,oy,size){
+  ctx.save();
+  ctx.strokeStyle="rgba(120,160,220,0.07)";
+  ctx.lineWidth=1;
+  const n=Math.pow(2,state.order);
+  for(let i=0;i<=n;i++){
+    const p=ox+(i/n)*size;
+    ctx.beginPath();ctx.moveTo(p,oy);ctx.lineTo(p,oy+size);ctx.stroke();
+    const q=oy+(i/n)*size;
+    ctx.beginPath();ctx.moveTo(ox,q);ctx.lineTo(ox+size,q);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function getMorphT(){
+  const e=state.simTime-state.morphStart;
+  if(e<0||e>state.morphDur) return 1;
+  return easeInOut(e/state.morphDur);
+}
+
+function drawCurve(ox,oy,size){
+  const pts=hilbertPoints(state.order);
+  const prevPts=(state.morphFrom!==state.order)?hilbertPoints(state.morphFrom):null;
+  const morphT=getMorphT();
+  const introA=clamp(state.introT/state.introDur,0,1);
+  const baseA=0.35*introA;
+  const drawPts=prevPts?blendPts(prevPts,pts,morphT):pts;
+  const segs=drawPts.length-1;
+  if(segs<1) return;
+  const total=segs;
+  const lim=Math.floor(total*introA);
+  if(lim<1) return;
+
+  // 外层粗半透明描边（模拟辉光，无 shadowBlur）
+  ctx.save();
+  ctx.lineCap="round";
+  ctx.lineJoin="round";
+  ctx.strokeStyle="rgba(34,211,238,0.22)";
+  ctx.lineWidth=7;
+  ctx.beginPath();
+  for(let i=0;i<=lim;i++){
+    const p=drawPts[i];
+    const x=ox+p.x*size,y=oy+p.y*size;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  // 内层实色描边（青→蓝渐变）
+  for(let i=0;i<lim;i++){
+    const t=i/Math.max(1,total-1);
+    const r=Math.round(lerp(34,56,t));
+    const g=Math.round(lerp(211,130,t));
+    const b=Math.round(lerp(238,246,t));
+    ctx.strokeStyle=`rgba(${r},${g},${b},${baseA+0.45})`;
+    ctx.lineWidth=2.2;
+    ctx.beginPath();
+    const p1=drawPts[i],p2=drawPts[i+1];
+    ctx.moveTo(ox+p1.x*size,oy+p1.y*size);
+    ctx.lineTo(ox+p2.x*size,oy+p2.y*size);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function blendPts(a,b,t){
+  const n=Math.max(a.length,b.length);
+  const out=new Array(n);
+  for(let i=0;i<n;i++){
+    const ia=Math.floor(i*(a.length-1)/(n-1));
+    const ib=Math.floor(i*(b.length-1)/(n-1));
+    const pa=a[ia],pb=b[ib];
+    out[i]={x:lerp(pa.x,pb.x,t),y:lerp(pa.y,pb.y,t)};
+  }
+  return out;
+}
+
+function drawWalker(ox,oy,size){
+  const pts=hilbertPoints(state.order);
+  const total=pts.length;
+  if(total<2) return;
+  const f=state.walkT*(total-1);
+  const idx=Math.floor(f);
+  const frac=f-idx;
+  const i=Math.min(idx,total-2);
+  const p1=pts[i],p2=pts[i+1];
+  const x=ox+lerp(p1.x,p2.x,frac)*size;
+  const y=oy+lerp(p1.y,p2.y,frac)*size;
+
+  // 拖尾：缓存最近若干段
+  const trailLen=14;
+  ctx.save();
+  ctx.lineCap="round";
+  for(let k=0;k<trailLen;k++){
+    const back=(k+1)/(trailLen+1);
+    const fi=(f-back);
+    if(fi<0) continue;
+    const ii=Math.floor(fi);
+    const ff=fi-ii;
+    const i1=Math.min(ii,total-2);
+    const i2=Math.min(ii+1,total-2);
+    const pa=pts[i1],pb=pts[i2];
+    const tx=ox+lerp(pa.x,pb.x,ff)*size;
+    const ty=oy+lerp(pa.y,pb.y,ff)*size;
+    const a=(1-k/trailLen)*0.55;
+    ctx.strokeStyle=`rgba(34,211,238,${a})`;
+    ctx.lineWidth=3.5*(1-k/trailLen)+1;
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(tx,ty);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 光点：外层粗半透明 + 内层实色
+  ctx.save();
+  ctx.fillStyle="rgba(34,211,238,0.28)";
+  ctx.beginPath();ctx.arc(x,y,11,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#22d3ee";
+  ctx.beginPath();ctx.arc(x,y,4.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#e8feff";
+  ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawOutro(ox,oy,size){
+  let a;
+  if(state.mode==="static"){
+    a=clamp((state.introT-1)/1.5,0,1);
+  }else{
+    a=clamp(state.outroT/1.2,0,1);
+  }
+  if(a<=0) return;
+  const cx=ox+size/2;
+  const cy=oy+size+34;
+  ctx.save();
+  ctx.textAlign="center";
+  ctx.textBaseline="top";
+  ctx.fillStyle=`rgba(232,238,252,${0.92*a})`;
+  ctx.font='600 15px ui-sans-serif,system-ui,sans-serif';
+  ctx.fillText("一条连续不断的线，阶数趋于无穷时，",cx,cy);
+  ctx.fillText("能任意接近方块里的每一个点——线，可以填满面。",cx,cy+22);
+  ctx.restore();
+}
+
+function renderReadouts(){
+  const r=getReadouts();
+  els.rOrder.textContent=String(r.order);
+  els.rCells.textContent=String(r.cells);
+  els.rLength.textContent=String(r.length);
+  els.rFill.textContent=(r.fill*100).toFixed(1)+"%";
+}
+
+function renderInsight(){
+  let txt;
+  if(state.mode==="static"){
+    txt="静态展示：完整曲线已绘出。阶数越高，线越密，越接近填满整个方块。";
+  }else if(!state.running && state.simTime===0){
+    txt="按播放开始：光点将沿一条连续不断的路径走遍方块，不重复、不跳跃。";
+  }else if(state.outroShown){
+    txt="走完了：一条线连续不断地访问了全部格子。阶数趋于无穷时，线可填满面。";
+  }else if(state.walkT<0.5){
+    txt="观察光点：它沿曲线连续前进，每一步只进入一个新格子，路径不自交。";
+  }else{
+    txt="继续行进：曲线在局部自相似地折叠，把更多格子纳入一条连续路径。";
+  }
+  els.insightText.textContent=txt;
+}
+
+// ===== 模型检查 =====
+function runModelChecks(){
+  const order1=hilbertPoints(1);
+  const order2=hilbertPoints(2);
+  const order6=hilbertPoints(6);
+  const c1={len:order1.length,exp:4};
+  const c2={len:order2.length,exp:16};
+  const c6={len:order6.length,exp:4096};
+  // 连续性：相邻点曼哈顿距离为 1（归一化后为 1/2^order）
+  let cont=true;
+  const n2=Math.pow(2,2);
+  for(let i=0;i<order2.length-1;i++){
+    const d=Math.abs(order2[i+1].x-order2[i].x)+Math.abs(order2[i+1].y-order2[i].y);
+    if(Math.abs(d-1/n2)>1e-9){cont=false;break;}
+  }
+  // 唯一性：所有点不重复
+  const set=new Set(order2.map(p=>p.x+","+p.y));
+  const uniq=set.size===order2.length;
+  // 覆盖：所有格子被访问
+  const n=4;
+  const grid=new Set();
+  for(const p of order2){
+    const gx=Math.floor(p.x*n),gy=Math.floor(p.y*n);
+    grid.add(gx+","+gy);
+  }
+  const cover=grid.size===n*n;
+  // 长度公式
+  const lenOk=(Math.pow(2,3)-1)*Math.pow(2,3)===56;
+  return[
+    {name:"1阶点数=4",pass:c1.len===c1.exp,expected:c1.exp,actual:c1.len,tolerance:"exact"},
+    {name:"2阶点数=16",pass:c2.len===c2.exp,expected:c2.exp,actual:c2.len,tolerance:"exact"},
+    {name:"6阶点数=4096",pass:c6.len===c6.exp,expected:c6.exp,actual:c6.len,tolerance:"exact"},
+    {name:"相邻点连续(曼哈顿距离=格子边长)",pass:cont,expected:true,actual:cont,tolerance:"strict"},
+    {name:"所有点唯一",pass:uniq,expected:true,actual:uniq,tolerance:"strict"},
+    {name:"2阶覆盖全部16格",pass:cover,expected:true,actual:cover,tolerance:"strict"},
+    {name:"3阶长度=56",pass:lenOk,expected:56,actual:(Math.pow(2,3)-1)*Math.pow(2,3),tolerance:"exact"}
+  ];
+}
+
+// ===== 绑定 =====
+function bindControls(){
+  els.startBtn.addEventListener("click",()=>{
+    if(state.running) pause(); else start();
+  });
+  els.resetBtn.addEventListener("click",reset);
+  els.orderInput.addEventListener("input",()=>{
+    setParameters({order:els.orderInput.value,mode:state.mode});
+  });
+  els.modeWalk.addEventListener("click",()=>setParameters({order:state.order,mode:"walk"}));
+  els.modeStatic.addEventListener("click",()=>setParameters({order:state.order,mode:"static"}));
+  window.addEventListener("resize",()=>{
+    resize();
+  });
+}
+
+function frame(ts){
+  if(state.lastTs===null) state.lastTs=ts;
+  let dt=(ts-state.lastTs)/1000;
+  state.lastTs=ts;
+  dt=clamp(dt,0,0.05);
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+window.simulation={init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks};
+init();
+})();
+</script>
+</body>
+</html>

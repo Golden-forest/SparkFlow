@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨迹笔锋 · InkStroke</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #0a0d14;
+  --sim-surface: #141821;
+  --sim-surface-soft: #1a1f2b;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a94a8;
+  --sim-border: #2a3142;
+  --sim-grid: #1f2533;
+  --sim-accent: #c9a961;
+  --sim-accent-deep: #8a7430;
+  --sim-accent-soft: #2a2418;
+  --sim-positive: #c9a961;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--sim-bg);
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: var(--sim-text);
+}
+.app {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "header" "stage" "controls";
+}
+.header {
+  grid-area: header;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: var(--sim-space-4);
+  padding: var(--sim-space-3) var(--sim-space-5);
+  z-index: 20;
+  pointer-events: none;
+}
+.header > * { pointer-events: auto; }
+.header h1 {
+  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: rgba(232, 238, 252, 0.88);
+}
+.header p {
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+.status {
+  border: 1px solid rgba(201, 169, 97, 0.22);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(20, 24, 33, 0.55);
+  color: rgba(201, 169, 97, 0.85);
+  font-weight: 600;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(6px);
+}
+.stage {
+  grid-area: stage;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+.corner-formula {
+  position: absolute;
+  left: 28px; bottom: 24px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgba(180, 160, 110, 0.32);
+  font-family: ui-monospace, "SF Mono", monospace;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+.corner-formula .gold { color: rgba(201, 169, 97, 0.4); }
+.evidence {
+  position: absolute;
+  top: 18px; right: 22px;
+  display: flex; gap: var(--sim-space-2);
+  z-index: 12;
+  pointer-events: none;
+}
+.metric {
+  padding: 9px 13px;
+  border: 1px solid rgba(201, 169, 97, 0.16);
+  border-radius: var(--sim-radius-sm);
+  background: rgba(20, 24, 33, 0.5);
+  backdrop-filter: blur(6px);
+  min-width: 78px;
+}
+.metric small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sim-muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.metric strong {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(232, 238, 252, 0.92);
+}
+.insight {
+  position: absolute;
+  left: 28px; top: 78px;
+  max-width: 280px;
+  padding: 10px 14px;
+  border-left: 2px solid rgba(201, 169, 97, 0.4);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: rgba(20, 24, 33, 0.5);
+  backdrop-filter: blur(6px);
+  color: rgba(220, 210, 190, 0.78);
+  font-size: 0.74rem;
+  line-height: 1.55;
+  z-index: 11;
+  pointer-events: none;
+}
+.controls {
+  grid-area: controls;
+  display: flex; justify-content: flex-end; align-items: center;
+  gap: var(--sim-space-5);
+  padding: var(--sim-space-2) var(--sim-space-5) var(--sim-space-4);
+  z-index: 20;
+}
+.control {
+  display: flex; flex-direction: column; gap: 5px;
+  min-width: 150px;
+}
+.control label {
+  display: flex; justify-content: space-between; gap: var(--sim-space-3);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--sim-muted);
+  letter-spacing: 0.04em;
+}
+.control output {
+  color: rgba(201, 169, 97, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--sim-accent);
+  height: 4px;
+}
+.actions { display: flex; gap: var(--sim-space-2); }
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: 50%;
+  width: 38px; height: 38px;
+  padding: 0;
+  color: rgba(201, 169, 97, 0.55);
+  background: rgba(20, 24, 33, 0.5);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .3s, border-color .3s, color .3s;
+  backdrop-filter: blur(4px);
+}
+button:hover {
+  background: rgba(30, 34, 45, 0.7);
+  border-color: rgba(201, 169, 97, 0.4);
+  color: rgba(201, 169, 97, 0.85);
+}
+button:focus-visible {
+  outline: 2px solid rgba(201, 169, 97, 0.5);
+  outline-offset: 3px;
+}
+button svg { width: 14px; height: 14px; }
+@media (max-width: 600px) {
+  .corner-formula { font-size: 10px; left: 16px; bottom: 16px; }
+  .evidence { top: 12px; right: 14px; gap: 6px; }
+  .metric { padding: 7px 10px; min-width: 64px; }
+  .metric small { font-size: 0.58rem; }
+  .metric strong { font-size: 0.92rem; }
+  .insight { left: 16px; top: 68px; max-width: 220px; font-size: 0.7rem; padding: 8px 12px; }
+  .controls { padding: var(--sim-space-2) var(--sim-space-4) var(--sim-space-3); gap: var(--sim-space-3); }
+  .control { min-width: 110px; }
+  .actions button { width: 34px; height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 保留缓慢呼吸式动画，但可降低帧率需求 */
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header" data-region="header">
+    <div>
+      <h1>墨迹笔锋 · InkStroke</h1>
+      <p>一笔行书，起承转合，飞白流转</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <section class="stage" data-region="stage" aria-label="笔锋动画舞台">
+    <canvas id="scene"></canvas>
+
+    <div class="corner-formula" aria-hidden="true">
+      P(t) = Σ B<sub>i</sub>(t)<br>
+      <span class="gold">n · d(φ, t)</span>
+    </div>
+
+    <aside class="evidence" data-region="evidence" aria-label="实时读数">
+      <div class="metric"><small>运笔</small><strong id="progressReadout">0%</strong></div>
+      <div class="metric"><small>周期</small><strong id="cycleReadout">0.00 s</strong></div>
+    </aside>
+
+    <div class="insight" data-region="insight" id="insightText">
+      起笔轻入，行笔渐浓，收笔出锋。粒子沿笔迹法向布朗漂移，形成飞白。
+    </div>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="动画控制">
+    <div class="control">
+      <label for="speedInput">运笔速度 <output id="speedOutput">1.00×</output></label>
+      <input id="speedInput" type="range" min="0.2" max="2.5" step="0.1" value="1.0">
+    </div>
+    <div class="actions">
+      <button id="playBtn" type="button" aria-label="播放或暂停" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="currentColor" id="playIcon">
+          <path d="M6 5h4v14H6zM14 5h4v14h-4z"/>
+        </svg>
+      </button>
+      <button id="resetBtn" type="button" aria-label="重置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7"/>
+          <path d="M3 4v5h5"/>
+        </svg>
+      </button>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const playBtn = document.getElementById('playBtn');
+  const playIcon = document.getElementById('playIcon');
+  const resetBtn = document.getElementById('resetBtn');
+  const speedInput = document.getElementById('speedInput');
+  const speedOutput = document.getElementById('speedOutput');
+  const statusEl = document.getElementById('status');
+  const progressReadout = document.getElementById('progressReadout');
+  const cycleReadout = document.getElementById('cycleReadout');
+  const insightText = document.getElementById('insightText');
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "speed", label: "运笔速度", type: "slider", min: 0.2, max: 2.5, step: 0.1, default: 1.0, unit: "×" }
+  ];
+
+  // ===== 状态 =====
+  const state = {
+    running: true,
+    time: 0,
+    lastTs: null,
+    dpr: 1,
+    W: 0, H: 0,
+    speed: 1.0,
+    particles: [],
+    paperTexture: null,
+    strokePath: null,
+  };
+
+  // ===== 固定种子伪随机（确定性）=====
+  function makeRng(seed) {
+    let s = seed | 0;
+    return function rng() {
+      s = (s * 1664525 + 1013904223) | 0;
+      return ((s >>> 0) % 100000) / 100000;
+    };
+  }
+
+  // ===== 笔迹曲线定义 =====
+  function buildStrokePath(W, H) {
+    const cx = W * 0.5, cy = H * 0.5;
+    const span = Math.min(W, H) * 0.38;
+
+    const p0 = { x: cx - span * 1.1, y: cy + span * 0.35 };
+    const p1 = { x: cx - span * 0.5, y: cy - span * 0.9 };
+    const p2 = { x: cx + span * 0.4, y: cy + span * 0.7 };
+    const p3 = { x: cx + span * 1.15, y: cy - span * 0.25 };
+
+    const samples = 600;
+    const pts = [];
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const u = 1 - t;
+      const x = u*u*u*p0.x + 3*u*u*t*p1.x + 3*u*t*t*p2.x + t*t*t*p3.x;
+      const y = u*u*u*p0.y + 3*u*u*t*p1.y + 3*u*t*t*p2.y + t*t*t*p3.y;
+      pts.push({ x, y, t });
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      const prev = pts[Math.max(0, i - 1)];
+      const next = pts[Math.min(pts.length - 1, i + 1)];
+      const dx = next.x - prev.x;
+      const dy = next.y - prev.y;
+      const len = Math.hypot(dx, dy) || 1;
+      pts[i].tx = dx / len;
+      pts[i].ty = dy / len;
+      pts[i].nx = -dy / len;
+      pts[i].ny = dx / len;
+    }
+    return pts;
+  }
+
+  // ===== 粒子初始化 =====
+  function buildParticles(path) {
+    const rng = makeRng(20240926);
+    const count = 1200;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const u = i / (count - 1);
+      const tCurve = 0.5 + (u - 0.5) * 0.96;
+
+      const pathIdx = Math.min(path.length - 1, Math.max(0, Math.floor(tCurve * (path.length - 1))));
+      const base = path[pathIdx];
+
+      const envelope = Math.pow(Math.sin(Math.PI * tCurve), 0.7);
+      const ampBase = Math.min(state.W, state.H) * 0.018;
+      const amp = ampBase * envelope;
+
+      const phase = rng() * Math.PI * 2;
+      const phase2 = rng() * Math.PI * 2;
+      const freq = 0.6 + rng() * 0.8;
+      const freq2 = 1.2 + rng() * 1.5;
+
+      const size = (0.6 + rng() * 1.8) * (0.7 + envelope * 0.6);
+
+      const goldRoll = rng();
+      const isGold = goldRoll > 0.94;
+
+      const density = (0.35 + rng() * 0.65) * (0.5 + envelope * 0.5);
+
+      arr.push({
+        t: tCurve,
+        pathIdx,
+        amp,
+        phase, phase2, freq, freq2,
+        size,
+        isGold,
+        density,
+        seed: rng() * 1000,
+      });
+    }
+    return arr;
+  }
+
+  // ===== 宣纸纹理预渲染 =====
+  function buildPaperTexture(W, H) {
+    const off = document.createElement('canvas');
+    off.width = Math.max(2, Math.floor(W));
+    off.height = Math.max(2, Math.floor(H));
+    const o = off.getContext('2d');
+
+    o.fillStyle = '#0a0d14';
+    o.fillRect(0, 0, W, H);
+
+    const cx = W * 0.5, cy = H * 0.5;
+    const r = Math.max(W, H) * 0.7;
+    const grad = o.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, 'rgba(28, 32, 44, 0.5)');
+    grad.addColorStop(0.5, 'rgba(18, 22, 32, 0.3)');
+    grad.addColorStop(1, 'rgba(8, 10, 16, 0.6)');
+    o.fillStyle = grad;
+    o.fillRect(0, 0, W, H);
+
+    const rng = makeRng(7777);
+    const img = o.getImageData(0, 0, off.width, off.height);
+    const data = img.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const n = (rng() - 0.5) * 10;
+      data[i] = Math.max(0, Math.min(255, data[i] + n));
+      data[i+1] = Math.max(0, Math.min(255, data[i+1] + n));
+      data[i+2] = Math.max(0, Math.min(255, data[i+2] + n));
+    }
+    o.putImageData(img, 0, 0);
+
+    o.strokeStyle = 'rgba(120, 100, 70, 0.025)';
+    o.lineWidth = 1;
+    for (let k = 0; k < 80; k++) {
+      const x1 = rng() * W;
+      const y1 = rng() * H;
+      const len = 20 + rng() * 120;
+      const ang = rng() * Math.PI * 2;
+      o.beginPath();
+      o.moveTo(x1, y1);
+      o.lineTo(x1 + Math.cos(ang) * len, y1 + Math.sin(ang) * len);
+      o.stroke();
+    }
+
+    return off;
+  }
+
+  // ===== 尺寸适配 =====
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.dpr = dpr;
+    state.W = window.innerWidth;
+    state.H = window.innerHeight;
+    canvas.width = Math.floor(state.W * dpr);
+    canvas.height = Math.floor(state.H * dpr);
+    canvas.style.width = state.W + 'px';
+    canvas.style.height = state.H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    state.paperTexture = buildPaperTexture(state.W, state.H);
+    state.strokePath = buildStrokePath(state.W, state.H);
+    state.particles = buildParticles(state.strokePath);
+  }
+
+  // ===== 运笔生长函数 =====
+  const CYCLE = 8.0;
+  function strokeProgress(time) {
+    const phase = (time % CYCLE) / CYCLE;
+    let head, fade;
+    if (phase < 0.625) {
+      const p = phase / 0.625;
+      const eased = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p + 2, 2) / 2;
+      head = eased;
+      fade = 1.0;
+    } else if (phase < 0.75) {
+      head = 1.0;
+      fade = 1.0;
+    } else {
+      const p = (phase - 0.75) / 0.25;
+      head = 1.0;
+      fade = 1.0 - p;
+    }
+    return { head, fade, phase };
+  }
+
+  // ===== 渲染 =====
+  function render() {
+    const { W, H, particles, strokePath, paperTexture } = state;
+
+    if (!paperTexture || !strokePath || particles.length === 0) return;
+
+    ctx.drawImage(paperTexture, 0, 0, W, H);
+
+    const { head, fade } = strokeProgress(state.time);
+
+    if (head > 0) {
+      const endIdx = Math.floor(head * (strokePath.length - 1));
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = `rgba(20, 18, 24, ${0.22 * fade})`;
+      ctx.lineWidth = Math.min(W, H) * 0.028;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(strokePath[0].x, strokePath[0].y);
+      for (let i = 1; i <= endIdx; i++) {
+        ctx.lineTo(strokePath[i].x, strokePath[i].y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(40, 36, 48, ${0.35 * fade})`;
+      ctx.lineWidth = Math.min(W, H) * 0.014;
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(80, 74, 92, ${0.5 * fade})`;
+      ctx.lineWidth = Math.min(W, H) * 0.005;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+
+    const t = state.time;
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+
+      if (p.t > head) continue;
+
+      const distFromHead = head - p.t;
+      const trailFactor = Math.exp(-distFromHead * 2.2);
+      const alpha = p.density * trailFactor * fade;
+      if (alpha < 0.01) continue;
+
+      const base = strokePath[p.pathIdx];
+
+      const drift = p.amp * (
+        Math.sin(t * p.freq + p.phase) * 0.6 +
+        Math.sin(t * p.freq2 + p.phase2) * 0.4
+      );
+
+      const x = base.x + base.nx * drift;
+      const y = base.y + base.ny * drift;
+
+      let r, g, b;
+      if (p.isGold) {
+        r = 201; g = 169; b = 97;
+      } else {
+        const grayBase = 18 + (1 - p.density) * 60;
+        r = grayBase; g = grayBase; b = grayBase + 4;
+      }
+
+      const size = p.size * (0.8 + trailFactor * 0.4);
+
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha * 0.18})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha * 0.9})`;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+
+    if (head > 0.001 && head < 0.999 && fade > 0.3) {
+      const idx = Math.floor(head * (strokePath.length - 1));
+      const tip = strokePath[idx];
+
+      const tipGrad = ctx.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, 18);
+      tipGrad.addColorStop(0, `rgba(220, 200, 160, ${0.35 * fade})`);
+      tipGrad.addColorStop(0.5, `rgba(120, 100, 70, ${0.15 * fade})`);
+      tipGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = tipGrad;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `rgba(240, 225, 190, ${0.7 * fade})`;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ===== 状态更新（与渲染分离）=====
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.max(0, Math.min(dt, 0.1));
+    state.time += boundedDt * state.speed;
+  }
+
+  // ===== 读数与洞察 =====
+  function updateReadouts() {
+    const { head, phase } = strokeProgress(state.time);
+    progressReadout.textContent = (head * 100).toFixed(0) + '%';
+    cycleReadout.textContent = (state.time % CYCLE).toFixed(2) + ' s';
+
+    let msg;
+    if (!state.running) {
+      msg = '已暂停。按播放继续运笔。';
+    } else if (phase < 0.625) {
+      msg = '起笔轻入，行笔渐浓。粒子沿笔迹法向布朗漂移，形成飞白。';
+    } else if (phase < 0.75) {
+      msg = '收笔完成，墨迹饱满停留。';
+    } else {
+      msg = '墨迹渐淡，下一笔将起。';
+    }
+    insightText.textContent = msg;
+
+    statusEl.textContent = state.running ? '运行中' : '已暂停';
+    speedOutput.textContent = state.speed.toFixed(2) + '×';
+  }
+
+  // ===== 主循环 =====
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    let dt = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    if (dt > 0.1) dt = 0.016;
+    if (dt < 0) dt = 0;
+
+    update(dt);
+    render();
+    updateReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 生命周期钩子 =====
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ speed: 1.0 });
+    requestAnimationFrame(frame);
+  }
+  function start() {
+    state.running = true;
+    playBtn.setAttribute('aria-pressed', 'false');
+    playIcon.innerHTML = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+    statusEl.textContent = '运行中';
+  }
+  function pause() {
+    state.running = false;
+    playBtn.setAttribute('aria-pressed', 'true');
+    playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    statusEl.textContent = '已暂停';
+  }
+  function reset() {
+    state.time = 0;
+    render();
+    updateReadouts();
+  }
+  function setParameters(values) {
+    const def = parameterSchema[0];
+    const v = Number(values.speed);
+    state.speed = Number.isFinite(v)
+      ? Math.min(def.max, Math.max(def.min, v))
+      : def.default;
+    speedInput.value = String(state.speed);
+    speedOutput.textContent = state.speed.toFixed(2) + '×';
+  }
+  function getState() {
+    return {
+      running: state.running,
+      time: state.time,
+      speed: state.speed,
+      W: state.W,
+      H: state.H,
+      particleCount: state.particles.length
+    };
+  }
+  function getReadouts() {
+    const { head, phase } = strokeProgress(state.time);
+    return {
+      time: state.time,
+      cycleTime: state.time % CYCLE,
+      cyclePhase: phase,
+      head: head,
+      speed: state.speed,
+      running: state.running
+    };
+  }
+
+  // ===== 控件绑定 =====
+  function bindControls() {
+    playBtn.addEventListener('click', () => {
+      if (state.running) pause(); else start();
+    });
+    resetBtn.addEventListener('click', reset);
+    speedInput.addEventListener('input', () => {
+      setParameters({ speed: speedInput.value });
+    });
+  }
+
+  // ===== 窗口尺寸适配 =====
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 120);
+  });
+
+  // ===== 暴露接口 =====
+  window.simulation = {
+    init, start, pause, reset,
+    update, render, setParameters,
+    getState, getReadouts
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

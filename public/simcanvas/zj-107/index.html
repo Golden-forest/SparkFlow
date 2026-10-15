@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>双摆混沌运动模拟</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    #trace { fill: none; stroke: var(--sim-accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+    #arm1 { stroke: #475569; stroke-width: 4; stroke-linecap: round; }
+    #arm2 { stroke: #64748b; stroke-width: 4; stroke-linecap: round; }
+    #pivot { fill: #1e293b; }
+    #bob1 { fill: var(--sim-accent-deep); stroke: white; stroke-width: 2; }
+    #bob2 { fill: var(--sim-warning); stroke: white; stroke-width: 2; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="quantitative">
+    <header class="header" data-region="header">
+      <div>
+        <h1>双摆混沌运动模拟</h1>
+        <p>观察初始角度的微小差异如何放大为截然不同的轨迹。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">双摆运动</h2><span>第二摆球轨迹随时间演化</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">双摆系统：两根连杆和两个摆球，第二摆球的轨迹以淡色曲线显示。</desc>
+          <g id="grid"></g>
+          <line class="axis" x1="380" y1="40" x2="380" y2="400"></line>
+          <line class="axis" x1="40" y1="60" x2="720" y2="60"></line>
+          <polyline id="trace" points=""></polyline>
+          <line id="arm1" x1="380" y1="60" x2="380" y2="180"></line>
+          <line id="arm2" x1="380" y1="180" x2="380" y2="300"></line>
+          <circle id="pivot" cx="380" cy="60" r="5"></circle>
+          <circle id="bob1" cx="380" cy="180" r="10"></circle>
+          <circle id="bob2" cx="380" cy="300" r="12"></circle>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>摆角 θ₁</small><strong id="theta1Readout">90.0°</strong></div>
+            <div class="metric"><small>摆角 θ₂</small><strong id="theta2Readout">90.0°</strong></div>
+            <div class="metric"><small>角速度 ω₁</small><strong id="omega1Readout">0.00</strong></div>
+            <div class="metric"><small>角速度 ω₂</small><strong id="omega2Readout">0.00</strong></div>
+            <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+            <div class="metric"><small>总能量</small><strong id="energyReadout">0.00 J</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">点击开始，观察第二摆球的轨迹如何从规则走向混沌。</p>
+          <p>教学视图：使用拉格朗日方程的双摆模型，RK4 积分。微小初始角度差异会指数放大，体现混沌系统对初始条件的敏感依赖。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="theta1Input">初始角 θ₁ <output id="theta1Output">90°</output></label>
+        <input id="theta1Input" type="range" min="30" max="150" step="1" value="90">
+      </div>
+      <div class="control">
+        <label for="theta2Input">初始角 θ₂ <output id="theta2Output">90°</output></label>
+        <input id="theta2Input" type="range" min="30" max="150" step="1" value="90">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "theta1", label: "初始角 θ₁", type: "slider", min: 30, max: 150, step: 1, default: 90, unit: "°" },
+      { key: "theta2", label: "初始角 θ₂", type: "slider", min: 30, max: 150, step: 1, default: 90, unit: "°" }
+    ];
+    const PHYS = { g: 9.81, L1: 1.0, L2: 1.0, m1: 1.0, m2: 1.0 };
+    const state = {
+      running: false,
+      t: 0,
+      theta1: Math.PI / 2,
+      theta2: Math.PI / 2,
+      omega1: 0,
+      omega2: 0,
+      initTheta1: Math.PI / 2,
+      initTheta2: Math.PI / 2,
+      lastTimestamp: null,
+      history: []
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      trace: document.querySelector("#trace"),
+      arm1: document.querySelector("#arm1"),
+      arm2: document.querySelector("#arm2"),
+      bob1: document.querySelector("#bob1"),
+      bob2: document.querySelector("#bob2"),
+      grid: document.querySelector("#grid"),
+      theta1Readout: document.querySelector("#theta1Readout"),
+      theta2Readout: document.querySelector("#theta2Readout"),
+      omega1Readout: document.querySelector("#omega1Readout"),
+      omega2Readout: document.querySelector("#omega2Readout"),
+      timeReadout: document.querySelector("#timeReadout"),
+      energyReadout: document.querySelector("#energyReadout"),
+      theta1Input: document.querySelector("#theta1Input"),
+      theta1Output: document.querySelector("#theta1Output"),
+      theta2Input: document.querySelector("#theta2Input"),
+      theta2Output: document.querySelector("#theta2Output"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      insight: document.querySelector("#insight")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function initGrid() {
+      const lines = [];
+      for (let i = 0; i <= 8; i += 1) {
+        const x = 60 + i * 80;
+        lines.push('<line class="grid-line" x1="' + x + '" y1="40" x2="' + x + '" y2="400"></line>');
+      }
+      for (let j = 0; j <= 8; j += 1) {
+        const y = 40 + j * 45;
+        lines.push('<line class="grid-line" x1="40" y1="' + y + '" x2="720" y2="' + y + '"></line>');
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+
+    function derivatives(t1, t2, w1, w2) {
+      const { g, L1, L2, m1, m2 } = PHYS;
+      const delta = t1 - t2;
+      const sinDelta = Math.sin(delta);
+      const cosDelta = Math.cos(delta);
+      const denom = 2 * m1 + m2 - m2 * cosDelta * cosDelta;
+      const dw1 = (g * (Math.sin(t1) * (m1 + m2) + m2 * Math.sin(t1 - 2 * t2)) +
+        2 * sinDelta * m2 * (w2 * w2 * L2 + w1 * w1 * L1 * cosDelta)) /
+        (L1 * denom);
+      const dw2 = (2 * sinDelta * (w1 * w1 * L1 * (m1 + m2) +
+        g * (m1 + m2) * Math.cos(t1) + w2 * w2 * L2 * m2 * cosDelta)) /
+        (L2 * denom);
+      return { dt1: w1, dt2: w2, dw1: dw1, dw2: dw2 };
+    }
+
+    function rk4Step(dt) {
+      const t1 = state.theta1, t2 = state.theta2, w1 = state.omega1, w2 = state.omega2;
+      const k1 = derivatives(t1, t2, w1, w2);
+      const k2 = derivatives(t1 + k1.dt1 * dt / 2, t2 + k1.dt2 * dt / 2, w1 + k1.dw1 * dt / 2, w2 + k1.dw2 * dt / 2);
+      const k3 = derivatives(t1 + k2.dt1 * dt / 2, t2 + k2.dt2 * dt / 2, w1 + k2.dw1 * dt / 2, w2 + k2.dw2 * dt / 2);
+      const k4 = derivatives(t1 + k3.dt1 * dt, t2 + k3.dt2 * dt, w1 + k3.dw1 * dt, w2 + k3.dw2 * dt);
+      state.theta1 = t1 + (dt / 6) * (k1.dt1 + 2 * k2.dt1 + 2 * k3.dt1 + k4.dt1);
+      state.theta2 = t2 + (dt / 6) * (k1.dt2 + 2 * k2.dt2 + 2 * k3.dt2 + k4.dt2);
+      state.omega1 = w1 + (dt / 6) * (k1.dw1 + 2 * k2.dw1 + 2 * k3.dw1 + k4.dw1);
+      state.omega2 = w2 + (dt / 6) * (k1.dw2 + 2 * k2.dw2 + 2 * k3.dw2 + k4.dw2);
+      state.theta1 = finite(state.theta1, 0);
+      state.theta2 = finite(state.theta2, 0);
+      state.omega1 = finite(state.omega1, 0);
+      state.omega2 = finite(state.omega2, 0);
+    }
+
+    function computeEnergy() {
+      const { g, L1, L2, m1, m2 } = PHYS;
+      const t1 = state.theta1, t2 = state.theta2, w1 = state.omega1, w2 = state.omega2;
+      const y1 = -L1 * Math.cos(t1);
+      const y2 = y1 - L2 * Math.cos(t2);
+      const v1sq = L1 * L1 * w1 * w1;
+      const v2sq = L1 * L1 * w1 * w1 + L2 * L2 * w2 * w2 + 2 * L1 * L2 * w1 * w2 * Math.cos(t1 - t2);
+      const KE = 0.5 * m1 * v1sq + 0.5 * m2 * v2sq;
+      const PE = m1 * g * y1 + m2 * g * y2;
+      return KE + PE;
+    }
+
+    function init() {
+      initGrid();
+      bindControls();
+      setParameters({ theta1: 90, theta2: 90 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.theta1 = state.initTheta1;
+      state.theta2 = state.initTheta2;
+      state.omega1 = 0;
+      state.omega2 = 0;
+      state.lastTimestamp = null;
+      state.history = [];
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const subSteps = 4;
+      const h = boundedDt / subSteps;
+      for (let i = 0; i < subSteps; i += 1) {
+        rk4Step(h);
+      }
+      state.t += boundedDt;
+      const x2 = 380 + 120 * Math.sin(state.theta2) + 120 * Math.sin(state.theta1);
+      const y2 = 60 + 120 * Math.cos(state.theta1) + 120 * Math.cos(state.theta2);
+      state.history.push({ x: x2, y: y2 });
+      if (state.history.length > 400) state.history.shift();
+    }
+
+    function render() {
+      const cx = 380, cy = 60;
+      const s1x = cx + 120 * Math.sin(state.theta1);
+      const s1y = cy + 120 * Math.cos(state.theta1);
+      const s2x = s1x + 120 * Math.sin(state.theta2);
+      const s2y = s1y + 120 * Math.cos(state.theta2);
+      elements.arm1.setAttribute("x2", s1x);
+      elements.arm1.setAttribute("y2", s1y);
+      elements.arm2.setAttribute("x1", s1x);
+      elements.arm2.setAttribute("y1", s1y);
+      elements.arm2.setAttribute("x2", s2x);
+      elements.arm2.setAttribute("y2", s2y);
+      elements.bob1.setAttribute("cx", s1x);
+      elements.bob1.setAttribute("cy", s1y);
+      elements.bob2.setAttribute("cx", s2x);
+      elements.bob2.setAttribute("cy", s2y);
+      elements.trace.setAttribute("points", state.history.map(p => p.x + "," + p.y).join(" "));
+      const deg1 = ((state.theta1 * 180 / Math.PI) % 360 + 360) % 360;
+      const deg2 = ((state.theta2 * 180 / Math.PI) % 360 + 360) % 360;
+      elements.theta1Readout.textContent = deg1.toFixed(1) + "°";
+      elements.theta2Readout.textContent = deg2.toFixed(1) + "°";
+      elements.omega1Readout.textContent = state.omega1.toFixed(2);
+      elements.omega2Readout.textContent = state.omega2.toFixed(2);
+      elements.timeReadout.textContent = state.t.toFixed(2) + " s";
+      elements.energyReadout.textContent = computeEnergy().toFixed(2) + " J";
+      elements.theta1Output.textContent = (state.initTheta1 * 180 / Math.PI).toFixed(0) + "°";
+      elements.theta2Output.textContent = (state.initTheta2 * 180 / Math.PI).toFixed(0) + "°";
+      if (!state.running && state.t === 0) {
+        elements.insight.textContent = "点击开始，观察第二摆球的轨迹如何从规则走向混沌。";
+      } else if (state.t < 2) {
+        elements.insight.textContent = "运动初期：轨迹尚可预测，能量在动能与势能间转换。";
+      } else if (state.t < 6) {
+        elements.insight.textContent = "混沌显现：微小扰动被放大，轨迹变得复杂而不可重复。";
+      } else {
+        elements.insight.textContent = "持续混沌：系统对初始条件极度敏感，长期预测失效。";
+      }
+    }
+
+    function setParameters(values) {
+      const t1Def = parameterSchema[0], t2Def = parameterSchema[1];
+      const deg1 = clamp(finite(Number(values.theta1), t1Def.default), t1Def.min, t1Def.max);
+      const deg2 = clamp(finite(Number(values.theta2), t2Def.default), t2Def.min, t2Def.max);
+      state.initTheta1 = deg1 * Math.PI / 180;
+      state.initTheta2 = deg2 * Math.PI / 180;
+      if (!state.running) {
+        state.theta1 = state.initTheta1;
+        state.theta2 = state.initTheta2;
+        state.omega1 = 0;
+        state.omega2 = 0;
+        state.t = 0;
+        state.history = [];
+      }
+      elements.theta1Input.value = String(deg1);
+      elements.theta2Input.value = String(deg2);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        theta1: state.theta1,
+        theta2: state.theta2,
+        omega1: state.omega1,
+        omega2: state.omega2,
+        initTheta1: state.initTheta1,
+        initTheta2: state.initTheta2,
+        history: state.history.map(p => ({ x: p.x, y: p.y }))
+      };
+    }
+
+    function getReadouts() {
+      return {
+        theta1: state.theta1,
+        theta2: state.theta2,
+        omega1: state.omega1,
+        omega2: state.omega2,
+        time: state.t,
+        energy: computeEnergy()
+      };
+    }
+
+    function runModelChecks() {
+      const simulate = (duration, { deg1 = 90, deg2 = 90 } = {}) => {
+        let t1 = deg1 * Math.PI / 180, t2 = deg2 * Math.PI / 180, w1 = 0, w2 = 0;
+        const dt = 1 / 240;
+        let energy0 = null;
+        for (let t = 0; t < duration - 1e-12; t += dt) {
+          const k1 = derivatives(t1, t2, w1, w2);
+          const k2 = derivatives(t1 + k1.dt1 * dt / 2, t2 + k1.dt2 * dt / 2, w1 + k1.dw1 * dt / 2, w2 + k1.dw2 * dt / 2);
+          const k3 = derivatives(t1 + k2.dt1 * dt / 2, t2 + k2.dt2 * dt / 2, w1 + k2.dw1 * dt / 2, w2 + k2.dw2 * dt / 2);
+          const k4 = derivatives(t1 + k3.dt1 * dt, t2 + k3.dt2 * dt, w1 + k3.dw1 * dt, w2 + k3.dw2 * dt);
+          t1 = t1 + (dt / 6) * (k1.dt1 + 2 * k2.dt1 + 2 * k3.dt1 + k4.dt1);
+          t2 = t2 + (dt / 6) * (k1.dt2 + 2 * k2.dt2 + 2 * k3.dt2 + k4.dt2);
+          w1 = w1 + (dt / 6) * (k1.dw1 + 2 * k2.dw1 + 2 * k3.dw1 + k4.dw1);
+          w2 = w2 + (dt / 6) * (k1.dw2 + 2 * k2.dw2 + 2 * k3.dw2 + k4.dw2);
+        }
+        return { t1, t2, w1, w2 };
+      };
+      const energyDrift = (() => {
+        const r = simulate(5);
+        const y1 = -PHYS.L1 * Math.cos(r.t1);
+        const y2 = y1 - PHYS.L2 * Math.cos(r.t2);
+        const v1sq = PHYS.L1 * PHYS.L1 * r.w1 * r.w1;
+        const v2sq = PHYS.L1 * PHYS.L1 * r.w1 * r.w1 + PHYS.L2 * PHYS.L2 * r.w2 * r.w2 + 2 * PHYS.L1 * PHYS.L2 * r.w1 * r.w2 * Math.cos(r.t1 - r.t2);
+        const KE = 0.5 * PHYS.m1 * v1sq + 0.5 * PHYS.m2 * v2sq;
+        const PE = PHYS.m1 * PHYS.g * y1 + PHYS.m2 * PHYS.g * y2;
+        const E = KE + PE;
+        const E0 = PHYS.m1 * PHYS.g * (-PHYS.L1 * Math.cos(Math.PI / 2)) + PHYS.m2 * PHYS.g * (-PHYS.L1 * Math.cos(Math.PI / 2) - PHYS.L2 * Math.cos(Math.PI / 2));
+        return Math.abs(E - E0) / Math.abs(E0);
+      })();
+      const r1 = simulate(5, { deg1: 90, deg2: 90 });
+      const r2 = simulate(5, { deg1: 91, deg2: 90 });
+      const diverged = Math.abs(r1.t1 - r2.t1) > 0.01;
+      return [
+        { name: "能量守恒（5秒相对漂移）", pass: energyDrift < 0.02, expected: "< 2%", actual: (energyDrift * 100).toFixed(2) + "%", tolerance: 0.02 },
+        { name: "初始条件敏感性（1°差异）", pass: diverged, expected: "θ₁差异 > 0.01 rad", actual: Math.abs(r1.t1 - r2.t1).toFixed(3) + " rad", tolerance: "strict" },
+        { name: "有限状态检查", pass: Number.isFinite(r1.t1) && Number.isFinite(r1.w1), expected: "finite", actual: "t1=" + r1.t1.toFixed(3) + ", w1=" + r1.w1.toFixed(3), tolerance: "finite" }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.theta1Input.addEventListener("input", () => setParameters({ theta1: elements.theta1Input.value, theta2: elements.theta2Input.value }));
+      elements.theta2Input.addEventListener("input", () => setParameters({ theta1: elements.theta1Input.value, theta2: elements.theta2Input.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

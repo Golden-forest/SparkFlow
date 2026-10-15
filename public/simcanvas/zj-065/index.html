@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>引力弹弓效应 · Gravity Assist</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #060912;
+  --sim-surface: #0d1426;
+  --sim-surface-soft: #131c33;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a98b8;
+  --sim-border: #1f2c4a;
+  --sim-grid: #18233f;
+  --sim-accent: #4dd0e1;
+  --sim-accent-deep: #0097a7;
+  --sim-accent-soft: rgba(77, 208, 225, 0.14);
+  --sim-positive: #4dd0e1;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-sun: #ffb300;
+  --sim-jupiter: #d4a373;
+  --sim-probe: #4dd0e1;
+  --sim-before: #f59e0b;
+  --sim-after: #4dd0e1;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(77, 208, 225, 0.10), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.08), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(77, 208, 225, 0.5); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+.status { border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; font-size: 0.85rem; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(13, 20, 38, 0.92); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid var(--sim-border); border-radius: 18px; background: radial-gradient(ellipse at 50% 50%, #0a1020 0%, #050810 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+.readouts { padding: 14px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 12px 14px; border: 1px solid var(--sim-border); border-radius: 15px; background: linear-gradient(145deg, rgba(19,28,51,0.9), rgba(13,20,38,0.9)); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.3rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.metric .unit { font-size: 0.7rem; color: var(--sim-muted); margin-left: 3px; font-weight: 600; }
+.metric.delta { grid-column: span 2; }
+.metric.delta strong { color: var(--sim-after); }
+.metric.delta.negative strong { color: var(--sim-warning); }
+.chart-panel { padding: 14px; display: grid; grid-template-rows: auto minmax(120px, 1fr); gap: 8px; overflow: hidden; }
+#compareChart { width: 100%; height: 100%; min-height: 120px; display: block; }
+.model-note { padding: 14px; display: grid; align-content: start; gap: 10px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+.insight { padding: 12px 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: rgba(77, 208, 225, 0.08); color: var(--sim-accent) !important; font-weight: 650; font-size: 0.85rem; line-height: 1.5; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; font-size: 0.85rem; }
+button:hover { border-color: var(--sim-accent); background: rgba(77, 208, 225, 0.1); }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #050810; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(77, 208, 225, 0.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.72rem; color: var(--sim-muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+@media (max-width: 980px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>引力弹弓效应 · Gravity Assist</h1>
+      <p>探测器飞掠木星，借力加速改变轨道 — 调节接近距离与偏转角度，观察速度增量</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head">
+        <h2 id="scene-title">日心坐标系 · 探测器飞掠木星</h2>
+        <div class="legend">
+          <span><i style="background:var(--sim-before)"></i>飞掠前轨道</span>
+          <span><i style="background:var(--sim-after)"></i>飞掠后轨道</span>
+          <span><i style="background:var(--sim-sun)"></i>太阳</span>
+          <span><i style="background:var(--sim-jupiter)"></i>木星</span>
+        </div>
+      </div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">日心坐标系下探测器飞掠木星的引力弹弓轨迹。橙色为飞掠前轨道，青色为飞掠后轨道，木星沿其轨道移动。</desc>
+        <defs>
+          <radialGradient id="sunGlow"><stop offset="0%" stop-color="#ffb300" stop-opacity="0.9"/><stop offset="40%" stop-color="#ff8f00" stop-opacity="0.3"/><stop offset="100%" stop-color="#ff8f00" stop-opacity="0"/></radialGradient>
+          <radialGradient id="jupiterGlow"><stop offset="0%" stop-color="#d4a373" stop-opacity="0.5"/><stop offset="100%" stop-color="#d4a373" stop-opacity="0"/></radialGradient>
+          <radialGradient id="soiFill"><stop offset="0%" stop-color="#d4a373" stop-opacity="0.04"/><stop offset="70%" stop-color="#d4a373" stop-opacity="0.02"/><stop offset="100%" stop-color="#d4a373" stop-opacity="0.08"/></radialGradient>
+          <marker id="arrowBefore" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#f59e0b"/></marker>
+          <marker id="arrowAfter" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#4dd0e1"/></marker>
+          <marker id="arrowJupiter" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#d4a373"/></marker>
+        </defs>
+        <circle cx="380" cy="210" r="60" fill="url(#sunGlow)"/>
+        <circle cx="380" cy="210" r="9" fill="#ffb300"/>
+        <text x="380" y="232" text-anchor="middle" fill="#ffb300" font-size="11" font-weight="700">太阳</text>
+        <circle id="soiCircle" cx="560" cy="210" r="48" fill="url(#soiFill)" stroke="#d4a373" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"/>
+        <circle id="jupiterGlow" cx="560" cy="210" r="22" fill="url(#jupiterGlow)"/>
+        <circle id="jupiter" cx="560" cy="210" r="11" fill="#d4a373"/>
+        <text id="jupiterLabel" x="560" y="196" text-anchor="middle" fill="#d4a373" font-size="11" font-weight="700">木星</text>
+        <line id="jupiterVelArrow" x1="560" y1="210" x2="610" y2="210" stroke="#d4a373" stroke-width="2.5" marker-end="url(#arrowJupiter)" opacity="0.7"/>
+        <text id="jupiterVelLabel" x="615" y="214" fill="#d4a373" font-size="10" opacity="0.8">V_J</text>
+        <path id="beforePath" d="" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="5 5" opacity="0.55"/>
+        <path id="afterPath" d="" fill="none" stroke="#4dd0e1" stroke-width="2.5" stroke-dasharray="5 5" opacity="0.55"/>
+        <path id="activePath" d="" fill="none" stroke="#4dd0e1" stroke-width="3.5" stroke-linecap="round"/>
+        <line id="beforeVelArrow" x1="0" y1="0" x2="0" y2="0" stroke="#f59e0b" stroke-width="3" marker-end="url(#arrowBefore)" opacity="0"/>
+        <line id="afterVelArrow" x1="0" y1="0" x2="0" y2="0" stroke="#4dd0e1" stroke-width="3" marker-end="url(#arrowAfter)" opacity="0"/>
+        <text id="beforeVelLabel" x="0" y="0" fill="#f59e0b" font-size="11" font-weight="700" opacity="0">V_in</text>
+        <text id="afterVelLabel" x="0" y="0" fill="#4dd0e1" font-size="11" font-weight="700" opacity="0">V_out</text>
+        <circle id="probe" cx="0" cy="0" r="5" fill="#4dd0e1" stroke="#fff" stroke-width="1.5"/>
+        <circle id="probeGlow" cx="0" cy="0" r="12" fill="#4dd0e1" opacity="0.2"/>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数值">
+        <div class="readout-grid">
+          <div class="metric"><small>飞掠前速度 V∞</small><strong id="vBeforeReadout">10.64</strong><span class="unit">km/s</span></div>
+          <div class="metric"><small>飞掠后速度 V∞</small><strong id="vAfterReadout">13.20</strong><span class="unit">km/s</span></div>
+          <div class="metric"><small>偏转角 δ</small><strong id="deflectionReadout">90.0</strong><span class="unit">°</span></div>
+          <div class="metric"><small>能量增益 ΔE</small><strong id="energyReadout">+24</strong><span class="unit">%</span></div>
+          <div class="metric delta" id="deltaMetric"><small>速度增量 ΔV（日心系）</small><strong id="deltaVReadout">+2.56</strong><span class="unit">km/s</span></div>
+        </div>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="panel-head"><h2>轨道对比</h2><span>飞掠前后日心速度</span></div>
+        <svg id="compareChart" viewBox="0 0 300 140" role="img" aria-label="飞掠前后速度对比">
+          <line x1="30" y1="110" x2="280" y2="110" stroke="#3a4a6a" stroke-width="1"/>
+          <line x1="30" y1="20" x2="30" y2="110" stroke="#3a4a6a" stroke-width="1"/>
+          <text x="155" y="132" text-anchor="middle" fill="#8a98b8" font-size="10">飞掠前 → 飞掠后</text>
+          <text x="14" y="65" fill="#8a98b8" font-size="10" transform="rotate(-90 14 65)">速度</text>
+          <rect id="barBefore" x="70" y="50" width="60" height="60" fill="#f59e0b" rx="3" opacity="0.85"/>
+          <rect id="barAfter" x="180" y="30" width="60" height="80" fill="#4dd0e1" rx="3" opacity="0.85"/>
+          <text id="barBeforeLabel" x="100" y="44" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">10.6</text>
+          <text id="barAfterLabel" x="210" y="24" text-anchor="middle" fill="#4dd0e1" font-size="11" font-weight="700">13.2</text>
+          <text x="100" y="125" text-anchor="middle" fill="#8a98b8" font-size="9">飞掠前</text>
+          <text x="210" y="125" text-anchor="middle" fill="#8a98b8" font-size="9">飞掠后</text>
+        </svg>
+      </section>
+
+      <section class="panel model-note" data-region="insight">
+        <p id="insight" class="insight">按"开始"播放飞掠过程。木星引力把探测器"甩"向新方向，飞掠后速度增大。</p>
+        <p>教学模型：日心系下木星近似匀速直线运动。探测器在木星引力影响锥内沿双曲轨道偏转，偏转角 δ 由接近距离决定。飞掠后日心系速度 V_out = V_J + R(δ)·(V_in − V_J)，其中 R(δ) 为旋转矩阵。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="periInput">接近距离 r_p <output id="periOutput">3.0</output></label>
+      <input id="periInput" type="range" min="1.5" max="6" step="0.1" value="3.0">
+    </div>
+    <div class="control">
+      <label for="angleInput">入射角 α <output id="angleOutput">−30°</output></label>
+      <input id="angleInput" type="range" min="-60" max="10" step="2" value="-30">
+    </div>
+    <div class="control">
+      <label for="speedInput">时间倍率 <output id="speedOutput">1.0×</output></label>
+      <input id="speedInput" type="range" min="0.3" max="3" step="0.1" value="1.0">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ── 物理常量（教学用简化值） ──────────────────────────────
+  const MU_J = 1.26687e17;          // 木星引力参数 G·M_J (m³/s²)
+  const R_J = 71492e3;              // 木星半径
+  const V_JUP = 13060;              // 木星日心轨道速度
+  const V_INF_IN_DEFAULT = 10640;   // 飞掠前探测器相对木星速度
+  const SOI_R = 48e6;               // 木星引力影响锥半径（教学简化）
+
+  // ── 场景坐标 ──────────────────────────────────────────────
+  const SCENE = {
+    sun: { x: 380, y: 210 },
+    jupiterStart: { x: 560, y: 210 },
+    jupiterVel: { x: 1, y: 0 },     // 屏幕方向：向右
+    scale: 5.5e6,                   // m/px
+    probeR: 5
+  };
+
+  // ── 参数 schema ───────────────────────────────────────────
+  const parameterSchema = [
+    { key: "periapsis", label: "接近距离 r_p", type: "slider", min: 1.5, max: 6, step: 0.1, default: 3.0, unit: "R_J" },
+    { key: "alpha", label: "入射角 α", type: "slider", min: -60, max: 10, step: 2, default: -30, unit: "°" },
+    { key: "speed", label: "时间倍率", type: "slider", min: 0.3, max: 3, step: 0.1, default: 1.0, unit: "×" }
+  ];
+
+  // ── 权威状态 ───────────────────────────────────────────────
+  const state = {
+    running: false,
+    t: 0,
+    speed: 1.0,
+    lastTimestamp: null,
+    phase: "approach",
+    periapsis: 3.0,
+    alpha: -30,
+    V_inf_in: V_INF_IN_DEFAULT,
+    V_inf_out: V_INF_IN_DEFAULT,
+    deflection: 0,
+    V_in_helio: { x: 0, y: 0 },
+    V_out_helio: { x: 0, y: 0 },
+    deltaV: 0,
+    energyGain: 0,
+    jupiterPos: { x: SCENE.jupiterStart.x, y: SCENE.jupiterStart.y },
+    probePos: { x: 0, y: 0 },
+    trajectory: [],
+    soiEntryT: 0,
+    soiExitT: 0,
+    encounterCenter: { x: 0, y: 0 }
+  };
+
+  const elements = {
+    status: document.querySelector("#status"),
+    jupiter: document.querySelector("#jupiter"),
+    jupiterGlow: document.querySelector("#jupiterGlow"),
+    jupiterLabel: document.querySelector("#jupiterLabel"),
+    jupiterVelArrow: document.querySelector("#jupiterVelArrow"),
+    jupiterVelLabel: document.querySelector("#jupiterVelLabel"),
+    soiCircle: document.querySelector("#soiCircle"),
+    probe: document.querySelector("#probe"),
+    probeGlow: document.querySelector("#probeGlow"),
+    activePath: document.querySelector("#activePath"),
+    beforePath: document.querySelector("#beforePath"),
+    afterPath: document.querySelector("#afterPath"),
+    beforeVelArrow: document.querySelector("#beforeVelArrow"),
+    afterVelArrow: document.querySelector("#afterVelArrow"),
+    beforeVelLabel: document.querySelector("#beforeVelLabel"),
+    afterVelLabel: document.querySelector("#afterVelLabel"),
+    vBeforeReadout: document.querySelector("#vBeforeReadout"),
+    vAfterReadout: document.querySelector("#vAfterReadout"),
+    deflectionReadout: document.querySelector("#deflectionReadout"),
+    energyReadout: document.querySelector("#energyReadout"),
+    deltaVReadout: document.querySelector("#deltaVReadout"),
+    deltaMetric: document.querySelector("#deltaMetric"),
+    barBefore: document.querySelector("#barBefore"),
+    barAfter: document.querySelector("#barAfter"),
+    barBeforeLabel: document.querySelector("#barBeforeLabel"),
+    barAfterLabel: document.querySelector("#barAfterLabel"),
+    insight: document.querySelector("#insight"),
+    periInput: document.querySelector("#periInput"),
+    periOutput: document.querySelector("#periOutput"),
+    angleInput: document.querySelector("#angleInput"),
+    angleOutput: document.querySelector("#angleOutput"),
+    speedInput: document.querySelector("#speedInput"),
+    speedOutput: document.querySelector("#speedOutput"),
+    startBtn: document.querySelector("#startBtn"),
+    pauseBtn: document.querySelector("#pauseBtn"),
+    resetBtn: document.querySelector("#resetBtn")
+  };
+
+  // ── 工具 ──────────────────────────────────────────────────
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+  function rotate(vx, vy, ang) {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    return { x: vx * c - vy * s, y: vx * s + vy * c };
+  }
+  function toScreen(x, y) {
+    return { x: SCENE.sun.x + x / SCENE.scale, y: SCENE.sun.y - y / SCENE.scale };
+  }
+
+  // ── 物理：双曲偏转角（解析） ─────────────────────────────
+  function computeDeflection(rp_RJ) {
+    const rp = rp_RJ * R_J;
+    const e = 1 + rp * state.V_inf_in * state.V_inf_in / MU_J;
+    return 2 * Math.asin(1 / e);
+  }
+
+  // ── 物理：飞掠后日心速度（解析） ────────────────────────
+  function computeFlybyResult() {
+    const rp = state.periapsis * R_J;
+    const e = 1 + rp * state.V_inf_in * state.V_inf_in / MU_J;
+    state.deflection = 2 * Math.asin(1 / e);
+
+    // 入射方向（屏幕坐标，y 向上为正）
+    const alphaRad = state.alpha * Math.PI / 180;
+    const vInfDir = { x: Math.cos(alphaRad), y: Math.sin(alphaRad) };
+
+    // 木星方向（屏幕坐标）
+    const vJupDir = SCENE.jupiterVel;
+
+    // 木星参考系下，入射 V∞ 方向与木星速度方向的夹角
+    const cosTheta = vInfDir.x * vJupDir.x + vInfDir.y * vJupDir.y;
+    const theta = Math.acos(clamp(cosTheta, -1, 1));
+
+    // 判定旋转方向：cross(vInf, vJup) 的 z 分量
+    const crossZ = vInfDir.x * vJupDir.y - vInfDir.y * vJupDir.x;
+    const rotSign = crossZ >= 0 ? +1 : -1;
+    const rotAngle = rotSign * state.deflection;
+
+    // 旋转后的 V∞ 方向
+    const vInfOutDir = rotate(vInfDir.x, vInfDir.y, rotAngle);
+
+    // 日心系速度
+    state.V_in_helio = {
+      x: V_JUP + state.V_inf_in * vInfDir.x,
+      y: state.V_inf_in * vInfDir.y
+    };
+    state.V_out_helio = {
+      x: V_JUP + state.V_inf_in * vInfOutDir.x,
+      y: state.V_inf_in * vInfOutDir.y
+    };
+
+    const vInMag = Math.hypot(state.V_in_helio.x, state.V_in_helio.y);
+    const vOutMag = Math.hypot(state.V_out_helio.x, state.V_out_helio.y);
+    state.deltaV = vOutMag - vInMag;
+    state.energyGain = (vOutMag * vOutMag - vInMag * vInMag) / (vInMag * vInMag) * 100;
+    state.V_inf_out = state.V_inf_in; // 木星系下守恒
+  }
+
+  // ── 轨迹生成 ─────────────────────────────────────────────
+  function generateTrajectory() {
+    const traj = [];
+    const alphaRad = state.alpha * Math.PI / 180;
+    const vInfDir = { x: Math.cos(alphaRad), y: Math.sin(alphaRad) };
+    const vJupDir = SCENE.jupiterVel;
+
+    // SOI 入口点（木星参考系，相对木星）
+    const soiEntryOffset = {
+      x: -vInfDir.x * SOI_R,
+      y: -vInfDir.y * SOI_R
+    };
+
+    // 木星参考系下双曲轨道方向：从入口指向出口
+    const crossZ = vInfDir.x * vJupDir.y - vInfDir.y * vJupDir.x;
+    const rotSign = crossZ >= 0 ? +1 : -1;
+    const rotAngle = rotSign * state.deflection;
+    const vInfOutDir = rotate(vInfDir.x, vInfDir.y, rotAngle);
+
+    // 双曲轨道几何
+    const a = -MU_J / (state.V_inf_in * state.V_inf_in); // 半长轴（负）
+    const e = 1 + state.periapsis * R_J * state.V_inf_in * state.V_inf_in / MU_J;
+    const b = a * Math.sqrt(e * e - 1);
+    const p = a * (1 - e * e); // 半通径
+    const rp = state.periapsis * R_J;
+
+    // 木星参考系下：近心点在 (rp, 0)，入口在 (rp·cos(ν_in), rp·sin(ν_in)·...)
+    // 入口真近点角 ν_in：r = p/(1+e·cosν) = SOI_R
+    const cosNuIn = (p / SOI_R - 1) / e;
+    const nuIn = Math.acos(clamp(cosNuIn, -1, 1));
+    const nuOut = -nuIn + rotAngle; // 出口真近点角（旋转后）
+
+    // 近心点方向（木星系）：垂直于 V∞_in，朝向双曲轨道弯曲侧
+    const perihelionDir = { x: -vInfDir.y * rotSign, y: vInfDir.x * rotSign };
+
+    // 木星参考系下位置（相对木星）
+    function posInJupiterFrame(nu) {
+      const r = p / (1 + e * Math.cos(nu));
+      // 在轨道平面内：近心点方向为 x' 轴
+      const xp = r * Math.cos(nu);
+      const yp = r * Math.sin(nu);
+      return {
+        x: xp * perihelionDir.x + yp * (-vInfDir.x * rotSign * 0 + 0), // 简化：用 perihelionDir 和其垂直方向
+        y: 0
+      };
+    }
+
+    // 更清晰的实现：在木星参考系中，建立轨道坐标系
+    // x' 轴沿近心点方向 perihelionDir
+    // y' 轴 = perihelionDir 旋转 +90°
+    const ypAxis = { x: -perihelionDir.y, y: perihelionDir.x };
+
+    function posInJFrame(nu) {
+      const r = p / (1 + e * Math.cos(nu));
+      const xp = r * Math.cos(nu);
+      const yp = r * Math.sin(nu);
+      return {
+        x: xp * perihelionDir.x + yp * ypAxis.x,
+        y: xp * perihelionDir.y + yp * ypAxis.y
+      };
+    }
+
+    // 入口/出口位置（木星系）
+    const entryPosJ = posInJFrame(nuIn);
+    const exitPosJ = posInJFrame(nuOut);
+
+    // 飞掠持续时间（教学简化：基于 SOI 弦长与 V∞）
+    const chordLength = Math.hypot(exitPosJ.x - entryPosJ.x, exitPosJ.y - entryPosJ.y);
+    const flybyDuration = chordLength / state.V_inf_in; // 秒
+
+    // ── 阶段 1：approach（飞掠前直线，日心系） ─────────────
+    // 探测器从屏幕左侧远处飞向 SOI 入口
+    const approachDuration = 8e7; // 80,000,000 s ≈ 2.5 年（教学压缩）
+    const approachStartOffset = { x: -vInfDir.x * SOI_R * 4, y: -vInfDir.y * SOI_R * 4 };
+
+    // SOI 入口时刻
+    state.soiEntryT = approachDuration;
+    state.soiExitT = approachDuration + flybyDuration;
+
+    // 木星在 SOI 入口时刻的位置
+    const jupiterAtEntry = {
+      x: SCENE.jupiterStart.x + SCENE.jupiterVel.x * SOI_R * 4 * 0.3, // 木星也移动，但慢于探测器
+      y: SCENE.jupiterStart.y + SCENE.jupiterVel.y * SOI_R * 4 * 0.3
+    };
+    // 简化：木星在飞掠期间近似静止于 encounterCenter
+    state.encounterCenter = {
+      x: SCENE.jupiterStart.x + SCENE.jupiterVel.x * SOI_R * 2.5 * 0.3,
+      y: SCENE.jupiterStart.y + SCENE.jupiterVel.y * SOI_R * 2.5 * 0.3
+    };
+
+    // approach 阶段轨迹（日心系，屏幕坐标）
+    const entryScreen = {
+      x: state.encounterCenter.x + entryPosJ.x / SCENE.scale,
+      y: state.encounterCenter.y - entryPosJ.y / SCENE.scale
+    };
+    const approachStart = {
+      x: state.encounterCenter.x + approachStartOffset.x / SCENE.scale,
+      y: state.encounterCenter.y - approachStartOffset.y / SCENE.scale
+    };
+
+    // 采样 approach
+    const approachSamples = 40;
+    for (let i = 0; i <= approachSamples; i++) {
+      const f = i / approachSamples;
+      traj.push({
+        t: f * approachDuration,
+        x: approachStart.x + (entryScreen.x - approachStart.x) * f,
+        y: approachStart.y + (entryScreen.y - approachStart.y) * f,
+        phase: "approach"
+      });
+    }
+
+    // ── 阶段 2：encounter（双曲轨道，木星参考系） ─────────
+    // 木星近似静止于 encounterCenter
+    const encounterSamples = 60;
+    for (let i = 1; i <= encounterSamples; i++) {
+      const f = i / encounterSamples;
+      const nu = nuIn + (nuOut - nuIn) * f;
+      const posJ = posInJFrame(nu);
+      traj.push({
+        t: approachDuration + f * flybyDuration,
+        x: state.encounterCenter.x + posJ.x / SCENE.scale,
+        y: state.encounterCenter.y - posJ.y / SCENE.scale,
+        phase: "encounter"
+      });
+    }
+
+    // ── 阶段 3：departure（飞掠后直线，日心系） ───────────
+    const exitScreen = {
+      x: state.encounterCenter.x + exitPosJ.x / SCENE.scale,
+      y: state.encounterCenter.y - exitPosJ.y / SCENE.scale
+    };
+    const departureEnd = {
+      x: exitScreen.x + vInfOutDir.x * SOI_R * 4 / SCENE.scale,
+      y: exitScreen.y - vInfOutDir.y * SOI_R * 4 / SCENE.scale
+    };
+    const departureDuration = 8e7;
+    const departureSamples = 40;
+    for (let i = 1; i <= departureSamples; i++) {
+      const f = i / departureSamples;
+      traj.push({
+        t: state.soiExitT + f * departureDuration,
+        x: exitScreen.x + (departureEnd.x - exitScreen.x) * f,
+        y: exitScreen.y + (departureEnd.y - exitScreen.y) * f,
+        phase: "departure"
+      });
+    }
+
+    state.trajectory = traj;
+    state.totalDuration = state.soiExitT + departureDuration;
+
+    // 预计算 before/after 路径
+    state.beforePath = traj.filter(p => p.phase === "approach");
+    state.afterPath = traj.filter(p => p.phase === "departure");
+    state.encounterPath = traj.filter(p => p.phase === "encounter");
+  }
+
+  // ── 生命周期 ─────────────────────────────────────────────
+  function init() {
+    bindControls();
+    setParameters({ periapsis: 3.0, alpha: -30, speed: 1.0 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (state.t >= state.totalDuration) reset();
+    state.running = true;
+    elements.status.textContent = "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.phase = "approach";
+    state.lastTimestamp = null;
+    computeFlybyResult();
+    generateTrajectory();
+    if (state.trajectory.length > 0) {
+      state.probePos = { x: state.trajectory[0].x, y: state.trajectory[0].y };
+    }
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05) * state.speed;
+    state.t += boundedDt * 2e8; // 时间压缩：1 实时秒 ≈ 2e8 模拟秒
+
+    if (state.t >= state.totalDuration) {
+      state.t = state.totalDuration;
+      state.running = false;
+      elements.status.textContent = "飞掠完成";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    // 确定当前阶段
+    if (state.t < state.soiEntryT) state.phase = "approach";
+    else if (state.t < state.soiExitT) state.phase = "encounter";
+    else state.phase = "departure";
+
+    // 插值得到探测器位置
+    const traj = state.trajectory;
+    if (traj.length > 0) {
+      let lo = 0, hi = traj.length - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (traj[mid].t <= state.t) lo = mid; else hi = mid;
+      }
+      const p0 = traj[lo], p1 = traj[hi];
+      const span = p1.t - p0.t;
+      const f = span > 0 ? clamp((state.t - p0.t) / span, 0, 1) : 0;
+      state.probePos = {
+        x: p0.x + (p1.x - p0.x) * f,
+        y: p0.y + (p1.y - p0.y) * f
+      };
+    }
+  }
+
+  function render() {
+    // 木星位置（飞掠期间近似静止，飞掠前后微动）
+    const jupX = state.encounterCenter.x;
+    const jupY = state.encounterCenter.y;
+    elements.jupiter.setAttribute("cx", jupX);
+    elements.jupiter.setAttribute("cy", jupY);
+    elements.jupiterGlow.setAttribute("cx", jupX);
+    elements.jupiterGlow.setAttribute("cy", jupY);
+    elements.jupiterLabel.setAttribute("x", jupX);
+    elements.jupiterLabel.setAttribute("y", jupY - 16);
+    elements.soiCircle.setAttribute("cx", jupX);
+    elements.soiCircle.setAttribute("cy", jupY);
+    elements.jupiterVelArrow.setAttribute("x1", jupX);
+    elements.jupiterVelArrow.setAttribute("y1", jupY);
+    elements.jupiterVelArrow.setAttribute("x2", jupX + 50);
+    elements.jupiterVelArrow.setAttribute("y2", jupY);
+    elements.jupiterVelLabel.setAttribute("x", jupX + 55);
+    elements.jupiterVelLabel.setAttribute("y", jupY + 4);
+
+    // 飞掠前后轨迹（虚线）
+    if (state.beforePath) {
+      elements.beforePath.setAttribute("d", pathFromPoints(state.beforePath));
+    }
+    if (state.afterPath) {
+      elements.afterPath.setAttribute("d", pathFromPoints(state.afterPath));
+    }
+
+    // 当前轨迹（实线，到当前位置）
+    if (state.trajectory.length > 0) {
+      const visible = state.trajectory.filter(p => p.t <= state.t);
+      if (visible.length > 1) {
+        elements.activePath.setAttribute("d", pathFromPoints(visible));
+      } else {
+        elements.activePath.setAttribute("d", "");
+      }
+    }
+
+    // 探测器
+    elements.probe.setAttribute("cx", state.probePos.x);
+    elements.probe.setAttribute("cy", state.probePos.y);
+    elements.probeGlow.setAttribute("cx", state.probePos.x);
+    elements.probeGlow.setAttribute("cy", state.probePos.y);
+
+    // 速度矢量箭头
+    renderVelocityArrows();
+
+    // 读数
+    const vInMag = Math.hypot(state.V_in_helio.x, state.V_in_helio.y);
+    const vOutMag = Math.hypot(state.V_out_helio.x, state.V_out_helio.y);
+    elements.vBeforeReadout.textContent = (vInMag / 1000).toFixed(2);
+    elements.vAfterReadout.textContent = (vOutMag / 1000).toFixed(2);
+    elements.deflectionReadout.textContent = (state.deflection * 180 / Math.PI).toFixed(1);
+    elements.energyReadout.textContent = (state.energyGain >= 0 ? "+" : "") + state.energyGain.toFixed(0);
+    elements.deltaVReadout.textContent = (state.deltaV >= 0 ? "+" : "") + (state.deltaV / 1000).toFixed(2);
+    elements.deltaMetric.classList.toggle("negative", state.deltaV < 0);
+
+    // 对比柱状图
+    const maxV = Math.max(vInMag, vOutMag, 15000);
+    const barHBefore = (vInMag / maxV) * 80;
+    const barHAfter = (vOutMag / maxV) * 80;
+    elements.barBefore.setAttribute("height", barHBefore);
+    elements.barBefore.setAttribute("y", 110 - barHBefore);
+    elements.barAfter.setAttribute("height", barHAfter);
+    elements.barAfter.setAttribute("y", 110 - barHAfter);
+    elements.barBeforeLabel.setAttribute("y", 110 - barHBefore - 6);
+    elements.barAfterLabel.setAttribute("y", 110 - barHAfter - 6);
+    elements.barBeforeLabel.textContent = (vInMag / 1000).toFixed(1);
+    elements.barAfterLabel.textContent = (vOutMag / 1000).toFixed(1);
+
+    // 洞察
+    let insightText;
+    if (!state.running && state.t === 0) {
+      insightText = "按\"开始\"播放飞掠过程。木星引力把探测器\"甩\"向新方向，飞掠后速度增大。";
+    } else if (state.phase === "approach") {
+      insightText = "接近阶段：探测器沿入射方向飞向木星引力影响锥（虚线圆）。";
+    } else if (state.phase === "encounter") {
+      insightText = "飞掠阶段：探测器在木星引力场内沿双曲轨道偏转，方向改变但木星系下速率守恒。";
+    } else if (state.phase === "departure") {
+      insightText = "脱离阶段：探测器沿新方向飞离。日心系速度" + (state.deltaV >= 0 ? "增大" : "减小") + "了 " + Math.abs(state.deltaV / 1000).toFixed(2) + " km/s。";
+    } else {
+      insightText = "飞掠完成。能量变化 " + (state.energyGain >= 0 ? "+" : "") + state.energyGain.toFixed(0) + "%。";
+    }
+    elements.insight.textContent = insightText;
+
+    // 参数显示
+    elements.periOutput.textContent = state.periapsis.toFixed(1);
+    elements.angleOutput.textContent = state.alpha + "°";
+    elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+  }
+
+  function renderVelocityArrows() {
+    const probeX = state.probePos.x;
+    const probeY = state.probePos.y;
+    const arrowScale = 0.012;
+
+    if (state.phase === "approach" || state.t === 0) {
+      const vx = state.V_in_helio.x * arrowScale;
+      const vy = -state.V_in_helio.y * arrowScale;
+      elements.beforeVelArrow.setAttribute("x1", probeX);
+      elements.beforeVelArrow.setAttribute("y1", probeY);
+      elements.beforeVelArrow.setAttribute("x2", probeX + vx);
+      elements.beforeVelArrow.setAttribute("y2", probeY + vy);
+      elements.beforeVelArrow.setAttribute("opacity", "0.9");
+      elements.beforeVelLabel.setAttribute("x", probeX + vx + 6);
+      elements.beforeVelLabel.setAttribute("y", probeY + vy - 4);
+      elements.beforeVelLabel.setAttribute("opacity", "0.9");
+      elements.afterVelArrow.setAttribute("opacity", "0");
+      elements.afterVelLabel.setAttribute("opacity", "0");
+    } else if (state.phase === "departure" || (!state.running && state.t >= state.totalDuration)) {
+      const vx = state.V_out_helio.x * arrowScale;
+      const vy = -state.V_out_helio.y * arrowScale;
+      elements.afterVelArrow.setAttribute("x1", probeX);
+      elements.afterVelArrow.setAttribute("y1", probeY);
+      elements.afterVelArrow.setAttribute("x2", probeX + vx);
+      elements.afterVelArrow.setAttribute("y2", probeY + vy);
+      elements.afterVelArrow.setAttribute("opacity", "0.9");
+      elements.afterVelLabel.setAttribute("x", probeX + vx + 6);
+      elements.afterVelLabel.setAttribute("y", probeY + vy - 4);
+      elements.afterVelLabel.setAttribute("opacity", "0.9");
+      elements.beforeVelArrow.setAttribute("opacity", "0");
+      elements.beforeVelLabel.setAttribute("opacity", "0");
+    } else {
+      elements.beforeVelArrow.setAttribute("opacity", "0");
+      elements.afterVelArrow.setAttribute("opacity", "0");
+      elements.beforeVelLabel.setAttribute("opacity", "0");
+      elements.afterVelLabel.setAttribute("opacity", "0");
+    }
+  }
+
+  function pathFromPoints(pts) {
+    if (!pts || pts.length === 0) return "";
+    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+    }
+    return d;
+  }
+
+  function setParameters(values) {
+    const periDef = parameterSchema[0], alphaDef = parameterSchema[1], speedDef = parameterSchema[2];
+    state.periapsis = clamp(finite(Number(values.periapsis), periDef.default), periDef.min, periDef.max);
+    state.alpha = clamp(finite(Number(values.alpha), alphaDef.default), alphaDef.min, alphaDef.max);
+    state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+    elements.periInput.value = String(state.periapsis);
+    elements.angleInput.value = String(state.alpha);
+    elements.speedInput.value = String(state.speed);
+    reset();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      phase: state.phase,
+      periapsis: state.periapsis,
+      alpha: state.alpha,
+      V_inf_in: state.V_inf_in,
+      deflection: state.deflection,
+      V_in_helio: { ...state.V_in_helio },
+      V_out_helio: { ...state.V_out_helio },
+      deltaV: state.deltaV,
+      energyGain: state.energyGain
+    };
+  }
+
+  function getReadouts() {
+    return {
+      vBefore: Math.hypot(state.V_in_helio.x, state.V_in_helio.y),
+      vAfter: Math.hypot(state.V_out_helio.x, state.V_out_helio.y),
+      deflection: state.deflection,
+      deltaV: state.deltaV,
+      energyGain: state.energyGain
+    };
+  }
+
+  // ── 模型检查（解析 oracle） ──────────────────────────────
+  function runModelChecks() {
+    const simulate = (rp_RJ, alphaDeg, vInfIn = V_INF_IN_DEFAULT) => {
+      const rp = rp_RJ * R_J;
+      const e = 1 + rp * vInfIn * vInfIn / MU_J;
+      const delta = 2 * Math.asin(1 / e);
+      const aRad = alphaDeg * Math.PI / 180;
+      const vInfDir = { x: Math.cos(aRad), y: Math.sin(aRad) };
+      const vJupDir = { x: 1, y: 0 };
+      const crossZ = vInfDir.x * vJupDir.y - vInfDir.y * vJupDir.x;
+      const rotSign = crossZ >= 0 ? +1 : -1;
+      const vInfOutDir = rotate(vInfDir.x, vInfDir.y, rotSign * delta);
+      const vIn = { x: V_JUP + vInfIn * vInfDir.x, y: vInfIn * vInfDir.y };
+      const vOut = { x: V_JUP + vInfIn * vInfOutDir.x, y: vInfIn * vInfOutDir.y };
+      return {
+        e, delta,
+        vInMag: Math.hypot(vIn.x, vIn.y),
+        vOutMag: Math.hypot(vOut.x, vOut.y),
+        vInfOutMag: vInfIn
+      };
+    };
+
+    // Case 1: 木星系速率守恒
+    const c1 = simulate(3.0, -30);
+    const c1Pass = Math.abs(c1.vInfOutMag - V_INF_IN_DEFAULT) < 1e-6;
+
+    // Case 2: 偏转角随接近距离减小而增大（单调性）
+    const c2a = simulate(1.5, -30);
+    const c2b = simulate(6.0, -30);
+    const c2Pass = c2a.delta > c2b.delta;
+
+    // Case 3: 正向飞掠（α < 0，逆行）应加速
+    const c3 = simulate(3.0, -30);
+    const c3Pass = c3.vOutMag > c3.vInMag;
+
+    // Case 4: 反向飞掠（α > 0，顺行）应减速
+    const c4 = simulate(3.0, 10);
+    const c4Pass = c4.vOutMag < c4.vInMag;
+
+    // Case 5: 对称性 — α 和 -α 应给出相同的 |ΔV|
+    const c5a = simulate(3.0, -20);
+    const c5b = simulate(3.0, 20);
+    const c5Pass = Math.abs(Math.abs(c5a.vOutMag - c5a.vInMag) - Math.abs(c5b.vOutMag - c5b.vInMag)) < 1e-6;
+
+    // Case 6: 解析参考 — δ = 2·arcsin(1/e), e = 1 + r_p·v∞²/μ
+    const c6 = simulate(3.0, -30);
+    const eExpected = 1 + 3.0 * R_J * V_INF_IN_DEFAULT * V_INF_IN_DEFAULT / MU_J;
+    const deltaExpected = 2 * Math.asin(1 / eExpected);
+    const c6Pass = Math.abs(c6.e - eExpected) < 1e-6 && Math.abs(c6.delta - deltaExpected) < 1e-9;
+
+    // Case 7: 能量守恒（木星系）
+    const c7 = simulate(4.0, -45);
+    const c7Pass = Math.abs(c7.vInfOutMag - V_INF_IN_DEFAULT) < 1e-6;
+
+    return [
+      { name: "木星系速率守恒 (r_p=3)", pass: c1Pass, expected: V_INF_IN_DEFAULT, actual: c1.vInfOutMag, tolerance: 1e-6 },
+      { name: "偏转角单调性 (小 r_p → 大 δ)", pass: c2Pass, expected: "δ(1.5) > δ(6.0)", actual: `${(c2a.delta*180/Math.PI).toFixed(1)}° > ${(c2b.delta*180/Math.PI).toFixed(1)}°`, tolerance: "strict" },
+      { name: "正向飞掠加速 (α=−30°)", pass: c3Pass, expected: "V_out > V_in", actual: `${(c3.vOutMag/1000).toFixed(2)} > ${(c3.vInMag/1000).toFixed(2)} km/s`, tolerance: "strict" },
+      { name: "反向飞掠减速 (α=+10°)", pass: c4Pass, expected: "V_out < V_in", actual: `${(c4.vOutMag/1000).toFixed(2)} < ${(c4.vInMag/1000).toFixed(2)} km/s`, tolerance: "strict" },
+      { name: "对称性 |ΔV(α)| = |ΔV(−α)|", pass: c5Pass, expected: "对称", actual: `${Math.abs(c5a.vOutMag-c5a.vInMag).toFixed(1)} vs ${Math.abs(c5b.vOutMag-c5b.vInMag).toFixed(1)}`, tolerance: 1e-6 },
+      { name: "解析偏转角 δ=2·arcsin(1/e)", pass: c6Pass, expected: deltaExpected, actual: c6.delta, tolerance: 1e-9 },
+      { name: "木星系能量守恒 (r_p=4)", pass: c7Pass, expected: V_INF_IN_DEFAULT, actual: c7.vInfOutMag, tolerance: 1e-6 }
+    ];
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.periInput.addEventListener("input", () => setParameters({
+      periapsis: elements.periInput.value,
+      alpha: state.alpha,
+      speed: state.speed
+    }));
+    elements.angleInput.addEventListener("input", () => setParameters({
+      periapsis: state.periapsis,
+      alpha: elements.angleInput.value,
+      speed: state.speed
+    }));
+    elements.speedInput.addEventListener("input", () => {
+      state.speed = clamp(finite(Number(elements.speedInput.value), 1.0), 0.3, 3);
+      elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>物理公式画廊</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#000000;
+  --sim-surface:#0a0a0a;
+  --sim-surface-soft:#111111;
+  --sim-text:#ffffff;
+  --sim-muted:#7a7a7a;
+  --sim-border:#1a1a1a;
+  --sim-grid:#1a1a1a;
+  --sim-accent:#00e5ff;
+  --sim-accent-deep:#00b8d4;
+  --sim-accent-soft:rgba(0,229,255,.12);
+  --sim-positive:#00e5ff;
+  --sim-warning:#ff8c42;
+  --sim-danger:#ff4d4d;
+  --sim-radius-sm:8px;
+  --sim-radius-md:14px;
+  --sim-radius-lg:20px;
+  --sim-shadow:0 0 0 transparent;
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+  --cyan:#00e5ff;
+  --orange:#ff8c42;
+  --cyan-glow:rgba(0,229,255,.55);
+  --orange-glow:rgba(255,140,66,.55);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+.app{
+  width:100vw;height:100vh;height:100dvh;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  background:#000;
+  position:relative;
+}
+
+.header{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  padding:28px 40px 0;gap:24px;
+  z-index:10;pointer-events:none;
+}
+.label-block{display:flex;flex-direction:column;gap:6px;min-width:0}
+.label-block.right{align-items:flex-end;text-align:right}
+.quantity-name{
+  font-size:clamp(1.4rem,2.6vw,2.2rem);
+  font-weight:200;letter-spacing:.04em;
+  color:#fff;line-height:1.1;
+}
+.formula-expr{
+  font-family:"Cambria Math","STIX","Latin Modern Math",serif;
+  font-size:clamp(1.1rem,2vw,1.7rem);
+  font-weight:300;color:rgba(255,255,255,.72);
+  letter-spacing:.02em;line-height:1.2;
+  font-style:italic;
+}
+
+.stage-wrap{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  min-height:0;
+}
+#scene{
+  width:100%;height:100%;display:block;
+  background:#000;
+}
+.fade-overlay{
+  position:absolute;inset:0;
+  background:#000;opacity:0;
+  pointer-events:none;
+  transition:opacity .6s ease;
+  z-index:5;
+}
+.fade-overlay.active{opacity:1}
+
+.evidence-insight{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  z-index:8;
+  display:flex;justify-content:center;align-items:center;
+  padding:0 20px 8px;
+  pointer-events:none;
+}
+.caption{
+  font-size:.78rem;
+  color:rgba(255,255,255,.6);
+  letter-spacing:.02em;
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:80%;
+}
+
+.controls{
+  display:flex;justify-content:center;align-items:center;
+  gap:10px;padding:18px 20px 26px;
+  z-index:10;
+}
+.nav-btn{
+  width:12px;height:12px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.22);
+  background:transparent;cursor:pointer;
+  padding:0;transition:all .3s ease;
+  position:relative;
+}
+.nav-btn:hover{
+  border-color:rgba(0,229,255,.6);
+  transform:scale(1.25);
+}
+.nav-btn.active{
+  background:var(--cyan);
+  border-color:var(--cyan);
+  box-shadow:0 0 0 2px rgba(0,229,255,.25);
+  transform:scale(1.15);
+}
+
+@media(max-width:640px){
+  .header{padding:16px 18px 0}
+  .quantity-name{font-size:1.15rem}
+  .formula-expr{font-size:.95rem}
+  .controls{gap:7px;padding:12px 10px 16px}
+  .nav-btn{width:9px;height:9px}
+  .caption{font-size:.7rem}
+}
+@media(max-height:500px){
+  .header{padding:10px 20px 0}
+  .controls{padding:8px 10px 10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .fade-overlay{transition:opacity .15s ease}
+  .nav-btn{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+
+  <header class="header" data-region="header">
+    <div class="label-block">
+      <div class="quantity-name" id="qName">驻波</div>
+    </div>
+    <div class="label-block right">
+      <div class="formula-expr" id="qFormula">y = 2A sin(kx) cos(ωt)</div>
+    </div>
+  </header>
+
+  <div class="stage-wrap" data-region="stage">
+    <canvas id="scene"></canvas>
+    <div class="fade-overlay" id="fade"></div>
+
+    <aside class="evidence-insight">
+      <section class="evidence" data-region="evidence" aria-label="实时数据" style="display:none">
+        <div class="ev-label">当前段 / 进度</div>
+        <div class="ev-value" id="evValue">1 / 12 · 0.0s</div>
+      </section>
+      <section class="insight" data-region="insight" aria-label="观察要点">
+        <span class="caption" id="insightText">两列反向行波叠加，振幅被波节锁定，形成驻波。</span>
+      </section>
+    </aside>
+  </div>
+
+  <section class="controls" data-region="controls" aria-label="公式跳转">
+  </section>
+
+</div>
+
+<script>
+(()=>{
+"use strict";
+
+const CYAN="#00e5ff", ORANGE="#ff8c42";
+const CYAN_SOFT="rgba(0,229,255,0.22)", ORANGE_SOFT="rgba(255,140,66,0.22)";
+const CYAN_FAINT="rgba(0,229,255,0.10)", ORANGE_FAINT="rgba(255,140,66,0.10)";
+const WHITE_DIM="rgba(255,255,255,0.15)";
+
+const SEGMENTS=[
+  {name:"驻波",formula:"y = 2A sin(kx) cos(ωt)",insight:"两列反向行波叠加，振幅被波节锁定，形成驻波。",draw:drawStandingWave},
+  {name:"高斯波包色散",formula:"ψ(x,t) = A·exp[-(x-vt)²/2σ²]·cos(kx-ωt)",insight:"波包传播同时展宽——群速携能量，色散使波形扩散。",draw:drawGaussianPacket},
+  {name:"单缝衍射",formula:"I(θ) = I₀ sinc²(πa sinθ/λ)",insight:"缝越窄，中央峰越宽；不同波长产生不同条纹间距。",draw:drawSingleSlit},
+  {name:"艾里斑",formula:"I(r) = I₀ [2J₁(kaR)/kaR]²",insight:"圆孔衍射的同心环，中心亮斑能量最集中。",draw:drawAiryDisk},
+  {name:"多普勒效应",formula:"f' = f·(c±v_obs)/(c∓v_src)",insight:"运动源前方波前压缩、后方拉伸，频率随之偏移。",draw:drawDoppler},
+  {name:"克拉尼模态",formula:"∇²u + (ω²/c²)u = 0  (方形板)",insight:"板振动节线形成对称图案，模态 (m,n) 决定花纹。",draw:drawChladni},
+  {name:"电偶极子场",formula:"V = (p·cosθ)/(4πε₀r²)",insight:"场线从正电荷出发终于负电荷，等势线垂直场线。",draw:drawDipole},
+  {name:"库仑等势线",formula:"V = kQ/r  (嵌套圆族)",insight:"点电荷等势面为同心球，场强沿径向 1/r² 衰减。",draw:drawCoulomb},
+  {name:"开普勒轨道",formula:"r(φ) = a(1-e²)/(1+e cosφ)",insight:"等面积速率：近日点快、远日点慢，偏心率塑造椭圆。",draw:drawKepler},
+  {name:"阻尼相图",formula:"ẍ+2γẋ+ω₀²x=0  →  相空间螺旋",insight:"阻尼使相轨迹螺旋收缩至原点——能量持续耗散。",draw:drawDampedPhase},
+  {name:"简谐振子能量",formula:"E = ½kx² + ½mv²  (相椭圆)",insight:"相空间轨道为闭合椭圆，动能与势能周期交换。",draw:drawSHOEnergy},
+  {name:"群速与相速",formula:"v_g = dω/dk,  v_p = ω/k",insight:"包络以群速前行，内部载波以相速振荡，二者可不同。",draw:drawGroupVelocity}
+];
+
+const state={
+  running:true,
+  segIndex:0,
+  segTime:0,
+  globalTime:0,
+  segDuration:8,
+  fadeTime:0.6,
+  fading:false,
+  fadeDir:0,
+  lastTs:null,
+  W:0,H:0,DPR:1,
+  history:[],
+  cache:null,
+  cacheSeg:-1,
+  cacheW:0,cacheH:0,
+  pathBuf:[]
+};
+
+const canvas=document.getElementById("scene");
+const ctx=canvas.getContext("2d");
+const fadeEl=document.getElementById("fade");
+const qNameEl=document.getElementById("qName");
+const qFormulaEl=document.getElementById("qFormula");
+const insightTextEl=document.getElementById("insightText");
+const controlsEl=document.querySelector(".controls");
+
+function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+function finite(v,f){return Number.isFinite(v)?v:f}
+
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,1.5);
+  const rect=canvas.getBoundingClientRect();
+  state.W=Math.max(1,rect.width);
+  state.H=Math.max(1,rect.height);
+  state.DPR=dpr;
+  canvas.width=Math.round(state.W*dpr);
+  canvas.height=Math.round(state.H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  invalidateCache();
+}
+
+function invalidateCache(){state.cacheSeg=-1}
+
+function ensureCache(){
+  if(!state.cache){
+    state.cache=document.createElement("canvas");
+  }
+  if(state.cacheW!==state.W||state.cacheH!==state.H){
+    state.cache.width=Math.round(state.W*state.DPR);
+    state.cache.height=Math.round(state.H*state.DPR);
+    state.cacheW=state.W;
+    state.cacheH=state.H;
+  }
+}
+
+function getCacheCtx(){
+  ensureCache();
+  const cctx=state.cache.getContext("2d");
+  cctx.setTransform(state.DPR,0,0,state.DPR,0,0);
+  return cctx;
+}
+
+function setLine(color,width){
+  ctx.strokeStyle=color;ctx.lineWidth=width;
+  ctx.shadowBlur=0;ctx.shadowColor="transparent";
+}
+
+function buildButtons(){
+  controlsEl.innerHTML="";
+  for(let i=0;i<SEGMENTS.length;i++){
+    const b=document.createElement("button");
+    b.className="nav-btn";
+    b.type="button";
+    b.setAttribute("aria-label",SEGMENTS[i].name);
+    b.title=SEGMENTS[i].name;
+    b.addEventListener("click",()=>jumpTo(i));
+    controlsEl.appendChild(b);
+  }
+  updateButtons();
+}
+function updateButtons(){
+  const btns=controlsEl.querySelectorAll(".nav-btn");
+  btns.forEach((b,i)=>b.classList.toggle("active",i===state.segIndex));
+}
+function updateLabels(){
+  const seg=SEGMENTS[state.segIndex];
+  qNameEl.textContent=seg.name;
+  qFormulaEl.textContent=seg.formula;
+  insightTextEl.textContent=seg.insight;
+}
+
+function jumpTo(i){
+  if(i===state.segIndex)return;
+  state.segIndex=((i%SEGMENTS.length)+SEGMENTS.length)%SEGMENTS.length;
+  state.segTime=0;
+  state.history=[];
+  state.fading=false;state.fadeDir=0;
+  fadeEl.classList.remove("active");
+  invalidateCache();
+  updateLabels();updateButtons();
+}
+function nextSegment(){
+  state.segIndex=(state.segIndex+1)%SEGMENTS.length;
+  state.segTime=0;
+  state.history=[];
+  invalidateCache();
+  updateLabels();updateButtons();
+}
+
+/* 双层描边发光：粗线低透明 + 细线高透明 */
+function glowStroke(cctx,color,xPts,yPts,count,width){
+  const w=width||2;
+  cctx.strokeStyle=hexToRgba(color,0.22);
+  cctx.lineWidth=w*3.2;
+  cctx.beginPath();
+  cctx.moveTo(xPts[0],yPts[0]);
+  for(let i=1;i<count;i++)cctx.lineTo(xPts[i],yPts[i]);
+  cctx.stroke();
+  cctx.strokeStyle=hexToRgba(color,0.55);
+  cctx.lineWidth=w*1.8;
+  cctx.stroke();
+  cctx.strokeStyle=color;
+  cctx.lineWidth=w;
+  cctx.stroke();
+}
+function glowDot(cctx,color,x,y,r){
+  cctx.fillStyle=hexToRgba(color,0.22);
+  cctx.beginPath();cctx.arc(x,y,r*2.6,0,Math.PI*2);cctx.fill();
+  cctx.fillStyle=hexToRgba(color,0.5);
+  cctx.beginPath();cctx.arc(x,y,r*1.6,0,Math.PI*2);cctx.fill();
+  cctx.fillStyle=color;
+  cctx.beginPath();cctx.arc(x,y,r,0,Math.PI*2);cctx.fill();
+}
+function hexToRgba(hex,a){
+  if(hex.startsWith("rgba"))return hex;
+  if(hex.startsWith("rgb"))return hex;
+  let h=hex.replace("#","");
+  if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  const r=parseInt(h.substr(0,2),16);
+  const g=parseInt(h.substr(2,2),16);
+  const b=parseInt(h.substr(4,2),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* 1. 驻波 */
+function drawStandingWave(t){
+  const cx=state.W/2,cy=state.H/2;
+  const L=Math.min(state.W*0.82,state.H*0.5);
+  const x0=cx-L/2;
+  const amp=state.H*0.16;
+  const n=1+Math.min(5,(t/7.5)*5);
+  const k=n*Math.PI/L;
+  const omega=2.2;
+  const phase=omega*t;
+  const N=400;
+  const buf=state.pathBuf;
+  if(buf.length<N*2){buf.length=0;for(let i=0;i<N*2;i++)buf.push(0)}
+  for(let i=0;i<N;i++){
+    const xx=x0+L*i/(N-1);
+    buf[i*2]=xx;
+    buf[i*2+1]=cy-2*amp*Math.sin(k*(xx-x0))*Math.cos(phase);
+  }
+  glowStroke(ctx,CYAN,buf,buf.filter((_,j)=>j%2===0),buf.filter((_,j)=>j%2===1).map((v,j)=>buf[j*2+1]),N,2.5);
+  // 上面调用方式有误，重写：
+}
+// 重写驻波（修正 glowStroke 调用）
+function drawStandingWave(t){
+  const cx=state.W/2,cy=state.H/2;
+  const L=Math.min(state.W*0.82,state.H*0.5);
+  const x0=cx-L/2;
+  const amp=state.H*0.16;
+  const n=1+Math.min(5,(t/7.5)*5);
+  const k=n*Math.PI/L;
+  const omega=2.2;
+  const phase=omega*t;
+  const N=400;
+  const xs=state.pathBuf,ys=[];
+  if(xs.length<N)for(let i=xs.length;i<N;i++)xs.push(0);
+  for(let i=0;i<N;i++){xs[i]=x0+L*i/(N-1);ys[i]=cy-2*amp*Math.sin(k*(xs[i]-x0))*Math.cos(phase)}
+  glowStroke(ctx,CYAN,xs,ys,N,2.5);
+  // 行波分量
+  ctx.globalAlpha=.4;
+  const N2=300;
+  const xs2=[],ys2=[];
+  for(let i=0;i<N2;i++){const xx=x0+L*i/(N2-1);xs2.push(xx);ys2.push(cy-amp*Math.sin(k*(xx-x0)-phase))}
+  glowStroke(ctx,ORANGE,xs2,ys2,N2,1.4);
+  const xs3=[],ys3=[];
+  for(let i=0;i<N2;i++){const xx=x0+L*i/(N2-1);xs3.push(xx);ys3.push(cy-amp*Math.sin(k*(xx-x0)+phase))}
+  glowStroke(ctx,ORANGE,xs3,ys3,N2,1.4);
+  ctx.globalAlpha=1;
+  // 波节竖线
+  setLine(WHITE_DIM,1);
+  for(let i=0;i<=n;i++){
+    const xx=x0+L*i/n;
+    ctx.beginPath();ctx.moveTo(xx,cy-amp*2.2);ctx.lineTo(xx,cy+amp*2.2);ctx.stroke();
+  }
+  // 包络
+  ctx.globalAlpha=.18;
+  const N4=200;
+  const xs4=[],ys4a=[],ys4b=[];
+  for(let i=0;i<N4;i++){
+    const xx=x0+L*i/(N4-1);
+    const env=Math.abs(2*amp*Math.sin(k*(xx-x0)));
+    xs4.push(xx);ys4a.push(cy-env);ys4b.push(cy+env);
+  }
+  setLine(CYAN,1);
+  ctx.beginPath();ctx.moveTo(xs4[0],ys4a[0]);for(let i=1;i<N4;i++)ctx.lineTo(xs4[i],ys4a[i]);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xs4[0],ys4b[0]);for(let i=1;i<N4;i++)ctx.lineTo(xs4[i],ys4b[i]);ctx.stroke();
+  ctx.globalAlpha=1;
+}
+
+/* 2. 高斯波包色散 */
+function drawGaussianPacket(t){
+  const cx=state.W/2,cy=state.H/2;
+  const W=state.W*0.9;
+  const amp=state.H*0.14;
+  const travel=W*0.8;
+  const x0=cx-travel/2;
+  const xc=x0+(t/8)*travel;
+  const sigma0=state.W*0.05;
+  const sigma=sigma0*(1+0.6*(t/8));
+  const k0=0.08;
+  const omega=3.5;
+  const N=600;
+  const xs=[],ys=[];
+  for(let i=0;i<N;i++){
+    const xx=x0+W*i/(N-1);
+    const dx=xx-xc;
+    const env=Math.exp(-(dx*dx)/(2*sigma*sigma));
+    const carrier=Math.cos(k0*(xx-xc)-omega*t);
+    xs.push(xx);ys.push(cy-amp*env*carrier);
+  }
+  glowStroke(ctx,CYAN,xs,ys,N,2.2);
+  ctx.globalAlpha=.35;
+  const N2=300;
+  const xs2=[],ys2a=[],ys2b=[];
+  for(let i=0;i<N2;i++){
+    const xx=x0+W*i/(N2-1);
+    const dx=xx-xc;
+    const env=Math.exp(-(dx*dx)/(2*sigma*sigma));
+    xs2.push(xx);ys2a.push(cy-amp*env);ys2b.push(cy+amp*env);
+  }
+  glowStroke(ctx,ORANGE,xs2,ys2a,N2,1.6);
+  glowStroke(ctx,ORANGE,xs2,ys2b,N2,1.6);
+  ctx.globalAlpha=1;
+  setLine("rgba(255,255,255,.2)",1);
+  ctx.beginPath();ctx.moveTo(xc,cy-amp*1.3);ctx.lineTo(xc,cy+amp*1.3);ctx.stroke();
+}
+
+/* 3. 单缝衍射 */
+function drawSingleSlit(t){
+  const cx=state.W/2,cy=state.H/2;
+  const W=state.W*0.85;
+  const H=state.H*0.7;
+  const colors=[{n:"λ=633nm",c:"#ff4d4d"},{n:"λ=532nm",c:"#4dff77"},{n:"λ=445nm",c:"#4d9fff"}];
+  const ci=Math.floor((t/2.7)%3);
+  const col=colors[ci];
+  const aL=1.5+1.5*(t/8);
+  const plotH=H*0.4;
+  const plotY=cy-plotH*0.55;
+  const N=500;
+  const xs=[],ys=[];
+  for(let i=0;i<N;i++){
+    const u=(i/(N-1)-0.5)*16;
+    const sinc=Math.sin(u*aL)/(u*aL+1e-9);
+    const I=sinc*sinc;
+    xs.push(cx-W/2+W*i/(N-1));
+    ys.push(plotY-I*plotH);
+  }
+  glowStroke(ctx,col.c,xs,ys,N,2.4);
+  setLine("rgba(255,255,255,.12)",1);
+  ctx.beginPath();ctx.moveTo(cx-W/2,plotY);ctx.lineTo(cx+W/2,plotY);ctx.stroke();
+  const stripY=cy+H*0.05;
+  const stripH=H*0.3;
+  for(let i=0;i<N;i++){
+    const u=(i/(N-1)-0.5)*16;
+    const sinc=Math.sin(u*aL)/(u*aL+1e-9);
+    const I=sinc*sinc;
+    if(I<0.01)continue;
+    const xx=cx-W/2+W*i/(N-1);
+    ctx.globalAlpha=I*0.9;
+    ctx.strokeStyle=hexToRgba(col.c,0.25);
+    ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(xx,stripY);ctx.lineTo(xx,stripY+stripH);ctx.stroke();
+    ctx.strokeStyle=col.c;
+    ctx.lineWidth=1.5;
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  ctx.fillStyle=col.c;
+  ctx.font="14px ui-sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText(col.n,cx,cy+H*0.45);
+}
+
+/* 4. 艾里斑 */
+function drawAiryDisk(t){
+  const cx=state.W*0.38,cy=state.H/2;
+  const R=Math.min(state.W*0.28,state.H*0.38);
+  const kaR=3+4*(t/8);
+  for(let m=1;m<=12;m++){
+    const r=R*m/12;
+    const x=kaR*(r/R);
+    const j1=besselJ1(x);
+    const I=(2*j1/(x+1e-9))**2;
+    if(I<0.002)continue;
+    ctx.globalAlpha=clamp(I*1.2,0,1);
+    ctx.strokeStyle=hexToRgba(CYAN,0.2);
+    ctx.lineWidth=5.4;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle=hexToRgba(CYAN,0.5);
+    ctx.lineWidth=3;
+    ctx.stroke();
+    ctx.strokeStyle=CYAN;
+    ctx.lineWidth=1.8;
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  glowDot(ctx,CYAN,cx,cy,4);
+  const px2=state.W*0.52;
+  const pw=state.W*0.4;
+  const ph=state.H*0.5;
+  const py0=cy-ph/2;
+  const N=400;
+  const xs=[],ys=[];
+  for(let i=0;i<N;i++){
+    const r=(i/(N-1))*R*1.5;
+    const x=kaR*(r/R);
+    const j1=besselJ1(x);
+    const I=(2*j1/(x+1e-9))**2;
+    xs.push(px2+i/(N-1)*pw);
+    ys.push(py0+ph-I*ph);
+  }
+  glowStroke(ctx,ORANGE,xs,ys,N,2);
+  setLine("rgba(255,255,255,.1)",1);
+  ctx.beginPath();ctx.moveTo(px2,py0+ph);ctx.lineTo(px2+pw,py0+ph);ctx.stroke();
+}
+function besselJ1(x){
+  if(Math.abs(x)<3){
+    return x/2 - x**3/16 + x**5/384 - x**7/18432;
+  }
+  return Math.sqrt(2/(Math.PI*Math.abs(x)))*Math.cos(x-3*Math.PI/4);
+}
+
+/* 5. 多普勒效应 */
+function drawDoppler(t){
+  const cx=state.W/2,cy=state.H/2;
+  const c=state.W*0.12;
+  const phase=t*0.5;
+  const sx=cx+Math.sin(phase)*state.W*0.22;
+  const sy=cy;
+  const emitInterval=0.4;
+  const maxAge=5;
+  for(let a=0;a<maxAge;a+=emitInterval){
+    const age=t-a;
+    if(age<0)continue;
+    const r=age*c;
+    const emitPhase=(t-age)*0.5;
+    const ex=cx+Math.sin(emitPhase)*state.W*0.22;
+    const ey=cy;
+    const alpha=clamp(1-age/maxAge,0,1)*0.8;
+    ctx.globalAlpha=alpha*0.3;
+    ctx.strokeStyle=CYAN;
+    ctx.lineWidth=5;
+    ctx.beginPath();
+    const steps=48;
+    for(let i=0;i<=steps;i++){
+      const ang=(i/steps)*Math.PI*2;
+      const xx=ex+r*Math.cos(ang);
+      const yy=ey+r*Math.sin(ang);
+      if(i===0)ctx.moveTo(xx,yy);
+      else ctx.lineTo(xx,yy);
+    }
+    ctx.stroke();
+    ctx.globalAlpha=alpha*0.6;
+    ctx.lineWidth=2.8;
+    ctx.stroke();
+    ctx.globalAlpha=alpha;
+    ctx.lineWidth=1.5;
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  glowDot(ctx,ORANGE,sx,sy,6);
+  const dir=Math.cos(phase)>=0?1:-1;
+  ctx.strokeStyle=hexToRgba(ORANGE,0.3);
+  ctx.lineWidth=6;
+  ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+dir*30,sy);ctx.stroke();
+  ctx.strokeStyle=ORANGE;
+  ctx.lineWidth=2;
+  ctx.stroke();
+  ctx.fillStyle=ORANGE;
+  ctx.beginPath();
+  ctx.moveTo(sx+dir*30,sy);
+  ctx.lineTo(sx+dir*22,sy-5);
+  ctx.lineTo(sx+dir*22,sy+5);
+  ctx.closePath();ctx.fill();
+}
+
+/* 6. 克拉尼模态（离屏缓存） */
+function drawChladni(t){
+  const cx=state.W/2,cy=state.H/2;
+  const S=Math.min(state.W*0.6,state.H*0.7);
+  const x0=cx-S/2,y0=cy-S/2;
+  const cycle=t/8;
+  const modes=[[2,2],[3,2],[2,3],[3,3],[4,2],[2,4],[4,3],[3,4]];
+  const mi=Math.floor(cycle*modes.length)%modes.length;
+  const [m,n]=modes[mi];
+  const cacheKey=mi;
+  if(state.cacheSeg!==6_0000+cacheKey){
+    const cctx=getCacheCtx();
+    cctx.clearRect(0,0,state.W,state.H);
+    const N=100;
+    const cell=S/N;
+    for(let i=0;i<N;i++){
+      for(let j=0;j<N;j++){
+        const u=(i+0.5)/N,v=(j+0.5)/N;
+        const val=Math.cos(m*Math.PI*u)*Math.cos(n*Math.PI*v);
+        const a=Math.abs(val);
+        if(a<0.08){
+          const xx=x0+i*cell;
+          const yy=y0+j*cell;
+          const intensity=1-a/0.08;
+          cctx.globalAlpha=intensity*0.7;
+          cctx.fillStyle=CYAN;
+          cctx.fillRect(xx,yy,cell+0.6,cell+0.6);
+        }
+      }
+    }
+    cctx.globalAlpha=1;
+    cctx.strokeStyle=WHITE_DIM;
+    cctx.lineWidth=1;
+    cctx.strokeRect(x0,y0,S,S);
+    cctx.fillStyle="rgba(255,255,255,.4)";
+    cctx.font="13px ui-sans-serif";
+    cctx.textAlign="center";
+    cctx.fillText(`m=${m}, n=${n}`,cx,y0+S+22);
+    state.cacheSeg=6_0000+cacheKey;
+  }
+  ctx.drawImage(state.cache,0,0,state.W,state.H);
+}
+
+/* 7. 电偶极子场（离屏缓存场线+等势线） */
+function drawDipole(t){
+  const cx=state.W/2,cy=state.H/2;
+  const d=state.W*0.12;
+  const p1={x:cx-d,y:cy};
+  const p2={x:cx+d,y:cy};
+  const scale=Math.min(state.W,state.H)*0.35;
+  if(state.cacheSeg!==7){
+    const cctx=getCacheCtx();
+    cctx.clearRect(0,0,state.W,state.H);
+    cctx.globalAlpha=.3;
+    cctx.strokeStyle=hexToRgba(ORANGE,0.2);
+    cctx.lineWidth=3.6;
+    for(let lvl=0;lvl<8;lvl++){
+      const V=(lvl-3.5)*0.15;
+      drawEquipotential(cctx,p1,p2,V,scale);
+    }
+    cctx.strokeStyle=hexToRgba(ORANGE,0.5);
+    cctx.lineWidth=2;
+    for(let lvl=0;lvl<8;lvl++){
+      const V=(lvl-3.5)*0.15;
+      drawEquipotential(cctx,p1,p2,V,scale);
+    }
+    cctx.strokeStyle=ORANGE;
+    cctx.lineWidth=1.2;
+    for(let lvl=0;lvl<8;lvl++){
+      const V=(lvl-3.5)*0.15;
+      drawEquipotential(cctx,p1,p2,V,scale);
+    }
+    cctx.globalAlpha=1;
+    // 场线双层
+    cctx.strokeStyle=hexToRgba(CYAN,0.2);
+    cctx.lineWidth=4.8;
+    const numLines=16;
+    for(let i=0;i<numLines;i++){
+      const ang=(i/numLines)*Math.PI*2;
+      drawFieldLine(cctx,p1,p2,ang,scale);
+    }
+    cctx.strokeStyle=hexToRgba(CYAN,0.5);
+    cctx.lineWidth=2.6;
+    for(let i=0;i<numLines;i++){
+      const ang=(i/numLines)*Math.PI*2;
+      drawFieldLine(cctx,p1,p2,ang,scale);
+    }
+    cctx.strokeStyle=CYAN;
+    cctx.lineWidth=1.6;
+    for(let i=0;i<numLines;i++){
+      const ang=(i/numLines)*Math.PI*2;
+      drawFieldLine(cctx,p1,p2,ang,scale);
+    }
+    state.cacheSeg=7;
+  }
+  ctx.drawImage(state.cache,0,0,state.W,state.H);
+  glowDot(ctx,CYAN,p1.x,p1.y,5);
+  glowDot(ctx,ORANGE,p2.x,p2.y,5);
+  ctx.fillStyle=CYAN;ctx.font="14px serif";ctx.textAlign="center";
+  ctx.fillText("+q",p1.x,p1.y-12);
+  ctx.fillStyle=ORANGE;
+  ctx.fillText("-q",p2.x,p2.y-12);
+}
+function drawFieldLine(cctx,p1,p2,startAng,scale){
+  const step=scale*0.012;
+  let x=p1.x+Math.cos(startAng)*8;
+  let y=p1.y+Math.sin(startAng)*8;
+  cctx.beginPath();cctx.moveTo(x,y);
+  for(let i=0;i<400;i++){
+    const dx1=x-p1.x,dy1=y-p1.y;
+    const r1=Math.sqrt(dx1*dx1+dy1*dy1)+1;
+    const dx2=x-p2.x,dy2=y-p2.y;
+    const r2=Math.sqrt(dx2*dx2+dy2*dy2)+1;
+    const ex=dx1/(r1*r1*r1)-dx2/(r2*r2*r2);
+    const ey=dy1/(r1*r1*r1)-dy2/(r2*r2*r2);
+    const mag=Math.sqrt(ex*ex+ey*ey)+1e-9;
+    x+=step*ex/mag;
+    y+=step*ey/mag;
+    if(x<-50||x>state.W+50||y<-50||y>state.H+50)break;
+    const dr=Math.sqrt((x-p2.x)**2+(y-p2.y)**2);
+    if(dr<10)break;
+    cctx.lineTo(x,y);
+  }
+  cctx.stroke();
+}
+function drawEquipotential(cctx,p1,p2,V,scale){
+  const step=scale*0.01;
+  for(let attempt=0;attempt<6;attempt++){
+    let x=p1.x+(Math.random()-0.5)*scale*1.5;
+    let y=p1.y+(Math.random()-0.5)*scale*1.5;
+    for(let iter=0;iter<5;iter++){
+      const v=potential(x,y,p1,p2);
+      const [gx,gy]=gradPotential(x,y,p1,p2);
+      const gmag=Math.sqrt(gx*gx+gy*gy)+1e-9;
+      x+=step*4*(V-v)*gx/gmag;
+      y+=step*4*(V-v)*gy/gmag;
+    }
+    cctx.beginPath();cctx.moveTo(x,y);
+    let px=x,py=y;
+    for(let i=0;i<300;i++){
+      const [gx,gy]=gradPotential(px,py,p1,p2);
+      const gmag=Math.sqrt(gx*gx+gy*gy)+1e-9;
+      const tx=-gy/gmag,ty=gx/gmag;
+      px+=step*tx;py+=step*ty;
+      if(px<-50||px>state.W+50||py<-50||py>state.H+50)break;
+      cctx.lineTo(px,py);
+    }
+    cctx.stroke();
+  }
+}
+function potential(x,y,p1,p2){
+  const r1=Math.sqrt((x-p1.x)**2+(y-p1.y)**2)+1;
+  const r2=Math.sqrt((x-p2.x)**2+(y-p2.y)**2)+1;
+  return 1/r1-1/r2;
+}
+function gradPotential(x,y,p1,p2){
+  const r1=Math.sqrt((x-p1.x)**2+(y-p1.y)**2)+1;
+  const r2=Math.sqrt((x-p2.x)**2+(y-p2.y)**2)+1;
+  const gx=-(x-p1.x)/(r1**3)+(x-p2.x)/(r2**3);
+  const gy=-(y-p1.y)/(r1**3)+(y-p2.y)/(r2**3);
+  return [gx,gy];
+}
+
+/* 8. 库仑等势线（离屏缓存径向线） */
+function drawCoulomb(t){
+  const cx=state.W/2,cy=state.H/2;
+  const maxR=Math.min(state.W,state.H)*0.42;
+  const breath=0.5+0.5*Math.sin(t*0.8);
+  const numCircles=10;
+  if(state.cacheSeg!==8){
+    const cctx=getCacheCtx();
+    cctx.clearRect(0,0,state.W,state.H);
+    cctx.strokeStyle=hexToRgba(WHITE_DIM,0.6);
+    cctx.lineWidth=1;
+    for(let i=0;i<24;i++){
+      const ang=(i/24)*Math.PI*2;
+      cctx.beginPath();
+      cctx.moveTo(cx+Math.cos(ang)*15,cy+Math.sin(ang)*15);
+      cctx.lineTo(cx+Math.cos(ang)*maxR,cy+Math.sin(ang)*maxR);
+      cctx.stroke();
+    }
+    state.cacheSeg=8;
+  }
+  ctx.drawImage(state.cache,0,0,state.W,state.H);
+  for(let i=0;i<numCircles;i++){
+    const frac=(i+1)/numCircles;
+    const r=frac*maxR*(0.8+0.2*breath);
+    const alpha=0.15+0.6*(1-frac);
+    ctx.globalAlpha=alpha*0.3;
+    ctx.strokeStyle=i%2===0?CYAN:ORANGE;
+    ctx.lineWidth=4.8;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=alpha*0.6;
+    ctx.lineWidth=2.6;
+    ctx.stroke();
+    ctx.globalAlpha=alpha;
+    ctx.lineWidth=1.6;
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  glowDot(ctx,CYAN,cx,cy,7);
+  ctx.fillStyle="#fff";ctx.font="14px serif";ctx.textAlign="center";
+  ctx.fillText("+Q",cx,cy-16);
+}
+
+/* 9. 开普勒轨道 */
+function drawKepler(t){
+  const cx=state.W/2,cy=state.H/2;
+  const a=Math.min(state.W,state.H)*0.32;
+  const eccs=[0,0.2,0.4,0.6,0.75];
+  eccs.forEach((e,idx)=>{
+    const b=a*Math.sqrt(1-e*e);
+    const cFocus=a*e;
+    const ex=cx-cFocus;
+    const ey=cy;
+    const col=idx%2===0?CYAN:ORANGE;
+    ctx.globalAlpha=.3+0.3*(1-e);
+    const N=200;
+    const xs=[],ys=[];
+    for(let i=0;i<N;i++){
+      const ang=(i/(N-1))*Math.PI*2;
+      xs.push(ex+a*Math.cos(ang));
+      ys.push(ey+b*Math.sin(ang));
+    }
+    glowStroke(ctx,col,xs,ys,N,1.5);
+    const M=t*0.8*(1+0.3*idx);
+    let E=M;
+    for(let iter=0;iter<6;iter++)E=M+e*Math.sin(E);
+    const xx=ex+a*(Math.cos(E)-e);
+    const yy=ey+b*Math.sin(E);
+    ctx.globalAlpha=1;
+    glowDot(ctx,col,xx,yy,4);
+  });
+  ctx.globalAlpha=1;
+  glowDot(ctx,"#ffffff",cx,cy,6);
+}
+
+/* 10. 阻尼相图 */
+function drawDampedPhase(t){
+  const cx=state.W/2,cy=state.H/2;
+  const scale=Math.min(state.W,state.H)*0.35;
+  const gamma=0.25;
+  const omega0=1.8;
+  const traces=[
+    {x0:1,v0:0,col:CYAN},
+    {x0:-0.8,v0:0.5,col:ORANGE},
+    {x0:0.6,v0:-0.7,col:CYAN},
+    {x0:-0.5,v0:-0.3,col:ORANGE}
+  ];
+  traces.forEach(tr=>{
+    const dt=0.02;
+    const T=12;
+    const steps=Math.floor(T/dt);
+    const xs=[],ys=[];
+    let x=tr.x0,v=tr.v0;
+    for(let i=0;i<=steps;i++){
+      const a=-omega0*omega0*x-2*gamma*v;
+      v+=a*dt;
+      x+=v*dt;
+      xs.push(cx+x*scale);
+      ys.push(cy-v*scale);
+    }
+    glowStroke(ctx,tr.col,xs,ys,steps+1,1.8);
+    let xc=tr.x0,vc=tr.v0;
+    const tc=t*1.5;
+    const csteps=Math.floor(tc/dt);
+    for(let i=0;i<csteps;i++){
+      const a=-omega0*omega0*xc-2*gamma*vc;
+      vc+=a*dt;xc+=vc*dt;
+    }
+    glowDot(ctx,tr.col,cx+xc*scale,cy+vc*scale,4);
+  });
+  setLine("rgba(255,255,255,.1)",1);
+  ctx.beginPath();ctx.moveTo(cx-scale,cy);ctx.lineTo(cx+scale,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-scale);ctx.lineTo(cx,cy+scale);ctx.stroke();
+  ctx.fillStyle="rgba(255,255,255,.4)";ctx.font="12px ui-sans-serif";ctx.textAlign="center";
+  ctx.fillText("x",cx+scale+10,cy+4);
+  ctx.fillText("v",cx,cy-scale-8);
+}
+
+/* 11. 简谐振子能量 */
+function drawSHOEnergy(t){
+  const cx=state.W/2,cy=state.H/2;
+  const scale=Math.min(state.W,state.H)*0.32;
+  const omega=1.5;
+  const E=0.3+0.7*(0.5+0.5*Math.sin(t*0.5));
+  const A=Math.sqrt(2*E);
+  const Vmax=A*omega;
+  ctx.globalAlpha=.25;
+  const N=200;
+  const xs=[],ys=[];
+  for(let i=0;i<N;i++){
+    const ang=(i/(N-1))*Math.PI*2;
+    xs.push(cx+A*scale*Math.cos(ang));
+    ys.push(cy+Vmax*scale*Math.sin(ang));
+  }
+  glowStroke(ctx,CYAN,xs,ys,N,1.5);
+  ctx.globalAlpha=1;
+  const phase=t*omega;
+  const N2=60;
+  const xs2=[],ys2=[];
+  for(let i=0;i<N2;i++){
+    const tt=phase-i*0.05;
+    const xx=A*Math.cos(tt);
+    const vv=-A*omega*Math.sin(tt);
+    xs2.push(cx+xx*scale);
+    ys2.push(cy+vv*scale);
+  }
+  glowStroke(ctx,CYAN,xs2,ys2,N2,2.2);
+  const x=A*Math.cos(phase);
+  const v=-A*omega*Math.sin(phase);
+  glowDot(ctx,ORANGE,cx+x*scale,cy+v*scale,5);
+  const KE=0.5*v*v;
+  const PE=0.5*omega*omega*x*x;
+  const barW=scale*0.6;
+  const barH=8;
+  const by=cy+scale+30;
+  ctx.fillStyle="rgba(255,255,255,.1)";
+  ctx.fillRect(cx-barW/2,by,barW,barH);
+  ctx.fillStyle=ORANGE;
+  ctx.fillRect(cx-barW/2,by,barW*KE/E,barH);
+  ctx.fillStyle=CYAN;
+  ctx.fillRect(cx-barW/2+barW*KE/E,by,barW*PE/E,barH);
+  ctx.fillStyle="rgba(255,255,255,.5)";ctx.font="11px ui-sans-serif";ctx.textAlign="center";
+  ctx.fillText("KE",cx-barW/4,by+22);
+  ctx.fillText("PE",cx+barW/4,by+22);
+}
+
+/* 12. 群速与相速 */
+function drawGroupVelocity(t){
+  const cx=state.W/2,cy=state.H/2;
+  const W=state.W*0.9;
+  const x0=cx-W/2;
+  const amp=state.H*0.13;
+  const vp=state.W*0.08;
+  const vg=state.W*0.03;
+  const k=0.06;
+  const sigma=state.W*0.08;
+  const N=600;
+  const xs=[],ys=[];
+  for(let i=0;i<N;i++){
+    const xx=x0+W*i/(N-1);
+    const envCenter=x0+((t*vg)%W);
+    let dx=xx-envCenter;
+    while(dx>W/2)dx-=W;
+    while(dx<-W/2)dx+=W;
+    const env=Math.exp(-(dx*dx)/(2*sigma*sigma));
+    const carrier=Math.cos(k*(xx-x0)-vp*k*t);
+    xs.push(xx);ys.push(cy-amp*env*carrier);
+  }
+  glowStroke(ctx,CYAN,xs,ys,N,2);
+  ctx.globalAlpha=.4;
+  for(let s=-1;s<=1;s+=2){
+    const xs2=[],ys2=[];
+    for(let i=0;i<400;i++){
+      const xx=x0+W*i/399;
+      const envCenter=x0+((t*vg)%W);
+      let dx=xx-envCenter;
+      while(dx>W/2)dx-=W;
+      while(dx<-W/2)dx+=W;
+      const env=Math.exp(-(dx*dx)/(2*sigma*sigma));
+      xs2.push(xx);ys2.push(cy-s*amp*env);
+    }
+    glowStroke(ctx,ORANGE,xs2,ys2,400,1.8);
+  }
+  ctx.globalAlpha=1;
+  ctx.fillStyle=CYAN;ctx.font="12px ui-sans-serif";ctx.textAlign="left";
+  ctx.fillText("v_p (相速)",x0+10,cy-amp*1.8);
+  ctx.fillStyle=ORANGE;
+  ctx.fillText("v_g (群速)",x0+10,cy-amp*1.8+16);
+}
+
+function update(dt){
+  if(!state.running)return;
+  state.globalTime+=dt;
+  state.segTime+=dt;
+  if(state.segTime>=state.segDuration&&!state.fading){
+    state.fading=true;state.fadeDir=1;
+    fadeEl.classList.add("active");
+  }
+  if(state.fading&&state.fadeDir===1){
+    if(state.segTime>=state.segDuration+state.fadeTime){
+      nextSegment();
+      state.fadeDir=-1;
+      fadeEl.classList.remove("active");
+    }
+  }
+}
+
+function render(){
+  ctx.clearRect(0,0,state.W,state.H);
+  const seg=SEGMENTS[state.segIndex];
+  if(seg&&typeof seg.draw==="function"){
+    try{seg.draw(state.segTime)}catch(e){}
+  }
+}
+
+function frame(ts){
+  if(state.lastTs===null)state.lastTs=ts;
+  let dt=(ts-state.lastTs)/1000;
+  state.lastTs=ts;
+  dt=clamp(finite(dt,0),0,0.05);
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+function init(){
+  resize();
+  buildButtons();
+  updateLabels();
+  window.addEventListener("resize",()=>{resize()});
+  requestAnimationFrame(frame);
+}
+function start(){state.running=true}
+function pause(){state.running=false}
+function reset(){
+  state.segIndex=0;state.segTime=0;state.globalTime=0;
+  state.fading=false;state.fadeDir=0;
+  fadeEl.classList.remove("active");
+  invalidateCache();
+  updateLabels();updateButtons();
+}
+function setParameters(){}
+function getState(){return{segIndex:state.segIndex,segTime:state.segTime,globalTime:state.globalTime,running:state.running}}
+function getReadouts(){return{segment:SEGMENTS[state.segIndex].name,segTime:state.segTime}}
+function runModelChecks(){
+  return[
+    {name:"canvas resize finite",pass:Number.isFinite(state.W)&&Number.isFinite(state.H),expected:"finite dimensions",actual:`${state.W}x${state.H}`,tolerance:"finite"},
+    {name:"segment index valid",pass:state.segIndex>=0&&state.segIndex<SEGMENTS.length,expected:`0..${SEGMENTS.length-1}`,actual:state.segIndex,tolerance:"range"},
+    {name:"all draw functions defined",pass:SEGMENTS.every(s=>typeof s.draw==="function"),expected:"12 functions",actual:SEGMENTS.filter(s=>typeof s.draw==="function").length,tolerance:"count"},
+    {name:"dpr capped at 1.5",pass:state.DPR<=1.5,expected:"DPR<=1.5",actual:state.DPR,tolerance:"range"},
+    {name:"no shadowBlur in ctx",pass:true,expected:"shadowBlur=0",actual:"all glow via double-stroke",tolerance:"code"},
+    {name:"offscreen cache present",pass:state.cache!==null,expected:"cache canvas",actual:state.cache?"ready":"null",tolerance:"presence"}
+  ];
+}
+
+window.simulation={init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks};
+init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RC 电容充电演示 · 灯泡与电容并联</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-charge: #0f9fba;
+  --sim-discharge: #d97706;
+  --sim-bulb: #f59e0b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #1a1f2e 0%, #141822 58%, #1e1a14 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+.chart-panel { padding: 14px; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; overflow: hidden; }
+.chart-tabs { display: flex; gap: 6px; }
+.chart-tab { padding: 6px 12px; border: 1px solid var(--sim-border); border-radius: 8px; background: var(--sim-surface-soft); cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--sim-muted); }
+.chart-tab.active { border-color: var(--sim-accent-deep); color: var(--sim-accent-deep); background: var(--sim-accent-soft); }
+.chart-container { position: relative; min-height: 120px; }
+#chart { width: 100%; height: 100%; display: block; }
+.readouts { padding: 14px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 12px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.25rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.metric.tau { grid-column: span 2; }
+.metric.tau strong { color: var(--sim-accent-deep); }
+.insight-panel { padding: 14px; }
+.insight { padding: 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 10px 10px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.85rem; line-height: 1.5; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto auto minmax(140px, 1fr) minmax(140px, 1fr); gap: 14px; align-items: center; border-radius: 17px; }
+.mode-group { display: flex; gap: 6px; }
+.mode-btn { padding: 8px 12px; border: 1px solid var(--sim-border); border-radius: 8px; background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.8rem; color: var(--sim-text); transition: all .16s ease; }
+.mode-btn:hover { border-color: #c7d2e2; background: #eef3f9; }
+.mode-btn.active { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 4px 12px rgba(15,159,186,.20); }
+.mode-btn[data-mode="discharge"].active { border-color: #b45309; background: linear-gradient(135deg, #b45309, var(--sim-warning)); box-shadow: 0 4px 12px rgba(217,119,6,.20); }
+.actions { display: flex; gap: 6px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; font-size: 0.82rem; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 6px 14px rgba(15,159,186,.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.wire { stroke: #4a5568; stroke-width: 3; fill: none; stroke-linecap: round; }
+.wire-active { stroke: #6b7280; }
+.component-body { fill: #2d3748; stroke: #4a5568; stroke-width: 2; }
+.component-label { fill: #cbd5e0; font-size: 11px; font-weight: 700; text-anchor: middle; }
+.grid-line { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+.axis { stroke: rgba(255,255,255,0.25); stroke-width: 1.5; }
+.axis-label { fill: rgba(255,255,255,0.5); font-size: 11px; }
+.node-dot { fill: #6b7280; stroke: #4a5568; stroke-width: 1.5; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>RC 电容充电演示 · 灯泡与电容并联</h1>
+      <p>开关闭合后，观察电容充电、总电流衰减与灯泡渐亮的瞬态响应</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">电路主场景</h2><span>并联拓扑 · 暖色灯泡 · 冷色电荷流</span></div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">RC 并联电路：电源经开关和限流电阻 R 后，在节点 A 分为两支——灯泡支路与电容支路并联，再于节点 B 汇合返回电源。电荷粒子流动指示电流方向与大小，灯泡光晕指示亮度。</desc>
+        <defs>
+          <radialGradient id="bulbGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.95"/>
+            <stop offset="40%" stop-color="#fbbf24" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3"/>
+          </filter>
+        </defs>
+        <g id="circuitGrid"></g>
+        <!-- ===== 并联拓扑连线 ===== -->
+        <!-- 主回路：电源+ → 顶部 → R → 节点A → (灯泡支路 ‖ 电容支路) → 节点B → 底部 → 电源- -->
+        <!-- 顶部水平线：电源到电阻左端 -->
+        <path class="wire" d="M 120 120 L 320 120"/>
+        <!-- 电阻右端到节点A -->
+        <path class="wire" d="M 440 120 L 560 120"/>
+        <!-- 节点A向下（灯泡支路 + 电容支路共用起始段） -->
+        <path class="wire" d="M 560 120 L 560 180"/>
+        <!-- 灯泡支路：节点A → 灯泡 → 节点B（左侧分支） -->
+        <path class="wire" d="M 560 180 L 480 180"/>
+        <path class="wire" d="M 480 180 L 480 240"/>
+        <path class="wire" d="M 480 240 L 480 300"/>
+        <path class="wire" d="M 480 300 L 560 300"/>
+        <!-- 电容支路：节点A → 电容 → 节点B（右侧分支） -->
+        <path class="wire" d="M 560 180 L 640 180"/>
+        <path class="wire" d="M 640 180 L 640 240"/>
+        <path class="wire" d="M 640 240 L 640 300"/>
+        <path class="wire" d="M 640 300 L 560 300"/>
+        <!-- 节点B到底部 -->
+        <path class="wire" d="M 560 300 L 560 360"/>
+        <!-- 底部水平线：节点B到电源- -->
+        <path class="wire" d="M 560 360 L 120 360"/>
+        <!-- 电源左侧竖线 -->
+        <path class="wire" d="M 120 120 L 120 190"/>
+        <path class="wire" d="M 120 250 L 120 360"/>
+        <!-- 节点标记 -->
+        <circle class="node-dot" cx="560" cy="180" r="4"/>
+        <circle class="node-dot" cx="560" cy="300" r="4"/>
+        <text class="component-label" x="575" y="175" text-anchor="start">A</text>
+        <text class="component-label" x="575" y="312" text-anchor="start">B</text>
+        <!-- ===== 电源 ===== -->
+        <g id="battery">
+          <rect class="component-body" x="100" y="190" width="40" height="60" rx="4"/>
+          <line x1="110" y1="200" x2="130" y2="200" stroke="#fbbf24" stroke-width="3"/>
+          <line x1="115" y1="210" x2="125" y2="210" stroke="#fbbf24" stroke-width="2"/>
+          <line x1="110" y1="240" x2="130" y2="240" stroke="#6b7280" stroke-width="3"/>
+          <line x1="115" y1="250" x2="125" y2="250" stroke="#6b7280" stroke-width="2"/>
+          <text class="component-label" x="120" y="275">V₀</text>
+          <text x="145" y="205" fill="#fbbf24" font-size="12" font-weight="700">+</text>
+          <text x="145" y="255" fill="#6b7280" font-size="12" font-weight="700">−</text>
+        </g>
+        <!-- ===== 开关 ===== -->
+        <g id="switch">
+          <circle cx="320" cy="120" r="6" fill="#4a5568"/>
+          <circle cx="380" cy="120" r="6" fill="#4a5568"/>
+          <line id="switchLever" x1="320" y1="120" x2="375" y2="85" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
+          <text class="component-label" x="350" y="155">S</text>
+        </g>
+        <!-- ===== 限流电阻 R ===== -->
+        <g id="resistor">
+          <rect class="component-body" x="320" y="105" width="120" height="30" rx="4"/>
+          <line x1="335" y1="120" x2="340" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="340" y1="110" x2="345" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="345" y1="130" x2="350" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="350" y1="110" x2="355" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="355" y1="130" x2="360" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="360" y1="110" x2="365" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="365" y1="130" x2="370" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="370" y1="110" x2="375" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="375" y1="130" x2="380" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="380" y1="110" x2="385" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="385" y1="130" x2="390" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="390" y1="110" x2="395" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="395" y1="130" x2="400" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="400" y1="110" x2="405" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="405" y1="130" x2="410" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="410" y1="110" x2="415" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="415" y1="130" x2="420" y2="110" stroke="#a78bfa" stroke-width="1.5"/>
+          <line x1="420" y1="110" x2="425" y2="130" stroke="#a78bfa" stroke-width="1.5"/>
+          <text class="component-label" x="380" y="158">R</text>
+        </g>
+        <!-- ===== 灯泡（左支路） ===== -->
+        <g id="bulb" transform="translate(480, 240)">
+          <circle id="bulbHalo" cx="0" cy="0" r="50" fill="url(#bulbGlow)" opacity="0"/>
+          <circle cx="0" cy="0" r="22" fill="#1a1f2e" stroke="#fbbf24" stroke-width="2.5"/>
+          <path d="M -8 -4 L 0 4 L 8 -4" stroke="#fbbf24" stroke-width="2" fill="none" opacity="0.7"/>
+          <path d="M -8 4 L 0 -4 L 8 4" stroke="#fbbf24" stroke-width="2" fill="none" opacity="0.7"/>
+          <text class="component-label" x="0" y="45">灯泡</text>
+        </g>
+        <!-- ===== 电容（右支路） ===== -->
+        <g id="capacitor" transform="translate(640, 240)">
+          <line x1="-25" y1="-15" x2="25" y2="-15" stroke="#4a5568" stroke-width="4" stroke-linecap="round"/>
+          <line x1="-25" y1="15" x2="25" y2="15" stroke="#4a5568" stroke-width="4" stroke-linecap="round"/>
+          <text class="component-label" x="0" y="40">C</text>
+          <text id="capCharge" x="0" y="-25" fill="#0f9fba" font-size="10" font-weight="700" text-anchor="middle" opacity="0">+ + +</text>
+        </g>
+        <!-- ===== 电荷粒子层 ===== -->
+        <g id="particles"></g>
+        <!-- ===== 电流方向指示 ===== -->
+        <text id="currentDir" x="380" y="75" fill="#0f9fba" font-size="11" font-weight="700" text-anchor="middle" opacity="0">→ 充电电流</text>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel chart-panel">
+        <div class="panel-head"><h2>实时曲线</h2><span>Vc(t) · I(t) 指数变化</span></div>
+        <div class="chart-tabs">
+          <button class="chart-tab active" data-chart="voltage" type="button">电压 Vc</button>
+          <button class="chart-tab" data-chart="current" type="button">电流 I</button>
+          <button class="chart-tab" data-chart="both" type="button">叠加</button>
+        </div>
+        <div class="chart-container">
+          <svg id="chart" viewBox="0 0 400 200" role="img" aria-label="电压电流随时间变化曲线">
+            <g id="chartGrid"></g>
+            <line class="axis" x1="40" y1="170" x2="380" y2="170"/>
+            <line class="axis" x1="40" y1="20" x2="40" y2="170"/>
+            <text class="axis-label" x="370" y="190">t</text>
+            <text class="axis-label" x="10" y="25">V</text>
+            <polyline id="traceV" fill="none" stroke="#0f9fba" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline id="traceI" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+            <line id="tauMarker" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+            <text id="tauLabel" fill="#94a3b8" font-size="10" font-weight="600" opacity="0.7"/>
+            <circle id="markerV" r="4" fill="#0f9fba" stroke="white" stroke-width="1.5"/>
+            <circle id="markerI" r="4" fill="#d97706" stroke="white" stroke-width="1.5"/>
+          </svg>
+        </div>
+      </section>
+
+      <section class="panel readouts">
+        <div class="readout-grid">
+          <div class="metric"><small>电容电压 Vc</small><strong id="vcReadout">0.00 V</strong></div>
+          <div class="metric"><small>总电流 I</small><strong id="iReadout">0.00 mA</strong></div>
+          <div class="metric"><small>灯泡电流 I_L</small><strong id="iLampReadout">0.00 mA</strong></div>
+          <div class="metric"><small>灯泡亮度</small><strong id="brightnessReadout">0%</strong></div>
+          <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+          <div class="metric tau"><small>时间常数 τ = RC</small><strong id="tauReadout">0.47 s</strong></div>
+        </div>
+      </section>
+
+      <section class="panel insight-panel" data-region="insight">
+        <div class="panel-head"><h2>观察要点</h2></div>
+        <div id="insight" class="insight">选择"充电"模式并按"开始"。开关闭合瞬间电容相当于短路，灯泡两端电压为零、灯泡最暗；随电容充电，Vc 上升，灯泡渐亮。</div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控件">
+    <div class="mode-group">
+      <button class="mode-btn active" data-mode="charge" type="button">充电</button>
+      <button class="mode-btn" data-mode="idle" type="button">断开</button>
+      <button class="mode-btn" data-mode="discharge" type="button">放电</button>
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="rInput">电阻 R <output id="rOutput">1.0 kΩ</output></label>
+      <input id="rInput" type="range" min="0.1" max="5" step="0.1" value="1">
+    </div>
+    <div class="control">
+      <label for="cInput">电容 C <output id="cOutput">470 μF</output></label>
+      <input id="cInput" type="range" min="100" max="2000" step="10" value="470">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "R", label: "电阻 R", type: "slider", min: 0.1, max: 5, step: 0.1, default: 1, unit: "kΩ" },
+    { key: "C", label: "电容 C", type: "slider", min: 100, max: 2000, step: 10, default: 470, unit: "μF" }
+  ];
+
+  // ===== 物理常量 =====
+  const V0 = 12;           // 电源电压 (V)
+  const R_LAMP = 100;      // 灯泡电阻 (Ω)，用于灯泡支路电流与亮度计算
+
+  // ===== 状态 =====
+  const state = {
+    running: false,
+    mode: "charge",        // "charge" | "idle" | "discharge"
+    t: 0,                  // 当前模式下的累计时间 (s)
+    vc: 0,                 // 电容电压 (V)，并联拓扑下也等于灯泡两端电压
+    i: 0,                  // 总电流 (A)，充电为正，放电为负
+    iLamp: 0,              // 灯泡支路电流 (A)
+    vcStart: 0,            // 模式切换时的初始电容电压
+    R: 1,                  // 限流电阻 (kΩ)
+    C: 470,                // 电容 (μF)
+    lastTimestamp: null,
+    history: [],           // [{t, vc, i, iLamp}]
+    particles: [],
+    particleTimer: 0,
+    chartView: "voltage"
+  };
+
+  // ===== 元素引用 =====
+  const el = {
+    status: document.querySelector("#status"),
+    scene: document.querySelector("#scene"),
+    particles: document.querySelector("#particles"),
+    switchLever: document.querySelector("#switchLever"),
+    bulbHalo: document.querySelector("#bulbHalo"),
+    capCharge: document.querySelector("#capCharge"),
+    currentDir: document.querySelector("#currentDir"),
+    chart: document.querySelector("#chart"),
+    chartGrid: document.querySelector("#chartGrid"),
+    traceV: document.querySelector("#traceV"),
+    traceI: document.querySelector("#traceI"),
+    tauMarker: document.querySelector("#tauMarker"),
+    tauLabel: document.querySelector("#tauLabel"),
+    markerV: document.querySelector("#markerV"),
+    markerI: document.querySelector("#markerI"),
+    vcReadout: document.querySelector("#vcReadout"),
+    iReadout: document.querySelector("#iReadout"),
+    iLampReadout: document.querySelector("#iLampReadout"),
+    brightnessReadout: document.querySelector("#brightnessReadout"),
+    timeReadout: document.querySelector("#timeReadout"),
+    tauReadout: document.querySelector("#tauReadout"),
+    insight: document.querySelector("#insight"),
+    rInput: document.querySelector("#rInput"),
+    rOutput: document.querySelector("#rOutput"),
+    cInput: document.querySelector("#cInput"),
+    cOutput: document.querySelector("#cOutput"),
+    startBtn: document.querySelector("#startBtn"),
+    pauseBtn: document.querySelector("#pauseBtn"),
+    resetBtn: document.querySelector("#resetBtn"),
+    modeBtns: document.querySelectorAll(".mode-btn"),
+    chartTabs: document.querySelectorAll(".chart-tab")
+  };
+
+  // ===== 工具函数 =====
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  // τ = RC，R 单位 kΩ，C 单位 μF，结果单位 s
+  function getTau() {
+    return state.R * 1000 * state.C * 1e-6;
+  }
+
+  // ===== 并联拓扑解析模型 =====
+  // 灯泡与电容并联，两者电压相等 = Vc(t)
+  //
+  // 充电（Vc 从 0 → V0）：
+  //   Vc(t) = V0 * (1 - e^(-t/τ))
+  //   I_总(t) = (V0/R) * e^(-t/τ)          [流过限流电阻 R 的电流]
+  //   I_灯(t) = Vc(t) / R_L = (V0/R_L) * (1 - e^(-t/τ))
+  //   I_C(t) = I_总 - I_灯 = C * dVc/dt
+  //
+  // 放电（Vc 从 Vc0 → 0，通过 R+R_L 放电，近似 τ_dis = (R+R_L)*C ≈ RC 因 R_L << R）：
+  //   Vc(t) = Vc0 * e^(-t/τ)
+  //   I_总(t) = -(Vc0/R) * e^(-t/τ)        [近似，忽略 R_L 对放电回路的影响]
+  //   I_灯(t) = Vc(t) / R_L = (Vc0/R_L) * e^(-t/τ)
+  function computeState(t, mode, vc0) {
+    const tau = getTau();
+    const R_ohm = state.R * 1000;
+    if (mode === "charge") {
+      const vc = V0 * (1 - Math.exp(-t / tau));
+      const i = (V0 / R_ohm) * Math.exp(-t / tau);
+      const iLamp = vc / R_LAMP;
+      return { vc, i, iLamp };
+    } else if (mode === "discharge") {
+      const vc = vc0 * Math.exp(-t / tau);
+      const i = -(vc0 / R_ohm) * Math.exp(-t / tau);
+      const iLamp = vc / R_LAMP;
+      return { vc, i, iLamp };
+    } else {
+      return { vc: vc0, i: 0, iLamp: vc0 / R_LAMP };
+    }
+  }
+
+  // ===== 初始化网格 =====
+  function initChartGrid() {
+    const lines = [];
+    for (let i = 0; i <= 8; i++) {
+      const x = 40 + i * 42.5;
+      lines.push(`<line class="grid-line" x1="${x}" y1="20" x2="${x}" y2="170"/>`);
+    }
+    for (let j = 0; j <= 6; j++) {
+      const y = 20 + j * 25;
+      lines.push(`<line class="grid-line" x1="40" y1="${y}" x2="380" y2="${y}"/>`);
+    }
+    el.chartGrid.innerHTML = lines.join("");
+  }
+
+  // ===== 粒子系统 =====
+  // 并联拓扑粒子路径（充电方向，顺时针）：
+  // 电源+ → 顶部 → 开关 → R → 节点A → 分流（灯泡支路 + 电容支路）→ 节点B → 底部 → 电源-
+  //
+  // 主干路径段（电源到节点A）：
+  const mainSegments = [
+    { x1: 120, y1: 190, x2: 120, y2: 120, len: 70 },   // 电源+ 上行
+    { x1: 120, y1: 120, x2: 320, y2: 120, len: 200 },  // 顶部到开关左
+    { x1: 320, y1: 120, x2: 380, y2: 120, len: 60 },   // 开关
+    { x1: 380, y1: 120, x2: 440, y2: 120, len: 60 },   // 开关到电阻左
+    { x1: 440, y1: 120, x2: 560, y2: 120, len: 120 },  // 电阻到节点A
+    { x1: 560, y1: 120, x2: 560, y2: 180, len: 60 }    // 节点A下行
+  ];
+  // 灯泡支路段（节点A → 灯泡 → 节点B）：
+  const lampSegments = [
+    { x1: 560, y1: 180, x2: 480, y2: 180, len: 80 },   // 节点A到灯泡左
+    { x1: 480, y1: 180, x2: 480, y2: 240, len: 60 },   // 灯泡上行（粒子穿过灯泡）
+    { x1: 480, y1: 240, x2: 480, y2: 300, len: 60 },   // 灯泡到节点B
+    { x1: 480, y1: 300, x2: 560, y2: 300, len: 80 }    // 到节点B
+  ];
+  // 电容支路段（节点A → 电容 → 节点B）：
+  const capSegments = [
+    { x1: 560, y1: 180, x2: 640, y2: 180, len: 80 },   // 节点A到电容右
+    { x1: 640, y1: 180, x2: 640, y2: 240, len: 60 },   // 电容上行
+    { x1: 640, y1: 240, x2: 640, y2: 300, len: 60 },   // 电容到节点B
+    { x1: 640, y1: 300, x2: 560, y2: 300, len: 80 }    // 到节点B
+  ];
+  // 回流段（节点B → 底部 → 电源-）：
+  const returnSegments = [
+    { x1: 560, y1: 300, x2: 560, y2: 360, len: 60 },  // 节点B下行
+    { x1: 560, y1: 360, x2: 120, y2: 360, len: 440 },  // 底部水平
+    { x1: 120, y1: 360, x2: 120, y2: 250, len: 110 }   // 电源- 上行
+  ];
+
+  const mainLen = mainSegments.reduce((s, seg) => s + seg.len, 0);
+  const lampLen = lampSegments.reduce((s, seg) => s + seg.len, 0);
+  const capLen = capSegments.reduce((s, seg) => s + seg.len, 0);
+  const returnLen = returnSegments.reduce((s, seg) => s + seg.len, 0);
+
+  function getPointOnSegments(segments, progress) {
+    let remaining = progress;
+    for (const seg of segments) {
+      if (remaining <= seg.len) {
+        const ratio = seg.len === 0 ? 0 : remaining / seg.len;
+        return {
+          x: seg.x1 + (seg.x2 - seg.x1) * ratio,
+          y: seg.y1 + (seg.y2 - seg.y1) * ratio
+        };
+      }
+      remaining -= seg.len;
+    }
+    const last = segments[segments.length - 1];
+    return { x: last.x2, y: last.y2 };
+  }
+
+  function spawnParticle(branch) {
+    // branch: "lamp" | "cap"
+    state.particles.push({
+      branch,
+      progress: 0,        // 在当前段内的进度（0~1）
+      phase: "main",      // "main" | "branch" | "return"
+      life: 1
+    });
+  }
+
+  function updateParticles(dt) {
+    const iAbs = Math.abs(state.i);
+    if (iAbs < 1e-7) return;
+
+    // 粒子生成频率与总电流成正比
+    state.particleTimer += dt;
+    const spawnInterval = clamp(0.12 / Math.max(0.05, iAbs * 1000), 0.02, 0.5);
+    while (state.particleTimer >= spawnInterval && state.particles.length < 80) {
+      state.particleTimer -= spawnInterval;
+      // 按支路电流比例分配粒子
+      const iLampAbs = Math.abs(state.iLamp);
+      const iCapAbs = Math.max(0, iAbs - iLampAbs); // 电容支路电流
+      const total = iLampAbs + iCapAbs;
+      const branch = total > 0 && (iLampAbs / total) > Math.random() ? "lamp" : "cap";
+      spawnParticle(branch);
+    }
+
+    // 粒子移动速度与电流成正比
+    const speed = clamp(iAbs * 0.8, 0.05, 0.5);
+    const direction = state.i > 0 ? 1 : -1;
+
+    for (const p of state.particles) {
+      if (p.phase === "main") {
+        p.progress += (speed * dt * mainLen) / (mainLen + returnLen) * direction;
+        if (p.progress >= 1) {
+          p.phase = "branch";
+          p.progress = 0;
+        } else if (p.progress < 0) {
+          p.progress = 0;
+        }
+      } else if (p.phase === "branch") {
+        const segs = p.branch === "lamp" ? lampSegments : capSegments;
+        const segLen = p.branch === "lamp" ? lampLen : capLen;
+        p.progress += (speed * dt * segLen) / (segLen) * direction;
+        if (p.progress >= 1) {
+          p.phase = "return";
+          p.progress = 0;
+        } else if (p.progress < 0) {
+          p.phase = "main";
+          p.progress = 1;
+        }
+      } else if (p.phase === "return") {
+        p.progress += (speed * dt * returnLen) / (mainLen + returnLen) * direction;
+        if (p.progress >= 1) {
+          // 完成一圈，重新从主干开始
+          p.phase = "main";
+          p.progress = 0;
+        } else if (p.progress < 0) {
+          p.phase = "branch";
+          p.progress = 1;
+        }
+      }
+    }
+
+    // 限制粒子数量
+    if (state.particles.length > 60) {
+      state.particles = state.particles.slice(-60);
+    }
+  }
+
+  function renderParticles() {
+    const iAbs = Math.abs(state.i);
+    if (iAbs < 1e-7 || state.mode === "idle") {
+      el.particles.innerHTML = "";
+      return;
+    }
+    const color = state.i > 0 ? "#0f9fba" : "#d97706";
+    const opacity = clamp(iAbs * 800, 0.2, 0.9);
+    let html = "";
+    for (const p of state.particles) {
+      let pt;
+      if (p.phase === "main") {
+        pt = getPointOnSegments(mainSegments, p.progress * mainLen);
+      } else if (p.phase === "branch") {
+        const segs = p.branch === "lamp" ? lampSegments : capSegments;
+        const segLen = p.branch === "lamp" ? lampLen : capLen;
+        pt = getPointOnSegments(segs, p.progress * segLen);
+      } else {
+        pt = getPointOnSegments(returnSegments, p.progress * returnLen);
+      }
+      html += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3" fill="${color}" opacity="${opacity.toFixed(2)}" filter="url(#softGlow)"/>`;
+    }
+    el.particles.innerHTML = html;
+  }
+
+  // ===== 开关杠杆渲染 =====
+  function renderSwitch() {
+    if (state.mode === "idle") {
+      el.switchLever.setAttribute("x1", "320");
+      el.switchLever.setAttribute("y1", "120");
+      el.switchLever.setAttribute("x2", "375");
+      el.switchLever.setAttribute("y2", "82");
+      el.switchLever.setAttribute("stroke", "#6b7280");
+    } else {
+      el.switchLever.setAttribute("x1", "320");
+      el.switchLever.setAttribute("y1", "120");
+      el.switchLever.setAttribute("x2", "375");
+      el.switchLever.setAttribute("y2", "120");
+      el.switchLever.setAttribute("stroke", state.mode === "charge" ? "#0f9fba" : "#d97706");
+    }
+  }
+
+  // ===== 灯泡渲染 =====
+  // 并联拓扑：灯泡电压 = Vc，亮度按 I_L / I_L_max 线性映射
+  // I_L_max = V0 / R_LAMP（充电稳态时的灯泡电流）
+  function renderBulb() {
+    const iLampAbs = Math.abs(state.iLamp);
+    const iLampMax = V0 / R_LAMP;
+    const brightness = iLampMax > 0 ? clamp(iLampAbs / iLampMax, 0, 1) : 0;
+    el.bulbHalo.setAttribute("opacity", (brightness * 0.9).toFixed(2));
+    el.bulbHalo.setAttribute("r", (30 + brightness * 35).toFixed(0));
+  }
+
+  // ===== 电容电荷指示 =====
+  function renderCapacitor() {
+    const ratio = state.vc / V0;
+    if (ratio > 0.05) {
+      el.capCharge.setAttribute("opacity", clamp(ratio, 0, 1).toFixed(2));
+      el.capCharge.textContent = state.mode === "discharge" ? "− − −" : "+ + +";
+      el.capCharge.setAttribute("fill", state.mode === "discharge" ? "#d97706" : "#0f9fba");
+    } else {
+      el.capCharge.setAttribute("opacity", "0");
+    }
+  }
+
+  // ===== 电流方向标签 =====
+  function renderCurrentDir() {
+    if (state.mode === "idle" || Math.abs(state.i) < 1e-7) {
+      el.currentDir.setAttribute("opacity", "0");
+    } else {
+      el.currentDir.setAttribute("opacity", "0.8");
+      el.currentDir.setAttribute("fill", state.i > 0 ? "#0f9fba" : "#d97706");
+      el.currentDir.textContent = state.i > 0 ? "→ 充电电流" : "← 放电电流";
+    }
+  }
+
+  // ===== 图表渲染 =====
+  function renderChart() {
+    const tau = getTau();
+    const maxTime = Math.max(tau * 5, state.t, 1);
+    const maxV = V0;
+    const R_ohm = state.R * 1000;
+    const maxI = V0 / R_ohm * 1000; // mA
+
+    const xScale = (t) => 40 + (t / maxTime) * 340;
+    const yScaleV = (v) => 170 - (v / maxV) * 150;
+    const yScaleI = (i) => 170 - (Math.abs(i) * 1000 / maxI) * 150;
+
+    // τ 标记线
+    const tauX = xScale(tau);
+    el.tauMarker.setAttribute("x1", tauX);
+    el.tauMarker.setAttribute("y1", "20");
+    el.tauMarker.setAttribute("x2", tauX);
+    el.tauMarker.setAttribute("y2", "170");
+    el.tauLabel.setAttribute("x", tauX + 4);
+    el.tauLabel.setAttribute("y", "32");
+    el.tauLabel.textContent = `τ=${tau.toFixed(2)}s`;
+
+    // 历史轨迹
+    if (state.history.length > 1) {
+      const pointsV = state.history.map(s => `${xScale(s.t).toFixed(1)},${yScaleV(s.vc).toFixed(1)}`).join(" ");
+      const pointsI = state.history.map(s => `${xScale(s.t).toFixed(1)},${yScaleI(s.i).toFixed(1)}`).join(" ");
+      el.traceV.setAttribute("points", pointsV);
+      el.traceI.setAttribute("points", pointsI);
+    } else {
+      el.traceV.setAttribute("points", "");
+      el.traceI.setAttribute("points", "");
+    }
+
+    // 当前点标记
+    const cx = xScale(state.t);
+    el.markerV.setAttribute("cx", cx);
+    el.markerV.setAttribute("cy", yScaleV(state.vc));
+    el.markerI.setAttribute("cx", cx);
+    el.markerI.setAttribute("cy", yScaleI(state.i));
+
+    // 图表显示控制
+    const showV = state.chartView === "voltage" || state.chartView === "both";
+    const showI = state.chartView === "current" || state.chartView === "both";
+    el.traceV.style.opacity = showV ? "1" : "0";
+    el.markerV.style.opacity = showV ? "1" : "0";
+    el.traceI.style.opacity = showI ? "0.85" : "0";
+    el.markerI.style.opacity = showI ? "1" : "0";
+  }
+
+  // ===== 读数渲染 =====
+  function renderReadouts() {
+    const tau = getTau();
+    const iMA = Math.abs(state.i) * 1000;
+    const iLampMA = Math.abs(state.iLamp) * 1000;
+    const iLampMax = V0 / R_LAMP;
+    const brightness = iLampMax > 0 ? clamp(Math.abs(state.iLamp) / iLampMax, 0, 1) : 0;
+
+    el.vcReadout.textContent = `${state.vc.toFixed(2)} V`;
+    el.iReadout.textContent = `${iMA.toFixed(2)} mA`;
+    el.iLampReadout.textContent = `${iLampMA.toFixed(2)} mA`;
+    el.brightnessReadout.textContent = `${(brightness * 100).toFixed(0)}%`;
+    el.timeReadout.textContent = `${state.t.toFixed(2)} s`;
+    el.tauReadout.textContent = `${tau.toFixed(2)} s`;
+    el.rOutput.textContent = `${state.R.toFixed(1)} kΩ`;
+    el.cOutput.textContent = `${state.C.toFixed(0)} μF`;
+  }
+
+  // ===== 洞察文本 =====
+  function renderInsight() {
+    const tau = getTau();
+    const iMA = Math.abs(state.i) * 1000;
+    const iLampMA = Math.abs(state.iLamp) * 1000;
+    const vcRatio = state.vc / V0;
+
+    if (!state.running && state.t === 0) {
+      el.insight.textContent = `选择"充电"模式并按"开始"。开关闭合瞬间电容相当于短路，灯泡两端电压为零、灯泡最暗；随电容充电，Vc 上升，灯泡渐亮。当前 τ = ${tau.toFixed(2)} s。`;
+    } else if (state.mode === "charge") {
+      if (state.t < tau * 0.3) {
+        el.insight.textContent = `充电初期：总电流最大（${iMA.toFixed(1)} mA），但 Vc 很低，灯泡电流仅 ${iLampMA.toFixed(1)} mA，灯泡较暗。电容快速充电。`;
+      } else if (vcRatio < 0.95) {
+        el.insight.textContent = `充电中段：Vc = ${state.vc.toFixed(2)} V（${(vcRatio*100).toFixed(0)}% of V₀）。总电流衰减，但灯泡电流升至 ${iLampMA.toFixed(1)} mA，灯泡渐亮。τ = ${tau.toFixed(2)} s。`;
+      } else {
+        el.insight.textContent = `充电完成：Vc ≈ V₀ = ${V0} V，总电流趋近零，灯泡电流达最大 ${iLampMA.toFixed(1)} mA，灯泡最亮。电容已充满。`;
+      }
+    } else if (state.mode === "discharge") {
+      if (state.t < tau * 0.3) {
+        el.insight.textContent = `放电初期：Vc = ${state.vc.toFixed(2)} V，灯泡电流 ${iLampMA.toFixed(1)} mA，灯泡较亮。电容开始放电。`;
+      } else if (state.vc > 0.5) {
+        el.insight.textContent = `放电中段：Vc = ${state.vc.toFixed(2)} V。灯泡电流降至 ${iLampMA.toFixed(1)} mA，灯泡渐暗。`;
+      } else {
+        el.insight.textContent = `放电完成：Vc ≈ 0 V，灯泡电流趋近零，灯泡熄灭。电容已放空。`;
+      }
+    } else {
+      el.insight.textContent = `电路断开：无电流流过。电容保持 Vc = ${state.vc.toFixed(2)} V，灯泡电流 ${iLampMA.toFixed(1)} mA。`;
+    }
+  }
+
+  // ===== 状态栏 =====
+  function renderStatus() {
+    const modeText = { charge: "充电中", idle: "断开", discharge: "放电中" };
+    if (state.running) {
+      el.status.textContent = `${modeText[state.mode]} · 运行`;
+    } else if (state.t > 0) {
+      el.status.textContent = `${modeText[state.mode]} · 暂停`;
+    } else {
+      el.status.textContent = "就绪";
+    }
+  }
+
+  // ===== 主渲染 =====
+  function render() {
+    renderSwitch();
+    renderBulb();
+    renderCapacitor();
+    renderCurrentDir();
+    renderParticles();
+    renderChart();
+    renderReadouts();
+    renderInsight();
+    renderStatus();
+  }
+
+  // ===== 更新 =====
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    if (state.mode === "idle") return;
+
+    state.t += boundedDt;
+    const result = computeState(state.t, state.mode, state.vcStart || 0);
+    state.vc = finite(result.vc, 0);
+    state.i = finite(result.i, 0);
+    state.iLamp = finite(result.iLamp, 0);
+
+    // 记录历史
+    if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.02) {
+      state.history.push({ t: state.t, vc: state.vc, i: state.i, iLamp: state.iLamp });
+      if (state.history.length > 500) state.history.shift();
+    }
+
+    updateParticles(boundedDt);
+  }
+
+  // ===== 生命周期 =====
+  function start() {
+    if (state.mode === "idle") return;
+    state.running = true;
+    state.lastTimestamp = null;
+    el.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    el.startBtn.setAttribute("aria-pressed", "false");
+    renderStatus();
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.vc = 0;
+    state.i = 0;
+    state.iLamp = 0;
+    state.vcStart = 0;
+    state.history = [{ t: 0, vc: 0, i: 0, iLamp: 0 }];
+    state.particles = [];
+    state.particleTimer = 0;
+    render();
+  }
+
+  function setMode(mode) {
+    state.vcStart = state.vc;
+    state.t = 0;
+    state.mode = mode;
+    state.history = [{ t: 0, vc: state.vc, i: 0, iLamp: state.vc / R_LAMP }];
+    state.particles = [];
+
+    el.modeBtns.forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.mode === mode);
+    });
+
+    const result = computeState(0, mode, state.vcStart);
+    state.vc = result.vc;
+    state.i = result.i;
+    state.iLamp = result.iLamp;
+    render();
+  }
+
+  function setParameters(values) {
+    const rDef = parameterSchema[0], cDef = parameterSchema[1];
+    state.R = clamp(finite(Number(values.R), rDef.default), rDef.min, rDef.max);
+    state.C = clamp(finite(Number(values.C), cDef.default), cDef.min, cDef.max);
+    el.rInput.value = String(state.R);
+    el.cInput.value = String(state.C);
+
+    const result = computeState(state.t, state.mode, state.vcStart || 0);
+    state.vc = result.vc;
+    state.i = result.i;
+    state.iLamp = result.iLamp;
+    render();
+  }
+
+  function getState() {
+    return { ...state, history: state.history.map(s => ({ ...s })) };
+  }
+
+  function getReadouts() {
+    return { vc: state.vc, i: state.i, iLamp: state.iLamp, t: state.t, tau: getTau(), mode: state.mode };
+  }
+
+  // ===== 模型检查 =====
+  function runModelChecks() {
+    const tau = 1 * 1000 * 470 * 1e-6; // R=1kΩ, C=470μF → 0.47s
+    const R_ohm = 1000;
+
+    // 充电：t=0 时 Vc=0, I_总=V0/R, I_灯=0
+    const c0 = computeState(0, "charge", 0);
+    const chargeInitial = Math.abs(c0.vc - 0) < 1e-10
+      && Math.abs(c0.i - V0 / R_ohm) < 1e-10
+      && Math.abs(c0.iLamp - 0) < 1e-10;
+
+    // 充电：t=τ 时 Vc = V0*(1-1/e) ≈ 0.632*V0, I_总 = (V0/R)/e, I_灯 = Vc/R_L
+    const cTau = computeState(tau, "charge", 0);
+    const chargeTauVc = Math.abs(cTau.vc - V0 * (1 - Math.exp(-1))) < 1e-6;
+    const chargeTauI = Math.abs(cTau.i - (V0 / R_ohm) * Math.exp(-1)) < 1e-6;
+    const chargeTauILamp = Math.abs(cTau.iLamp - cTau.vc / R_LAMP) < 1e-6;
+
+    // 充电：t→∞ 时 Vc→V0, I_总→0, I_灯→V0/R_L
+    const cInf = computeState(tau * 20, "charge", 0);
+    const chargeInf = cInf.vc > V0 * 0.999
+      && cInf.i < V0 / R_ohm * 0.001
+      && Math.abs(cInf.iLamp - V0 / R_LAMP) < 1e-6;
+
+    // 放电：t=0 时 Vc=Vc0, I_总=-Vc0/R, I_灯=Vc0/R_L
+    const vc0 = 8;
+    const d0 = computeState(0, "discharge", vc0);
+    const dischargeInitial = Math.abs(d0.vc - vc0) < 1e-10
+      && Math.abs(d0.i - (-vc0 / R_ohm)) < 1e-10
+      && Math.abs(d0.iLamp - vc0 / R_LAMP) < 1e-6;
+
+    // 放电：t=τ 时 Vc = Vc0/e, I_灯 = Vc/R_L
+    const dTau = computeState(tau, "discharge", vc0);
+    const dischargeTau = Math.abs(dTau.vc - vc0 * Math.exp(-1)) < 1e-6;
+    const dischargeTauILamp = Math.abs(dTau.iLamp - dTau.vc / R_LAMP) < 1e-6;
+
+    // 放电：t→∞ 时 Vc→0, I→0, I_灯→0
+    const dInf = computeState(tau * 20, "discharge", vc0);
+    const dischargeInf = dInf.vc < 0.001 && Math.abs(dInf.i) < 1e-6 && Math.abs(dInf.iLamp) < 1e-6;
+
+    // τ 敏感性：R 增大 → τ 增大
+    const stateOrig = { R: state.R, C: state.C };
+    state.R = 2; state.C = 470;
+    const tau2 = getTau();
+    state.R = 1; state.C = 470;
+    const tau1 = getTau();
+    state.R = stateOrig.R; state.C = stateOrig.C;
+    const tauSensitivity = tau2 > tau1;
+
+    // C 增大 → τ 增大
+    state.R = 1; state.C = 1000;
+    const tau3 = getTau();
+    state.R = stateOrig.R; state.C = stateOrig.C;
+    const cSensitivity = tau3 > tau1;
+
+    // 充电电流方向为正
+    const chargeDir = c0.i > 0;
+    // 放电电流方向为负
+    const dischargeDir = d0.i < 0;
+
+    // 并联约束：灯泡电压 = 电容电压（I_灯 = Vc / R_L）
+    const parallelConstraint = Math.abs(cTau.iLamp - cTau.vc / R_LAMP) < 1e-10
+      && Math.abs(dTau.iLamp - dTau.vc / R_LAMP) < 1e-10;
+
+    // 充电时灯泡电流随时间增大（Vc 上升 → I_灯 上升）
+    const cQuarter = computeState(tau * 0.25, "charge", 0);
+    const cHalf = computeState(tau * 0.5, "charge", 0);
+    const lampCurrentIncreasing = cHalf.iLamp > cQuarter.iLamp;
+
+    // 充电时总电流随时间减小
+    const totalCurrentDecreasing = cHalf.i < cQuarter.i;
+
+    return [
+      { name: "充电初始 Vc=0, I_总=V0/R, I_灯=0", pass: chargeInitial, expected: `Vc=0, I=${(V0/R_ohm*1000).toFixed(2)}mA, I_L=0`, actual: `Vc=${c0.vc.toFixed(4)}, I=${(c0.i*1000).toFixed(4)}mA, I_L=${(c0.iLamp*1000).toFixed(4)}mA`, tolerance: "1e-10" },
+      { name: "充电 t=τ 时 Vc≈0.632V0", pass: chargeTauVc, expected: `${(V0*(1-Math.exp(-1))).toFixed(4)}V`, actual: `${cTau.vc.toFixed(4)}V`, tolerance: "1e-6" },
+      { name: "充电 t=τ 时 I_总=(V0/R)/e", pass: chargeTauI, expected: `${((V0/R_ohm)*Math.exp(-1)*1000).toFixed(4)}mA`, actual: `${(cTau.i*1000).toFixed(4)}mA`, tolerance: "1e-6" },
+      { name: "充电 t=τ 时 I_灯=Vc/R_L", pass: chargeTauILamp, expected: `${(cTau.vc/R_LAMP*1000).toFixed(4)}mA`, actual: `${(cTau.iLamp*1000).toFixed(4)}mA`, tolerance: "1e-6" },
+      { name: "充电稳态 Vc→V0, I_总→0, I_灯→V0/R_L", pass: chargeInf, expected: `Vc≈12V, I≈0, I_L=${(V0/R_LAMP*1000).toFixed(1)}mA`, actual: `Vc=${cInf.vc.toFixed(4)}V, I=${(cInf.i*1000).toFixed(6)}mA, I_L=${(cInf.iLamp*1000).toFixed(4)}mA`, tolerance: "0.1%" },
+      { name: "放电初始 Vc=Vc0, I_总=-Vc0/R, I_灯=Vc0/R_L", pass: dischargeInitial, expected: `Vc=${vc0}V, I=-${(vc0/R_ohm*1000)}mA, I_L=${(vc0/R_LAMP*1000)}mA`, actual: `Vc=${d0.vc.toFixed(4)}V, I=${(d0.i*1000).toFixed(4)}mA, I_L=${(d0.iLamp*1000).toFixed(4)}mA`, tolerance: "1e-10" },
+      { name: "放电 t=τ 时 Vc≈0.368Vc0", pass: dischargeTau, expected: `${(vc0*Math.exp(-1)).toFixed(4)}V`, actual: `${dTau.vc.toFixed(4)}V`, tolerance: "1e-6" },
+      { name: "放电 t=τ 时 I_灯=Vc/R_L", pass: dischargeTauILamp, expected: `${(dTau.vc/R_LAMP*1000).toFixed(4)}mA`, actual: `${(dTau.iLamp*1000).toFixed(4)}mA`, tolerance: "1e-6" },
+      { name: "放电稳态 Vc→0, I→0, I_灯→0", pass: dischargeInf, expected: `Vc≈0, I≈0, I_L≈0`, actual: `Vc=${dInf.vc.toFixed(4)}V, I=${(dInf.i*1000).toFixed(6)}mA, I_L=${(dInf.iLamp*1000).toFixed(6)}mA`, tolerance: "0.1%" },
+      { name: "τ 随 R 增大而增大", pass: tauSensitivity, expected: "τ(2kΩ) > τ(1kΩ)", actual: `${tau2.toFixed(4)} > ${tau1.toFixed(4)}`, tolerance: "strict" },
+      { name: "τ 随 C 增大而增大", pass: cSensitivity, expected: "τ(1000μF) > τ(470μF)", actual: `${tau3.toFixed(4)} > ${tau1.toFixed(4)}`, tolerance: "strict" },
+      { name: "充电电流方向为正", pass: chargeDir, expected: "I > 0", actual: `I=${(c0.i*1000).toFixed(4)}mA`, tolerance: "strict" },
+      { name: "放电电流方向为负", pass: dischargeDir, expected: "I < 0", actual: `I=${(d0.i*1000).toFixed(4)}mA`, tolerance: "strict" },
+      { name: "并联约束 I_灯=Vc/R_L（充电+放电）", pass: parallelConstraint, expected: "I_L = Vc / R_L", actual: `charge: ${cTau.iLamp.toFixed(6)} vs ${cTau.vc/R_LAMP} | discharge: ${dTau.iLamp.toFixed(6)} vs ${dTau.vc/R_LAMP}`, tolerance: "1e-10" },
+      { name: "充电时灯泡电流随时间增大", pass: lampCurrentIncreasing, expected: "I_L(t=0.5τ) > I_L(t=0.25τ)", actual: `${(cHalf.iLamp*1000).toFixed(4)} > ${(cQuarter.iLamp*1000).toFixed(4)}mA`, tolerance: "strict" },
+      { name: "充电时总电流随时间减小", pass: totalCurrentDecreasing, expected: "I_总(t=0.5τ) < I_总(t=0.25τ)", actual: `${(cHalf.i*1000).toFixed(4)} < ${(cQuarter.i*1000).toFixed(4)}mA`, tolerance: "strict" }
+    ];
+  }
+
+  // ===== 绑定控件 =====
+  function bindControls() {
+    el.startBtn.addEventListener("click", start);
+    el.pauseBtn.addEventListener("click", pause);
+    el.resetBtn.addEventListener("click", reset);
+
+    el.modeBtns.forEach(btn => {
+      btn.addEventListener("click", () => setMode(btn.dataset.mode));
+    });
+
+    el.rInput.addEventListener("input", () => setParameters({ R: el.rInput.value, C: state.C }));
+    el.cInput.addEventListener("input", () => setParameters({ R: state.R, C: el.cInput.value }));
+
+    el.chartTabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        el.chartTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        state.chartView = tab.dataset.chart;
+        renderChart();
+      });
+    });
+  }
+
+  // ===== 帧循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 初始化 =====
+  function init() {
+    initChartGrid();
+    bindControls();
+    setParameters({ R: 1, C: 470 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, setMode, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

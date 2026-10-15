@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Strange Attractor · 数学艺术</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #05060d;
+  --sim-surface: rgba(14, 18, 32, 0.72);
+  --sim-surface-soft: rgba(20, 26, 44, 0.55);
+  --sim-text: #eaf0ff;
+  --sim-muted: #8a93b0;
+  --sim-border: rgba(120, 140, 200, 0.18);
+  --sim-grid: rgba(120, 140, 200, 0.08);
+  --sim-accent: #22d3ee;
+  --sim-accent-deep: #0891b2;
+  --sim-accent-soft: rgba(34, 211, 238, 0.16);
+  --sim-positive: #22d3ee;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--sim-bg); }
+body {
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid rgba(34, 211, 238, 0.55); outline-offset: 2px; }
+
+.app {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* HEADER */
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 18px; padding: 18px 26px 10px;
+  z-index: 10; pointer-events: none;
+}
+.header .title-block { pointer-events: auto; }
+.header h1 {
+  margin: 0 0 4px;
+  font-size: clamp(1.25rem, 1.6vw, 1.6rem);
+  font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
+  background: linear-gradient(135deg, #eaf0ff 0%, #67e8f9 60%, #c084fc 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.78rem; letter-spacing: 0.04em; }
+.status {
+  pointer-events: auto;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 999px; padding: 7px 14px;
+  background: var(--sim-accent-soft); color: #67e8f9;
+  font-weight: 700; font-size: 0.75rem; white-space: nowrap;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* STAGE */
+.stage {
+  position: relative; min-height: 0; overflow: hidden;
+}
+#scene-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+}
+.attractor-label {
+  position: absolute; top: 18px; left: 26px;
+  z-index: 5; pointer-events: none;
+  font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--sim-muted);
+}
+.attractor-label strong {
+  display: block; margin-top: 4px;
+  font-size: 1.05rem; letter-spacing: 0.02em; text-transform: none;
+  color: #eaf0ff; font-weight: 600;
+}
+.hint {
+  position: absolute; bottom: 14px; left: 26px;
+  z-index: 5; pointer-events: none;
+  font-size: 0.68rem; color: rgba(138, 147, 176, 0.6);
+  letter-spacing: 0.05em;
+}
+
+/* EVIDENCE & INSIGHT */
+.evidence {
+  position: absolute; top: 18px; right: 26px;
+  z-index: 5; pointer-events: none;
+  display: flex; flex-direction: column; gap: 10px;
+  width: 220px;
+}
+.evidence-panel {
+  pointer-events: auto;
+  background: var(--sim-surface);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  box-shadow: var(--sim-shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  padding: 14px 16px;
+}
+.evidence-panel h2 {
+  margin: 0 0 10px;
+  font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--sim-muted); font-weight: 600;
+}
+.readout-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+.metric small {
+  display: block; margin-bottom: 4px;
+  color: var(--sim-muted); font-size: 0.65rem;
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.metric strong {
+  font-size: 1.1rem; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; color: #eaf0ff;
+}
+.insight {
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 8px 8px 0;
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24 !important;
+  font-weight: 600; font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* CONTROLS — floating glass dock */
+.controls {
+  position: relative;
+  margin: 0 22px 18px;
+  padding: 14px 18px 16px;
+  background: var(--sim-surface);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+  box-shadow: var(--sim-shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+}
+.controls-left {
+  display: flex; flex-direction: column; gap: 10px;
+  min-width: 0;
+}
+.preset-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.preset-row button {
+  padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface-soft);
+  color: var(--sim-text); font-weight: 600; font-size: 0.78rem;
+  cursor: pointer; transition: all 0.18s ease;
+  letter-spacing: 0.02em;
+}
+.preset-row button:hover { border-color: rgba(34, 211, 238, 0.4); background: rgba(34, 211, 238, 0.08); }
+.preset-row button[aria-pressed="true"] {
+  border-color: var(--sim-accent);
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #021018;
+  box-shadow: 0 4px 14px rgba(34, 211, 238, 0.3);
+}
+.action-row { display: flex; gap: 6px; }
+.action-row button {
+  padding: 8px 12px; border-radius: 10px;
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface-soft);
+  color: var(--sim-text); font-weight: 600; font-size: 0.75rem;
+  cursor: pointer; transition: all 0.18s ease;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.action-row button:hover { border-color: rgba(34, 211, 238, 0.4); background: rgba(34, 211, 238, 0.08); }
+.action-row button[aria-pressed="true"] {
+  border-color: var(--sim-accent); color: #67e8f9;
+  background: rgba(34, 211, 238, 0.12);
+}
+.action-row button.primary {
+  border-color: var(--sim-accent-deep);
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #021018;
+}
+.action-row button.primary:hover { filter: brightness(1.1); }
+
+.controls-right {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+}
+.ctrl { min-width: 0; }
+.ctrl label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 8px; margin-bottom: 6px;
+  font-size: 0.7rem; font-weight: 600; color: var(--sim-muted);
+  letter-spacing: 0.04em;
+}
+.ctrl label .name { color: #c8d0e8; }
+.ctrl output {
+  color: #67e8f9; font-variant-numeric: tabular-nums;
+  font-size: 0.72rem; font-weight: 700;
+}
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px;
+  background: rgba(120, 140, 200, 0.18);
+  border-radius: 999px; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #eaf0ff; border: 2px solid var(--sim-accent);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+  cursor: pointer; transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #eaf0ff; border: 2px solid var(--sim-accent);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+  cursor: pointer;
+}
+
+/* loading overlay */
+.loader {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sim-bg);
+  transition: opacity 0.6s ease;
+}
+.loader.hidden { opacity: 0; pointer-events: none; }
+.loader .ring {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 2px solid rgba(34, 211, 238, 0.15);
+  border-top-color: var(--sim-accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 980px) {
+  .controls { grid-template-columns: 1fr; margin: 0 12px 12px; padding: 12px; }
+  .controls-right { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .header { padding: 12px 16px 8px; }
+  .evidence { width: 180px; right: 16px; top: 12px; }
+}
+@media (max-width: 560px) {
+  .controls-right { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .header h1 { font-size: 1.1rem; }
+  .header p { display: none; }
+  .evidence { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="quantitative">
+  <header class="header" data-region="header">
+    <div class="title-block">
+      <h1>Strange Attractor</h1>
+      <p>LORENZ · RANDOM · BUTTERFLY — GPU particle flow art</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">Loading</div>
+  </header>
+
+  <section class="stage" data-region="stage" aria-label="3D strange attractor particle field">
+    <div class="attractor-label">
+      Current Attractor
+      <strong id="attractorName">Lorenz</strong>
+    </div>
+    <canvas id="scene-canvas"></canvas>
+    <div class="hint">drag to orbit · scroll to zoom</div>
+    <div class="loader" id="loader"><div class="ring"></div></div>
+
+    <aside class="evidence" data-region="evidence">
+      <section class="evidence-panel" aria-label="Live values">
+        <h2>Live State</h2>
+        <div class="readout-grid">
+          <div class="metric"><small>σ Sigma</small><strong id="sigmaRead">10.0</strong></div>
+          <div class="metric"><small>ρ Rho</small><strong id="rhoRead">28.0</strong></div>
+          <div class="metric"><small>β Beta</small><strong id="betaRead">2.667</strong></div>
+          <div class="metric"><small>Particles</small><strong id="countRead">8000</strong></div>
+        </div>
+      </section>
+      <section class="evidence-panel" data-region="insight" aria-label="Model insight">
+        <h2>Insight</h2>
+        <p id="insight" class="insight">Chaotic flow: deterministic rules, yet trajectories diverge exponentially. Tiny parameter shifts reshape the whole attractor.</p>
+      </section>
+    </aside>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="Simulation controls">
+    <div class="controls-left">
+      <div class="preset-row" role="group" aria-label="Attractor presets">
+        <button type="button" data-preset="lorenz" aria-pressed="true">Lorenz</button>
+        <button type="button" data-preset="random" aria-pressed="false">Random</button>
+        <button type="button" data-preset="butterfly" aria-pressed="false">Butterfly</button>
+      </div>
+      <div class="action-row">
+        <button type="button" id="autoCamBtn" aria-pressed="true">Auto Camera</button>
+        <button type="button" id="pauseBtn" class="primary">Pause</button>
+        <button type="button" id="resetBtn">Reset</button>
+      </div>
+    </div>
+    <div class="controls-right">
+      <div class="ctrl">
+        <label><span class="name">σ sigma</span><output id="sigmaOut">10.0</output></label>
+        <input type="range" id="sigmaInput" min="1" max="20" step="0.1" value="10">
+      </div>
+      <div class="ctrl">
+        <label><span class="name">ρ rho</span><output id="rhoOut">28.0</output></label>
+        <input type="range" id="rhoInput" min="1" max="60" step="0.1" value="28">
+      </div>
+      <div class="ctrl">
+        <label><span class="name">β beta</span><output id="betaOut">2.667</output></label>
+        <input type="range" id="betaInput" min="0.1" max="6" step="0.01" value="2.667">
+      </div>
+      <div class="ctrl">
+        <label><span class="name">Particles</span><output id="countOut">8000</output></label>
+        <input type="range" id="countInput" min="1000" max="20000" step="500" value="8000">
+      </div>
+      <div class="ctrl">
+        <label><span class="name">Trail</span><output id="trailOut">40</output></label>
+        <input type="range" id="trailInput" min="4" max="120" step="1" value="40">
+      </div>
+      <div class="ctrl">
+        <label><span class="name">Speed</span><output id="speedOut">1.0</output></label>
+        <input type="range" id="speedInput" min="0.1" max="3" step="0.05" value="1.0">
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ===== State =====
+const state = {
+  running: true,
+  preset: 'lorenz',
+  sigma: 10, rho: 28, beta: 8/3,
+  particleCount: 8000,
+  trailLength: 40,
+  speed: 1.0,
+  autoCam: true,
+  // model
+  positions: null,   // Float32Array [count * trailLen * 3]
+  heads: null,       // Float32Array [count * 3] current head per particle
+  writeIdx: 0,       // ring buffer write index (0..trailLength-1)
+  // three
+  scene: null, camera: null, renderer: null, composer: null,
+  points: null, geometry: null, material: null, controls: null, bloom: null,
+  // camera animation
+  camTheta: 0, camPhi: 1.0, camRadius: 90, camTargetRadius: 90,
+  // timing
+  lastTime: null,
+  // resize
+  width: 0, height: 0,
+};
+
+const PRESETS = {
+  lorenz:    { sigma: 10,   rho: 28,   beta: 8/3,    name: 'Lorenz' },
+  random:    { sigma: 14,    rho: 35,   beta: 2.2,    name: 'Random' },
+  butterfly: { sigma: 10.2,  rho: 28,   beta: 8/3,    name: 'Butterfly' },
+};
+
+// ===== Lorenz RK4 integrator =====
+function lorenzDeriv(x, y, z, s, r, b) {
+  return [
+    s * (y - x),
+    x * (r - z) - y,
+    x * y - b * z
+  ];
+}
+function rk4Step(p, s, r, b, dt) {
+  const [x, y, z] = p;
+  const k1 = lorenzDeriv(x, y, z, s, r, b);
+  const k2 = lorenzDeriv(x + 0.5*dt*k1[0], y + 0.5*dt*k1[1], z + 0.5*dt*k1[2], s, r, b);
+  const k3 = lorenzDeriv(x + 0.5*dt*k2[0], y + 0.5*dt*k2[1], z + 0.5*dt*k2[2], s, r, b);
+  const k4 = lorenzDeriv(x + dt*k3[0], y + dt*k3[1], z + dt*k3[2], s, r, b);
+  return [
+    x + (dt/6) * (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]),
+    y + (dt/6) * (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]),
+    z + (dt/6) * (k1[2] + 2*k2[2] + 2*k3[2] + k4[2])
+  ];
+}
+
+// ===== Init particles =====
+function initParticles() {
+  const n = state.particleCount;
+  const trail = state.trailLength;
+  state.positions = new Float32Array(n * trail * 3);
+  state.heads = new Float32Array(n * 3);
+  // seed heads near origin with small random spread
+  for (let i = 0; i < n; i++) {
+    state.heads[i*3]   = (Math.random() - 0.5) * 2.0;
+    state.heads[i*3+1] = (Math.random() - 0.5) * 2.0;
+    state.heads[i*3+2] = (Math.random() - 0.5) * 2.0 + 20;
+  }
+  // pre-fill trail buffer by integrating a few hundred steps so the attractor is visible immediately
+  let p = new Array(n);
+  for (let i = 0; i < n; i++) p[i] = [state.heads[i*3], state.heads[i*3+1], state.heads[i*3+2]];
+  const fillSteps = 60;
+  const dt0 = 0.012;
+  for (let s = 0; s < fillSteps; s++) {
+    for (let i = 0; i < n; i++) {
+      p[i] = rk4Step(p[i], state.sigma, state.rho, state.beta, dt0);
+    }
+    // write into ring buffer at virtual index s
+    const wi = s % trail;
+    for (let i = 0; i < n; i++) {
+      const base = (i * trail + wi) * 3;
+      state.positions[base]   = p[i][0];
+      state.positions[base+1] = p[i][1];
+      state.positions[base+2] = p[i][2];
+    }
+  }
+  // heads = last integrated position
+  for (let i = 0; i < n; i++) {
+    state.heads[i*3]   = p[i][0];
+    state.heads[i*3+1] = p[i][1];
+    state.heads[i*3+2] = p[i][2];
+  }
+  state.writeIdx = fillSteps % trail;
+}
+
+// ===== Three.js setup =====
+function initThree() {
+  const canvas = document.getElementById('scene-canvas');
+  const stage = canvas.parentElement;
+  state.width = stage.clientWidth;
+  state.height = stage.clientHeight;
+
+  state.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  state.renderer.setSize(state.width, state.height);
+  state.renderer.setClearColor(0x05060d, 1);
+
+  state.scene = new THREE.Scene();
+  state.scene.fog = new THREE.FogExp2(0x05060d, 0.006);
+
+  state.camera = new THREE.PerspectiveCamera(55, state.width / state.height, 0.1, 1000);
+  state.camera.position.set(60, 40, 60);
+
+  state.controls = new OrbitControls(state.camera, canvas);
+  state.controls.enableDamping = true;
+  state.controls.dampingFactor = 0.06;
+  state.controls.rotateSpeed = 0.6;
+  state.controls.minDistance = 20;
+  state.controls.maxDistance = 250;
+  state.controls.autoRotate = false;
+
+  // post processing
+  state.composer = new EffectComposer(state.renderer);
+  state.composer.addPass(new RenderPass(state.scene, state.camera));
+  state.bloom = new UnrealBloomPass(new THREE.Vector2(state.width, state.height), 1.1, 0.6, 0.0);
+  state.composer.addPass(state.bloom);
+  state.composer.addPass(new OutputPass());
+
+  buildPoints();
+}
+
+function buildPoints() {
+  if (state.points) {
+    state.scene.remove(state.points);
+    state.geometry.dispose();
+    state.material.dispose();
+  }
+  const n = state.particleCount;
+  const trail = state.trailLength;
+  const total = n * trail;
+
+  state.geometry = new THREE.BufferGeometry();
+  const positions = state.positions;
+  // per-vertex color: gradient along trail index (head = bright, tail = dim)
+  const colors = new Float32Array(total * 3);
+  const sizes = new Float32Array(total);
+  for (let i = 0; i < n; i++) {
+    for (let t = 0; t < trail; t++) {
+      const idx = i * trail + t;
+      // t=0..trail-1, map to 0..1 where 1 = head
+      const f = t / (trail - 1);
+      // color: cyan -> magenta along trail
+      const r = 0.13 + f * 0.75;
+      const g = 0.82 - f * 0.5;
+      const b = 0.95 - f * 0.15;
+      colors[idx*3]   = r;
+      colors[idx*3+1] = g;
+      colors[idx*3+2] = b;
+      sizes[idx] = 0.6 + f * 1.8;
+    }
+  }
+  state.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  state.geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  state.geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+  state.geometry.setDrawRange(0, total);
+  state.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 25), 200);
+
+  state.material = new THREE.ShaderMaterial({
+    uniforms: {
+      uPixelRatio: { value: state.renderer.getPixelRatio() }
+    },
+    vertexShader: `
+      attribute vec3 aColor;
+      attribute float aSize;
+      varying vec3 vColor;
+      varying float vFade;
+      uniform float uPixelRatio;
+      void main() {
+        vColor = aColor;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        gl_PointSize = aSize * uPixelRatio * (300.0 / -mvPosition.z);
+        vFade = clamp(1.0 - (-mvPosition.z) / 300.0, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      varying float vFade;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        if (d > 0.5) discard;
+        float a = smoothstep(0.5, 0.0, d);
+        a = pow(a, 1.6);
+        gl_FragColor = vec4(vColor * a * 1.4, a * 0.85 * vFade);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  state.points = new THREE.Points(state.geometry, state.material);
+  state.scene.add(state.points);
+}
+
+// ===== Update model =====
+function updateModel(dt) {
+  if (!state.running) return;
+  const n = state.particleCount;
+  const trail = state.trailLength;
+  // sub-steps for stability at high speed
+  const subSteps = Math.max(1, Math.ceil(state.speed * 2));
+  const h = (0.012 * state.speed) / subSteps;
+  const heads = state.heads;
+  const s = state.sigma, r = state.rho, b = state.beta;
+  for (let k = 0; k < subSteps; k++) {
+    for (let i = 0; i < n; i++) {
+      const i3 = i * 3;
+      const x = heads[i3], y = heads[i3+1], z = heads[i3+2];
+      // RK4
+      const k1x = s*(y-x), k1y = x*(r-z)-y, k1z = x*y - b*z;
+      const x2 = x + 0.5*h*k1x, y2 = y + 0.5*h*k1y, z2 = z + 0.5*h*k1z;
+      const k2x = s*(y2-x2), k2y = x2*(r-z2)-y2, k2z = x2*y2 - b*z2;
+      const x3 = x + 0.5*h*k2x, y3 = y + 0.5*h*k2y, z3 = z + 0.5*h*k2z;
+      const k3x = s*(y3-x3), k3y = x3*(r-z3)-y3, k3z = x3*y3 - b*z3;
+      const x4 = x + h*k3x, y4 = y + h*k3y, z4 = z + h*k3z;
+      const k4x = s*(y4-x4), k4y = x4*(r-z4)-y4, k4z = x4*y4 - b*z4;
+      const nx = x + (h/6)*(k1x + 2*k2x + 2*k3x + k4x);
+      const ny = y + (h/6)*(k1y + 2*k2y + 2*k3y + k4y);
+      const nz = z + (h/6)*(k1z + 2*k2z + 2*k3z + k4z);
+      heads[i3] = nx; heads[i3+1] = ny; heads[i3+2] = nz;
+    }
+  }
+  // write heads into ring buffer at writeIdx
+  const wi = state.writeIdx;
+  for (let i = 0; i < n; i++) {
+    const base = (i * trail + wi) * 3;
+    state.positions[base]   = heads[i*3];
+    state.positions[base+1] = heads[i*3+1];
+    state.positions[base+2] = heads[i*3+2];
+  }
+  state.writeIdx = (wi + 1) % trail;
+  // upload to GPU
+  const attr = state.geometry.attributes.position;
+  attr.needsUpdate = true;
+}
+
+// ===== Camera auto-orbit =====
+function updateCamera(dt) {
+  if (!state.autoCam) {
+    state.controls.update();
+    return;
+  }
+  state.controls.update();
+  // slow cinematic orbit: drift azimuth, gentle phi oscillation
+  state.camTheta += dt * 0.08;
+  const targetPhi = 1.0 + Math.sin(state.camTheta * 0.3) * 0.25;
+  state.camPhi += (targetPhi - state.camPhi) * 0.02;
+  // radius breathing
+  const targetR = 80 + Math.sin(state.camTheta * 0.2) * 18;
+  state.camRadius += (targetR - state.camRadius) * 0.02;
+  const x = Math.sin(state.camTheta) * Math.sin(state.camPhi) * state.camRadius;
+  const y = Math.cos(state.camPhi) * state.camRadius * 0.6 + 10;
+  const z = Math.cos(state.camTheta) * Math.sin(state.camPhi) * state.camRadius;
+  state.camera.position.lerp(new THREE.Vector3(x, y, z), 0.04);
+  state.camera.lookAt(0, 0, 20);
+}
+
+// ===== Render loop =====
+function frame(timestamp) {
+  if (state.lastTime === null) state.lastTime = timestamp;
+  let dt = (timestamp - state.lastTime) / 1000;
+  state.lastTime = timestamp;
+  dt = Math.min(dt, 0.05);
+  updateModel(dt);
+  updateCamera(dt);
+  state.composer.render();
+  requestAnimationFrame(frame);
+}
+
+// ===== Controls binding =====
+function bindControls() {
+  const $ = id => document.getElementById(id);
+  const statusEl = $('status');
+
+  function setStatus(txt, color) {
+    statusEl.textContent = txt;
+    if (color) statusEl.style.color = color;
+  }
+
+  // presets
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.preset;
+      document.querySelectorAll('[data-preset]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+      state.preset = key;
+      const p = PRESETS[key];
+      state.sigma = p.sigma; state.rho = p.rho; state.beta = p.beta;
+      $('sigmaInput').value = p.sigma; $('sigmaOut').textContent = p.sigma.toFixed(1);
+      $('rhoInput').value = p.rho; $('rhoOut').textContent = p.rho.toFixed(1);
+      $('betaInput').value = p.beta; $('betaOut').textContent = p.beta.toFixed(3);
+      $('attractorName').textContent = p.name;
+      // reset trails on preset change
+      resetTrails();
+    });
+  });
+
+  // auto camera
+  const autoBtn = $('autoCamBtn');
+  autoBtn.addEventListener('click', () => {
+    state.autoCam = !state.autoCam;
+    autoBtn.setAttribute('aria-pressed', state.autoCam ? 'true' : 'false');
+  });
+
+  // pause
+  const pauseBtn = $('pauseBtn');
+  pauseBtn.addEventListener('click', () => {
+    state.running = !state.running;
+    pauseBtn.textContent = state.running ? 'Pause' : 'Resume';
+    pauseBtn.classList.toggle('primary', state.running);
+    setStatus(state.running ? 'Running' : 'Paused', state.running ? '#67e8f9' : '#f59e0b');
+  });
+
+  // reset
+  $('resetBtn').addEventListener('click', () => {
+    resetTrails();
+    state.camTheta = 0; state.camPhi = 1.0; state.camRadius = 90;
+  });
+
+  function resetTrails() {
+    initParticles();
+    if (state.geometry) {
+      state.geometry.setAttribute('position', new THREE.BufferAttribute(state.positions, 3));
+      state.geometry.attributes.position.needsUpdate = true;
+    }
+  }
+
+  // sliders
+  $('sigmaInput').addEventListener('input', e => {
+    state.sigma = parseFloat(e.target.value);
+    $('sigmaOut').textContent = state.sigma.toFixed(1);
+  });
+  $('rhoInput').addEventListener('input', e => {
+    state.rho = parseFloat(e.target.value);
+    $('rhoOut').textContent = state.rho.toFixed(1);
+  });
+  $('betaInput').addEventListener('input', e => {
+    state.beta = parseFloat(e.target.value);
+    $('betaOut').textContent = state.beta.toFixed(3);
+  });
+  $('speedInput').addEventListener('input', e => {
+    state.speed = parseFloat(e.target.value);
+    $('speedOut').textContent = state.speed.toFixed(2);
+  });
+  $('trailInput').addEventListener('input', e => {
+    state.trailLength = parseInt(e.target.value, 10);
+    $('trailOut').textContent = state.trailLength;
+    // rebuild geometry with new trail length, preserving current heads
+    const oldHeads = state.heads.slice();
+    initParticlesTrailOnly(state.trailLength, oldHeads);
+    buildPoints();
+  });
+  $('countInput').addEventListener('input', e => {
+    state.particleCount = parseInt(e.target.value, 10);
+    $('countOut').textContent = state.particleCount;
+    initParticles();
+    buildPoints();
+  });
+
+  // init outputs
+  $('sigmaOut').textContent = state.sigma.toFixed(1);
+  $('rhoOut').textContent = state.rho.toFixed(1);
+  $('betaOut').textContent = state.beta.toFixed(3);
+  $('countOut').textContent = state.particleCount;
+  $('trailOut').textContent = state.trailLength;
+  $('speedOut').textContent = state.speed.toFixed(2);
+}
+
+function initParticlesTrailOnly(newTrail, oldHeads) {
+  const n = state.particleCount;
+  state.trailLength = newTrail;
+  state.positions = new Float32Array(n * newTrail * 3);
+  state.heads = oldHeads;
+  state.writeIdx = 0;
+  // pre-fill with current head position so trail isn't empty
+  for (let t = 0; t < newTrail; t++) {
+    for (let i = 0; i < n; i++) {
+      const base = (i * newTrail + t) * 3;
+      state.positions[base]   = oldHeads[i*3];
+      state.positions[base+1] = oldHeads[i*3+1];
+      state.positions[base+2] = oldHeads[i*3+2];
+    }
+  }
+}
+
+// ===== Resize =====
+function onResize() {
+  const canvas = document.getElementById('scene-canvas');
+  const stage = canvas.parentElement;
+  state.width = stage.clientWidth;
+  state.height = stage.clientHeight;
+  state.renderer.setSize(state.width, state.height);
+  state.camera.aspect = state.width / state.height;
+  state.camera.updateProjectionMatrix();
+  state.composer.setSize(state.width, state.height);
+}
+window.addEventListener('resize', onResize);
+
+// ===== Model checks =====
+function runModelChecks() {
+  // 1. RK4 vs analytic-ish reference (Lorenz has no closed form, so check invariants)
+  // Check: boundedness — particles stay within reasonable bounds for classic params
+  let bounded = true;
+  let p = [0.1, 0.1, 0.1];
+  for (let i = 0; i < 5000; i++) {
+    p = rk4Step(p, 10, 28, 8/3, 0.01);
+    if (!Number.isFinite(p[0]) || !Number.isFinite(p[1]) || !Number.isFinite(p[2])) { bounded = false; break; }
+    if (Math.abs(p[0]) > 100 || Math.abs(p[1]) > 100 || Math.abs(p[2]) > 100) { bounded = false; break; }
+  }
+  // 2. Symmetry: Lorenz has (x,y,z) -> (-x,-y,z) symmetry. Start from (a,b,c) and (-a,-b,c),
+  //    after many steps the z-trajectories should match (within chaos tolerance over short time)
+  let p1 = [1, 1, 20], p2 = [-1, -1, 20];
+  for (let i = 0; i < 200; i++) {
+    p1 = rk4Step(p1, 10, 28, 8/3, 0.01);
+    p2 = rk4Step(p2, 10, 28, 8/3, 0.01);
+  }
+  const zSym = Math.abs(p1[2] - p2[2]) < 0.5;
+  // 3. Parameter sensitivity: higher rho => more energetic (larger |z| range)
+  let zLow = [0.1,0.1,0.1], zHigh = [0.1,0.1,0.1];
+  let maxZLow = 0, maxZHigh = 0;
+  for (let i = 0; i < 1000; i++) {
+    zLow = rk4Step(zLow, 10, 10, 8/3, 0.01);
+    zHigh = rk4Step(zHigh, 10, 40, 8/3, 0.01);
+    maxZLow = Math.max(maxZLow, zLow[2]);
+    maxZHigh = Math.max(maxZHigh, zHigh[2]);
+  }
+  const rhoSens = maxZHigh > maxZLow;
+  // 4. Zero-sigma => x frozen (dx/dt = 0)
+  let pZero = [5, 3, 20];
+  for (let i = 0; i < 100; i++) pZero = rk4Step(pZero, 0, 28, 8/3, 0.01);
+  const zeroSigma = Math.abs(pZero[0] - 5) < 1e-6;
+  return [
+    { name: 'boundedness (classic params, 50s sim)', pass: bounded, expected: '|coords| < 100', actual: bounded ? 'within bounds' : 'diverged', tolerance: 'bounded' },
+    { name: 'z-axis symmetry (x,y)->(-x,-y,z)', pass: zSym, expected: '|Δz| < 0.5', actual: Math.abs(p1[2]-p2[2]).toFixed(3), tolerance: 0.5 },
+    { name: 'rho sensitivity (higher rho => larger |z|)', pass: rhoSens, expected: 'maxZ(ρ=40) > maxZ(ρ=10)', actual: `${maxZHigh.toFixed(1)} > ${maxZLow.toFixed(1)}`, tolerance: 'strict' },
+    { name: 'zero-sigma freezes x', pass: zeroSigma, expected: 'x unchanged', actual: pZero[0].toFixed(6), tolerance: 1e-6 },
+  ];
+}
+
+// ===== SimCanvas Runtime Hooks =====
+function init() {
+  initParticles();
+  initThree();
+  bindControls();
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'Running';
+  statusEl.style.color = '#67e8f9';
+  document.getElementById('loader').classList.add('hidden');
+  requestAnimationFrame(frame);
+}
+function start() {
+  if (state.running) return;
+  state.running = true;
+  const pauseBtn = document.getElementById('pauseBtn');
+  if (pauseBtn) {
+    pauseBtn.textContent = 'Pause';
+    pauseBtn.classList.add('primary');
+  }
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    statusEl.textContent = 'Running';
+    statusEl.style.color = '#67e8f9';
+  }
+}
+function pause() {
+  if (!state.running) return;
+  state.running = false;
+  const pauseBtn = document.getElementById('pauseBtn');
+  if (pauseBtn) {
+    pauseBtn.textContent = 'Resume';
+    pauseBtn.classList.remove('primary');
+  }
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    statusEl.textContent = 'Paused';
+    statusEl.style.color = '#f59e0b';
+  }
+}
+function reset() {
+  initParticles();
+  if (state.geometry) {
+    state.geometry.setAttribute('position', new THREE.BufferAttribute(state.positions, 3));
+    state.geometry.attributes.position.needsUpdate = true;
+  }
+  state.camTheta = 0; state.camPhi = 1.0; state.camRadius = 90;
+  render();
+}
+function update(dt) {
+  updateModel(dt);
+  updateCamera(dt);
+}
+function render() {
+  if (state.composer) state.composer.render();
+}
+function setParameters(values) {
+  if (typeof values.sigma === 'number') {
+    state.sigma = values.sigma;
+    const el = document.getElementById('sigmaInput');
+    const out = document.getElementById('sigmaOut');
+    if (el) el.value = String(values.sigma);
+    if (out) out.textContent = values.sigma.toFixed(1);
+  }
+  if (typeof values.rho === 'number') {
+    state.rho = values.rho;
+    const el = document.getElementById('rhoInput');
+    const out = document.getElementById('rhoOut');
+    if (el) el.value = String(values.rho);
+    if (out) out.textContent = values.rho.toFixed(1);
+  }
+  if (typeof values.beta === 'number') {
+    state.beta = values.beta;
+    const el = document.getElementById('betaInput');
+    const out = document.getElementById('betaOut');
+    if (el) el.value = String(values.beta);
+    if (out) out.textContent = values.beta.toFixed(3);
+  }
+  if (typeof values.speed === 'number') {
+    state.speed = values.speed;
+    const el = document.getElementById('speedInput');
+    const out = document.getElementById('speedOut');
+    if (el) el.value = String(values.speed);
+    if (out) out.textContent = values.speed.toFixed(2);
+  }
+  if (typeof values.particleCount === 'number') {
+    state.particleCount = values.particleCount;
+    const el = document.getElementById('countInput');
+    const out = document.getElementById('countOut');
+    if (el) el.value = String(values.particleCount);
+    if (out) out.textContent = String(values.particleCount);
+    initParticles();
+    buildPoints();
+  }
+  if (typeof values.trailLength === 'number') {
+    const oldHeads = state.heads ? state.heads.slice() : null;
+    state.trailLength = values.trailLength;
+    const el = document.getElementById('trailInput');
+    const out = document.getElementById('trailOut');
+    if (el) el.value = String(values.trailLength);
+    if (out) out.textContent = String(values.trailLength);
+    if (oldHeads) {
+      initParticlesTrailOnly(state.trailLength, oldHeads);
+      buildPoints();
+    }
+  }
+  render();
+}
+function getState() {
+  return {
+    ...state,
+    heads: state.heads ? state.heads.slice() : null,
+    positions: state.positions ? state.positions.slice() : null
+  };
+}
+function getReadouts() {
+  return {
+    sigma: state.sigma,
+    rho: state.rho,
+    beta: state.beta,
+    particleCount: state.particleCount,
+    trailLength: state.trailLength,
+    speed: state.speed,
+    preset: state.preset,
+    running: state.running,
+    autoCam: state.autoCam
+  };
+}
+
+// ===== Boot =====
+async function boot() {
+  try {
+    init();
+    // expose for validation
+    window.simulation = {
+      init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks
+    };
+    // run model checks silently
+    const checks = runModelChecks();
+    const failed = checks.filter(c => !c.pass);
+    if (failed.length) console.warn('[model checks] failed:', failed);
+    else console.log('[model checks] all passed:', checks);
+  } catch (err) {
+    console.error(err);
+    document.getElementById('status').textContent = 'Error';
+    document.getElementById('status').style.color = '#ef4444';
+  }
+}
+boot();
+</script>
+</body>
+</html>

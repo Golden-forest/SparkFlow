@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>匀速直线运动</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #0a0f1e;
+      --sim-surface: #131a2e;
+      --sim-surface-soft: #1a2238;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a96b0;
+      --sim-border: #2a3550;
+      --sim-grid: #1e2a44;
+      --sim-accent: #22d3ee;
+      --sim-accent-deep: #0891b2;
+      --sim-accent-soft: #0e3a44;
+      --sim-positive: #22d3ee;
+      --sim-warning: #fbbf24;
+      --sim-danger: #ef4444;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(251, 191, 36, 0.07), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(34, 211, 238, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(34,211,238,.25); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(19, 26, 46, 0.92); border: 1px solid rgba(42, 53, 80, 0.55); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(34,211,238,.10); border-radius: 18px; background: linear-gradient(145deg, #0d1426 0%, #131c30 58%, #1a1520 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(34,211,238,.12); border-radius: 15px; background: linear-gradient(145deg, #141d33, #1a2238); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-text); }
+    .metric.accent strong { color: var(--sim-accent); }
+    .chart-panel { padding: 14px; display: grid; grid-template-rows: auto minmax(0,1fr); gap: 8px; overflow: hidden; min-height: 0; }
+    #chart { width: 100%; height: 100%; min-height: 140px; display: block; border: 1px solid rgba(34,211,238,.08); border-radius: 12px; background: linear-gradient(145deg, #0d1426, #131c30); }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(251, 191, 36, 0.08); color: #fbbf24 !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1.4fr) auto; gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #3a4868; background: #1f2a44; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #0a0f1e; background: linear-gradient(135deg, var(--sim-accent), #67e8f9); box-shadow: 0 8px 18px rgba(34,211,238,.25); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.30); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #5a6885; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .track-line { stroke: rgba(138, 150, 176, 0.35); stroke-width: 2; stroke-dasharray: 4 6; }
+    .marker-ring { fill: none; stroke: rgba(138, 150, 176, 0.4); stroke-width: 2; }
+    .marker-core { fill: rgba(138, 150, 176, 0.25); }
+    .marker-flash { fill: var(--sim-warning); }
+    .ball-glow { fill: url(#ballGlow); }
+    .ball-body { fill: var(--sim-accent); stroke: #67e8f9; stroke-width: 2; }
+    .velocity-arrow { stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; fill: none; }
+    .velocity-label { fill: var(--sim-accent); font-size: 13px; font-weight: 750; }
+    .chart-trace { fill: none; stroke: var(--sim-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 3px rgba(34,211,238,.25)); }
+    .chart-point { fill: var(--sim-accent); stroke: #0d1426; stroke-width: 2; }
+    .chart-marker { fill: var(--sim-warning); stroke: #0d1426; stroke-width: 2; }
+    .chart-prediction { fill: none; stroke: rgba(34,211,238,0.25); stroke-width: 2; stroke-dasharray: 5 5; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+      #chart { min-height: 180px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .marker-flash { animation: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>匀速直线运动</h1>
+        <p>速度大小和方向都不变，位移随时间线性增长</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">运动舞台</h2><span>发光小球沿轨道匀速前进，经过等距标记时闪光</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">一个发光小球沿水平轨道匀速运动，轨道上有十个等距闪光标记。小球每经过一个标记触发一次闪光，揭示相等时间通过相等位移。</desc>
+          <defs>
+            <radialGradient id="ballGlow">
+              <stop offset="0%" stop-color="rgba(34,211,238,0.55)"></stop>
+              <stop offset="60%" stop-color="rgba(34,211,238,0.18)"></stop>
+              <stop offset="100%" stop-color="rgba(34,211,238,0)"></stop>
+            </radialGradient>
+          </defs>
+          <g id="sceneGrid"></g>
+          <line class="track-line" x1="40" y1="300" x2="720" y2="300"></line>
+          <g id="markers"></g>
+          <g id="startFlag">
+            <line x1="40" y1="270" x2="40" y2="330" stroke="var(--sim-muted)" stroke-width="2"></line>
+            <text x="46" y="265" fill="var(--sim-muted)" font-size="12" font-weight="700">起点 x₀</text>
+          </g>
+          <circle id="ballGlowCircle" class="ball-glow" cx="40" cy="300" r="28"></circle>
+          <circle id="ball" class="ball-body" cx="40" cy="300" r="14"></circle>
+          <g id="velocityArrow">
+            <line class="velocity-arrow" x1="40" y1="300" x2="80" y2="300"></line>
+            <polygon points="80,300 72,295 72,305" fill="var(--sim-accent)"></polygon>
+            <text class="velocity-label" x="85" y="296">v</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric accent"><small>位移 x</small><strong id="xReadout">0.00 m</strong></div>
+            <div class="metric accent"><small>速度 v</small><strong id="vReadout">2.0 m/s</strong></div>
+            <div class="metric"><small>时间 t</small><strong id="tReadout">0.00 s</strong></div>
+            <div class="metric"><small>已过标记</small><strong id="markerReadout">0 / 10</strong></div>
+          </div>
+        </section>
+        <section class="panel chart-panel">
+          <div class="panel-head"><h2>位移–时间图像</h2><span>x = v·t</span></div>
+          <svg id="chart" viewBox="0 0 380 220" role="img" aria-label="位移时间图像">
+            <g id="chartGrid"></g>
+            <line class="axis" x1="40" y1="190" x2="360" y2="190"></line>
+            <line class="axis" x1="40" y1="20" x2="40" y2="190"></line>
+            <text class="axis-label" x="350" y="208">t/s</text>
+            <text class="axis-label" x="20" y="28">x/m</text>
+            <polyline id="chartTrace" class="chart-trace" points=""></polyline>
+            <polyline id="chartPrediction" class="chart-prediction" points=""></polyline>
+            <circle id="chartPoint" class="chart-point" cx="40" cy="190" r="5"></circle>
+          </svg>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>洞察</h2></div>
+          <p id="insight" class="insight">点击「开始」：观察小球经过等距标记的节奏是否均匀。</p>
+          <p>模型：x(t) = x₀ + v·t。时间标尺已做教学放大，非真实尺度。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">复位</button>
+      </div>
+      <div class="control">
+        <label for="vInput">速度 v <output id="vOutput">2.0 m/s</output></label>
+        <input id="vInput" type="range" min="0.5" max="5" step="0.1" value="2">
+      </div>
+      <div></div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "v", label: "速度", type: "slider", min: 0.5, max: 5, step: 0.1, default: 2, unit: "m/s" }
+    ];
+    const SCENE = { x0: 40, x1: 720, y: 300, markers: 10, totalDistance: 20 };
+    const CHART = { x0: 40, x1: 360, y0: 20, y1: 190, maxT: 12, maxX: 24 };
+    const state = {
+      running: false, t: 0, x: 0, v: 2,
+      lastTimestamp: null, history: [{ t: 0, x: 0 }],
+      flashTimers: new Array(10).fill(0),
+      lastMarkerIndex: -1
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      ball: document.querySelector("#ball"), ballGlow: document.querySelector("#ballGlowCircle"),
+      markers: document.querySelector("#markers"), sceneGrid: document.querySelector("#sceneGrid"),
+      velocityArrow: document.querySelector("#velocityArrow"),
+      chartTrace: document.querySelector("#chartTrace"), chartPrediction: document.querySelector("#chartPrediction"),
+      chartPoint: document.querySelector("#chartPoint"), chartGrid: document.querySelector("#chartGrid"),
+      xReadout: document.querySelector("#xReadout"), vReadout: document.querySelector("#vReadout"),
+      tReadout: document.querySelector("#tReadout"), markerReadout: document.querySelector("#markerReadout"),
+      vInput: document.querySelector("#vInput"), vOutput: document.querySelector("#vOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      insight: document.querySelector("#insight")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function markerX(i) {
+      return SCENE.x0 + (i + 1) * (SCENE.x1 - SCENE.x0) / (SCENE.markers + 1);
+    }
+    function sceneXFromDistance(d) {
+      return SCENE.x0 + (d / SCENE.totalDistance) * (SCENE.x1 - SCENE.x0);
+    }
+    function chartX(t) { return CHART.x0 + (t / CHART.maxT) * (CHART.x1 - CHART.x0); }
+    function chartY(x) { return CHART.y1 - (x / CHART.maxX) * (CHART.y1 - CHART.y0); }
+
+    function initSceneGrid() {
+      const lines = [];
+      for (let i = 1; i <= 8; i++) {
+        const y = 60 + i * 40;
+        lines.push(`<line class="grid-line" x1="20" y1="${y}" x2="740" y2="${y}"></line>`);
+      }
+      elements.sceneGrid.innerHTML = lines.join("");
+    }
+    function initMarkers() {
+      const parts = [];
+      for (let i = 0; i < SCENE.markers; i++) {
+        const cx = markerX(i);
+        parts.push(`<g class="marker-group" data-index="${i}">`);
+        parts.push(`<line x1="${cx}" y1="285" x2="${cx}" y2="315" stroke="rgba(138,150,176,0.3)" stroke-width="1.5" stroke-dasharray="3 3"></line>`);
+        parts.push(`<circle class="marker-ring" cx="${cx}" cy="300" r="10"></circle>`);
+        parts.push(`<circle class="marker-core" cx="${cx}" cy="300" r="5"></circle>`);
+        parts.push(`<circle class="marker-flash" cx="${cx}" cy="300" r="0" opacity="0"></circle>`);
+        parts.push(`<text x="${cx}" y="340" text-anchor="middle" fill="var(--sim-muted)" font-size="11" font-weight="600">${(i + 1) * 2}m</text>`);
+        parts.push(`</g>`);
+      }
+      elements.markers.innerHTML = parts.join("");
+    }
+    function initChartGrid() {
+      const lines = [];
+      for (let i = 1; i <= 5; i++) {
+        const x = CHART.x0 + i * (CHART.x1 - CHART.x0) / 6;
+        lines.push(`<line class="grid-line" x1="${x}" y1="${CHART.y0}" x2="${x}" y2="${CHART.y1}"></line>`);
+      }
+      for (let i = 1; i <= 4; i++) {
+        const y = CHART.y0 + i * (CHART.y1 - CHART.y0) / 5;
+        lines.push(`<line class="grid-line" x1="${CHART.x0}" y1="${y}" x2="${CHART.x1}" y2="${y}"></line>`);
+      }
+      elements.chartGrid.innerHTML = lines.join("");
+    }
+
+    function init() {
+      initSceneGrid(); initMarkers(); initChartGrid();
+      bindControls(); setParameters({ v: 2 }); reset(); requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0; state.x = 0; state.lastTimestamp = null;
+      state.history = [{ t: 0, x: 0 }];
+      state.flashTimers = new Array(10).fill(0);
+      state.lastMarkerIndex = -1;
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.x += state.v * boundedDt;
+      state.x = finite(state.x, 0);
+      state.t += boundedDt;
+
+      const currentMarkerIndex = Math.min(9, Math.floor(state.x / 2) - 1);
+      if (currentMarkerIndex > state.lastMarkerIndex && currentMarkerIndex >= 0 && currentMarkerIndex < 10) {
+        for (let i = state.lastMarkerIndex + 1; i <= currentMarkerIndex; i++) {
+          if (i >= 0 && i < 10) state.flashTimers[i] = 0.5;
+        }
+        state.lastMarkerIndex = currentMarkerIndex;
+      }
+
+      for (let i = 0; i < 10; i++) {
+        if (state.flashTimers[i] > 0) {
+          state.flashTimers[i] -= boundedDt;
+          if (state.flashTimers[i] < 0) state.flashTimers[i] = 0;
+        }
+      }
+
+      if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.05) {
+        state.history.push({ t: state.t, x: state.x });
+        if (state.history.length > 600) state.history.shift();
+      }
+
+      if (state.x >= SCENE.totalDistance) pause();
+    }
+    function render() {
+      const ballCx = sceneXFromDistance(state.x);
+      elements.ball.setAttribute("cx", ballCx);
+      elements.ballGlow.setAttribute("cx", ballCx);
+
+      const arrowEnd = ballCx + Math.max(20, state.v * 8);
+      const arrowLine = elements.velocityArrow.querySelector("line");
+      const arrowHead = elements.velocityArrow.querySelector("polygon");
+      const arrowText = elements.velocityArrow.querySelector("text");
+      arrowLine.setAttribute("x1", ballCx);
+      arrowLine.setAttribute("x2", arrowEnd);
+      arrowHead.setAttribute("points", `${arrowEnd},300 ${arrowEnd-8},295 ${arrowEnd-8},305`);
+      arrowText.setAttribute("x", arrowEnd + 5);
+
+      const flashCircles = elements.markers.querySelectorAll(".marker-flash");
+      for (let i = 0; i < 10; i++) {
+        const timer = state.flashTimers[i];
+        const flash = flashCircles[i];
+        if (timer > 0) {
+          const progress = 1 - timer / 0.5;
+          const r = 10 + progress * 18;
+          const opacity = (1 - progress) * 0.85;
+          flash.setAttribute("r", r);
+          flash.setAttribute("opacity", opacity);
+        } else {
+          flash.setAttribute("r", 0);
+          flash.setAttribute("opacity", 0);
+        }
+      }
+
+      const tracePoints = state.history.map(s => `${chartX(s.t)},${chartY(s.x)}`).join(" ");
+      elements.chartTrace.setAttribute("points", tracePoints);
+      elements.chartPoint.setAttribute("cx", chartX(state.t));
+      elements.chartPoint.setAttribute("cy", chartY(state.x));
+
+      const predEndT = CHART.maxT;
+      const predEndX = state.v * predEndT;
+      const predPoints = `${chartX(0)},${chartY(0)} ${chartX(predEndT)},${chartY(predEndX)}`;
+      elements.chartPrediction.setAttribute("points", predPoints);
+
+      elements.xReadout.textContent = `${state.x.toFixed(2)} m`;
+      elements.vReadout.textContent = `${state.v.toFixed(1)} m/s`;
+      elements.tReadout.textContent = `${state.t.toFixed(2)} s`;
+      const passed = Math.min(10, Math.max(0, Math.floor(state.x / 2)));
+      elements.markerReadout.textContent = `${passed} / 10`;
+
+      const gap = SCENE.totalDistance - state.x;
+      if (!state.running && state.t === 0) {
+        elements.insight.textContent = "点击「开始」：观察小球经过等距标记的节奏是否均匀。";
+      } else if (gap <= 0.01) {
+        elements.insight.textContent = "到达终点：位移随时间严格线性增长，速度始终不变。";
+      } else if (state.t > 0.5) {
+        elements.insight.textContent = "相等时间内通过相等位移——这就是匀速直线运动的本质。";
+      } else {
+        elements.insight.textContent = "小球启动，速度恒定，开始记录位移。";
+      }
+    }
+    function setParameters(values) {
+      const vDef = parameterSchema[0];
+      state.v = clamp(finite(Number(values.v), vDef.default), vDef.min, vDef.max);
+      elements.vInput.value = String(state.v);
+      render();
+    }
+    function getState() { return { ...state, history: state.history.map(s => ({ ...s })) }; }
+    function getReadouts() { return { x: state.x, v: state.v, t: state.t, markers: Math.min(10, Math.floor(state.x / 2)) }; }
+    function runModelChecks() {
+      const stepSim = (v, duration, dt = 1/240) => {
+        let x = 0, t = 0;
+        for (; t < duration - 1e-12; t += dt) x += v * dt;
+        return { x, t };
+      };
+      const r1 = stepSim(2, 5);
+      const r2 = stepSim(3, 4);
+      const r3 = stepSim(1, 10);
+      const r4 = stepSim(2, 0);
+      return [
+        { name: "x = v·t 基本关系 (v=2, t=5)", pass: Math.abs(r1.x - 10) < 0.02, expected: 10, actual: r1.x, tolerance: 0.02 },
+        { name: "不同速度 (v=3, t=4)", pass: Math.abs(r2.x - 12) < 0.02, expected: 12, actual: r2.x, tolerance: 0.02 },
+        { name: "慢速长时 (v=1, t=10)", pass: Math.abs(r3.x - 10) < 0.02, expected: 10, actual: r3.x, tolerance: 0.02 },
+        { name: "零时刻位移为零", pass: r4.x === 0, expected: 0, actual: r4.x, tolerance: 0 },
+        { name: "线性比例: x(2s)/x(1s) = 2", pass: Math.abs(stepSim(2, 2).x / stepSim(2, 1).x - 2) < 0.01, expected: 2, actual: stepSim(2, 2).x / stepSim(2, 1).x, tolerance: 0.01 },
+        { name: "速度比例: x_v3/x_v1 = 3 (同时间)", pass: Math.abs(stepSim(3, 3).x / stepSim(1, 3).x - 3) < 0.01, expected: 3, actual: stepSim(3, 3).x / stepSim(1, 3).x, tolerance: 0.01 }
+      ];
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.vInput.addEventListener("input", () => setParameters({ v: elements.vInput.value }));
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt); render(); requestAnimationFrame(frame);
+    }
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

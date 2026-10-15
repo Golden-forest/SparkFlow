@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>带电粒子在磁场中的舞步</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0d1426;
+  --sim-text: #e8f4ff;
+  --sim-muted: #6b7d9a;
+  --sim-border: #1a2540;
+  --sim-grid: #0f1830;
+  --sim-accent: #00e5ff;
+  --sim-accent-deep: #0099b8;
+  --sim-accent-soft: rgba(0, 229, 255, 0.12);
+  --sim-positive: #00e5ff;
+  --sim-warning: #ffaa00;
+  --sim-danger: #ff4466;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 14px;
+  --sim-radius-lg: 20px;
+  --sim-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+.app {
+  width: 100vw; height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header header"
+    "stage  evidence"
+    "controls controls";
+  gap: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(0, 80, 120, 0.18), transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(0, 40, 80, 0.15), transparent 50%),
+    radial-gradient(ellipse at 50% 50%, #0a1220 0%, #050810 70%, #020408 100%);
+}
+.header {
+  grid-area: header;
+  padding: 18px 32px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  z-index: 2;
+}
+.header-left { text-align: left; }
+.header h1 {
+  font-size: clamp(1.3rem, 2.2vw, 1.8rem);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  color: var(--sim-text);
+  margin-bottom: 6px;
+  opacity: 0;
+  animation: fadeInDown 0.8s ease-out 0.2s forwards;
+}
+.header .subtitle {
+  font-size: clamp(0.78rem, 1.1vw, 0.92rem);
+  color: var(--sim-accent);
+  letter-spacing: 0.06em;
+  font-weight: 400;
+  opacity: 0;
+  animation: fadeInDown 0.8s ease-out 0.6s forwards;
+}
+.status-pill {
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stage-wrap {
+  grid-area: stage;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.formula {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 0.95rem;
+  color: var(--sim-accent);
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+  pointer-events: none;
+  z-index: 3;
+}
+.mode-tag {
+  position: absolute;
+  top: 18px;
+  left: 28px;
+  font-size: 0.8rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.12em;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 3;
+}
+.mode-tag .mode-name {
+  color: var(--sim-accent);
+  font-weight: 600;
+}
+.evidence {
+  grid-area: evidence;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  background: linear-gradient(to left, rgba(10, 16, 32, 0.6), transparent);
+  border-left: 1px solid rgba(26, 37, 64, 0.5);
+  overflow-y: auto;
+  min-width: 0;
+}
+.evidence h2 {
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.readout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.metric {
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 229, 255, 0.12);
+  border-radius: var(--sim-radius-md);
+  background: rgba(13, 20, 38, 0.6);
+}
+.metric small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sim-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.metric strong {
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-text);
+  font-weight: 600;
+}
+.metric.accent strong { color: var(--sim-accent); }
+.metric.warn strong { color: var(--sim-warning); }
+.insight {
+  padding: 14px 16px;
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: rgba(255, 170, 0, 0.06);
+  color: #ffd080;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.controls {
+  grid-area: controls;
+  padding: 14px 32px 20px;
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  background: linear-gradient(to top, rgba(5, 8, 16, 0.95), transparent);
+  z-index: 2;
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.78rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+.control .value {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.92rem;
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(to right, var(--sim-accent-deep), var(--sim-accent));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid #0a1020;
+  box-shadow: 0 0 0 1px var(--sim-accent), 0 0 12px rgba(0, 229, 255, 0.6);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid #0a1020;
+  box-shadow: 0 0 0 1px var(--sim-accent), 0 0 12px rgba(0, 229, 255, 0.6);
+  cursor: pointer;
+}
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+.btn-group {
+  display: flex;
+  gap: 10px;
+}
+.btn {
+  background: transparent;
+  border: 1px solid var(--sim-border);
+  color: var(--sim-muted);
+  padding: 8px 18px;
+  border-radius: var(--sim-radius-sm);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+.btn:hover {
+  border-color: var(--sim-accent);
+  color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn.primary {
+  border-color: var(--sim-accent);
+  color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+}
+.btn.primary:hover {
+  background: rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.3);
+}
+@media (max-width: 960px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "stage"
+      "evidence"
+      "controls";
+  }
+  .evidence {
+    border-left: none;
+    border-top: 1px solid rgba(26, 37, 64, 0.5);
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: 200px;
+  }
+  .evidence > div { flex: 1 1 200px; }
+}
+@media (max-width: 720px) {
+  .header { padding: 12px 16px 6px; }
+  .controls { padding: 10px 16px 14px; gap: 16px; }
+  .control { min-width: 140px; }
+  .formula { font-size: 0.8rem; top: 12px; right: 16px; }
+  .mode-tag { top: 12px; left: 16px; font-size: 0.72rem; }
+}
+@media (max-width: 480px) {
+  .controls { flex-direction: column; gap: 12px; }
+  .control { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header h1, .header .subtitle { animation: none; opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="continuous-ode">
+  <header class="header" data-region="header">
+    <div class="header-left">
+      <h1>带电粒子在磁场中的舞步</h1>
+      <div class="subtitle">洛伦兹力永远垂直于速度——不做功，只改方向，不改快慢</div>
+    </div>
+    <div id="status" class="status-pill" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <div class="stage-wrap" data-region="stage">
+    <div class="mode-tag">轨迹形态 · <span class="mode-name" id="modeName">螺旋</span></div>
+    <div class="formula">r = m · v⊥ / (q · B)</div>
+    <canvas id="scene" role="img" aria-label="带电粒子在均匀磁场中的运动轨迹"></canvas>
+  </div>
+
+  <aside class="evidence" data-region="evidence" aria-label="实时读数与洞察">
+    <div>
+      <h2>实时读数</h2>
+      <div class="readout-grid">
+        <div class="metric accent"><small>回旋半径 r</small><strong id="radiusReadout">0.625</strong></div>
+        <div class="metric accent"><small>角频率 ω</small><strong id="omegaReadout">0.800</strong></div>
+        <div class="metric"><small>垂直速度 v⊥</small><strong id="vPerpReadout">0.50</strong></div>
+        <div class="metric"><small>平行速度 v∥</small><strong id="vParaReadout">0.20</strong></div>
+        <div class="metric"><small>磁场 B</small><strong id="bReadout">0.80</strong></div>
+        <div class="metric"><small>时间 t</small><strong id="timeReadout">0.00</strong></div>
+      </div>
+    </div>
+    <div data-region="insight">
+      <h2>教学洞察</h2>
+      <div id="insightText" class="insight">洛伦兹力 F = qv×B 始终垂直于速度，因此只改变方向不改变速率。垂直分量做圆周，平行分量匀速，合成为螺旋。</div>
+    </div>
+  </aside>
+
+  <section class="controls" data-region="controls" aria-label="模拟参数控制">
+    <div class="control">
+      <label for="vPerpInput">垂直速度 <span class="value" id="vPerpOutput">0.50</span></label>
+      <input id="vPerpInput" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="垂直于磁场的速度分量">
+    </div>
+    <div class="control">
+      <label for="vParaInput">平行速度 <span class="value" id="vParaOutput">0.20</span></label>
+      <input id="vParaInput" type="range" min="0" max="1" step="0.01" value="0.2" aria-label="平行于磁场的速度分量">
+    </div>
+    <div class="control">
+      <label for="bInput">磁场强度 <span class="value" id="bOutput">0.80</span></label>
+      <input id="bInput" type="range" min="0.1" max="2" step="0.01" value="0.8" aria-label="磁场强度">
+    </div>
+    <div class="btn-group">
+      <button id="startBtn" class="btn primary" type="button">暂停</button>
+      <button id="resetBtn" class="btn" type="button">重置</button>
+      <button id="clearBtn" class="btn" type="button">清痕</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "vPerp", label: "垂直速度", min: 0, max: 1, step: 0.01, default: 0.5, unit: "" },
+    { key: "vPara", label: "平行速度", min: 0, max: 1, step: 0.01, default: 0.2, unit: "" },
+    { key: "B",     label: "磁场强度", min: 0.1, max: 2, step: 0.01, default: 0.8, unit: "" }
+  ];
+
+  // ===== 物理常数（教学单位）=====
+  const MASS = 1.0;
+  const CHARGE = 1.0;
+  const PHYS_DT = 1 / 240;  // 固定物理步长
+
+  // ===== 状态 =====
+  const state = {
+    running: true,
+    t: 0,
+    pos: { x: 0, y: 0, z: 0 },
+    vel: { x: 0, y: 0, z: 0 },
+    vPerp: 0.5,
+    vPara: 0.2,
+    B: 0.8,
+    lastTimestamp: null,
+    accumulator: 0,
+    trail: [],
+    maxTrail: 600
+  };
+
+  // ===== Canvas =====
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = Math.max(1, Math.floor(W * DPR));
+    canvas.height = Math.max(1, Math.floor(H * DPR));
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+
+  // ===== 工具函数 =====
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // ===== 物理步进：洛伦兹力 F = q v × B，B 沿 +y =====
+  // 半隐式欧拉，稳定且对圆周运动有较好能量守恒
+  function physicsStep(dt) {
+    const B = state.B;
+    const q = CHARGE;
+    const m = MASS;
+    // a = (q/m) * (v × B)，B = (0, B, 0)
+    // v × B = (vz*B, 0, -vx*B)
+    const ax = (q / m) * state.vel.z * B;
+    const az = -(q / m) * state.vel.x * B;
+    // vy 不受力，匀速
+    state.vel.x += ax * dt;
+    state.vel.z += az * dt;
+    state.pos.x += state.vel.x * dt;
+    state.pos.y += state.vel.y * dt;
+    state.pos.z += state.vel.z * dt;
+    state.t += dt;
+  }
+
+  // ===== 3D → 2D 透视投影 =====
+  function project(p) {
+    const camDist = 6;
+    const yEff = p.y + camDist;
+    const scale = 4.2 / Math.max(0.5, yEff);
+    const sx = W * 0.5 + p.x * scale * 60;
+    const sy = H * 0.5 - p.z * scale * 60 + p.y * scale * 18;
+    return { sx, sy, depth: yEff, scale };
+  }
+
+  // ===== 初始化粒子 =====
+  function initParticle() {
+    state.pos = { x: -2.5, y: 0, z: 0 };
+    state.vel = { x: state.vPerp, y: state.vPara, z: 0 };
+    state.t = 0;
+    state.trail = [];
+    state.accumulator = 0;
+  }
+
+  // ===== 设置参数 =====
+  function setParameters(values) {
+    const defs = parameterSchema;
+    const newVPerp = clamp(finite(Number(values.vPerp), defs[0].default), defs[0].min, defs[0].max);
+    const newVPara = clamp(finite(Number(values.vPara), defs[1].default), defs[1].min, defs[1].max);
+    const newB = clamp(finite(Number(values.B), defs[2].default), defs[2].min, defs[2].max);
+
+    const perpChanged = Math.abs(newVPerp - state.vPerp) > 1e-9;
+    const paraChanged = Math.abs(newVPara - state.vPara) > 1e-9;
+    const bChanged = Math.abs(newB - state.B) > 1e-9;
+
+    state.vPerp = newVPerp;
+    state.vPara = newVPara;
+    state.B = newB;
+
+    // 任意参数改变都重置粒子（保持轨迹连续性）
+    if (perpChanged || paraChanged || bChanged) {
+      initParticle();
+    }
+    updateControlUI();
+  }
+
+  function updateControlUI() {
+    document.getElementById("vPerpOutput").textContent = state.vPerp.toFixed(2);
+    document.getElementById("vParaOutput").textContent = state.vPara.toFixed(2);
+    document.getElementById("bOutput").textContent = state.B.toFixed(2);
+    document.getElementById("vPerpInput").value = String(state.vPerp);
+    document.getElementById("vParaInput").value = String(state.vPara);
+    document.getElementById("bInput").value = String(state.B);
+
+    // 模式标签
+    const modeEl = document.getElementById("modeName");
+    if (state.vPerp < 0.01 && state.vPara > 0.01) {
+      modeEl.textContent = "直线";
+    } else if (state.vPara < 0.01 && state.vPerp > 0.01) {
+      modeEl.textContent = "闭合圆";
+    } else if (state.vPerp < 0.01 && state.vPara < 0.01) {
+      modeEl.textContent = "静止";
+    } else {
+      modeEl.textContent = "螺旋";
+    }
+  }
+
+  // ===== 渲染 =====
+  function render() {
+    // 清屏（半透明覆盖产生拖尾余晖）
+    ctx.fillStyle = "rgba(5, 8, 16, 0.18)";
+    ctx.fillRect(0, 0, W, H);
+
+    // 背景细网格
+    drawGrid();
+
+    // 磁场箭头列
+    drawFieldArrows();
+
+    // 粒子拖尾（双层辉光）
+    drawTrail();
+
+    // 粒子本体
+    drawParticle();
+
+    // 速度分量箭头
+    drawVelocityVectors();
+
+    // 更新读数面板
+    updateReadouts();
+  }
+
+  function updateReadouts() {
+    const radius = MASS * state.vPerp / (CHARGE * state.B);
+    const omega = CHARGE * state.B / MASS;
+    document.getElementById("radiusReadout").textContent = radius.toFixed(3);
+    document.getElementById("omegaReadout").textContent = omega.toFixed(3);
+    document.getElementById("vPerpReadout").textContent = state.vPerp.toFixed(2);
+    document.getElementById("vParaReadout").textContent = state.vPara.toFixed(2);
+    document.getElementById("bReadout").textContent = state.B.toFixed(2);
+    document.getElementById("timeReadout").textContent = state.t.toFixed(2);
+
+    // 状态标签
+    const statusEl = document.getElementById("status");
+    const startBtn = document.getElementById("startBtn");
+    if (state.running) {
+      statusEl.textContent = "运行中";
+      startBtn.textContent = "暂停";
+    } else {
+      statusEl.textContent = "已暂停";
+      startBtn.textContent = "继续";
+    }
+
+    // 洞察文本
+    const insightEl = document.getElementById("insightText");
+    if (state.vPerp < 0.01 && state.vPara < 0.01) {
+      insightEl.textContent = "粒子静止：无速度则无洛伦兹力，无运动。";
+    } else if (state.vPerp < 0.01) {
+      insightEl.textContent = "v⊥=0：粒子不受洛伦兹力，沿磁场方向匀速直线运动。";
+    } else if (state.vPara < 0.01) {
+      insightEl.textContent = "v∥=0：粒子在垂直于磁场的平面内做闭合圆周运动，半径 r = mv⊥/(qB)。";
+    } else {
+      insightEl.textContent = "垂直分量做圆周、平行分量匀速，两者叠加成螺旋。洛伦兹力始终垂直于速度，不做功。";
+    }
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = "rgba(0, 100, 140, 0.06)";
+    ctx.lineWidth = 1;
+    const step = 40;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += step) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+    }
+    for (let y = 0; y <= H; y += step) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+  }
+
+  function drawFieldArrows() {
+    const arrowCount = 9;
+    const spacing = W / (arrowCount + 1);
+    const baseY = H * 0.5;
+    ctx.strokeStyle = "rgba(100, 160, 200, 0.18)";
+    ctx.fillStyle = "rgba(100, 160, 200, 0.18)";
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < arrowCount; i++) {
+      const x = spacing * (i + 1);
+      const arrowH = 80;
+      const yTop = baseY - arrowH / 2;
+      const yBot = baseY + arrowH / 2;
+      ctx.beginPath();
+      ctx.moveTo(x, yTop);
+      ctx.lineTo(x, yBot);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, yTop);
+      ctx.lineTo(x - 4, yTop + 8);
+      ctx.lineTo(x + 4, yTop + 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(100, 160, 200, 0.35)";
+    ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("B", spacing * 0.5, baseY - 40 - 6);
+  }
+
+  function drawTrail() {
+    if (state.trail.length < 2) return;
+    const n = state.trail.length;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // 外层辉光
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.12)";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const p = project(state.trail[i]);
+      if (i === 0) ctx.moveTo(p.sx, p.sy);
+      else ctx.lineTo(p.sx, p.sy);
+    }
+    ctx.stroke();
+    // 中层
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.28)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const p = project(state.trail[i]);
+      if (i === 0) ctx.moveTo(p.sx, p.sy);
+      else ctx.lineTo(p.sx, p.sy);
+    }
+    ctx.stroke();
+    // 内层渐变实色
+    for (let i = 1; i < n; i++) {
+      const p0 = project(state.trail[i - 1]);
+      const p1 = project(state.trail[i]);
+      const alpha = (i / n) * 0.9;
+      ctx.strokeStyle = `rgba(0, 229, 255, ${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p0.sx, p0.sy);
+      ctx.lineTo(p1.sx, p1.sy);
+      ctx.stroke();
+    }
+  }
+
+  function drawParticle() {
+    const p = project(state.pos);
+    const r = 5;
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.25)";
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#00e5ff";
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.beginPath();
+    ctx.arc(p.sx - 1.5, p.sy - 1.5, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawVelocityVectors() {
+    const p = project(state.pos);
+    // 垂直分量
+    if (state.vPerp > 0.01) {
+      const vx = state.vel.x;
+      const vz = state.vel.z;
+      const len = Math.sqrt(vx * vx + vz * vz);
+      if (len > 0.01) {
+        const dirP = project({ x: state.pos.x + vx, y: state.pos.y, z: state.pos.z + vz });
+        const dx = dirP.sx - p.sx;
+        const dy = dirP.sy - p.sy;
+        const dlen = Math.sqrt(dx * dx + dy * dy);
+        if (dlen > 0.5) {
+          const ux = dx / dlen;
+          const uy = dy / dlen;
+          const arrowLen = Math.min(60, state.vPerp * 60);
+          const ex = p.sx + ux * arrowLen;
+          const ey = p.sy + uy * arrowLen;
+          ctx.strokeStyle = "rgba(255, 170, 0, 0.7)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(p.sx, p.sy);
+          ctx.lineTo(ex, ey);
+          ctx.stroke();
+          const ang = Math.atan2(uy, ux);
+          ctx.fillStyle = "rgba(255, 170, 0, 0.8)";
+          ctx.beginPath();
+          ctx.moveTo(ex, ey);
+          ctx.lineTo(ex - 8 * Math.cos(ang - 0.4), ey - 8 * Math.sin(ang - 0.4));
+          ctx.lineTo(ex - 8 * Math.cos(ang + 0.4), ey - 8 * Math.sin(ang + 0.4));
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    // 平行分量
+    if (state.vPara > 0.01) {
+      const upP = project({ x: state.pos.x, y: state.pos.y + 0.3, z: state.pos.z });
+      const dx = upP.sx - p.sx;
+      const dy = upP.sy - p.sy;
+      const dlen = Math.sqrt(dx * dx + dy * dy);
+      if (dlen > 0.5) {
+        const ux = dx / dlen;
+        const uy = dy / dlen;
+        const arrowLen = Math.min(50, state.vPara * 50);
+        const ex = p.sx + ux * arrowLen;
+        const ey = p.sy + uy * arrowLen;
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(p.sx, p.sy);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) {
+      state.lastTimestamp = timestamp;
+      requestAnimationFrame(frame);
+      return;
+    }
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    dt = clamp(finite(dt, 0), 0, 0.05);
+
+    if (state.running) {
+      state.accumulator += dt;
+      let steps = 0;
+      while (state.accumulator >= PHYS_DT && steps < 20) {
+        physicsStep(PHYS_DT);
+        state.accumulator -= PHYS_DT;
+        steps++;
+      }
+      state.trail.push({ x: state.pos.x, y: state.pos.y, z: state.pos.z });
+      if (state.trail.length > state.maxTrail) state.trail.shift();
+    }
+
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 模型检验（oracle）=====
+  function runModelChecks() {
+    function simulate(dt, duration, vPerp, B) {
+      let pos = { x: 0, y: 0, z: 0 };
+      let vel = { x: vPerp, y: 0, z: 0 };
+      const q = CHARGE, m = MASS;
+      let t = 0;
+      while (t < duration - 1e-12) {
+        const ax = (q / m) * vel.z * B;
+        const az = -(q / m) * vel.x * B;
+        vel.x += ax * dt;
+        vel.z += az * dt;
+        pos.x += vel.x * dt;
+        pos.z += vel.z * dt;
+        t += dt;
+      }
+      return { pos, vel, t };
+    }
+
+    const vPerp = 0.5, B = 0.8;
+    const omega = CHARGE * B / MASS;
+    const r = MASS * vPerp / (CHARGE * B);
+    const T = 2 * Math.PI / omega;
+
+    const res1 = simulate(1/240, T, vPerp, B);
+    const returnErr = Math.sqrt(res1.pos.x ** 2 + res1.pos.z ** 2);
+
+    const speedInit = vPerp;
+    const speedFinal = Math.sqrt(res1.vel.x ** 2 + res1.vel.z ** 2);
+    const speedErr = Math.abs(speedFinal - speedInit);
+
+    const res2 = simulate(1/240, T/2, vPerp, B);
+    const expectedZ = 2 * r;
+    const zErr = Math.abs(res2.pos.z - expectedZ);
+
+    const coarse = simulate(1/120, T, vPerp, B);
+    const fine = simulate(1/480, T, vPerp, B);
+    const coarseErr = Math.sqrt(coarse.pos.x ** 2 + coarse.pos.z ** 2);
+    const fineErr = Math.sqrt(fine.pos.x ** 2 + fine.pos.z ** 2);
+
+    const rB1 = MASS * vPerp / (CHARGE * 0.4);
+    const rB2 = MASS * vPerp / (CHARGE * 1.6);
+    const radiusSensitivity = rB1 > rB2;
+
+    const resLine = simulate(1/240, 1, 0, B);
+    const lineErr = Math.abs(resLine.pos.x) + Math.abs(resLine.pos.z);
+
+    return [
+      { name: "周期闭合性", pass: returnErr < 0.02, expected: "回到起点 (0,0)", actual: `位移 ${returnErr.toFixed(4)}`, tolerance: 0.02 },
+      { name: "速度大小守恒（不做功）", pass: speedErr < 0.005, expected: speedInit.toFixed(4), actual: speedFinal.toFixed(4), tolerance: 0.005 },
+      { name: "半周期位置 z=2r", pass: zErr < 0.02, expected: expectedZ.toFixed(4), actual: res2.pos.z.toFixed(4), tolerance: 0.02 },
+      { name: "步长减半收敛", pass: fineErr < coarseErr, expected: "fine < coarse", actual: `${fineErr.toFixed(5)} < ${coarseErr.toFixed(5)}`, tolerance: "strict" },
+      { name: "B 增大半径减小", pass: radiusSensitivity, expected: "r_B=0.4 > r_B=1.6", actual: `${rB1.toFixed(3)} > ${rB2.toFixed(3)}`, tolerance: "strict" },
+      { name: "v_perp=0 直线运动", pass: lineErr < 0.01, expected: "x,z 不变", actual: `偏移 ${lineErr.toFixed(4)}`, tolerance: 0.01 }
+    ];
+  }
+
+  // ===== 生命周期 =====
+  function init() {
+    resize();
+    initParticle();
+    updateControlUI();
+    bindControls();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    updateReadouts();
+  }
+
+  function pause() {
+    state.running = false;
+    updateReadouts();
+  }
+
+  function reset() {
+    initParticle();
+    updateControlUI();
+  }
+
+  function clearTrail() {
+    state.trail = [];
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.accumulator += boundedDt;
+    let steps = 0;
+    while (state.accumulator >= PHYS_DT && steps < 20) {
+      physicsStep(PHYS_DT);
+      state.accumulator -= PHYS_DT;
+      steps++;
+    }
+    state.trail.push({ x: state.pos.x, y: state.pos.y, z: state.pos.z });
+    if (state.trail.length > state.maxTrail) state.trail.shift();
+  }
+
+  function getState() {
+    return {
+      ...state,
+      pos: { ...state.pos },
+      vel: { ...state.vel },
+      trail: state.trail.map(p => ({ ...p }))
+    };
+  }
+
+  function getReadouts() {
+    return {
+      vPerp: state.vPerp,
+      vPara: state.vPara,
+      B: state.B,
+      radius: MASS * state.vPerp / (CHARGE * state.B),
+      omega: CHARGE * state.B / MASS,
+      time: state.t,
+      running: state.running
+    };
+  }
+
+  function bindControls() {
+    document.getElementById("vPerpInput").addEventListener("input", (e) => {
+      setParameters({ vPerp: Number(e.target.value), vPara: state.vPara, B: state.B });
+    });
+    document.getElementById("vParaInput").addEventListener("input", (e) => {
+      setParameters({ vPerp: state.vPerp, vPara: Number(e.target.value), B: state.B });
+    });
+    document.getElementById("bInput").addEventListener("input", (e) => {
+      setParameters({ vPerp: state.vPerp, vPara: state.vPara, B: Number(e.target.value) });
+    });
+    document.getElementById("startBtn").addEventListener("click", () => {
+      if (state.running) { pause(); } else { start(); }
+    });
+    document.getElementById("resetBtn").addEventListener("click", reset);
+    document.getElementById("clearBtn").addEventListener("click", clearTrail);
+  }
+
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

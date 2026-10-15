@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用单摆测重力加速度</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-pendulum: #1f6feb;
+  --sim-pendulum-deep: #0a4fb5;
+  --sim-data: #e8590c;
+  --sim-data-deep: #b54608;
+  --sim-fit: #2f9e44;
+  --sim-fit-deep: #1e7a34;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 300px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #eef5f9 60%, #e6f1f5 100%); }
+.readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 11px 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 13px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.18rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.data-panel { padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+#chart { width: 100%; height: 100%; min-height: 240px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 14px; background: linear-gradient(160deg, #fbfdff 0%, #f2f6fa 60%, #eef3f8 100%); }
+.data-table-wrap { max-height: 130px; overflow-y: auto; border: 1px solid var(--sim-border); border-radius: 12px; background: var(--sim-surface-soft); }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.data-table th, .data-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--sim-grid); }
+.data-table th { background: var(--sim-surface); color: var(--sim-muted); font-weight: 700; position: sticky; top: 0; }
+.data-table td { font-variant-numeric: tabular-nums; }
+.data-table tr:last-child td { border-bottom: none; }
+.insight-panel { padding: 14px; display: grid; align-content: start; gap: 12px; }
+.insight-panel h2 { margin: 0; font-size: 1rem; }
+.insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a; font-weight: 650; font-size: 0.84rem; line-height: 1.5; }
+.insight-note { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.84rem; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button.data { border-color: var(--sim-data-deep); color: #fff; background: linear-gradient(135deg, var(--sim-data-deep), var(--sim-data)); box-shadow: 0 8px 18px rgba(232,89,12,.18); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
+.toggle-group button { padding: 7px 11px; font-size: 0.82rem; }
+.toggle-group button[aria-pressed="true"] { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 4px 10px rgba(15,159,186,.18); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel, .data-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 4 / 3; }
+  #chart { min-height: 0; height: auto; aspect-ratio: 4 / 3; }
+  .readouts { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="comparison" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>用单摆测重力加速度</h1>
+      <p>摆动周期与摆长的关系 · T = 2π√(L/g) · T² = (4π²/g)·L</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已就绪</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">演示区 · 单摆装置</h2><span>计时起点：摆球经过最低点</span></div>
+      <canvas id="scene" role="img" aria-labelledby="scene-title scene-desc"></canvas>
+      <div class="readouts">
+        <div class="metric"><small>摆长 L</small><strong id="rL">1.20 m</strong></div>
+        <div class="metric"><small>周期 T</small><strong id="rT">2.20 s</strong></div>
+        <div class="metric"><small>T²</small><strong id="rT2">4.84 s²</strong></div>
+        <div class="metric"><small>计时 / 周期数</small><strong id="rTimer">0.00 s / 0</strong></div>
+      </div>
+    </section>
+
+    <aside class="panel data-panel" data-region="evidence" aria-labelledby="chart-title">
+      <div class="panel-head"><h2 id="chart-title">数据分析区 · T² - L 图像</h2><span>斜率 = 4π²/g</span></div>
+      <canvas id="chart" role="img" aria-labelledby="chart-title chart-desc"></canvas>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead><tr><th>L / m</th><th>T / s</th><th>T² / s²</th><th>g反算 / m/s²</th><th>误差</th></tr></thead>
+          <tbody id="tableBody"><tr><td colspan="5" style="color:var(--sim-muted)">点击「记一组数据」开始采集</td></tr></tbody>
+        </table>
+      </div>
+    </aside>
+  </main>
+
+  <section class="panel insight-panel" data-region="insight" aria-label="实验观察">
+    <h2>实验观察</h2>
+    <div id="insight" class="insight">按「开始计时」让摆球摆动，每经过最低点一次记一个周期；改变摆长后「记一组数据」，用 T²–L 图像的斜率反算 g。</div>
+    <p class="insight-note">教学模型：小角度近似 θ(t)=θ₀cos(√(g/L)·t)，周期 T=2π√(L/g)。T² 与 L 成过原点直线，斜率 k=4π²/g，故 g=4π²/k。</p>
+  </section>
+
+  <section class="panel controls" data-region="controls" aria-label="实验控件">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始计时</button>
+      <button id="recordBtn" class="data" type="button">记一组数据</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="lengthInput">摆长 L <output id="lengthOutput">1.20 m</output></label>
+      <input id="lengthInput" type="range" min="0.5" max="2" step="0.05" value="1.2">
+    </div>
+    <div class="control">
+      <label>重力环境 <output id="gravityOutput">地球 9.80 m/s²</output></label>
+      <div id="gravityToggle" class="toggle-group" role="group" aria-label="重力环境">
+        <button data-g="9.8" aria-pressed="true" type="button">地球 9.8</button>
+        <button data-g="1.6" aria-pressed="false" type="button">月球 1.6</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const state = {
+    running: false,
+    t: 0,
+    L: 1.2,
+    g: 9.8,
+    theta0: 0.12,
+    timer: 0,
+    cycleCount: 0,
+    lastSign: 0,
+    lastTimestamp: null,
+    data: [],
+    fitSlope: null,
+    fitIntercept: null,
+    fitG: null,
+    fitErr: null
+  };
+  const els = {
+    status: document.getElementById("status"),
+    scene: document.getElementById("scene"),
+    chart: document.getElementById("chart"),
+    tableBody: document.getElementById("tableBody"),
+    insight: document.getElementById("insight"),
+    rL: document.getElementById("rL"), rT: document.getElementById("rT"), rT2: document.getElementById("rT2"), rTimer: document.getElementById("rTimer"),
+    lengthInput: document.getElementById("lengthInput"), lengthOutput: document.getElementById("lengthOutput"),
+    gravityOutput: document.getElementById("gravityOutput"),
+    startBtn: document.getElementById("startBtn"), recordBtn: document.getElementById("recordBtn"), resetBtn: document.getElementById("resetBtn"),
+    gravityToggle: document.getElementById("gravityToggle")
+  };
+  const TWO_PI = Math.PI * 2;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const finite = (v, fb) => Number.isFinite(v) ? v : fb;
+
+  function theoreticalT(L, g) { return TWO_PI * Math.sqrt(L / g); }
+  function theoreticalT2(L, g) { const t = theoreticalT(L, g); return t * t; }
+  function theta(t) { return state.theta0 * Math.cos(t * Math.sqrt(state.g / state.L)); }
+  function omega(t) { return -state.theta0 * Math.sqrt(state.g / state.L) * Math.sin(t * Math.sqrt(state.g / state.L)); }
+
+  function fitLine(data) {
+    const n = data.length;
+    if (n < 1) return { slope: null, intercept: null };
+    if (n === 1) return { slope: null, intercept: 0, single: true };
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const d of data) { sx += d.L; sy += d.T2; sxx += d.L * d.L; sxy += d.L * d.T2; }
+    const denom = n * sxx - sx * sx;
+    if (Math.abs(denom) < 1e-12) return { slope: null, intercept: 0 };
+    const slope = (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    return { slope, intercept };
+  }
+
+  function resizeCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width));
+    const h = Math.max(1, Math.floor(rect.height));
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr; canvas.height = h * dpr;
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+
+  function drawScene() {
+    const { ctx, w, h } = resizeCanvas(els.scene);
+    ctx.clearRect(0, 0, w, h);
+    const padTop = 38, padBottom = 28, padX = 30;
+    const pivotX = w / 2;
+    const pivotY = padTop;
+    const availH = h - padTop - padBottom;
+    const Lmax = 2.0;
+    const pxPerM = availH / Lmax;
+    const ballR = clamp(20 * (state.L / 1.5), 14, 24);
+    const stringLen = state.L * pxPerM;
+    const th = theta(state.t);
+    const ballX = pivotX + stringLen * Math.sin(th);
+    const ballY = pivotY + stringLen * Math.cos(th);
+
+    ctx.strokeStyle = "rgba(100,116,139,0.30)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const arcR = Math.min(60, stringLen * 0.35);
+    ctx.arc(pivotX, pivotY, arcR, Math.PI / 2 - state.theta0, Math.PI / 2 + state.theta0);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(100,116,139,0.28)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(pivotX, pivotY + stringLen + 18);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pivotX, pivotY);
+    ctx.lineTo(ballX, ballY);
+    ctx.stroke();
+
+    ctx.fillStyle = "#334155";
+    ctx.beginPath();
+    ctx.arc(pivotX, pivotY, 7, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = "#1e293b";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#94a3b8";
+    ctx.beginPath();
+    ctx.arc(pivotX - 2, pivotY - 2, 2.5, 0, TWO_PI);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(15,23,42,0.18)";
+    ctx.beginPath();
+    ctx.arc(ballX + 2, ballY + 3, ballR, 0, TWO_PI);
+    ctx.fill();
+
+    const ballGrad = ctx.createRadialGradient(ballX - ballR * 0.35, ballY - ballR * 0.35, ballR * 0.1, ballX, ballY, ballR);
+    ballGrad.addColorStop(0, "#5b9bf5");
+    ballGrad.addColorStop(0.55, "#1f6feb");
+    ballGrad.addColorStop(1, "#0a4fb5");
+    ctx.fillStyle = ballGrad;
+    ctx.beginPath();
+    ctx.arc(ballX, ballY, ballR, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = "#0a4fb5";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.arc(ballX - ballR * 0.35, ballY - ballR * 0.35, ballR * 0.22, 0, TWO_PI);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(15,159,186,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    const labelX = pivotX + 48;
+    ctx.beginPath();
+    ctx.moveTo(labelX, pivotY);
+    ctx.lineTo(labelX, ballY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(labelX - 4, pivotY); ctx.lineTo(labelX + 4, pivotY);
+    ctx.moveTo(labelX - 4, ballY); ctx.lineTo(labelX + 4, ballY);
+    ctx.stroke();
+    ctx.fillStyle = "#08758a";
+    ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("L = " + state.L.toFixed(2) + " m", labelX + 8, (pivotY + ballY) / 2 + 4);
+
+    if (Math.abs(th) > 0.005) {
+      ctx.strokeStyle = "rgba(232,89,12,0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const aR = Math.min(40, stringLen * 0.25);
+      const a0 = Math.PI / 2;
+      const a1 = Math.PI / 2 + th;
+      ctx.arc(pivotX, pivotY, aR, Math.min(a0, a1), Math.max(a0, a1));
+      ctx.stroke();
+      ctx.fillStyle = "#b54608";
+      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+      const labAng = Math.PI / 2 + th * 0.5;
+      const lx = pivotX + (aR + 10) * Math.cos(labAng);
+      const ly = pivotY + (aR + 10) * Math.sin(labAng);
+      ctx.fillText((th * 180 / Math.PI).toFixed(1) + "°", lx, ly + 4);
+    }
+
+    ctx.strokeStyle = "rgba(100,116,139,0.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX, h - padBottom + 8);
+    ctx.lineTo(w - padX, h - padBottom + 8);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(23,32,51,0.55)";
+    ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("小幅摆动 · 计时起点为最低点", padX, 16);
+    ctx.textAlign = "right";
+    ctx.fillText("g = " + state.g.toFixed(2) + " m/s²", w - padX, 16);
+  }
+
+  function drawChart() {
+    const { ctx, w, h } = resizeCanvas(els.chart);
+    ctx.clearRect(0, 0, w, h);
+    const padL = 56, padR = 24, padT = 30, padB = 46;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+    const Lmax = 2.2;
+    const T2max = theoreticalT2(2.0, 1.6) * 1.12;
+    const xToPx = L => padL + (L / Lmax) * plotW;
+    const yToPx = T2 => padT + plotH - (T2 / T2max) * plotH;
+
+    ctx.strokeStyle = "rgba(232,237,244,0.9)";
+    ctx.lineWidth = 1;
+    ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "rgba(101,113,136,0.85)";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i <= 4; i++) {
+      const L = (i / 4) * Lmax;
+      const px = xToPx(L);
+      ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, padT + plotH); ctx.stroke();
+      ctx.fillText(L.toFixed(1), px - 4, padT + plotH + 16);
+    }
+    ctx.textAlign = "right";
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+      const T2 = (i / ySteps) * T2max;
+      const py = yToPx(T2);
+      ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL + plotW, py); ctx.stroke();
+      ctx.fillText(T2.toFixed(1), padL - 6, py);
+    }
+
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("L / m", padL + plotW / 2, h - 8);
+    ctx.save();
+    ctx.translate(14, padT + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText("T² / s²", 0, 0);
+    ctx.restore();
+
+    ctx.strokeStyle = "rgba(15,159,186,0.30)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(xToPx(0), yToPx(0));
+    ctx.lineTo(xToPx(Lmax), yToPx(theoreticalT2(Lmax, state.g)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (state.fitSlope !== null && state.data.length >= 2) {
+      ctx.strokeStyle = "rgba(47,158,68,0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      const x1 = 0, y1 = state.fitIntercept;
+      const x2 = Lmax, y2 = state.fitSlope * Lmax + state.fitIntercept;
+      ctx.moveTo(xToPx(x1), yToPx(y1));
+      ctx.lineTo(xToPx(x2), yToPx(y2));
+      ctx.stroke();
+    }
+
+    if (state.data.length >= 2) {
+      ctx.strokeStyle = "rgba(232,89,12,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      state.data.forEach((d, i) => {
+        const px = xToPx(d.L), py = yToPx(d.T2);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    }
+
+    state.data.forEach((d, i) => {
+      const px = xToPx(d.L), py = yToPx(d.T2);
+      ctx.fillStyle = "rgba(232,89,12,0.22)";
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, TWO_PI); ctx.fill();
+      ctx.fillStyle = "#e8590c";
+      ctx.beginPath(); ctx.arc(px, py, 5, 0, TWO_PI); ctx.fill();
+      ctx.strokeStyle = "#b54608";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.beginPath(); ctx.arc(px - 1.5, py - 1.5, 1.5, 0, TWO_PI); ctx.fill();
+    });
+
+    if (state.running || state.cycleCount > 0) {
+      const previewT2 = theoreticalT2(state.L, state.g);
+      const px = xToPx(state.L), py = yToPx(previewT2);
+      ctx.strokeStyle = "rgba(232,89,12,0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(px, py, 7, 0, TWO_PI);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(180,70,8,0.85)";
+      ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("当前 L", px + 10, py - 6);
+    }
+
+    const legX = padL + 10, legY = padT + 10;
+    const lineH = 16;
+    ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    let li = 0;
+    ctx.fillStyle = "#e8590c";
+    ctx.beginPath(); ctx.arc(legX + 5, legY + li * lineH, 4, 0, TWO_PI); ctx.fill();
+    ctx.fillStyle = "#475569";
+    ctx.fillText("数据点 (L, T²)", legX + 14, legY + li * lineH); li++;
+    if (state.fitSlope !== null && state.data.length >= 2) {
+      ctx.strokeStyle = "rgba(47,158,68,0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(legX, legY + li * lineH); ctx.lineTo(legX + 10, legY + li * lineH); ctx.stroke();
+      ctx.fillStyle = "#475569";
+      ctx.fillText("拟合直线 (过原点约束)", legX + 14, legY + li * lineH); li++;
+    }
+    ctx.strokeStyle = "rgba(15,159,186,0.6)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(legX, legY + li * lineH); ctx.lineTo(legX + 10, legY + li * lineH); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#475569";
+    ctx.fillText("理论参考 (当前 g)", legX + 14, legY + li * lineH); li++;
+
+    if (state.fitSlope !== null && state.data.length >= 2) {
+      ctx.fillStyle = "#1e7a34";
+      ctx.font = "bold 11px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      const lines = [
+        "斜率 k = " + state.fitSlope.toFixed(3) + " s²/m",
+        "g反算 = 4π²/k = " + (state.fitG !== null ? state.fitG.toFixed(2) : "--") + " m/s²",
+        "误差 = " + (state.fitErr !== null ? state.fitErr.toFixed(1) : "--") + "%"
+      ];
+      lines.forEach((ln, i) => ctx.fillText(ln, padL + 10, padT + plotH - 60 + i * 14));
+    } else if (state.data.length === 1) {
+      ctx.fillStyle = "rgba(101,113,136,0.85)";
+      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("已采集 1 点 · 至少需要 2 点拟合直线", padL + 10, padT + plotH - 30);
+    }
+  }
+
+  function updateTable() {
+    if (state.data.length === 0) {
+      els.tableBody.innerHTML = '<tr><td colspan="5" style="color:var(--sim-muted)">点击「记一组数据」开始采集</td></tr>';
+      return;
+    }
+    const rows = state.data.map(d => {
+      const gCalc = d.gCalc !== null ? d.gCalc.toFixed(2) : "--";
+      const err = d.err !== null ? d.err.toFixed(1) + "%" : "--";
+      return `<tr><td>${d.L.toFixed(2)}</td><td>${d.T.toFixed(2)}</td><td>${d.T2.toFixed(2)}</td><td>${gCalc}</td><td>${err}</td></tr>`;
+    }).join("");
+    els.tableBody.innerHTML = rows;
+  }
+
+  function updateReadouts() {
+    const T = theoreticalT(state.L, state.g);
+    const T2 = T * T;
+    els.rL.textContent = state.L.toFixed(2) + " m";
+    els.rT.textContent = T.toFixed(2) + " s";
+    els.rT2.textContent = T2.toFixed(2) + " s²";
+    els.rTimer.textContent = state.timer.toFixed(2) + " s / " + state.cycleCount;
+    els.lengthOutput.textContent = state.L.toFixed(2) + " m";
+    els.gravityOutput.textContent = (state.g > 5 ? "地球 " : "月球 ") + state.g.toFixed(2) + " m/s²";
+  }
+
+  function updateStatus() {
+    if (state.running) {
+      els.status.textContent = "计时中 · " + state.cycleCount + " 周期";
+      els.startBtn.textContent = "暂停计时";
+    } else if (state.cycleCount > 0) {
+      els.status.textContent = "已暂停 · " + state.cycleCount + " 周期";
+      els.startBtn.textContent = "继续计时";
+    } else {
+      els.status.textContent = "已就绪";
+      els.startBtn.textContent = "开始计时";
+    }
+  }
+
+  function updateInsight() {
+    if (!state.running && state.cycleCount === 0 && state.data.length === 0) {
+      els.insight.textContent = "按「开始计时」让摆球摆动，每经过最低点一次记一个周期；改变摆长后「记一组数据」，用 T²–L 图像的斜率反算 g。";
+    } else if (state.running) {
+      els.insight.textContent = "计时中：摆球每经过最低点一次，周期数 +1。多记几个周期可减小反应时间带来的计时误差。";
+    } else if (state.data.length >= 2 && state.fitG !== null) {
+      const dir = state.fitErr >= 0 ? "偏大" : "偏小";
+      els.insight.textContent = "已用 " + state.data.length + " 组数据拟合：g反算 = " + state.fitG.toFixed(2) + " m/s²，与设定值 " + state.g.toFixed(2) + " 相比" + dir + " " + Math.abs(state.fitErr).toFixed(1) + "%。数据点越多，斜率越稳。";
+    } else if (state.data.length === 1) {
+      els.insight.textContent = "已采集 1 组数据。再换一个摆长、记第二组数据，即可拟合 T²–L 直线并反算 g。";
+    } else if (state.cycleCount > 0) {
+      els.insight.textContent = "已暂停：已记 " + state.cycleCount + " 个周期。按「记一组数据」把当前 (L, T) 存入图像，再换摆长继续采集。";
+    } else {
+      els.insight.textContent = "按「开始计时」让摆球摆动，每经过最低点一次记一个周期；改变摆长后「记一组数据」，用 T²–L 图像的斜率反算 g。";
+    }
+  }
+
+  function render() {
+    drawScene();
+    drawChart();
+    updateReadouts();
+    updateTable();
+    updateStatus();
+    updateInsight();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    const prevTheta = theta(state.t);
+    state.t += boundedDt;
+    state.timer += boundedDt;
+    const newTheta = theta(state.t);
+    if (prevTheta * newTheta < 0) {
+      state.cycleCount += 1;
+    }
+  }
+
+  function start() {
+    state.running = true;
+    state.lastTimestamp = null;
+    updateStatus();
+    updateInsight();
+  }
+  function pause() {
+    state.running = false;
+    updateStatus();
+    updateInsight();
+  }
+  function reset() {
+    state.running = false;
+    state.t = 0;
+    state.timer = 0;
+    state.cycleCount = 0;
+    state.lastSign = 0;
+    state.lastTimestamp = null;
+    state.data = [];
+    state.fitSlope = null;
+    state.fitIntercept = null;
+    state.fitG = null;
+    state.fitErr = null;
+    render();
+  }
+  function recordData() {
+    const T = theoreticalT(state.L, state.g);
+    const T2 = T * T;
+    state.data.push({ L: state.L, T, T2, g: state.g });
+    if (state.data.length >= 2) {
+      let sxy = 0, sxx = 0;
+      for (const d of state.data) { sxy += d.L * d.T2; sxx += d.L * d.L; }
+      const slope = sxx > 1e-12 ? sxy / sxx : null;
+      state.fitSlope = slope;
+      state.fitIntercept = 0;
+      if (slope !== null && slope > 1e-6) {
+        state.fitG = (4 * Math.PI * Math.PI) / slope;
+        state.fitErr = ((state.fitG - state.g) / state.g) * 100;
+      }
+    }
+    state.data.forEach(d => {
+      d.gCalc = (4 * Math.PI * Math.PI * d.L) / d.T2;
+      d.err = ((d.gCalc - d.g) / d.g) * 100;
+    });
+    render();
+  }
+  function setParameters(values) {
+    if (values.L !== undefined) state.L = clamp(finite(Number(values.L), 1.2), 0.5, 2);
+    if (values.g !== undefined) state.g = values.g > 5 ? 9.8 : 1.6;
+    render();
+  }
+  function getState() { return { ...state, data: state.data.map(d => ({ ...d })) }; }
+  function getReadouts() {
+    return { L: state.L, g: state.g, T: theoreticalT(state.L, state.g), T2: theoreticalT2(state.L, state.g), timer: state.timer, cycleCount: state.cycleCount };
+  }
+  function runModelChecks() {
+    const T_earth_1 = theoreticalT(1.0, 9.8);
+    const T_earth_1_exact = TWO_PI * Math.sqrt(1 / 9.8);
+    const T_moon_1 = theoreticalT(1.0, 1.6);
+    const T_moon_1_exact = TWO_PI * Math.sqrt(1 / 1.6);
+    const T2_earth_2 = theoreticalT2(2.0, 9.8);
+    const T2_earth_2_exact = 4 * Math.PI * Math.PI * 2.0 / 9.8;
+    const ratio1 = theoreticalT2(0.5, 9.8) / 0.5;
+    const ratio2 = theoreticalT2(1.5, 9.8) / 1.5;
+    const ratio3 = theoreticalT2(2.0, 9.8) / 2.0;
+    const ratioSpread = Math.max(ratio1, ratio2, ratio3) - Math.min(ratio1, ratio2, ratio3);
+    const gFromSlope = (4 * Math.PI * Math.PI) / ratio2;
+    return [
+      { name: "T(1m, 地球) 与解析值一致", pass: Math.abs(T_earth_1 - T_earth_1_exact) < 1e-9, expected: T_earth_1_exact, actual: T_earth_1, tolerance: 1e-9 },
+      { name: "T(1m, 月球) 与解析值一致", pass: Math.abs(T_moon_1 - T_moon_1_exact) < 1e-9, expected: T_moon_1_exact, actual: T_moon_1, tolerance: 1e-9 },
+      { name: "T²(2m, 地球) 与 4π²L/g 一致", pass: Math.abs(T2_earth_2 - T2_earth_2_exact) < 1e-9, expected: T2_earth_2_exact, actual: T2_earth_2, tolerance: 1e-9 },
+      { name: "T²/L 为常数（过原点线性）", pass: ratioSpread < 1e-9, expected: 0, actual: ratioSpread, tolerance: 1e-9 },
+      { name: "由斜率反算 g 与输入 g 一致", pass: Math.abs(gFromSlope - 9.8) < 1e-9, expected: 9.8, actual: gFromSlope, tolerance: 1e-9 },
+      { name: "重力越小周期越长（月球 > 地球）", pass: T_moon_1 > T_earth_1, expected: "T_moon > T_earth", actual: T_moon_1.toFixed(3) + " > " + T_earth_1.toFixed(3), tolerance: "strict" }
+    ];
+  }
+
+  function bindControls() {
+    els.startBtn.addEventListener("click", () => { state.running ? pause() : start(); });
+    els.recordBtn.addEventListener("click", recordData);
+    els.resetBtn.addEventListener("click", reset);
+    els.lengthInput.addEventListener("input", () => {
+      state.running = false;
+      state.t = 0;
+      state.timer = 0;
+      state.cycleCount = 0;
+      state.lastTimestamp = null;
+      setParameters({ L: els.lengthInput.value });
+    });
+    els.gravityToggle.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const g = parseFloat(btn.dataset.g);
+        els.gravityToggle.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+        state.running = false;
+        state.t = 0;
+        state.timer = 0;
+        state.cycleCount = 0;
+        state.lastTimestamp = null;
+        setParameters({ g });
+      });
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    bindControls();
+    setParameters({ L: 1.2, g: 9.8 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

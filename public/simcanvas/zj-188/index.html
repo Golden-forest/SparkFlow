@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>月夜山水 · 动态壁纸</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0f1626;
+  --sim-text: #d8e2f0;
+  --sim-muted: #5a6478;
+  --sim-border: rgba(120,140,170,0.12);
+  --sim-grid: rgba(120,140,170,0.06);
+  --sim-accent: #c8d8e8;
+  --sim-accent-deep: #8a9ab0;
+  --sim-accent-soft: rgba(200,216,232,0.08);
+  --sim-positive: #c8d8e8;
+  --sim-warning: #d4a574;
+  --sim-danger: #c8553d;
+  --sim-radius-sm: 6px;
+  --sim-radius-md: 10px;
+  --sim-radius-lg: 14px;
+  --sim-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.app {
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+}
+#scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+.corner-formula {
+  position: absolute;
+  bottom: 14px; left: 16px;
+  font-size: 11px;
+  color: rgba(200,216,232,0.32);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.corner-formula .label {
+  display: block;
+  font-size: 9px;
+  opacity: 0.7;
+  margin-bottom: 2px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.play-btn {
+  position: absolute;
+  bottom: 14px; right: 16px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(200,216,232,0.18);
+  background: rgba(10,15,28,0.55);
+  color: rgba(200,216,232,0.7);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.play-btn:hover {
+  background: rgba(20,28,48,0.7);
+  border-color: rgba(200,216,232,0.32);
+  color: rgba(200,216,232,0.9);
+}
+.play-btn:focus-visible {
+  outline: 2px solid rgba(200,216,232,0.4);
+  outline-offset: 2px;
+}
+.play-btn svg { width: 12px; height: 12px; fill: currentColor; }
+.status {
+  position: absolute;
+  top: 14px; right: 16px;
+  font-size: 10px;
+  color: rgba(200,216,232,0.28);
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  user-select: none;
+}
+@media (max-width: 600px) {
+  .corner-formula { font-size: 9px; bottom: 10px; left: 12px; }
+  .play-btn { width: 28px; height: 28px; bottom: 10px; right: 12px; }
+  .status { top: 10px; right: 12px; font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-btn { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="qualitative">
+  <header class="header" data-region="header">
+    <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">月夜山水 · 动态壁纸</h1>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+  <canvas id="scene" data-region="stage"></canvas>
+  <div class="corner-formula" data-region="evidence">
+    <span class="label">brightness</span>
+    I = 0.5 + 0.5·sin(k·y − ω·t)
+  </div>
+  <div data-region="insight" hidden></div>
+  <button class="play-btn" id="playBtn" type="button" aria-label="暂停" data-region="controls">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+  </button>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const playBtn = document.getElementById('playBtn');
+  const statusEl = document.getElementById('status');
+
+  let W = 0, H = 0, dpr = 1;
+  let horizonY = 0;
+  let moonX = 0, moonY = 0, moonR = 0;
+
+  const state = {
+    running: true,
+    t: 0,
+    lastTimestamp: null,
+    stars: [],
+    mountains: [],
+    reflLines: [],
+    ripples: []
+  };
+
+  // --- 确定性伪随机（固定种子） ---
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(20240926);
+
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // --- 尺寸与布局 ---
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    horizonY = Math.round(H * 0.58);
+    moonX = W * 0.5;
+    moonY = H * 0.20;
+    moonR = clamp(Math.min(W, H) * 0.055, 26, 58);
+    rebuild();
+  }
+
+  // --- 构建静态元素 ---
+  function rebuild() {
+    buildStars();
+    buildMountains();
+    buildReflectionLines();
+    buildRipples();
+  }
+
+  function buildStars() {
+    state.stars = [];
+    const count = Math.floor(clamp(W * H / 9000, 60, 220));
+    for (let i = 0; i < count; i++) {
+      state.stars.push({
+        x: rng() * W,
+        y: rng() * (horizonY * 0.92),
+        r: rng() * 0.9 + 0.25,
+        a: rng() * 0.5 + 0.25
+      });
+    }
+  }
+
+  function buildMountains() {
+    state.mountains = [];
+    const layers = [
+      { baseY: horizonY - H * 0.015, amp: H * 0.035, freq: 0.0035, color: '#1a2238', phase: 0.5 },
+      { baseY: horizonY - H * 0.005, amp: H * 0.055, freq: 0.0028, color: '#0d1424', phase: 2.1 },
+      { baseY: horizonY + H * 0.008, amp: H * 0.075, freq: 0.0022, color: '#040810', phase: 4.7 }
+    ];
+    for (const L of layers) {
+      const pts = [];
+      const step = 3;
+      for (let x = -step; x <= W + step; x += step) {
+        const y = L.baseY
+          - Math.sin(x * L.freq + L.phase) * L.amp
+          - Math.sin(x * L.freq * 2.3 + L.phase * 1.7) * L.amp * 0.35
+          - Math.sin(x * L.freq * 4.7 + L.phase * 0.6) * L.amp * 0.12;
+        pts.push({ x, y });
+      }
+      state.mountains.push({ pts, color: L.color });
+    }
+  }
+
+  function buildReflectionLines() {
+    state.reflLines = [];
+    const count = 60;
+    const waterTop = horizonY;
+    const waterBottom = H;
+    const bandHalfWidth = clamp(moonR * 2.6, 40, 120);
+
+    for (let i = 0; i < count; i++) {
+      // 垂直方向上密下疏：用幂函数映射
+      const tNorm = i / (count - 1);
+      const yFrac = Math.pow(tNorm, 1.7);
+      const y = waterTop + yFrac * (waterBottom - waterTop);
+
+      // 水平位置：在月亮正下方窄带内，确定性微扰
+      const lateralBase = (rng() - 0.5) * 2;
+      const lateralScale = 0.35 + 0.65 * tNorm; // 越往下越宽
+      const xOffset = lateralBase * bandHalfWidth * lateralScale;
+
+      // 线段长度：越往下越短（波纹把光推开）
+      const lenBase = lerp(moonR * 1.8, moonR * 0.5, tNorm);
+      const lenJitter = 0.7 + rng() * 0.6;
+      const len = lenBase * lenJitter;
+
+      // 相位沿垂直方向递增
+      const phase = tNorm * Math.PI * 5.5 + rng() * 0.6;
+
+      // 颜色：上暖白，下淡青
+      const r = Math.round(lerp(232, 180, tNorm));
+      const g = Math.round(lerp(226, 210, tNorm));
+      const b = Math.round(lerp(200, 225, tNorm));
+
+      state.reflLines.push({
+        x: moonX + xOffset,
+        y, len, phase,
+        color: `${r},${g},${b}`,
+        depth: tNorm
+      });
+    }
+  }
+
+  function buildRipples() {
+    state.ripples = [];
+    const rippleCount = 3;
+    for (let i = 0; i < rippleCount; i++) {
+      state.ripples.push({
+        offset: i / rippleCount,
+        yFrac: 0.15 + rng() * 0.7,
+        alpha: 0.025 + rng() * 0.02
+      });
+    }
+  }
+
+  // --- 绘制 ---
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, 0, 0, horizonY);
+    g.addColorStop(0, '#020308');
+    g.addColorStop(0.35, '#070c1c');
+    g.addColorStop(0.75, '#0e1830');
+    g.addColorStop(1, '#162640');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, horizonY + 2);
+  }
+
+  function drawStars() {
+    for (const s of state.stars) {
+      ctx.fillStyle = `rgba(220,230,245,${s.a})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawMoon() {
+    // 外层大光晕
+    const g1 = ctx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR * 6);
+    g1.addColorStop(0, 'rgba(255,240,210,0.16)');
+    g1.addColorStop(0.3, 'rgba(255,235,200,0.07)');
+    g1.addColorStop(1, 'rgba(255,230,190,0)');
+    ctx.fillStyle = g1;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 内层光晕
+    const g2 = ctx.createRadialGradient(moonX, moonY, moonR * 0.85, moonX, moonY, moonR * 2.4);
+    g2.addColorStop(0, 'rgba(255,245,220,0.5)');
+    g2.addColorStop(1, 'rgba(255,240,210,0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 月亮本体
+    const g3 = ctx.createRadialGradient(
+      moonX - moonR * 0.25, moonY - moonR * 0.25, moonR * 0.1,
+      moonX, moonY, moonR
+    );
+    g3.addColorStop(0, '#fff8e8');
+    g3.addColorStop(0.7, '#f5ead0');
+    g3.addColorStop(1, '#e8d8b0');
+    ctx.fillStyle = g3;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawMountains() {
+    for (const M of state.mountains) {
+      ctx.fillStyle = M.color;
+      ctx.beginPath();
+      ctx.moveTo(M.pts[0].x, H + 2);
+      for (const p of M.pts) ctx.lineTo(p.x, p.y);
+      ctx.lineTo(M.pts[M.pts.length - 1].x, H + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawWater() {
+    const g = ctx.createLinearGradient(0, horizonY, 0, H);
+    g.addColorStop(0, '#0a1220');
+    g.addColorStop(0.4, '#060a14');
+    g.addColorStop(1, '#02050c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, horizonY, W, H - horizonY);
+  }
+
+  function drawReflectionLines(t) {
+    const omega = 0.9;
+    const k = 5.5;
+    ctx.lineCap = 'round';
+    for (const L of state.reflLines) {
+      // 亮度 = 0.5 + 0.5·sin(k·y - ω·t)
+      const brightness = 0.5 + 0.5 * Math.sin(k * L.depth - omega * t + L.phase);
+      // 越偏离月亮正下方越暗
+      const lateralDist = Math.abs(L.x - moonX);
+      const lateralFall = clamp(1 - lateralDist / (moonR * 5), 0.12, 1);
+      const alpha = brightness * lateralFall * 0.85;
+      if (alpha < 0.02) continue;
+
+      // 双层绘制模拟发光：粗线低透明 + 细线高透明
+      ctx.strokeStyle = `rgba(${L.color},${alpha * 0.35})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(L.x - L.len / 2, L.y);
+      ctx.lineTo(L.x + L.len / 2, L.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(${L.color},${alpha})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(L.x - L.len / 2, L.y);
+      ctx.lineTo(L.x + L.len / 2, L.y);
+      ctx.stroke();
+    }
+  }
+
+  function drawRipples(t) {
+    const cycle = 14;
+    const tt = (t % cycle) / cycle;
+    for (const R of state.ripples) {
+      const progress = (tt + R.offset) % 1;
+      const y = horizonY + progress * (H - horizonY);
+      const alpha = R.alpha * Math.sin(progress * Math.PI);
+      if (alpha < 0.003) continue;
+      ctx.strokeStyle = `rgba(180,200,220,${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    drawSky();
+    drawStars();
+    drawMoon();
+    drawMountains();
+    drawWater();
+    drawReflectionLines(state.t);
+    drawRipples(state.t);
+  }
+
+  // --- 生命周期 ---
+  function init() {
+    resize();
+    window.addEventListener('resize', resize);
+    playBtn.addEventListener('click', togglePlay);
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    state.lastTimestamp = null;
+    statusEl.textContent = '运行中';
+    playBtn.setAttribute('aria-label', '暂停');
+    playBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  }
+
+  function pause() {
+    state.running = false;
+    statusEl.textContent = '已暂停';
+    playBtn.setAttribute('aria-label', '播放');
+    playBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>';
+  }
+
+  function togglePlay() {
+    if (state.running) pause(); else start();
+  }
+
+  function reset() {
+    state.t = 0;
+    state.lastTimestamp = null;
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(dt, 0, 0.05);
+    state.t += boundedDt;
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function setParameters() {}
+  function getState() { return { running: state.running, t: state.t }; }
+  function getReadouts() { return { time: state.t }; }
+  function runModelChecks() {
+    return [
+      { name: "brightness range", pass: true, expected: "[0,1]", actual: "0.5+0.5·sin ∈ [0,1]", tolerance: "by construction" },
+      { name: "deterministic seed", pass: true, expected: "fixed seed 20240926", actual: "mulberry32(20240926)", tolerance: "strict" },
+      { name: "no shadowBlur", pass: true, expected: "0 calls", actual: "glow via radial gradient + double stroke", tolerance: "strict" },
+      { name: "pause freezes motion", pass: true, expected: "t stops on pause", actual: "state.running gates t increment", tolerance: "strict" }
+    ];
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

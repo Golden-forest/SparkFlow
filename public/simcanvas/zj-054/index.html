@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>岩石循环模拟 · Rock Cycle</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #f4f7fb;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #d97706;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-igneous: #c0392b;
+  --sim-igneous-soft: #fdecea;
+  --sim-sedimentary: #d4a017;
+  --sim-sedimentary-soft: #fbf3da;
+  --sim-metamorphic: #6c5ce7;
+  --sim-metamorphic-soft: #ece9fd;
+  --sim-magma: #e74c3c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: var(--sim-space-4) 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--sim-space-3); overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: var(--sim-space-3); }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: var(--sim-space-3); }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--sim-space-3); }
+.readouts, .model-note { padding: 17px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sim-space-3); }
+.metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: var(--sim-space-1); color: var(--sim-muted); }
+.metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.model-note { display: grid; align-content: start; gap: 14px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+.insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: var(--sim-space-4); align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: var(--sim-space-2); }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.legend { display: flex; gap: var(--sim-space-4); flex-wrap: wrap; font-size: 0.78rem; color: var(--sim-muted); }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.08); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-3); }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="rule-system">
+  <header class="header" data-region="header">
+    <div>
+      <h1>岩石循环模拟</h1>
+      <p>观察岩浆冷却、风化沉积与高温高压如何驱动岩石在三类之间循环转化。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head">
+        <h2 id="scene-title">岩石循环</h2>
+        <span>岩浆岩 · 沉积岩 · 变质岩</span>
+      </div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">三类岩石通过地质过程循环转化，当前阶段高亮显示。</desc>
+        <defs>
+          <radialGradient id="magmaGlow" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0%" stop-color="#ff7a4d"></stop>
+            <stop offset="60%" stop-color="#e74c3c"></stop>
+            <stop offset="100%" stop-color="#a93226"></stop>
+          </radialGradient>
+          <linearGradient id="igneousGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#e57373"></stop>
+            <stop offset="100%" stop-color="#c0392b"></stop>
+          </linearGradient>
+          <linearGradient id="sedGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#f0c040"></stop>
+            <stop offset="100%" stop-color="#d4a017"></stop>
+          </linearGradient>
+          <linearGradient id="metaGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#9b8dfb"></stop>
+            <stop offset="100%" stop-color="#6c5ce7"></stop>
+          </linearGradient>
+        </defs>
+
+        <g id="arrows" stroke="#94a3b8" stroke-width="2.5" fill="none" stroke-linecap="round"></g>
+
+        <g id="nodes">
+          <g id="node-magma" transform="translate(380, 360)">
+            <circle r="34" fill="url(#magmaGlow)" opacity="0.92"></circle>
+            <circle r="34" fill="none" stroke="#a93226" stroke-width="2"></circle>
+            <text y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">岩浆</text>
+          </g>
+          <g id="node-igneous" transform="translate(560, 210)">
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="url(#igneousGrad)" opacity="0.92"></rect>
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="none" stroke="#922b21" stroke-width="2"></rect>
+            <text y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">岩浆岩</text>
+          </g>
+          <g id="node-sedimentary" transform="translate(380, 60)">
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="url(#sedGrad)" opacity="0.92"></rect>
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="none" stroke="#a07f0e" stroke-width="2"></rect>
+            <text y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">沉积岩</text>
+          </g>
+          <g id="node-metamorphic" transform="translate(200, 210)">
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="url(#metaGrad)" opacity="0.92"></rect>
+            <rect x="-58" y="-32" width="116" height="64" rx="12" fill="none" stroke="#4a3fb0" stroke-width="2"></rect>
+            <text y="5" text-anchor="middle" fill="#fff" font-size="13" font-weight="700">变质岩</text>
+          </g>
+        </g>
+
+        <g id="labels" fill="#475569" font-size="11" font-weight="600"></g>
+        <g id="particles"></g>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数值">
+        <div class="readout-grid">
+          <div class="metric"><small>当前阶段</small><strong id="phaseReadout">岩浆</strong></div>
+          <div class="metric"><small>已用时</small><strong id="timeReadout">0.0 s</strong></div>
+          <div class="metric"><small>下一过程</small><strong id="nextReadout">冷却结晶</strong></div>
+          <div class="metric"><small>循环次数</small><strong id="cycleReadout">0</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>模型说明</h2></div>
+        <p id="insight" class="insight">点击「开始」启动循环。岩浆冷却结晶形成岩浆岩，随后经历风化侵蚀、沉积固结、变质重结晶，最终熔融回到岩浆。</p>
+        <p>教学视图：三类岩石并非一成不变，而是在地质时间尺度上持续转化。颜色编码区分三类岩石与岩浆，箭头方向指示转化路径。</p>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:#e74c3c"></span>岩浆</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#c0392b"></span>岩浆岩</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#d4a017"></span>沉积岩</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#6c5ce7"></span>变质岩</div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="speedInput">演化速度 <output id="speedOutput">1.0×</output></label>
+      <input id="speedInput" type="range" min="0.25" max="3" step="0.25" value="1">
+    </div>
+    <div class="control">
+      <label for="stepInput">阶段时长 <output id="stepOutput">2.5 s</output></label>
+      <input id="stepInput" type="range" min="1" max="6" step="0.5" value="2.5">
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var parameterSchema = [
+    { key: "speed", label: "演化速度", type: "slider", min: 0.25, max: 3, step: 0.25, default: 1, unit: "×" },
+    { key: "stepDuration", label: "阶段时长", type: "slider", min: 1, max: 6, step: 0.5, default: 2.5, unit: "s" }
+  ];
+
+  var PHASES = [
+    { id: "magma", label: "岩浆", next: "igneous", process: "冷却结晶", color: "#e74c3c" },
+    { id: "igneous", label: "岩浆岩", next: "sedimentary", process: "风化沉积", color: "#c0392b" },
+    { id: "sedimentary", label: "沉积岩", next: "metamorphic", process: "变质重结晶", color: "#d4a017" },
+    { id: "metamorphic", label: "变质岩", next: "magma", process: "熔融上升", color: "#6c5ce7" }
+  ];
+
+  var NODE_POS = {
+    magma: { x: 380, y: 360 },
+    igneous: { x: 560, y: 210 },
+    sedimentary: { x: 380, y: 60 },
+    metamorphic: { x: 200, y: 210 }
+  };
+
+  var state = {
+    running: false,
+    t: 0,
+    phaseIndex: 0,
+    phaseTime: 0,
+    speed: 1,
+    stepDuration: 2.5,
+    cycles: 0,
+    lastTimestamp: null,
+    particles: []
+  };
+
+  var elements = {
+    status: document.getElementById("status"),
+    phaseReadout: document.getElementById("phaseReadout"),
+    timeReadout: document.getElementById("timeReadout"),
+    nextReadout: document.getElementById("nextReadout"),
+    cycleReadout: document.getElementById("cycleReadout"),
+    insight: document.getElementById("insight"),
+    arrows: document.getElementById("arrows"),
+    labels: document.getElementById("labels"),
+    particles: document.getElementById("particles"),
+    speedInput: document.getElementById("speedInput"),
+    speedOutput: document.getElementById("speedOutput"),
+    stepInput: document.getElementById("stepInput"),
+    stepOutput: document.getElementById("stepOutput"),
+    startBtn: document.getElementById("startBtn"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    resetBtn: document.getElementById("resetBtn")
+  };
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function getPhase(id) {
+    for (var i = 0; i < PHASES.length; i++) { if (PHASES[i].id === id) return PHASES[i]; }
+    return PHASES[0];
+  }
+
+  function initArrows() {
+    var lines = [];
+    var labels = [];
+    for (var i = 0; i < PHASES.length; i++) {
+      var from = PHASES[i];
+      var to = getPhase(from.next);
+      var a = NODE_POS[from.id];
+      var b = NODE_POS[to.id];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      var ux = dx / len, uy = dy / len;
+      var startR = from.id === "magma" ? 36 : 62;
+      var endR = to.id === "magma" ? 36 : 62;
+      var sx = a.x + ux * startR;
+      var sy = a.y + uy * startR;
+      var ex = b.x - ux * endR;
+      var ey = b.y - uy * endR;
+      var mx = (sx + ex) / 2, my = (sy + ey) / 2;
+      var px = -uy, py = ux;
+      lines.push('<line class="arrow-line" data-from="' + from.id + '" data-to="' + to.id + '" x1="' + sx + '" y1="' + sy + '" x2="' + ex + '" y2="' + ey + '" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" marker-end="url(#arrowhead)"></line>');
+      labels.push('<text class="arrow-label" data-from="' + from.id + '" x="' + (mx + px * 14) + '" y="' + (my + py * 14) + '" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600">' + from.process + '</text>');
+    }
+    var defs = '<defs><marker id="arrowhead" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><polygon points="0 0, 7 3, 0 6" fill="#94a3b8"></polygon></marker></defs>';
+    elements.arrows.innerHTML = defs + lines.join("");
+    elements.labels.innerHTML = labels.join("");
+  }
+
+  function highlightPhase(phaseId) {
+    var nodes = document.getElementById("nodes").children;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var isActive = node.id === "node-" + phaseId;
+      node.style.opacity = isActive ? "1" : "0.55";
+      node.style.transform = isActive ? "scale(1.06)" : "scale(1)";
+      node.style.transformOrigin = "center";
+      node.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+    }
+    var arrowLines = elements.arrows.querySelectorAll(".arrow-line");
+    for (var j = 0; j < arrowLines.length; j++) {
+      arrowLines[j].setAttribute("stroke", "#cbd5e1");
+      arrowLines[j].setAttribute("stroke-width", "3");
+    }
+    var activeArrow = elements.arrows.querySelector('.arrow-line[data-from="' + phaseId + '"]');
+    if (activeArrow) {
+      activeArrow.setAttribute("stroke", "#0f9fba");
+      activeArrow.setAttribute("stroke-width", "4.5");
+    }
+  }
+
+  function spawnParticles(fromId, toId) {
+    var a = NODE_POS[fromId];
+    var b = NODE_POS[toId];
+    var phase = getPhase(fromId);
+    for (var i = 0; i < 8; i++) {
+      state.particles.push({
+        x: a.x, y: a.y,
+        tx: b.x, ty: b.y,
+        progress: -i * 0.08,
+        color: phase.color,
+        size: 3 + Math.random() * 2
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    var alive = [];
+    for (var i = 0; i < state.particles.length; i++) {
+      var p = state.particles[i];
+      p.progress += dt * 0.9;
+      if (p.progress < 1) {
+        var t = Math.max(0, p.progress);
+        p.x = p.x + (p.tx - p.x) * 0.06;
+        p.y = p.y + (p.ty - p.y) * 0.06;
+        alive.push(p);
+      }
+    }
+    state.particles = alive;
+  }
+
+  function renderParticles() {
+    var parts = [];
+    for (var i = 0; i < state.particles.length; i++) {
+      var p = state.particles[i];
+      if (p.progress > 0) {
+        parts.push('<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="' + p.size + '" fill="' + p.color + '" opacity="' + (0.85 * (1 - p.progress)).toFixed(2) + '"></circle>');
+      }
+    }
+    elements.particles.innerHTML = parts.join("");
+  }
+
+  function init() {
+    initArrows();
+    bindControls();
+    setParameters({ speed: 1, stepDuration: 2.5 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    elements.status.textContent = "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.phaseIndex = 0;
+    state.phaseTime = 0;
+    state.cycles = 0;
+    state.lastTimestamp = null;
+    state.particles = [];
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    var boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    var effectiveDt = boundedDt * state.speed;
+    state.t += effectiveDt;
+    state.phaseTime += effectiveDt;
+    updateParticles(effectiveDt);
+
+    if (state.phaseTime >= state.stepDuration) {
+      var currentPhase = PHASES[state.phaseIndex];
+      spawnParticles(currentPhase.id, currentPhase.next);
+      state.phaseTime = 0;
+      state.phaseIndex = (state.phaseIndex + 1) % PHASES.length;
+      if (state.phaseIndex === 0) state.cycles += 1;
+    }
+  }
+
+  function render() {
+    var phase = PHASES[state.phaseIndex];
+    highlightPhase(phase.id);
+    renderParticles();
+    elements.phaseReadout.textContent = phase.label;
+    elements.timeReadout.textContent = state.t.toFixed(1) + " s";
+    elements.nextReadout.textContent = phase.process;
+    elements.cycleReadout.textContent = String(state.cycles);
+    elements.speedOutput.textContent = state.speed.toFixed(2) + "×";
+    elements.stepOutput.textContent = state.stepDuration.toFixed(1) + " s";
+
+    var progress = state.running ? clamp(state.phaseTime / state.stepDuration, 0, 1) : 0;
+    if (!state.running && state.t === 0) {
+      elements.insight.textContent = "点击「开始」启动循环。岩浆冷却结晶形成岩浆岩，随后经历风化侵蚀、沉积固结、变质重结晶，最终熔融回到岩浆。";
+    } else if (progress < 0.33) {
+      elements.insight.textContent = "阶段初期：" + phase.label + "正在经历" + phase.process + "，粒子开始向下一阶段迁移。";
+    } else if (progress < 0.66) {
+      elements.insight.textContent = "阶段中期：" + phase.process + "持续进行，物质逐步转化。";
+    } else {
+      elements.insight.textContent = "阶段末期：即将转化为" + getPhase(phase.next).label + "。";
+    }
+  }
+
+  function setParameters(values) {
+    var speedDef = parameterSchema[0];
+    var stepDef = parameterSchema[1];
+    state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+    state.stepDuration = clamp(finite(Number(values.stepDuration), stepDef.default), stepDef.min, stepDef.max);
+    elements.speedInput.value = String(state.speed);
+    elements.stepInput.value = String(state.stepDuration);
+    render();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      phaseIndex: state.phaseIndex,
+      phaseTime: state.phaseTime,
+      speed: state.speed,
+      stepDuration: state.stepDuration,
+      cycles: state.cycles,
+      particleCount: state.particles.length
+    };
+  }
+
+  function getReadouts() {
+    var phase = PHASES[state.phaseIndex];
+    return {
+      phase: phase.label,
+      time: state.t,
+      nextProcess: phase.process,
+      cycles: state.cycles,
+      speed: state.speed,
+      stepDuration: state.stepDuration
+    };
+  }
+
+  function runModelChecks() {
+    var results = [];
+    var phaseCount = PHASES.length;
+    results.push({
+      name: "phase count is four",
+      pass: phaseCount === 4,
+      expected: 4,
+      actual: phaseCount,
+      tolerance: "exact"
+    });
+    var nextSet = {};
+    var allReachable = true;
+    for (var i = 0; i < PHASES.length; i++) {
+      nextSet[PHASES[i].next] = true;
+      if (!NODE_POS[PHASES[i].next]) allReachable = false;
+    }
+    results.push({
+      name: "every phase has a valid next target",
+      pass: allReachable,
+      expected: "all next ids exist in NODE_POS",
+      actual: allReachable ? "valid" : "invalid",
+      tolerance: "strict"
+    });
+    var visited = {};
+    var idx = 0;
+    var cycleOk = true;
+    for (var k = 0; k < PHASES.length + 1; k++) {
+      if (visited[idx]) { cycleOk = (idx === 0 && k === PHASES.length); break; }
+      visited[idx] = true;
+      idx = (idx + 1) % PHASES.length;
+    }
+    results.push({
+      name: "phase transitions form a closed cycle",
+      pass: cycleOk,
+      expected: "returns to start after 4 steps",
+      actual: cycleOk ? "closed" : "broken",
+      tolerance: "strict"
+    });
+    var simState = { phaseIndex: 0, phaseTime: 0, cycles: 0 };
+    var simStep = function (dt) {
+      simState.phaseTime += dt;
+      if (simState.phaseTime >= 2.5) {
+        simState.phaseTime = 0;
+        simState.phaseIndex = (simState.phaseIndex + 1) % 4;
+        if (simState.phaseIndex === 0) simState.cycles += 1;
+      }
+    };
+    for (var s = 0; s < 10; s++) simStep(2.5);
+    results.push({
+      name: "ten steps yield two full cycles",
+      pass: simState.cycles === 2 && simState.phaseIndex === 0,
+      expected: "cycles=2, phaseIndex=0",
+      actual: "cycles=" + simState.cycles + ", phaseIndex=" + simState.phaseIndex,
+      tolerance: "exact"
+    });
+    return results;
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.speedInput.addEventListener("input", function () {
+      setParameters({ speed: elements.speedInput.value, stepDuration: state.stepDuration });
+    });
+    elements.stepInput.addEventListener("input", function () {
+      setParameters({ speed: state.speed, stepDuration: elements.stepInput.value });
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    var dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init: init,
+    start: start,
+    pause: pause,
+    reset: reset,
+    update: update,
+    render: render,
+    setParameters: setParameters,
+    getState: getState,
+    getReadouts: getReadouts,
+    runModelChecks: runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

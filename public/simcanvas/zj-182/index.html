@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>频谱节奏壁纸</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#000;
+  --sim-surface:#000;
+  --sim-surface-soft:#000;
+  --sim-text:#fff;
+  --sim-muted:#888;
+  --sim-border:transparent;
+  --sim-grid:transparent;
+  --sim-accent:#0ff;
+  --sim-accent-deep:#066;
+  --sim-accent-soft:rgba(0,255,255,.15);
+  --sim-positive:#0ff;
+  --sim-warning:#f0a;
+  --sim-danger:#f00;
+  --sim-radius-sm:8px;
+  --sim-radius-md:12px;
+  --sim-radius-lg:16px;
+  --sim-shadow:none;
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+#scene{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;touch-action:none}
+.formula{
+  position:fixed;left:18px;bottom:14px;z-index:10;
+  color:rgba(255,255,255,.22);font-size:11px;letter-spacing:.02em;
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  pointer-events:none;user-select:none;line-height:1.4;
+  text-shadow:0 0 6px rgba(0,0,0,.8);
+}
+.play-btn{
+  position:fixed;right:16px;bottom:14px;z-index:10;
+  width:30px;height:30px;border-radius:50%;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.10);
+  color:rgba(255,255,255,.45);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  padding:0;transition:background .25s,border-color .25s,color .25s,transform .15s;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.play-btn:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.22);color:rgba(255,255,255,.75)}
+.play-btn:active{transform:scale(.94)}
+.play-btn:focus-visible{outline:2px solid rgba(0,255,255,.5);outline-offset:2px}
+.play-btn svg{width:11px;height:11px;display:block}
+@media(max-width:560px){
+  .formula{font-size:9.5px;left:12px;bottom:10px}
+  .play-btn{width:26px;height:26px;right:10px;bottom:10px}
+  .play-btn svg{width:10px;height:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<header data-region="header" style="position:fixed;top:14px;left:18px;z-index:10;pointer-events:none">
+  <h1 style="margin:0;font-size:13px;font-weight:600;letter-spacing:.04em;color:rgba(255,255,255,.55);text-shadow:0 0 6px rgba(0,0,0,.8)">频谱节奏壁纸</h1>
+  <p style="margin:2px 0 0;font-size:10px;color:rgba(255,255,255,.30);text-shadow:0 0 6px rgba(0,0,0,.8)">64 根发光频谱柱随节拍起伏</p>
+</header>
+<canvas id="scene" data-region="stage" role="img" aria-label="64 根发光频谱柱在纯黑地板上随节拍起伏的动态壁纸"></canvas>
+<div class="formula" data-region="insight" aria-hidden="true">bar_i(t) = A(i) · beat(t) · (0.7 + 0.3 · sin(ω_i · t + φ_i))</div>
+<div data-region="evidence" style="position:fixed;right:16px;top:14px;z-index:10;display:flex;gap:8px;pointer-events:none">
+  <div style="padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);min-width:54px">
+    <div style="font-size:9px;color:rgba(255,255,255,.40);text-transform:uppercase;letter-spacing:.06em">时间</div>
+    <div id="timeReadout" style="font-size:12px;font-weight:600;color:rgba(255,255,255,.75);font-variant-numeric:tabular-nums;text-shadow:0 0 6px rgba(0,0,0,.8)">0.00s</div>
+  </div>
+  <div style="padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);min-width:54px">
+    <div style="font-size:9px;color:rgba(255,255,255,.40);text-transform:uppercase;letter-spacing:.06em">节拍</div>
+    <div id="beatReadout" style="font-size:12px;font-weight:600;color:rgba(255,255,255,.75);font-variant-numeric:tabular-nums;text-shadow:0 0 6px rgba(0,0,0,.8)">0%</div>
+  </div>
+</div>
+<button id="playBtn" class="play-btn" data-region="controls" type="button" aria-label="播放或暂停" title="播放 / 暂停"></button>
+<script>
+(()=>{
+"use strict";
+const N=64;
+const BEAT_PERIOD=0.5;
+const BAR_PERIOD=BEAT_PERIOD*4;
+const SEED=20240117;
+function hash(i,s){
+  const x=Math.sin(i*127.1+s*311.7)*43758.5453;
+  return x-Math.floor(x);
+}
+const AMP=new Array(N);
+const OMEGA=new Array(N);
+const PHI=new Array(N);
+for(let i=0;i<N;i++){
+  AMP[i]=Math.exp(-i*0.045)*0.85+0.15;
+  OMEGA[i]=0.6+hash(i,SEED)*1.8;
+  PHI[i]=hash(i,SEED+1)*Math.PI*2;
+}
+function beatEnvelope(t){
+  const bT=t%BEAT_PERIOD;
+  const attack=0.018;
+  const decay=0.30;
+  let env;
+  if(bT<attack) env=bT/attack;
+  else env=Math.exp(-(bT-attack)/decay);
+  const beatIdx=Math.floor(t/BEAT_PERIOD+0.5)%4;
+  const accent=beatIdx===0?1.0:beatIdx===2?0.62:0.40;
+  return env*accent;
+}
+function barHeight(i,t){
+  const b=beatEnvelope(t);
+  const osc=0.7+0.3*Math.sin(OMEGA[i]*t+PHI[i]);
+  return Math.max(0,AMP[i]*b*osc);
+}
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d',{alpha:false});
+const playBtn=document.getElementById('playBtn');
+const timeReadout=document.getElementById('timeReadout');
+const beatReadout=document.getElementById('beatReadout');
+const ICON_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+const state={running:true,t:0,last:null,ripples:[],lastBarBeat:-1,dpr:1,W:0,H:0};
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=window.innerWidth,h=window.innerHeight;
+  canvas.width=Math.max(1,Math.floor(w*dpr));
+  canvas.height=Math.max(1,Math.floor(h*dpr));
+  canvas.style.width=w+'px';
+  canvas.style.height=h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  state.dpr=dpr;state.W=w;state.H=h;
+}
+function init(){
+  resize();
+  window.addEventListener('resize',resize);
+  playBtn.addEventListener('click',togglePlay);
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'&&!e.target.matches('input,textarea,button')){
+      e.preventDefault();togglePlay();
+    }
+  });
+  updateIcon();
+  state.last=null;
+  requestAnimationFrame(frame);
+}
+function togglePlay(){
+  if(state.running) pause();
+  else start();
+}
+function start(){
+  state.running=true;
+  updateIcon();
+  state.last=null;
+  requestAnimationFrame(frame);
+}
+function pause(){
+  state.running=false;
+  updateIcon();
+}
+function reset(){
+  state.t=0;
+  state.ripples=[];
+  state.lastBarBeat=-1;
+  state.last=null;
+  render();
+}
+function updateIcon(){
+  playBtn.innerHTML=state.running?ICON_PAUSE:ICON_PLAY;
+  playBtn.setAttribute('aria-label',state.running?'暂停':'播放');
+}
+function update(dt){
+  if(!state.running)return;
+  state.t+=dt;
+  const barBeat=Math.floor(state.t/BAR_PERIOD);
+  if(barBeat>state.lastBarBeat){
+    state.ripples.push({start:state.t});
+    state.lastBarBeat=barBeat;
+  }
+  const now=state.t;
+  state.ripples=state.ripples.filter(r=>{
+    const age=now-r.start;
+    return age<3.5;
+  });
+}
+function colorForBar(i){
+  const u=i/(N-1);
+  let h,s,l;
+  if(u<0.5){
+    const p=u*2;
+    h=230-p*50;
+    s=90-p*5;
+    l=52+p*8;
+  }else{
+    const p=(u-0.5)*2;
+    h=180-p*180;
+    s=85+p*10;
+    l=60-p*5;
+  }
+  return{h,s,l};
+}
+function hsla(c,a){return `hsla(${c.h.toFixed(1)},${c.s.toFixed(1)}%,${c.l.toFixed(1)}%,${a})`}
+function hsl(c){return `hsl(${c.h.toFixed(1)},${c.s.toFixed(1)}%,${c.l.toFixed(1)}%)`}
+function drawBar(x,w,hgt,baseY,color,glow){
+  if(hgt<0.5)return;
+  const topY=baseY-hgt;
+  const g=ctx.createLinearGradient(0,topY,0,baseY);
+  g.addColorStop(0,hsla(color,1));
+  g.addColorStop(0.5,hsla(color,0.92));
+  g.addColorStop(1,hsla(color,0.55));
+  ctx.fillStyle=g;
+  ctx.fillRect(x,topY,w,hgt);
+  if(glow>0.02){
+    ctx.globalAlpha=glow*0.55;
+    ctx.fillStyle=hsla(color,0.5);
+    ctx.fillRect(x-2,topY-2,w+4,hgt+2);
+    ctx.globalAlpha=1;
+  }
+  ctx.fillStyle=hsla({h:color.h,s:Math.min(color.s+5,100),l:Math.min(color.l+28,95)},1);
+  ctx.fillRect(x,topY-2,w,2.5);
+  if(glow>0.02){
+    ctx.globalAlpha=glow*0.4;
+    ctx.fillStyle=hsla({h:color.h,s:100,l:88},0.85);
+    ctx.fillRect(x-1,topY-3.5,w+2,1.5);
+    ctx.globalAlpha=1;
+  }
+}
+function drawReflection(x,w,hgt,baseY,color){
+  if(hgt<1)return;
+  const reflH=hgt*0.4;
+  if(reflH<1)return;
+  const topY=baseY;
+  const g=ctx.createLinearGradient(0,topY,0,topY+reflH);
+  g.addColorStop(0,hsla(color,0.30));
+  g.addColorStop(0.5,hsla(color,0.12));
+  g.addColorStop(1,hsla(color,0));
+  ctx.fillStyle=g;
+  ctx.fillRect(x,topY,w,reflH);
+}
+function drawRipples(cx,baseY){
+  const now=state.t;
+  const maxR=Math.max(state.W,state.H)*0.75;
+  for(const r of state.ripples){
+    const age=now-r.start;
+    if(age<0||age>3.5)continue;
+    const progress=age/3.5;
+    const radius=Math.max(1,progress*maxR);
+    const alpha=(1-progress)*0.22;
+    if(alpha<0.005)continue;
+    const ry=radius*0.28;
+    ctx.strokeStyle=`rgba(120,220,255,${alpha})`;
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.ellipse(cx,baseY,radius,ry,0,0,Math.PI*2);
+    ctx.stroke();
+    if(radius>30){
+      ctx.strokeStyle=`rgba(180,240,255,${alpha*0.5})`;
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.ellipse(cx,baseY,radius*0.7,ry*0.7,0,0,Math.PI*2);
+      ctx.stroke();
+    }
+  }
+}
+function drawFloor(baseY){
+  const g=ctx.createLinearGradient(0,baseY-30,0,state.H);
+  g.addColorStop(0,'rgba(0,0,0,0)');
+  g.addColorStop(0.15,'rgba(8,12,28,0.5)');
+  g.addColorStop(0.5,'rgba(2,4,12,0.85)');
+  g.addColorStop(1,'#000');
+  ctx.fillStyle=g;
+  ctx.fillRect(0,baseY-30,state.W,state.H-baseY+30);
+  const g2=ctx.createLinearGradient(0,baseY-2,0,baseY+2);
+  g2.addColorStop(0,'rgba(0,0,0,0)');
+  g2.addColorStop(0.5,'rgba(80,160,200,0.18)');
+  g2.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g2;
+  ctx.fillRect(0,baseY-2,state.W,4);
+}
+function render(){
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,state.W,state.H);
+  const baseY=Math.floor(state.H*0.78);
+  const maxBarH=baseY*0.72;
+  const totalW=state.W;
+  const gap=Math.max(1.5,totalW*0.0025);
+  const barW=Math.max(2,(totalW-(N-1)*gap)/N);
+  const cx=state.W/2;
+  drawRipples(cx,baseY);
+  drawFloor(baseY);
+  const beat=beatEnvelope(state.t);
+  const globalGlow=beat*0.6;
+  for(let i=0;i<N;i++){
+    const x=i*(barW+gap);
+    const hRaw=barHeight(i,state.t);
+    const h=Math.max(1,hRaw*maxBarH);
+    const color=colorForBar(i);
+    drawReflection(x,barW,h,baseY,color);
+  }
+  for(let i=0;i<N;i++){
+    const x=i*(barW+gap);
+    const hRaw=barHeight(i,state.t);
+    const h=Math.max(1,hRaw*maxBarH);
+    const color=colorForBar(i);
+    drawBar(x,barW,h,baseY,color,globalGlow);
+  }
+  if(timeReadout) timeReadout.textContent=state.t.toFixed(2)+'s';
+  if(beatReadout) beatReadout.textContent=Math.round(beatEnvelope(state.t)*100)+'%';
+}
+function frame(ts){
+  if(!state.running)return;
+  if(state.last===null)state.last=ts;
+  let dt=(ts-state.last)/1000;
+  state.last=ts;
+  if(!Number.isFinite(dt)||dt<0)dt=0;
+  if(dt>0.1)dt=0.1;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+function setParameters(values){
+  if(values&&typeof values.running==='boolean'){
+    if(values.running!==state.running){
+      if(values.running) start();
+      else pause();
+    }
+  }
+}
+function getState(){
+  return{...state,ripples:state.ripples.map(r=>({...r}))};
+}
+function getReadouts(){
+  return{t:state.t,beat:beatEnvelope(state.t),running:state.running};
+}
+function runModelChecks(){
+  const beatCases=[
+    {t:0,expected:1.0,tol:1e-6},
+    {t:0.5,expected:1.0,tol:1e-6},
+    {t:1.0,expected:0.62,tol:1e-6},
+    {t:1.5,expected:0.40,tol:1e-6},
+    {t:2.0,expected:1.0,tol:1e-6},
+    {t:0.25,expected:Math.exp(-(0.25-0.018)/0.30)*1.0,tol:1e-6},
+    {t:0.75,expected:Math.exp(-(0.75-0.5-0.018)/0.30)*0.62,tol:1e-6}
+  ];
+  const ampMonotonic=AMP.every((v,i)=>i===0||AMP[i-1]>=v);
+  const heightNonNeg=Array.from({length:64},(_,i)=>barHeight(i,1.234)).every(v=>v>=0&&Number.isFinite(v));
+  const lowHighTrend=barHeight(0,0.1)>barHeight(63,0.1);
+  const seedDeterminism=hash(7,SEED)===hash(7,SEED);
+  return[
+    ...beatCases.map(c=>({
+      name:`beat(${c.t})`,
+      pass:Math.abs(beatEnvelope(c.t)-c.expected)<c.tol,
+      expected:c.expected,
+      actual:beatEnvelope(c.t),
+      tolerance:c.tol
+    })),
+    {name:'amplitude exponential decay monotonic',pass:ampMonotonic,expected:'AMP non-increasing',actual:ampMonotonic,tolerance:'strict'},
+    {name:'bar height finite and non-negative',pass:heightNonNeg,expected:'0<=h<∞',actual:heightNonNeg,tolerance:'strict'},
+    {name:'low-freq > high-freq at same beat',pass:lowHighTrend,expected:'bar(0)>bar(63)',actual:`${barHeight(0,0.1)}>${barHeight(63,0.1)}`,tolerance:'strict'},
+    {name:'seed determinism',pass:seedDeterminism,expected:'hash stable',actual:seedDeterminism,tolerance:'strict'}
+  ];
+}
+window.simulation={init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks};
+init();
+})();
+</script>
+</body>
+</html>
