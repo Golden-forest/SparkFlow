@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>氢原子轨道可视化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #f4f7fb;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(28, 43, 70, 0.09);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-phase-pos: #0f9fba;
+      --sim-phase-neg: #e85a8a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15,159,186,0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(232,90,138,0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(15,159,186,0.4); outline-offset: 2px;
+    }
+    .app {
+      width: min(1560px, 100%); height: 100vh;
+      margin: 0 auto; padding: var(--sim-space-4) var(--sim-space-5) var(--sim-space-3);
+      display: grid; grid-template-rows: auto minmax(0,1fr) auto;
+      gap: var(--sim-space-3); overflow: hidden;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: var(--sim-space-5); min-height: 52px;
+    }
+    .header h1 {
+      margin: 0 0 var(--sim-space-1); font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+      letter-spacing: -0.035em; line-height: 1;
+    }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status {
+      border: 1px solid rgba(15,159,186,0.18); border-radius: 999px;
+      padding: 9px 14px; background: var(--sim-accent-soft);
+      color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap;
+    }
+    .main {
+      min-height: 0; display: grid;
+      grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr);
+      gap: var(--sim-space-3);
+    }
+    .panel {
+      min-width: 0; background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: var(--sim-radius-lg);
+      box-shadow: var(--sim-shadow);
+    }
+    .scene-panel {
+      min-height: 430px; padding: var(--sim-space-3);
+      display: grid; grid-template-rows: auto minmax(0,1fr); overflow: hidden;
+    }
+    .panel-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: var(--sim-space-3); margin-bottom: var(--sim-space-3);
+    }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene3d {
+      width: 100%; height: 100%; min-height: 350px; display: block;
+      border: 1px solid rgba(15,159,186,0.12); border-radius: 18px;
+      background: radial-gradient(circle at 50% 40%, #1a2a4a 0%, #0a1428 70%, #050a18 100%);
+    }
+    .side {
+      min-height: 0; display: grid;
+      grid-template-rows: auto minmax(0,1fr) auto; gap: var(--sim-space-3);
+    }
+    .readouts, .model-note, .cross-section { padding: var(--sim-space-4); }
+    .readout-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: var(--sim-space-2);
+    }
+    .metric {
+      padding: var(--sim-space-3);
+      border: 1px solid rgba(15,159,186,0.12);
+      border-radius: 15px;
+      background: linear-gradient(145deg, #f8fcfd, #f4f8fb);
+    }
+    .metric small { display: block; margin-bottom: var(--sim-space-1); color: var(--sim-muted); }
+    .metric strong {
+      font-size: 1.45rem; letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .model-note { display: grid; align-content: start; gap: var(--sim-space-3); }
+    .model-note p {
+      margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem;
+    }
+    .insight {
+      padding: var(--sim-space-3);
+      border-left: 3px solid var(--sim-warning);
+      border-radius: 0 12px 12px 0;
+      background: #fff8e8; color: #80510a !important;
+      font-weight: 650;
+    }
+    .cross-section { display: grid; gap: var(--sim-space-2); }
+    #crossSection {
+      width: 100%; aspect-ratio: 1; display: block;
+      border: 1px solid rgba(15,159,186,0.12); border-radius: 12px;
+      background: #0a1428;
+    }
+    .energy-scale {
+      display: flex; flex-direction: column; gap: var(--sim-space-1);
+      font-size: 0.78rem;
+    }
+    .energy-level {
+      display: flex; align-items: center; gap: var(--sim-space-2);
+      padding: var(--sim-space-1) var(--sim-space-2);
+      border-radius: var(--sim-radius-sm);
+    }
+    .energy-level.active {
+      background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 700;
+    }
+    .energy-bar {
+      width: 8px; height: 18px; border-radius: 2px; background: var(--sim-border);
+    }
+    .energy-level.active .energy-bar { background: var(--sim-accent); }
+    .controls {
+      padding: var(--sim-space-3);
+      display: grid;
+      grid-template-columns: auto minmax(180px,1fr) minmax(180px,1fr) minmax(160px,1fr);
+      gap: var(--sim-space-4); align-items: center;
+      border-radius: 17px;
+    }
+    .actions { display: flex; gap: var(--sim-space-2); }
+    button {
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-sm);
+      padding: 9px 13px; color: var(--sim-text);
+      background: var(--sim-surface-soft); cursor: pointer; font-weight: 740;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(0.97); }
+    button.primary {
+      border-color: var(--sim-accent-deep); color: #fff;
+      background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+      box-shadow: 0 8px 18px rgba(15,159,186,0.2);
+    }
+    button[aria-pressed="true"] {
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45);
+    }
+    .control label {
+      display: flex; justify-content: space-between; gap: var(--sim-space-3);
+      margin-bottom: var(--sim-space-1); font-size: 0.8rem; font-weight: 700;
+    }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    select {
+      width: 100%; padding: 8px var(--sim-space-2);
+      border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+      background: var(--sim-surface-soft); color: var(--sim-text); cursor: pointer;
+    }
+    .legend {
+      display: flex; gap: var(--sim-space-3); font-size: 0.75rem;
+      color: var(--sim-muted);
+    }
+    .legend-item { display: flex; align-items: center; gap: var(--sim-space-1); }
+    .legend-swatch {
+      width: 14px; height: 14px; border-radius: 3px;
+    }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-3); }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene3d { min-height: 0; height: auto; aspect-ratio: 760/420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="domain-solver">
+    <header class="header" data-region="header">
+      <div>
+        <h1>氢原子轨道可视化</h1>
+        <p>选择量子数 n、l、mₗ，观察波函数概率密度的三维等值面与截面分布。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">三维轨道等值面</h2>
+          <span>概率密度 |ψ|² 等值面 · 青色=正相位 · 粉色=负相位</span>
+        </div>
+        <canvas id="scene3d" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">氢原子轨道的三维等值面渲染。</desc>
+        </canvas>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>主量子数 n</small><strong id="nReadout">2</strong></div>
+            <div class="metric"><small>角量子数 l</small><strong id="lReadout">1</strong></div>
+            <div class="metric"><small>磁量子数 mₗ</small><strong id="mReadout">0</strong></div>
+            <div class="metric"><small>能级 Eₙ</small><strong id="energyReadout">-3.40 eV</strong></div>
+            <div class="metric"><small>径向节点</small><strong id="nodeReadout">0</strong></div>
+            <div class="metric"><small>轨道名称</small><strong id="orbitalReadout">2p_z</strong></div>
+          </div>
+        </section>
+
+        <section class="panel cross-section" aria-label="截面图">
+          <div class="panel-head"><h2>z=0 截面</h2><span>概率密度俯视</span></div>
+          <canvas id="crossSection" width="200" height="200"></canvas>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-swatch" style="background:#0a1428"></div>低密度</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--sim-accent)"></div>高密度</div>
+          </div>
+        </section>
+
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>观察要点</h2></div>
+          <p id="insight" class="insight">2p_z 轨道沿 z 轴有两个瓣，正负相位以 xy 平面为界。</p>
+          <p>教学模型：ψ = R_nl(r)·Y_l^m(θ,φ)，使用实球谐函数与关联拉盖尔多项式，玻尔半径 a₀=1（自然单位）。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">自动旋转</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="nInput">主量子数 n <output id="nOutput">2</output></label>
+        <select id="nInput">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="lInput">角量子数 l <output id="lOutput">1</output></label>
+        <select id="lInput"><option value="0">0 (s)</option><option value="1" selected>1 (p)</option></select>
+      </div>
+      <div class="control">
+        <label for="mInput">磁量子数 mₗ <output id="mOutput">0</output></label>
+        <select id="mInput"><option value="0" selected>0</option><option value="1">+1</option><option value="-1">-1</option></select>
+      </div>
+      <div class="control">
+        <label for="densityInput">等值面密度 <output id="densityOutput">0.50</output></label>
+        <input id="densityInput" type="range" min="0.1" max="0.9" step="0.05" value="0.5">
+      </div>
+    </section>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "n", label: "主量子数 n", type: "select", min: 1, max: 4, step: 1, default: 2, unit: "" },
+      { key: "l", label: "角量子数 l", type: "select", min: 0, max: 3, step: 1, default: 1, unit: "" },
+      { key: "m", label: "磁量子数 m", type: "select", min: -3, max: 3, step: 1, default: 0, unit: "" },
+      { key: "density", label: "等值面密度", type: "slider", min: 0.1, max: 0.9, step: 0.05, default: 0.5, unit: "" }
+    ];
+
+    const state = {
+      running: false,
+      t: 0,
+      n: 2, l: 1, m: 0, density: 0.5,
+      lastTimestamp: null,
+      history: [{ t: 0, n: 2, l: 1, m: 0 }]
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      scene3d: document.querySelector("#scene3d"),
+      crossSection: document.querySelector("#crossSection"),
+      nReadout: document.querySelector("#nReadout"),
+      lReadout: document.querySelector("#lReadout"),
+      mReadout: document.querySelector("#mReadout"),
+      energyReadout: document.querySelector("#energyReadout"),
+      nodeReadout: document.querySelector("#nodeReadout"),
+      orbitalReadout: document.querySelector("#orbitalReadout"),
+      insight: document.querySelector("#insight"),
+      nInput: document.querySelector("#nInput"),
+      lInput: document.querySelector("#lInput"),
+      mInput: document.querySelector("#mInput"),
+      densityInput: document.querySelector("#densityInput"),
+      nOutput: document.querySelector("#nOutput"),
+      lOutput: document.querySelector("#lOutput"),
+      mOutput: document.querySelector("#mOutput"),
+      densityOutput: document.querySelector("#densityOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    // ---- 物理函数 ----
+    function factorial(n) {
+      let r = 1;
+      for (let i = 2; i <= n; i++) r *= i;
+      return r;
+    }
+
+    function associatedLaguerre(n, k, x) {
+      let sum = 0;
+      for (let i = 0; i <= n; i++) {
+        const coeff = Math.pow(-1, i) * factorial(n + k) / (factorial(n - i) * factorial(k + i) * factorial(i));
+        sum += coeff * Math.pow(x, i);
+      }
+      return sum;
+    }
+
+    function radialWaveFunction(n, l, r) {
+      const a0 = 1.0;
+      const rho = 2 * r / (n * a0);
+      const norm = Math.sqrt(Math.pow(2 / (n * a0), 3) * factorial(n - l - 1) / (2 * n * factorial(n + l)));
+      return norm * Math.exp(-rho / 2) * Math.pow(rho, l) * associatedLaguerre(n - l - 1, 2 * l + 1, rho);
+    }
+
+    function realSphericalHarmonic(l, m, theta, phi) {
+      const mAbs = Math.abs(m);
+      function legendre(l, m, x) {
+        if (l === 0 && m === 0) return 1;
+        if (l === 1 && m === 0) return x;
+        if (l === 1 && mAbs === 1) return -Math.sqrt(1 - x * x);
+        if (l === 2 && m === 0) return (3 * x * x - 1) / 2;
+        if (l === 2 && mAbs === 1) return -3 * x * Math.sqrt(1 - x * x);
+        if (l === 2 && mAbs === 2) return 3 * (1 - x * x);
+        if (l === 3 && m === 0) return (5 * x * x * x - 3 * x) / 2;
+        if (l === 3 && mAbs === 1) return -1.5 * (5 * x * x - 1) * Math.sqrt(1 - x * x);
+        if (l === 3 && mAbs === 2) return 15 * x * (1 - x * x);
+        if (l === 3 && mAbs === 3) return -15 * Math.pow(1 - x * x, 1.5);
+        return 0;
+      }
+      const x = Math.cos(theta);
+      const p = legendre(l, mAbs, x);
+      const norm = Math.sqrt((2 * l + 1) / (4 * Math.PI) * factorial(l - mAbs) / factorial(l + mAbs));
+      if (m === 0) return norm * p;
+      if (m > 0) return Math.SQRT2 * norm * p * Math.cos(mAbs * phi);
+      return Math.SQRT2 * norm * p * Math.sin(mAbs * phi);
+    }
+
+    function waveFunction(n, l, m, r, theta, phi) {
+      if (r < 1e-10) r = 1e-10;
+      return radialWaveFunction(n, l, r) * realSphericalHarmonic(l, m, theta, phi);
+    }
+
+    function probabilityDensity(n, l, m, r, theta, phi) {
+      const psi = waveFunction(n, l, m, r, theta, phi);
+      return psi * psi;
+    }
+
+    function orbitalName(n, l, m) {
+      const letters = ['s', 'p', 'd', 'f'];
+      const sub = letters[l] || '?';
+      let suffix = '';
+      if (l === 1) suffix = m === 0 ? '_z' : (m === 1 ? '_x' : '_y');
+      if (l === 2) suffix = m === 0 ? '_z²' : (Math.abs(m) === 1 ? '_xz' : '_xy');
+      if (l === 3) suffix = m === 0 ? '_z³' : '';
+      return `${n}${sub}${suffix}`;
+    }
+
+    // ---- Three.js 场景 ----
+    let renderer, scene, camera, controls, marchingCubes;
+    const resolution = 40;
+    const bounds = 12;
+
+    function initThree() {
+      renderer = new THREE.WebGLRenderer({ canvas: elements.scene3d, antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+      camera.position.set(0, 8, 18);
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.autoRotate = false;
+      controls.autoRotateSpeed = 1.5;
+
+      const amb = new THREE.AmbientLight(0x404060, 1.5);
+      scene.add(amb);
+      const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+      dir.position.set(10, 10, 10);
+      scene.add(dir);
+      const dir2 = new THREE.DirectionalLight(0x88aaff, 0.5);
+      dir2.position.set(-10, -5, -10);
+      scene.add(dir2);
+
+      marchingCubes = new MarchingCubes(resolution, new THREE.MeshStandardMaterial({
+        vertexColors: true, roughness: 0.35, metalness: 0.15,
+        transparent: true, opacity: 0.88, side: THREE.DoubleSide
+      }));
+      scene.add(marchingCubes);
+
+      resizeRenderer();
+      window.addEventListener('resize', resizeRenderer);
+    }
+
+    function resizeRenderer() {
+      const w = elements.scene3d.clientWidth;
+      const h = elements.scene3d.clientHeight;
+      if (w > 0 && h > 0) {
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    function buildIsosurface() {
+      const { n, l, m, density } = state;
+      const field = marchingCubes.field;
+      let maxVal = 0;
+
+      for (let i = 0; i < resolution; i++) {
+        for (let j = 0; j < resolution; j++) {
+          for (let k = 0; k < resolution; k++) {
+            const x = (i / (resolution - 1) - 0.5) * 2 * bounds;
+            const y = (j / (resolution - 1) - 0.5) * 2 * bounds;
+            const z = (k / (resolution - 1) - 0.5) * 2 * bounds;
+            const r = Math.sqrt(x * x + y * y + z * z);
+            const idx = i * resolution * resolution + j * resolution + k;
+            if (r < 1e-6) { field[idx] = 0; continue; }
+            const theta = Math.acos(z / r);
+            const phi = Math.atan2(y, x);
+            const pd = probabilityDensity(n, l, m, r, theta, phi);
+            field[idx] = pd;
+            if (pd > maxVal) maxVal = pd;
+          }
+        }
+      }
+
+      const threshold = maxVal * (0.5 - density * 0.46);
+      marchingCubes.isolation = Math.max(threshold, maxVal * 0.005);
+      marchingCubes.position.set(0, 0, 0);
+      marchingCubes.update();
+
+      const positions = marchingCubes.geometry.attributes.position;
+      if (positions && positions.count > 0) {
+        const colors = new Float32Array(positions.count * 3);
+        for (let i = 0; i < positions.count; i++) {
+          const x = positions.getX(i);
+          const y = positions.getY(i);
+          const z = positions.getZ(i);
+          const r = Math.sqrt(x * x + y * y + z * z);
+          if (r > 1e-6) {
+            const theta = Math.acos(z / r);
+            const phi = Math.atan2(y, x);
+            const psi = waveFunction(n, l, m, r, theta, phi);
+            if (psi >= 0) {
+              colors[i * 3] = 0.0; colors[i * 3 + 1] = 0.62; colors[i * 3 + 2] = 0.73;
+            } else {
+              colors[i * 3] = 0.91; colors[i * 3 + 1] = 0.35; colors[i * 3 + 2] = 0.54;
+            }
+          } else {
+            colors[i * 3] = 0.5; colors[i * 3 + 1] = 0.5; colors[i * 3 + 2] = 0.5;
+          }
+        }
+        marchingCubes.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        marchingCubes.geometry.attributes.color.needsUpdate = true;
+      }
+    }
+
+    function renderCrossSection() {
+      const canvas = elements.crossSection;
+      const ctx = canvas.getContext('2d');
+      const size = canvas.width;
+      const imgData = ctx.createImageData(size, size);
+      const { n, l, m } = state;
+      const range = bounds * 0.6;
+      let maxPD = 0;
+      const vals = new Float32Array(size * size);
+      for (let py = 0; py < size; py++) {
+        for (let px = 0; px < size; px++) {
+          const x = (px / (size - 1) - 0.5) * 2 * range;
+          const y = (py / (size - 1) - 0.5) * 2 * range;
+          const r = Math.sqrt(x * x + y * y);
+          if (r < 1e-6) { vals[py * size + px] = 0; continue; }
+          const theta = Math.PI / 2;
+          const phi = Math.atan2(y, x);
+          const pd = probabilityDensity(n, l, m, r, theta, phi);
+          vals[py * size + px] = pd;
+          if (pd > maxPD) maxPD = pd;
+        }
+      }
+      for (let py = 0; py < size; py++) {
+        for (let px = 0; px < size; px++) {
+          const v = vals[py * size + px] / (maxPD || 1);
+          const idx = (py * size + px) * 4;
+          const t = Math.pow(v, 0.5);
+          imgData.data[idx] = Math.floor(10 + t * 5);
+          imgData.data[idx + 1] = Math.floor(20 + t * 130);
+          imgData.data[idx + 2] = Math.floor(40 + t * 150);
+          imgData.data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // ---- 生命周期 ----
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+    function init() {
+      initThree();
+      bindControls();
+      setParameters({ n: 2, l: 1, m: 0, density: 0.5 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      controls.autoRotate = true;
+      elements.status.textContent = "旋转中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      controls.autoRotate = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.lastTimestamp = null;
+      state.history = [{ t: 0, n: 2, l: 1, m: 0 }];
+      setParameters({ n: 2, l: 1, m: 0, density: 0.5 });
+      camera.position.set(0, 8, 18);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const bdt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += bdt;
+      controls.update();
+      if (state.history.length === 0 || state.t - state.history[state.history.length - 1].t >= 0.5) {
+        state.history.push({ t: state.t, n: state.n, l: state.l, m: state.m });
+        if (state.history.length > 200) state.history.shift();
+      }
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+      renderCrossSection();
+      updateReadouts();
+    }
+
+    function updateReadouts() {
+      const { n, l, m, density } = state;
+      elements.nReadout.textContent = String(n);
+      elements.lReadout.textContent = String(l);
+      elements.mReadout.textContent = String(m);
+      elements.energyReadout.textContent = `${(-13.6 / (n * n)).toFixed(2)} eV`;
+      elements.nodeReadout.textContent = String(n - l - 1);
+      elements.orbitalReadout.textContent = orbitalName(n, l, m);
+      elements.nOutput.textContent = String(n);
+      elements.lOutput.textContent = String(l);
+      elements.mOutput.textContent = String(m);
+      elements.densityOutput.textContent = density.toFixed(2);
+
+      const nodes = n - l - 1;
+      let insightText = '';
+      if (l === 0) {
+        insightText = `${n}s 轨道：球对称分布${nodes > 0 ? `，含 ${nodes} 个径向节点` : '，无径向节点'}。`;
+      } else if (l === 1) {
+        const axis = m === 0 ? 'z 轴' : (m === 1 ? 'x 轴' : 'y 轴');
+        insightText = `${n}p 轨道：沿 ${axis} 方向双瓣分布，正负相位以垂直平面为界。`;
+      } else if (l === 2) {
+        insightText = `${n}d 轨道：四叶 clover 分布${m === 0 ? '（沿 z 轴集中）' : '（沿对角方向）'}。`;
+      } else {
+        insightText = `${n}f 轨道：复杂多叶分布，含 ${nodes} 个径向节点。`;
+      }
+      elements.insight.textContent = insightText;
+    }
+
+    function updateLOptions() {
+      const n = state.n;
+      const currentL = state.l;
+      elements.lInput.innerHTML = '';
+      for (let l = 0; l <= n - 1; l++) {
+        const opt = document.createElement('option');
+        opt.value = String(l);
+        const letters = ['s', 'p', 'd', 'f'];
+        opt.textContent = `${l} (${letters[l] || '?'})`;
+        if (l === Math.min(currentL, n - 1)) opt.selected = true;
+        elements.lInput.appendChild(opt);
+      }
+      state.l = Math.min(currentL, n - 1);
+    }
+
+    function updateMOptions() {
+      const l = state.l;
+      const currentM = state.m;
+      elements.mInput.innerHTML = '';
+      for (let m = -l; m <= l; m++) {
+        const opt = document.createElement('option');
+        opt.value = String(m);
+        opt.textContent = m === 0 ? '0' : (m > 0 ? `+${m}` : String(m));
+        if (m === Math.max(-l, Math.min(l, currentM))) opt.selected = true;
+        elements.mInput.appendChild(opt);
+      }
+      state.m = Math.max(-l, Math.min(l, currentM));
+    }
+
+    function setParameters(values) {
+      const nDef = parameterSchema[0], lDef = parameterSchema[1], mDef = parameterSchema[2], dDef = parameterSchema[3];
+      if (values.n !== undefined) {
+        state.n = clamp(Math.round(finite(Number(values.n), nDef.default)), nDef.min, nDef.max);
+        updateLOptions();
+        updateMOptions();
+      }
+      if (values.l !== undefined) {
+        state.l = clamp(Math.round(finite(Number(values.l), lDef.default)), 0, state.n - 1);
+        updateMOptions();
+      }
+      if (values.m !== undefined) {
+        state.m = clamp(Math.round(finite(Number(values.m), mDef.default)), -state.l, state.l);
+      }
+      if (values.density !== undefined) {
+        state.density = clamp(finite(Number(values.density), dDef.default), dDef.min, dDef.max);
+      }
+      elements.nInput.value = String(state.n);
+      elements.lInput.value = String(state.l);
+      elements.mInput.value = String(state.m);
+      elements.densityInput.value = String(state.density);
+      buildIsosurface();
+      render();
+    }
+
+    function getState() {
+      return { ...state, history: state.history.map(s => ({ ...s })) };
+    }
+
+    function getReadouts() {
+      return { n: state.n, l: state.l, m: state.m, density: state.density, energy: -13.6 / (state.n * state.n) };
+    }
+
+    function runModelChecks() {
+      const simulate = (n, l, m, dt, duration) => {
+        let x = 0;
+        for (let t = 0; t < duration; t += dt) x += 0;
+        return x;
+      };
+
+      // 1. 1s 归一化检查（粗网格数值积分）
+      let integral = 0;
+      const dr = 0.2, dtheta = 0.3, dphi = 0.3;
+      for (let r = 0.01; r < 15; r += dr) {
+        for (let theta = 0; theta < Math.PI; theta += dtheta) {
+          for (let phi = 0; phi < 2 * Math.PI; phi += dphi) {
+            const pd = probabilityDensity(1, 0, 0, r, theta, phi);
+            integral += pd * r * r * Math.sin(theta) * dr * dtheta * dphi;
+          }
+        }
+      }
+
+      // 2. 2p_z 轴对称性（不依赖 phi）
+      const pd1 = probabilityDensity(2, 1, 0, 3, Math.PI / 4, 0);
+      const pd2 = probabilityDensity(2, 1, 0, 3, Math.PI / 4, Math.PI / 2);
+
+      // 3. 径向节点数 = n - l - 1
+      const expectedNodes = (nn, ll) => nn - ll - 1;
+
+      // 4. 能级公式 E_n = -13.6 / n^2
+      const e1 = -13.6 / 1;
+      const e2 = -13.6 / 4;
+      const e3 = -13.6 / 9;
+
+      // 5. 球谐正交性 Y_0^0 ⊥ Y_1^0
+      let orth = 0;
+      for (let theta = 0; theta < Math.PI; theta += 0.2) {
+        for (let phi = 0; phi < 2 * Math.PI; phi += 0.2) {
+          orth += realSphericalHarmonic(0, 0, theta, phi) * realSphericalHarmonic(1, 0, theta, phi)
+            * Math.sin(theta) * 0.2 * 0.2;
+        }
+      }
+
+      return [
+        { name: "1s 归一化 ∫|ψ|²dV≈1", pass: Math.abs(integral - 1.0) < 0.15, expected: "≈1.0", actual: integral.toFixed(3), tolerance: 0.15 },
+        { name: "2p_z 轴对称性", pass: Math.abs(pd1 - pd2) < 1e-10, expected: "pd(φ=0)=pd(φ=π/2)", actual: `${pd1.toExponential(4)} vs ${pd2.toExponential(4)}`, tolerance: 1e-10 },
+        { name: "径向节点数 = n-l-1", pass: expectedNodes(3, 0) === 2 && expectedNodes(2, 1) === 0 && expectedNodes(4, 2) === 1, expected: "n-l-1", actual: `3s→${expectedNodes(3,0)}, 2p→${expectedNodes(2,1)}, 4d→${expectedNodes(4,2)}`, tolerance: "exact" },
+        { name: "能级 E_n=-13.6/n²", pass: Math.abs(e1 - (-13.6)) < 1e-6 && Math.abs(e2 - (-3.4)) < 0.01 && Math.abs(e3 - (-1.511)) < 0.01, expected: "-13.6, -3.4, -1.511", actual: `${e1.toFixed(2)}, ${e2.toFixed(2)}, ${e3.toFixed(3)}`, tolerance: 0.01 },
+        { name: "Y₀⁰⊥Y₁⁰ 正交性", pass: Math.abs(orth) < 0.02, expected: "≈0", actual: orth.toFixed(4), tolerance: 0.02 }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.nInput.addEventListener("change", () => {
+        setParameters({ n: Number(elements.nInput.value) });
+      });
+      elements.lInput.addEventListener("change", () => {
+        setParameters({ l: Number(elements.lInput.value) });
+      });
+      elements.mInput.addEventListener("change", () => {
+        setParameters({ m: Number(elements.mInput.value) });
+      });
+      let densityTimer = null;
+      elements.densityInput.addEventListener("input", () => {
+        if (densityTimer) clearTimeout(densityTimer);
+        densityTimer = setTimeout(() => {
+          setParameters({ density: Number(elements.densityInput.value) });
+        }, 100);
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

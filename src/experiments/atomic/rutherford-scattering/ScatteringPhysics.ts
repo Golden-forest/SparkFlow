@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { PHYSICS_CONSTANTS } from '@/utils/constants';
 
 /**
  * α粒子数据结构

@@ -2,6 +2,7 @@
 // 所有翻译 JSON 通过 Vite import.json bundled，零网络请求
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { browserStorage } from '@/platform/browser-storage';
 
 // zh-CN
 import zhCommon from './locales/zh-CN/common.json';
@@ -45,7 +46,8 @@ import enMomentum from './locales/en-US/experiments/momentum-carts.json';
 import enSynchrotron from './locales/en-US/experiments/synchrotron-em-fields.json';
 import enGalvanic from './locales/en-US/experiments/galvanic-cell.json';
 
-const savedLang = localStorage.getItem('sparkflow.lang') || 'zh-CN';
+const preference = browserStorage.get('sparkflow.lang');
+const savedLang = preference === 'en-US' ? 'en-US' : 'zh-CN';
 
 void i18n.use(initReactI18next).init({
     resources: {
@@ -103,7 +105,7 @@ const originalChangeLanguage = i18n.changeLanguage.bind(i18n);
 i18n.changeLanguage = async (lng?: string) => {
     const result = await originalChangeLanguage(lng);
     if (lng) {
-        localStorage.setItem('sparkflow.lang', lng);
+        browserStorage.set('sparkflow.lang', lng);
     }
     return result;
 };

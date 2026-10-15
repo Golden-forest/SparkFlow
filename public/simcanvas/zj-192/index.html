@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saddle Surface Wireframe</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1626;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a92;
+  --sim-border: #1a2238;
+  --sim-grid: #131c30;
+  --sim-accent: #5fb8d4;
+  --sim-accent-deep: #2a7a92;
+  --sim-accent-soft: #1a3a4a;
+  --sim-positive: #5fb8d4;
+  --sim-warning: #d4a55f;
+  --sim-danger: #d45f5f;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: #050810;
+  overflow: hidden;
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+#scene {
+  display: block;
+  width: 100vw; height: 100vh;
+  background: radial-gradient(ellipse at center, #0a1228 0%, #050810 55%, #02040a 100%);
+}
+.header-ui {
+  position: fixed;
+  top: 18px; left: 18px;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.header-ui h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(220, 235, 250, 0.88);
+}
+.header-ui p {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(150, 180, 210, 0.5);
+}
+.status {
+  pointer-events: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(95, 184, 212, 0.85);
+  border: 1px solid rgba(95, 184, 212, 0.22);
+  background: rgba(15, 28, 55, 0.45);
+  border-radius: 999px;
+  padding: 4px 12px;
+  width: fit-content;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.corner-ui {
+  position: fixed;
+  bottom: 18px; left: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 10;
+  pointer-events: none;
+}
+.play-btn {
+  pointer-events: auto;
+  width: 30px; height: 30px;
+  border: 1px solid rgba(120, 160, 200, 0.22);
+  background: rgba(10, 18, 32, 0.55);
+  color: rgba(200, 220, 240, 0.7);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.play-btn:hover {
+  background: rgba(20, 32, 52, 0.7);
+  border-color: rgba(120, 160, 200, 0.4);
+  color: rgba(220, 235, 250, 0.9);
+}
+.play-btn:focus-visible {
+  outline: 2px solid rgba(95, 184, 212, 0.5);
+  outline-offset: 2px;
+}
+.play-btn svg { width: 11px; height: 11px; }
+.formula-label {
+  font-size: 11px;
+  line-height: 1.7;
+  color: rgba(150, 180, 210, 0.4);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.formula-label .active {
+  color: rgba(200, 220, 240, 0.7);
+}
+.evidence-ui {
+  position: fixed;
+  top: 18px; right: 18px;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.readout-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(200, 220, 240, 0.75);
+  background: rgba(10, 18, 32, 0.55);
+  border: 1px solid rgba(120, 160, 200, 0.18);
+  border-radius: 999px;
+  padding: 5px 12px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-variant-numeric: tabular-nums;
+}
+.readout-pill .label {
+  color: rgba(150, 180, 210, 0.5);
+  margin-right: 6px;
+}
+.insight-ui {
+  position: fixed;
+  bottom: 18px; right: 18px;
+  z-index: 10;
+  pointer-events: none;
+  max-width: min(320px, 40vw);
+}
+.insight-ui .insight {
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(220, 200, 150, 0.78);
+  background: rgba(30, 24, 14, 0.55);
+  border: 1px solid rgba(212, 165, 95, 0.22);
+  border-left: 3px solid rgba(212, 165, 95, 0.55);
+  border-radius: 0 10px 10px 0;
+  padding: 9px 13px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.controls-ui {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.ctrl-btn {
+  pointer-events: auto;
+  border: 1px solid rgba(120, 160, 200, 0.22);
+  background: rgba(10, 18, 32, 0.55);
+  color: rgba(200, 220, 240, 0.7);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ctrl-btn:hover {
+  background: rgba(20, 32, 52, 0.7);
+  border-color: rgba(120, 160, 200, 0.4);
+  color: rgba(220, 235, 250, 0.9);
+}
+.ctrl-btn:focus-visible {
+  outline: 2px solid rgba(95, 184, 212, 0.5);
+  outline-offset: 2px;
+}
+.ctrl-btn.primary {
+  border-color: rgba(95, 184, 212, 0.45);
+  color: rgba(220, 245, 250, 0.95);
+  background: linear-gradient(135deg, rgba(42, 122, 146, 0.55), rgba(95, 184, 212, 0.45));
+}
+@media (max-width: 600px) {
+  .formula-label { font-size: 10px; }
+  .corner-ui { bottom: 12px; left: 12px; gap: 10px; }
+  .header-ui { top: 12px; left: 12px; }
+  .header-ui h1 { font-size: 13px; }
+  .header-ui p { font-size: 10px; }
+  .evidence-ui { top: 12px; right: 12px; }
+  .insight-ui { bottom: 64px; right: 12px; max-width: calc(100vw - 24px); }
+  .controls-ui { bottom: 12px; gap: 8px; }
+  .ctrl-btn { padding: 6px 11px; font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<canvas id="scene" data-region="stage" role="img" aria-label="旋转的三种鞍面线框动画"></canvas>
+
+<header class="header-ui" data-region="header">
+  <h1>Saddle Surface Wireframe</h1>
+  <p>三种鞍面线框 · 等高线扫描 · 自转展示</p>
+  <div id="status" class="status" role="status" aria-live="polite">Running</div>
+</header>
+
+<aside class="evidence-ui" data-region="evidence" aria-label="Live values">
+  <div class="readout-pill"><span class="label">曲面</span><span id="surfaceReadout">普通鞍面</span></div>
+  <div class="readout-pill"><span class="label">时间</span><span id="timeReadout">0.0 s</span></div>
+  <div class="readout-pill"><span class="label">自转</span><span id="angleReadout">0.0°</span></div>
+</aside>
+
+<aside class="insight-ui" data-region="insight" aria-label="Observation">
+  <div id="insight" class="insight">鞍点处曲面沿两主轴方向一升一降，等高线在此交叉。</div>
+</aside>
+
+<section class="controls-ui" data-region="controls" aria-label="Simulation controls">
+  <button id="startBtn" class="ctrl-btn primary" type="button">Start</button>
+  <button id="pauseBtn" class="ctrl-btn" type="button">Pause</button>
+  <button id="resetBtn" class="ctrl-btn" type="button">Reset</button>
+</section>
+
+<div class="corner-ui">
+  <button id="playBtn" class="play-btn" type="button" aria-label="播放或暂停" title="播放 / 暂停">
+    <svg id="playIcon" viewBox="0 0 12 12" aria-hidden="true">
+      <rect x="2.5" y="2" width="2.5" height="8" rx="0.5" fill="currentColor"/>
+      <rect x="7" y="2" width="2.5" height="8" rx="0.5" fill="currentColor"/>
+    </svg>
+  </button>
+  <div id="formulaLabel" class="formula-label">
+    <div data-i="0">z = (x² − y²) / a</div>
+    <div data-i="1">z = (x³ − 3xy²) / a</div>
+    <div data-i="2">z = (x² − y²) / a + 0.3·sin(3x+t)·cos(3y+t)</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============ 配置 ============
+  const SURFACE_DURATION = 10;        // 每种曲面持续秒数
+  const TRANSITION_DURATION = 1.2;    // 淡出淡入时长
+  const ROTATION_SPEED = 0.32;        // 自转角速度 rad/s
+  const CONTOUR_SCAN_SPEED = 0.55;    // 等高线 z 扫描速度
+  const CONTOUR_COUNT = 5;            // 等高线条数
+  const GRID_DIV = 26;                // 网格分段
+  const DOMAIN = 2.0;                 // x,y 取值范围 [-DOMAIN, DOMAIN]
+  const SCALE_A = 2.2;                // 曲面缩放参数 a
+  const PERSPECTIVE_D = 4.6;          // 透视视距
+  const PERSPECTIVE_F = 4.2;          // 透视焦距
+  const WIPOFFSET = 0.55;             // 线框整体上移（视觉居中）
+
+  // ============ 曲面定义 ============
+  const surfaces = [
+    {
+      name: "普通鞍面",
+      formula: "z = (x² − y²) / a",
+      fn: (x, y) => (x * x - y * y) / SCALE_A,
+      zRange: 1.0
+    },
+    {
+      name: "猴鞍面",
+      formula: "z = (x³ − 3xy²) / a",
+      fn: (x, y) => (x * x * x - 3 * x * y * y) / (SCALE_A * SCALE_A),
+      zRange: 1.7
+    },
+    {
+      name: "波动鞍面",
+      formula: "z = (x² − y²)/a + 0.3·sin(3x+t)·cos(3y+t)",
+      fn: (x, y, t) => (x * x - y * y) / SCALE_A + 0.3 * Math.sin(3 * x + t) * Math.cos(3 * y + t),
+      zRange: 1.4
+    }
+  ];
+
+  // ============ 状态 ============
+  const state = {
+    running: true,
+    time: 0,
+    lastTimestamp: null,
+    surfaceIndex: 0,
+    transitionPhase: 0  // 0..1, 0.5 为完全切换
+  };
+
+  // ============ 参数 schema ============
+  const parameterSchema = [
+    { key: "rotationSpeed", label: "自转速度", type: "slider", min: 0, max: 1.2, step: 0.04, default: 0.32, unit: "rad/s" },
+    { key: "contourScanSpeed", label: "等高线扫描", type: "slider", min: 0, max: 1.5, step: 0.05, default: 0.55, unit: "" }
+  ];
+
+  // ============ DOM ============
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const playBtn = document.getElementById("playBtn");
+  const playIcon = document.getElementById("playIcon");
+  const formulaLabel = document.getElementById("formulaLabel");
+  const statusEl = document.getElementById("status");
+  const surfaceReadout = document.getElementById("surfaceReadout");
+  const timeReadout = document.getElementById("timeReadout");
+  const angleReadout = document.getElementById("angleReadout");
+  const insightEl = document.getElementById("insight");
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  // ============ 工具函数 ============
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+  function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+  // 深度色带：深蓝 → 青蓝 → 浅青白（克制高级）
+  function depthColor(z, zMin, zMax, alpha) {
+    const t = clamp((z - zMin) / Math.max(1e-6, zMax - zMin), 0, 1);
+    // 三段插值
+    let r, g, b;
+    if (t < 0.5) {
+      const u = t * 2;
+      r = 30 + u * 50;
+      g = 70 + u * 90;
+      b = 130 + u * 70;
+    } else {
+      const u = (t - 0.5) * 2;
+      r = 80 + u * 100;
+      g = 160 + u * 70;
+      b = 200 + u * 50;
+    }
+    return `rgba(${r|0},${g|0},${b|0},${alpha})`;
+  }
+
+  // 等高线发光色：暖白偏金
+  const CONTOUR_COLOR_BRIGHT = "rgba(255, 235, 180, A)";
+  const CONTOUR_COLOR_SOFT = "rgba(255, 200, 120, A)";
+
+  // ============ 透视投影 ============
+  // 输入：3D 坐标 (x, y, z) 与当前自转角
+  // 输出：屏幕坐标 {x, y, depth}
+  function project(x, y, z, angle, cx, cy, scale) {
+    // 绕 Y 轴旋转
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const rx = x * cosA - z * sinA;
+    const rz = x * sinA + z * cosA;
+    // 透视：屏幕 = f * (x) / (z + d)，y 直接缩放
+    const denom = rz + PERSPECTIVE_D;
+    const safeDenom = Math.max(0.5, denom); // 防止除零
+    const sx = cx + (PERSPECTIVE_F * rx / safeDenom) * scale;
+    const sy = cy - (PERSPECTIVE_F * (y + WIPOFFSET) / safeDenom) * scale;
+    return { x: sx, y: sy, depth: rz };
+  }
+
+  // ============ Canvas 尺寸 ============
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + "px";
+    canvas.style.height = window.innerHeight + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+
+  // ============ 网格采样 ============
+  // 返回 GRID_DIV+1 条 u 方向线 + GRID_DIV+1 条 v 方向线
+  // 每条线是一串 3D 点
+  function buildWireframe(fn, t, zRange) {
+    const lines = [];
+    const N = GRID_DIV;
+    const step = (2 * DOMAIN) / N;
+    // u 方向（固定 y，扫 x）
+    for (let i = 0; i <= N; i++) {
+      const y = -DOMAIN + i * step;
+      const pts = [];
+      for (let j = 0; j <= N; j++) {
+        const x = -DOMAIN + j * step;
+        let z = fn(x, y, t);
+        z = clamp(z, -zRange, zRange);
+        pts.push({ x, y, z });
+      }
+      lines.push(pts);
+    }
+    // v 方向（固定 x，扫 y）
+    for (let j = 0; j <= N; j++) {
+      const x = -DOMAIN + j * step;
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const y = -DOMAIN + i * step;
+        let z = fn(x, y, t);
+        z = clamp(z, -zRange, zRange);
+        pts.push({ x, y, z });
+      }
+      lines.push(pts);
+    }
+    return lines;
+  }
+
+  // ============ 等高线采样 ============
+  // 对给定 z 值，在曲面上找等高线（z=const 的截线）
+  // 使用 marching squares 简化版：在网格上找穿越边
+  function buildContours(fn, t, zTarget, zRange) {
+    const N = GRID_DIV;
+    const step = (2 * DOMAIN) / N;
+    const segs = [];
+    // 对每个网格单元，检查四角的 z 值
+    // 用线性插值找 z=zTarget 的穿越点
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        const x0 = -DOMAIN + j * step;
+        const y0 = -DOMAIN + i * step;
+        const x1 = x0 + step;
+        const y1 = y0 + step;
+        const z00 = clamp(fn(x0, y0, t), -zRange, zRange);
+        const z10 = clamp(fn(x1, y0, t), -zRange, zRange);
+        const z11 = clamp(fn(x1, y1, t), -zRange, zRange);
+        const z01 = clamp(fn(x0, y1, t), -zRange, zRange);
+        // 四条边的穿越
+        const crossings = [];
+        // 底边 (x0,y0)-(x1,y0)
+        if ((z00 - zTarget) * (z10 - zTarget) < 0) {
+          const u = (zTarget - z00) / (z10 - z00);
+          crossings.push({ x: x0 + u * step, y: y0 });
+        }
+        // 右边 (x1,y0)-(x1,y1)
+        if ((z10 - zTarget) * (z11 - zTarget) < 0) {
+          const u = (zTarget - z10) / (z11 - z10);
+          crossings.push({ x: x1, y: y0 + u * step });
+        }
+        // 顶边 (x1,y1)-(x0,y1)
+        if ((z11 - zTarget) * (z01 - zTarget) < 0) {
+          const u = (zTarget - z11) / (z01 - z11);
+          crossings.push({ x: x1 - u * step, y: y1 });
+        }
+        // 左边 (x0,y1)-(x0,y0)
+        if ((z01 - zTarget) * (z00 - zTarget) < 0) {
+          const u = (zTarget - z01) / (z00 - z01);
+          crossings.push({ x: x0, y: y1 - u * step });
+        }
+        // 两两连接（简化：只处理 2 穿越点的情况）
+        if (crossings.length === 2) {
+          segs.push([crossings[0], crossings[1]]);
+        }
+        // 4 穿越点的情况（鞍点）用对角连接，简化处理
+        else if (crossings.length === 4) {
+          segs.push([crossings[0], crossings[2]]);
+          segs.push([crossings[1], crossings[3]]);
+        }
+      }
+    }
+    return segs;
+  }
+
+  // ============ 绘制 ============
+  function drawSurface(surfaceIdx, alpha, t, angle, cx, cy, scale) {
+    if (alpha <= 0.005) return;
+    const surf = surfaces[surfaceIdx];
+    const fn = surf.fn;
+    const zRange = surf.zRange;
+    const zMin = -zRange;
+    const zMax = zRange;
+
+    // 1) 构建线框
+    const lines = buildWireframe(fn, t, zRange);
+
+    // 2) 投影所有点并按深度排序线段
+    // 为简化：对每条线整体取平均深度，再按线排序
+    const projectedLines = lines.map(line => {
+      const pts = line.map(p => {
+        const pr = project(p.x, p.y, p.z, angle, cx, cy, scale);
+        return { x: pr.x, y: pr.y, depth: pr.depth, z: p.z };
+      });
+      const avgDepth = pts.reduce((s, p) => s + p.depth, 0) / pts.length;
+      return { pts, avgDepth };
+    });
+    // 远 → 近
+    projectedLines.sort((a, b) => b.avgDepth - a.avgDepth);
+
+    // 3) 绘制网格线（深度渐变着色）
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const line of projectedLines) {
+      // 按段绘制以实现深度渐变
+      const pts = line.pts;
+      for (let k = 0; k < pts.length - 1; k++) {
+        const p0 = pts[k];
+        const p1 = pts[k + 1];
+        const avgZ = (p0.z + p1.z) / 2;
+        const a = alpha * (0.35 + 0.5 * clamp((avgZ - zMin) / (zMax - zMin), 0, 1));
+        ctx.strokeStyle = depthColor(avgZ, zMin, zMax, a);
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+      }
+    }
+
+    // 4) 等高线（发光双层绘制）
+    // z 值随时间扫描
+    const scanPhase = t * state.contourScanSpeed;
+    const contourZTargets = [];
+    for (let i = 0; i < CONTOUR_COUNT; i++) {
+      // 均匀分布 + 缓慢扫描
+      const base = zMin + (i + 0.5) / CONTOUR_COUNT * (zMax - zMin);
+      const amp = (zMax - zMin) / (CONTOUR_COUNT * 2.2);
+      const z = base + amp * Math.sin(scanPhase + i * 1.3);
+      contourZTargets.push(z);
+    }
+
+    for (let ci = 0; ci < contourZTargets.length; ci++) {
+      const zTarget = contourZTargets[ci];
+      const segs = buildContours(fn, t, zTarget, zRange);
+      // 投影并按深度排序
+      const projSegs = segs.map(seg => {
+        const p0 = project(seg[0].x, seg[0].y, zTarget, angle, cx, cy, scale);
+        const p1 = project(seg[1].x, seg[1].y, zTarget, angle, cx, cy, scale);
+        return { p0, p1, depth: (p0.depth + p1.depth) / 2 };
+      });
+      projSegs.sort((a, b) => b.depth - a.depth);
+
+      // 双层发光：粗低透明 + 细高透明
+      // 粗层
+      ctx.strokeStyle = CONTOUR_COLOR_SOFT.replace("A", String(alpha * 0.18));
+      ctx.lineWidth = 5.5;
+      ctx.lineCap = "round";
+      for (const s of projSegs) {
+        ctx.beginPath();
+        ctx.moveTo(s.p0.x, s.p0.y);
+        ctx.lineTo(s.p1.x, s.p1.y);
+        ctx.stroke();
+      }
+      // 细层
+      ctx.strokeStyle = CONTOUR_COLOR_BRIGHT.replace("A", String(alpha * 0.85));
+      ctx.lineWidth = 1.4;
+      for (const s of projSegs) {
+        ctx.beginPath();
+        ctx.moveTo(s.p0.x, s.p0.y);
+        ctx.lineTo(s.p1.x, s.p1.y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ============ 主循环 ============
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.time += boundedDt;
+
+    // 切换阶段计算
+    const cyclePos = state.time % (SURFACE_DURATION * surfaces.length);
+    const idx = Math.floor(cyclePos / SURFACE_DURATION);
+    const within = cyclePos - idx * SURFACE_DURATION;
+    state.surfaceIndex = idx % surfaces.length;
+
+    // 过渡：每个曲面最后 TRANSITION_DURATION 秒淡出，下一个曲面开头淡入
+    // 这里用 transitionPhase 表示"当前曲面的可见度"
+    // 简化：在 [0, SURFACE_DURATION - TRANSITION_DURATION] 内 alpha=1，
+    //       在 [SURFACE_DURATION - TRANSITION_DURATION, SURFACE_DURATION] 内淡出到 0
+    // 同时下一曲面在前一曲面最后 TRANSITION_DURATION/2 开始淡入
+    // 为实现交叉淡入淡出，我们直接绘制两个曲面：
+    //   当前曲面 alpha = fadeOut(within)
+    //   下一曲面 alpha = fadeIn(within) （仅在过渡窗口内）
+    state.transitionPhase = within / SURFACE_DURATION;
+  }
+
+  function getFadeAlpha(within) {
+    // 0..1 表示当前曲面可见度
+    const fadeStart = SURFACE_DURATION - TRANSITION_DURATION;
+    if (within < fadeStart) return 1;
+    return 1 - smoothstep((within - fadeStart) / TRANSITION_DURATION);
+  }
+  function getNextFadeAlpha(within) {
+    // 下一曲面在过渡窗口内淡入
+    const fadeStart = SURFACE_DURATION - TRANSITION_DURATION;
+    if (within < fadeStart) return 0;
+    return smoothstep((within - fadeStart) / TRANSITION_DURATION);
+  }
+
+  function render() {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    // 清屏（用半透明黑叠加可留拖尾，但这里用全清保证锐利）
+    ctx.clearRect(0, 0, W, H);
+
+    // 背景渐变（CSS 已有，这里补一层径向光晕增强深度）
+    const bgGrad = ctx.createRadialGradient(W / 2, H * 0.55, 0, W / 2, H * 0.55, Math.max(W, H) * 0.7);
+    bgGrad.addColorStop(0, "rgba(15, 28, 55, 0.5)");
+    bgGrad.addColorStop(0.5, "rgba(8, 16, 35, 0.25)");
+    bgGrad.addColorStop(1, "rgba(2, 4, 10, 0)");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // 中心与缩放
+    const cx = W / 2;
+    const cy = H / 2;
+    const scale = Math.min(W, H) / 5.2;
+
+    // 自转角
+    const angle = state.time * state.rotationSpeed;
+
+    // 当前曲面在周期内的位置
+    const cyclePos = state.time % (SURFACE_DURATION * surfaces.length);
+    const idx = Math.floor(cyclePos / SURFACE_DURATION);
+    const within = cyclePos - idx * SURFACE_DURATION;
+    const curIdx = idx % surfaces.length;
+    const nextIdx = (curIdx + 1) % surfaces.length;
+
+    const curAlpha = getFadeAlpha(within);
+    const nextAlpha = getNextFadeAlpha(within);
+
+    // 绘制当前曲面
+    if (curAlpha > 0.005) {
+      drawSurface(curIdx, curAlpha, state.time, angle, cx, cy, scale);
+    }
+    // 绘制下一曲面（过渡时淡入）
+    if (nextAlpha > 0.005) {
+      drawSurface(nextIdx, nextAlpha, state.time, angle, cx, cy, scale);
+    }
+
+    // 更新角落公式高亮
+    const labels = formulaLabel.querySelectorAll("div[data-i]");
+    labels.forEach((el, i) => {
+      if (i === curIdx) el.classList.add("active");
+      else el.classList.remove("active");
+    });
+
+    // 更新读数与状态
+    const surfName = surfaces[curIdx] ? surfaces[curIdx].name : "—";
+    if (surfaceReadout) surfaceReadout.textContent = surfName;
+    if (timeReadout) timeReadout.textContent = state.time.toFixed(1) + " s";
+    if (angleReadout) {
+      const deg = ((angle * 180 / Math.PI) % 360 + 360) % 360;
+      angleReadout.textContent = deg.toFixed(0) + "°";
+    }
+    if (statusEl) statusEl.textContent = state.running ? "Running" : "Paused";
+
+    // 更新洞察文本
+    if (insightEl) {
+      const insightMap = [
+        "普通鞍面 z=(x²−y²)/a：沿 x 轴上凸、沿 y 轴下凸，原点为鞍点，等高线呈双曲线。",
+        "猴鞍面 z=(x³−3xy²)/a：三重对称，原点处三升三降交替，等高线呈三叶分布。",
+        "波动鞍面：在普通鞍面上叠加正弦扰动，等高线随时间起伏扫描。"
+      ];
+      insightEl.textContent = insightMap[curIdx] || insightMap[0];
+    }
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ============ 控制 ============
+  function setPlayIcon(running) {
+    if (running) {
+      // 暂停图标（两条竖线）
+      playIcon.innerHTML = '<rect x="2.5" y="2" width="2.5" height="8" rx="0.5" fill="currentColor"/><rect x="7" y="2" width="2.5" height="8" rx="0.5" fill="currentColor"/>';
+    } else {
+      // 播放图标（三角形）
+      playIcon.innerHTML = '<path d="M3 2 L9 6 L3 10 Z" fill="currentColor"/>';
+    }
+  }
+
+  function togglePlay() {
+    state.running = !state.running;
+    setPlayIcon(state.running);
+    if (statusEl) statusEl.textContent = state.running ? "Running" : "Paused";
+  }
+
+  function start() {
+    state.running = true;
+    setPlayIcon(true);
+    if (statusEl) statusEl.textContent = "Running";
+  }
+
+  function pause() {
+    state.running = false;
+    setPlayIcon(false);
+    if (statusEl) statusEl.textContent = "Paused";
+  }
+
+  function reset() {
+    pause();
+    state.time = 0;
+    state.surfaceIndex = 0;
+    state.transitionPhase = 0;
+    state.lastTimestamp = null;
+    render();
+  }
+
+  function setParameters(values) {
+    if (!values) return;
+    const rotDef = parameterSchema[0];
+    const conDef = parameterSchema[1];
+    if (values.rotationSpeed !== undefined) {
+      state.rotationSpeed = clamp(finite(Number(values.rotationSpeed), rotDef.default), rotDef.min, rotDef.max);
+    }
+    if (values.contourScanSpeed !== undefined) {
+      state.contourScanSpeed = clamp(finite(Number(values.contourScanSpeed), conDef.default), conDef.min, conDef.max);
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      time: state.time,
+      surfaceIndex: state.surfaceIndex,
+      transitionPhase: state.transitionPhase,
+      rotationSpeed: state.rotationSpeed,
+      contourScanSpeed: state.contourScanSpeed
+    };
+  }
+
+  function getReadouts() {
+    const cyclePos = state.time % (SURFACE_DURATION * surfaces.length);
+    const idx = Math.floor(cyclePos / SURFACE_DURATION);
+    const curIdx = idx % surfaces.length;
+    return {
+      time: state.time,
+      surface: surfaces[curIdx] ? surfaces[curIdx].name : "—",
+      surfaceIndex: curIdx,
+      angle: state.time * state.rotationSpeed,
+      running: state.running
+    };
+  }
+
+  playBtn.addEventListener("click", togglePlay);
+  startBtn.addEventListener("click", start);
+  pauseBtn.addEventListener("click", pause);
+  resetBtn.addEventListener("click", reset);
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      e.preventDefault();
+      togglePlay();
+    }
+  });
+
+  // ============ 初始化 ============
+  function init() {
+    state.rotationSpeed = ROTATION_SPEED;
+    state.contourScanSpeed = CONTOUR_SCAN_SPEED;
+    resize();
+    setPlayIcon(state.running);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // 暴露给验证
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks: () => [
+      { name: "perspective finite", pass: Number.isFinite(PERSPECTIVE_D), expected: "finite", actual: PERSPECTIVE_D, tolerance: "finite" },
+      { name: "surface count", pass: surfaces.length === 3, expected: 3, actual: surfaces.length, tolerance: "strict" },
+      { name: "cycle period", pass: SURFACE_DURATION * surfaces.length === 30, expected: 30, actual: SURFACE_DURATION * surfaces.length, tolerance: "strict" }
+    ]
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

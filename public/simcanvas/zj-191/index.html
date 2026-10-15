@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lorenz Attractor</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #04060c;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0f1626;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a99;
+  --sim-border: #1a2438;
+  --sim-grid: #131c2e;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #f59e0b;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0,0,0,0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.app {
+  width: 100vw; height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 50%, #060a14 0%, #020307 80%);
+}
+#scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+.header {
+  position: fixed;
+  top: 18px; left: 22px;
+  z-index: 10;
+  pointer-events: none;
+}
+.header h1 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: rgba(232, 238, 252, 0.92);
+}
+.header p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(107, 122, 153, 0.85);
+}
+.status {
+  position: fixed;
+  top: 18px; right: 22px;
+  z-index: 10;
+  border: 1px solid rgba(15, 159, 186, 0.28);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(15, 159, 186, 0.12);
+  color: var(--sim-accent-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.evidence {
+  position: fixed;
+  top: 58px; right: 22px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 8px;
+  pointer-events: none;
+}
+.metric {
+  padding: 8px 12px;
+  border: 1px solid rgba(120, 160, 200, 0.16);
+  border-radius: 10px;
+  background: rgba(10, 15, 28, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  min-width: 92px;
+}
+.metric small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--sim-muted);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.metric strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(232, 238, 252, 0.95);
+}
+.formula {
+  position: fixed;
+  left: 22px; bottom: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: rgba(180, 200, 230, 0.30);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+.controls {
+  position: fixed;
+  right: 22px; bottom: 20px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  width: 38px; height: 38px;
+  border: 1px solid rgba(120, 160, 200, 0.18);
+  border-radius: 50%;
+  background: rgba(10, 15, 28, 0.45);
+  color: rgba(200, 220, 240, 0.55);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background .2s ease, color .2s ease, border-color .2s ease;
+}
+.btn:hover {
+  background: rgba(20, 30, 50, 0.6);
+  color: rgba(220, 235, 250, 0.85);
+  border-color: rgba(120, 160, 200, 0.35);
+}
+.btn:focus-visible {
+  outline: 2px solid rgba(15, 159, 186, 0.5);
+  outline-offset: 3px;
+}
+.btn svg { width: 14px; height: 14px; }
+@media (max-width: 600px) {
+  .header { top: 12px; left: 14px; }
+  .header h1 { font-size: 1rem; }
+  .header p { font-size: 0.65rem; }
+  .status { top: 12px; right: 14px; padding: 5px 10px; font-size: 0.65rem; }
+  .evidence { top: 48px; right: 14px; gap: 6px; }
+  .metric { padding: 6px 10px; min-width: 78px; }
+  .metric small { font-size: 0.55rem; }
+  .metric strong { font-size: 0.85rem; }
+  .formula { font-size: 10px; left: 14px; bottom: 14px; }
+  .controls { right: 14px; bottom: 14px; gap: 6px; }
+  .btn { width: 34px; height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="quantitative">
+  <header class="header" data-region="header">
+    <h1>Lorenz Attractor</h1>
+    <p>混沌系统的蝴蝶轨迹</p>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <canvas id="scene" data-region="stage"></canvas>
+
+  <aside class="evidence" data-region="evidence" aria-label="实时数值">
+    <div class="metric"><small>时间 t</small><strong id="timeReadout">0.00</strong></div>
+    <div class="metric"><small>速度 |v|</small><strong id="velReadout">0.00</strong></div>
+    <div class="metric"><small>x</small><strong id="xReadout">0.00</strong></div>
+    <div class="metric"><small>z</small><strong id="zReadout">0.00</strong></div>
+  </aside>
+
+  <div class="formula" data-region="insight" aria-hidden="true">
+    dx/dt = σ(y−x)<br>
+    dy/dt = x(ρ−z)−y<br>
+    dz/dt = xy−βz
+  </div>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <button id="startBtn" class="btn" type="button" aria-label="开始" aria-pressed="false"></button>
+    <button id="pauseBtn" class="btn" type="button" aria-label="暂停"></button>
+    <button id="resetBtn" class="btn" type="button" aria-label="重置"></button>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  // ── 洛伦兹方程参数 ──
+  const SIGMA = 10, RHO = 28, BETA = 8/3;
+  const X0 = 1, Y0 = 1, Z0 = 1;
+  const DT = 0.006;
+  const N_POINTS = 1800;        // 约 30 秒回放 @ 60fps
+  const PLAYBACK_SPEED = 2.2;   // 每帧推进的积分步数（视觉节奏）
+
+  // ── 旋转参数 ──
+  const ROTATION_PERIOD = 40;   // 每 40 秒一圈
+  const OMEGA = (2 * Math.PI) / ROTATION_PERIOD;
+
+  // ── 透视投影参数 ──
+  const FOCAL = 320;
+  const VIEW_DIST = 460;
+  const SCALE = 14;
+
+  // ── 颜色梯度（时间 t ∈ [0,1]）深蓝 → 青 → 暖橙 ──
+  const COLOR_STOPS = [
+    { t: 0.00, r: 0.10, g: 0.20, b: 0.55 },
+    { t: 0.30, r: 0.06, g: 0.62, b: 0.92 },
+    { t: 0.62, r: 0.35, g: 0.88, b: 0.95 },
+    { t: 0.85, r: 0.98, g: 0.72, b: 0.32 },
+    { t: 1.00, r: 1.00, g: 0.85, b: 0.45 }
+  ];
+
+  function colorAt(t) {
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+      const a = COLOR_STOPS[i], b = COLOR_STOPS[i + 1];
+      if (t >= a.t && t <= b.t) {
+        const k = (t - a.t) / (b.t - a.t);
+        return {
+          r: a.r + (b.r - a.r) * k,
+          g: a.g + (b.g - a.g) * k,
+          b: a.b + (b.b - a.b) * k
+        };
+      }
+    }
+    return COLOR_STOPS[COLOR_STOPS.length - 1];
+  }
+  function rgba(c, a) { return `rgba(${c.r*255|0},${c.g*255|0},${c.b*255|0},${a})`; }
+
+  // ── RK4 单步积分 ──
+  function lorenz(x, y, z) {
+    return {
+      dx: SIGMA * (y - x),
+      dy: x * (RHO - z) - y,
+      dz: x * y - BETA * z
+    };
+  }
+  function rk4Step(x, y, z, dt) {
+    const k1 = lorenz(x, y, z);
+    const k2 = lorenz(x + k1.dx*dt/2, y + k1.dy*dt/2, z + k1.dz*dt/2);
+    const k3 = lorenz(x + k2.dx*dt/2, y + k2.dy*dt/2, z + k2.dz*dt/2);
+    const k4 = lorenz(x + k3.dx*dt, y + k3.dy*dt, z + k3.dz*dt);
+    return {
+      x: x + (k1.dx + 2*k2.dx + 2*k3.dx + k4.dx) * dt / 6,
+      y: y + (k1.dy + 2*k2.dy + 2*k3.dy + k4.dy) * dt / 6,
+      z: z + (k1.dz + 2*k2.dz + 2*k3.dz + k4.dz) * dt / 6
+    };
+  }
+
+  // ── 预积分完整轨迹 ──
+  function precompute() {
+    const pts = new Array(N_POINTS);
+    let x = X0, y = Y0, z = Z0;
+    pts[0] = { x, y, z };
+    for (let i = 1; i < N_POINTS; i++) {
+      const next = rk4Step(x, y, z, DT);
+      x = next.x; y = next.y; z = next.z;
+      pts[i] = { x, y, z };
+    }
+    return pts;
+  }
+
+  // ── 状态 ──
+  const state = {
+    running: true,
+    trajectory: null,       // 预积分轨迹
+    headIndex: 0,           // 当前头部在轨迹中的位置（浮点）
+    rotation: 0,             // 绕竖直轴旋转角
+    simTime: 0,              // 模拟时间
+    lastTimestamp: null,
+    canvasW: 0, canvasH: 0,
+    dpr: 1
+  };
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const statusEl = document.getElementById("status");
+  const timeReadout = document.getElementById("timeReadout");
+  const velReadout = document.getElementById("velReadout");
+  const xReadout = document.getElementById("xReadout");
+  const zReadout = document.getElementById("zReadout");
+
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+  const ICON_RESET = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>';
+
+  // ── 画布尺寸与 DPR ──
+  function resize() {
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.canvasW = window.innerWidth;
+    state.canvasH = window.innerHeight;
+    canvas.width = Math.floor(state.canvasW * state.dpr);
+    canvas.height = Math.floor(state.canvasH * state.dpr);
+    canvas.style.width = state.canvasW + "px";
+    canvas.style.height = state.canvasH + "px";
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  }
+
+  // ── 3D→2D 透视投影（绕竖直 Y 轴旋转）──
+  function project(p, cosA, sinA, cx, cy) {
+    const xr = p.x * cosA - p.z * sinA;
+    const zr = p.x * sinA + p.z * cosA;
+    const zShifted = zr + VIEW_DIST;
+    const safeZ = Math.max(1, zShifted);
+    const sx = cx + (xr * FOCAL / safeZ) * SCALE;
+    const sy = cy - ((p.y - 24) * FOCAL / safeZ) * SCALE;
+    return { sx, sy, depth: safeZ };
+  }
+
+  // ── 渲染一帧 ──
+  function render() {
+    const W = state.canvasW, H = state.canvasH;
+    const cx = W / 2, cy = H / 2;
+
+    ctx.fillStyle = "#020307";
+    ctx.fillRect(0, 0, W, H);
+
+    const cosA = Math.cos(state.rotation);
+    const sinA = Math.sin(state.rotation);
+
+    const head = state.headIndex;
+    const N = state.trajectory.length;
+
+    const tailLength = N - 1;
+    const tailStart = head - tailLength;
+
+    const segments = [];
+    for (let i = 0; i < N - 1; i++) {
+      let age;
+      if (i <= head) {
+        age = (head - i) / tailLength;
+      } else {
+        age = (head + N - i) / tailLength;
+      }
+      if (age > 1) continue;
+
+      const p1 = state.trajectory[i];
+      const p2 = state.trajectory[i + 1];
+      const proj1 = project(p1, cosA, sinA, cx, cy);
+      const proj2 = project(p2, cosA, sinA, cx, cy);
+
+      if (!isFinite(proj1.sx) || !isFinite(proj2.sx)) continue;
+
+      segments.push({
+        x1: proj1.sx, y1: proj1.sy, d1: proj1.depth,
+        x2: proj2.sx, y2: proj2.sy, d2: proj2.depth,
+        age: age,
+        tColor: i / (N - 1)
+      });
+    }
+
+    segments.sort((a, b) => {
+      const avgA = (a.d1 + a.d2) * 0.5;
+      const avgB = (b.d1 + b.d2) * 0.5;
+      return avgB - avgA;
+    });
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const seg of segments) {
+      const fade = 1 - seg.age;
+      const fadeCurve = fade * fade * 0.7 + fade * 0.3;
+      const c = colorAt(seg.tColor);
+      const alpha = fadeCurve * 0.18;
+      ctx.strokeStyle = rgba(c, alpha);
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(seg.x1, seg.y1);
+      ctx.lineTo(seg.x2, seg.y2);
+      ctx.stroke();
+    }
+
+    for (const seg of segments) {
+      const fade = 1 - seg.age;
+      const fadeCurve = fade * fade * 0.7 + fade * 0.3;
+      const c = colorAt(seg.tColor);
+      const alpha = fadeCurve * 0.88;
+      ctx.strokeStyle = rgba(c, alpha);
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(seg.x1, seg.y1);
+      ctx.lineTo(seg.x2, seg.y2);
+      ctx.stroke();
+    }
+
+    const headIdx = Math.floor(head) % N;
+    const headPt = state.trajectory[headIdx];
+    if (headPt) {
+      const hp = project(headPt, cosA, sinA, cx, cy);
+      if (isFinite(hp.sx)) {
+        const headColor = colorAt(headIdx / (N - 1));
+        const haloR = 22;
+        const grad = ctx.createRadialGradient(hp.sx, hp.sy, 0, hp.sx, hp.sy, haloR);
+        grad.addColorStop(0, rgba(headColor, 0.55));
+        grad.addColorStop(0.4, rgba(headColor, 0.18));
+        grad.addColorStop(1, rgba(headColor, 0));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(hp.sx, hp.sy, haloR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = rgba({ r: 1, g: 0.95, b: 0.85 }, 0.95);
+        ctx.beginPath();
+        ctx.arc(hp.sx, hp.sy, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // ── 读数更新 ──
+    if (headPt) {
+      const deriv = lorenz(headPt.x, headPt.y, headPt.z);
+      const speed = Math.sqrt(deriv.dx*deriv.dx + deriv.dy*deriv.dy + deriv.dz*deriv.dz);
+      timeReadout.textContent = state.simTime.toFixed(2);
+      velReadout.textContent = speed.toFixed(2);
+      xReadout.textContent = headPt.x.toFixed(2);
+      zReadout.textContent = headPt.z.toFixed(2);
+    }
+  }
+
+  // ── 更新 ──
+  function update(dt) {
+    if (!state.running) return;
+    state.headIndex += PLAYBACK_SPEED * (dt / (1/60));
+    if (state.headIndex >= N_POINTS) {
+      state.headIndex -= N_POINTS;
+    }
+    state.rotation += OMEGA * dt;
+    if (state.rotation > Math.PI * 2) state.rotation -= Math.PI * 2;
+    state.simTime += dt;
+  }
+
+  // ── 主循环 ──
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    dt = Math.min(dt, 0.05);
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ── 生命周期钩子 ──
+  function start() {
+    state.running = true;
+    statusEl.textContent = "运行中";
+    startBtn.setAttribute("aria-pressed", "true");
+    startBtn.innerHTML = ICON_PAUSE;
+  }
+  function pause() {
+    state.running = false;
+    statusEl.textContent = "已暂停";
+    startBtn.setAttribute("aria-pressed", "false");
+    startBtn.innerHTML = ICON_PLAY;
+  }
+  function reset() {
+    pause();
+    state.headIndex = 0;
+    state.rotation = 0;
+    state.simTime = 0;
+    state.lastTimestamp = null;
+    render();
+  }
+  function setParameters(values) {
+    // 预留接口：当前 Lorenz 参数为固定常量，保留接口以满足契约
+    void values;
+  }
+  function getState() {
+    const headIdx = Math.floor(state.headIndex) % N_POINTS;
+    const headPt = state.trajectory ? state.trajectory[headIdx] : null;
+    return {
+      running: state.running,
+      headIndex: state.headIndex,
+      rotation: state.rotation,
+      simTime: state.simTime,
+      head: headPt ? { x: headPt.x, y: headPt.y, z: headPt.z } : null
+    };
+  }
+  function getReadouts() {
+    const headIdx = Math.floor(state.headIndex) % N_POINTS;
+    const headPt = state.trajectory ? state.trajectory[headIdx] : null;
+    if (!headPt) return { time: 0, x: 0, y: 0, z: 0, speed: 0 };
+    const deriv = lorenz(headPt.x, headPt.y, headPt.z);
+    const speed = Math.sqrt(deriv.dx*deriv.dx + deriv.dy*deriv.dy + deriv.dz*deriv.dz);
+    return {
+      time: state.simTime,
+      x: headPt.x,
+      y: headPt.y,
+      z: headPt.z,
+      speed: speed
+    };
+  }
+
+  // ── 控制绑定 ──
+  startBtn.innerHTML = ICON_PAUSE;
+  pauseBtn.innerHTML = ICON_PAUSE;
+  resetBtn.innerHTML = ICON_RESET;
+  startBtn.addEventListener("click", () => state.running ? pause() : start());
+  pauseBtn.addEventListener("click", pause);
+  resetBtn.addEventListener("click", reset);
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); state.running ? pause() : start(); }
+  });
+
+  // ── 生命周期 ──
+  function init() {
+    resize();
+    state.trajectory = precompute();
+    start();
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener("resize", resize);
+
+  // ── 模型检查（RK4 正确性）──
+  function runModelChecks() {
+    const x=1, y=1, z=1, dt=0.001;
+    const deriv = lorenz(x, y, z);
+    const taylor = {
+      x: x + deriv.dx * dt,
+      y: y + deriv.dy * dt,
+      z: y + deriv.dz * dt
+    };
+    const rk4 = rk4Step(x, y, z, dt);
+    const stepErr = Math.abs(rk4.x - taylor.x) + Math.abs(rk4.y - taylor.y) + Math.abs(rk4.z - taylor.z);
+
+    let maxR = 0;
+    for (const p of state.trajectory) {
+      const r = Math.sqrt(p.x*p.x + p.y*p.y + p.z*p.z);
+      if (r > maxR) maxR = r;
+    }
+
+    const first = state.trajectory[0];
+    const last = state.trajectory[state.trajectory.length - 1];
+    const drift = Math.sqrt(
+      (last.x - first.x)**2 + (last.y - first.y)**2 + (last.z - first.z)**2
+    );
+
+    let zMin = Infinity, zMax = -Infinity;
+    for (const p of state.trajectory) {
+      if (p.z < zMin) zMin = p.z;
+      if (p.z > zMax) zMax = p.z;
+    }
+
+    return [
+      { name: "RK4 一阶泰勒一致性", pass: stepErr < 1e-5, expected: "< 1e-5", actual: stepErr, tolerance: 1e-5 },
+      { name: "轨迹有界", pass: maxR < 100, expected: "maxR < 100", actual: maxR, tolerance: 100 },
+      { name: "轨迹非平凡漂移", pass: drift > 10, expected: "drift > 10", actual: drift, tolerance: 10 },
+      { name: "z 范围符合吸引子", pass: zMin > 0 && zMax < 50 && zMax > 40, expected: "z∈(0,50), zMax>40", actual: `z∈(${zMin.toFixed(2)},${zMax.toFixed(2)})`, tolerance: "范围" }
+    ];
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

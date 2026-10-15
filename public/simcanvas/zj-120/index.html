@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>向量叉积 · 三维可视化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); touch-action: none; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>向量叉积 · 三维可视化</h1>
+        <p>拖动 A、B 端点，观察叉积方向与平行四边形面积</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">三维空间舞台</h2><span>拖动端点 · 滚轮旋转视角</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">三维坐标系中的向量 A、B 及其叉积 A×B，附带平行四边形面积可视化。</desc>
+          <g id="grid"></g>
+          <g id="axes"></g>
+          <polygon id="parallelogram" points="" fill="rgba(15,159,186,0.14)" stroke="#0f9fba" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.85"></polygon>
+          <line id="vecA" stroke="#0f9fba" stroke-width="4" stroke-linecap="round"></line>
+          <line id="vecB" stroke="#f59e0b" stroke-width="4" stroke-linecap="round"></line>
+          <line id="vecC" stroke="#dc2626" stroke-width="4" stroke-linecap="round"></line>
+          <g id="cArrow"></g>
+          <g id="labels"></g>
+          <circle id="handleA" r="11" fill="#0f9fba" stroke="#fff" stroke-width="3" cursor="grab"></circle>
+          <circle id="handleB" r="11" fill="#f59e0b" stroke="#fff" stroke-width="3" cursor="grab"></circle>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>向量 A</small><strong id="readA">(3.0, 0.0, 0.0)</strong></div>
+            <div class="metric"><small>向量 B</small><strong id="readB">(0.0, 4.0, 0.0)</strong></div>
+            <div class="metric"><small>叉积 A×B</small><strong id="readC">(0.0, 0.0, 12.0)</strong></div>
+            <div class="metric"><small>平行四边形面积</small><strong id="readArea">12.00</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">拖动 A、B 端点。叉积 A×B 垂直于两者所在平面，方向由右手定则确定。</p>
+          <p>教学视图：A×B 的模等于平行四边形面积；当 A、B 共线时叉积为零向量。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">播放右手定则</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="azimuthInput">方位角 <output id="azimuthOutput">35°</output></label>
+        <input id="azimuthInput" type="range" min="0" max="360" step="5" value="35">
+      </div>
+      <div class="control">
+        <label for="elevationInput">仰角 <output id="elevationOutput">25°</output></label>
+        <input id="elevationInput" type="range" min="5" max="80" step="1" value="25">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "azimuth", label: "方位角", type: "slider", min: 0, max: 360, step: 5, default: 35, unit: "°" },
+      { key: "elevation", label: "仰角", type: "slider", min: 5, max: 80, step: 1, default: 25, unit: "°" }
+    ];
+    const state = {
+      running: false,
+      t: 0,
+      lastTimestamp: null,
+      azimuth: 35,
+      elevation: 25,
+      A: { x: 3, y: 0, z: 0 },
+      B: { x: 0, y: 4, z: 0 },
+      drag: null,
+      animPhase: 0
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      grid: document.querySelector("#grid"),
+      axes: document.querySelector("#axes"),
+      parallelogram: document.querySelector("#parallelogram"),
+      vecA: document.querySelector("#vecA"),
+      vecB: document.querySelector("#vecB"),
+      vecC: document.querySelector("#vecC"),
+      cArrow: document.querySelector("#cArrow"),
+      labels: document.querySelector("#labels"),
+      handleA: document.querySelector("#handleA"),
+      handleB: document.querySelector("#handleB"),
+      readA: document.querySelector("#readA"),
+      readB: document.querySelector("#readB"),
+      readC: document.querySelector("#readC"),
+      readArea: document.querySelector("#readArea"),
+      insight: document.querySelector("#insight"),
+      azimuthInput: document.querySelector("#azimuthInput"),
+      azimuthOutput: document.querySelector("#azimuthOutput"),
+      elevationInput: document.querySelector("#elevationInput"),
+      elevationOutput: document.querySelector("#elevationOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn"),
+      scene: document.querySelector("#scene")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function cross(a, b) {
+      return {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x
+      };
+    }
+    function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+    function len(v) { return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+    function scale(v, s) { return { x: v.x * s, y: v.y * s, z: v.z * s }; }
+    function add(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+
+    function project(p) {
+      const az = state.azimuth * Math.PI / 180;
+      const el = state.elevation * Math.PI / 180;
+      const cosEl = Math.cos(el);
+      const vx = p.x * Math.cos(az) - p.y * Math.sin(az);
+      const vy = p.x * Math.sin(az) + p.y * Math.cos(az);
+      const vz = p.z;
+      const sx = vx;
+      const sy = -vz * cosEl + vy * Math.sin(el);
+      const depth = vy * cosEl + vz * Math.sin(el);
+      return { x: 380 + sx * 38, y: 230 + sy * 38, depth: depth };
+    }
+
+    function initGrid() {
+      const lines = [];
+      for (let i = -4; i <= 4; i++) {
+        const p1 = project({ x: i, y: -4, z: 0 });
+        const p2 = project({ x: i, y: 4, z: 0 });
+        lines.push(`<line class="grid-line" x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="var(--sim-grid)" stroke-width="1"/>`);
+        const q1 = project({ x: -4, y: i, z: 0 });
+        const q2 = project({ x: 4, y: i, z: 0 });
+        lines.push(`<line class="grid-line" x1="${q1.x.toFixed(1)}" y1="${q1.y.toFixed(1)}" x2="${q2.x.toFixed(1)}" y2="${q2.y.toFixed(1)}" stroke="var(--sim-grid)" stroke-width="1"/>`);
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+
+    function initAxes() {
+      const o = project({ x: 0, y: 0, z: 0 });
+      const px = project({ x: 4.5, y: 0, z: 0 });
+      const py = project({ x: 0, y: 4.5, z: 0 });
+      const pz = project({ x: 0, y: 0, z: 4.5 });
+      elements.axes.innerHTML = `
+        <line x1="${o.x}" y1="${o.y}" x2="${px.x}" y2="${px.y}" stroke="#dc2626" stroke-width="2.5" opacity="0.55"/>
+        <line x1="${o.x}" y1="${o.y}" x2="${py.x}" y2="${py.y}" stroke="#16a34a" stroke-width="2.5" opacity="0.55"/>
+        <line x1="${o.x}" y1="${o.y}" x2="${pz.x}" y2="${pz.y}" stroke="#2563eb" stroke-width="2.5" opacity="0.55"/>
+        <text x="${px.x + 8}" y="${px.y + 4}" fill="#dc2626" font-size="14" font-weight="700">x</text>
+        <text x="${py.x + 8}" y="${py.y + 4}" fill="#16a34a" font-size="14" font-weight="700">y</text>
+        <text x="${pz.x + 6}" y="${pz.y - 6}" fill="#2563eb" font-size="14" font-weight="700">z</text>
+        <circle cx="${o.x}" cy="${o.y}" r="3" fill="#475569"/>
+      `;
+    }
+
+    function arrowHead(x1, y1, x2, y2, color, id) {
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const len = 12;
+      const a1 = angle + Math.PI - 0.45;
+      const a2 = angle + Math.PI + 0.45;
+      const p1x = x2 + len * Math.cos(a1);
+      const p1y = y2 + len * Math.sin(a1);
+      const p2x = x2 + len * Math.cos(a2);
+      const p2y = y2 + len * Math.sin(a2);
+      return `<polygon points="${x2},${y2} ${p1x.toFixed(1)},${p1y.toFixed(1)} ${p2x.toFixed(1)},${p2y.toFixed(1)}" fill="${color}"/>`;
+    }
+
+    function init() {
+      initGrid();
+      initAxes();
+      bindControls();
+      bindDrag();
+      setParameters({ azimuth: 35, elevation: 25 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      state.animPhase = 0;
+      state.t = 0;
+      elements.status.textContent = "播放中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0;
+      state.animPhase = 0;
+      state.lastTimestamp = null;
+      state.A = { x: 3, y: 0, z: 0 };
+      state.B = { x: 0, y: 4, z: 0 };
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      const cycle = 6;
+      state.animPhase = (state.t % cycle) / cycle;
+      if (state.t >= cycle) {
+        state.running = false;
+        state.animPhase = 0;
+        state.t = 0;
+        elements.status.textContent = "就绪";
+        elements.startBtn.setAttribute("aria-pressed", "false");
+      }
+    }
+
+    function render() {
+      const o = project({ x: 0, y: 0, z: 0 });
+      const pa = project(state.A);
+      const pb = project(state.B);
+      const C = cross(state.A, state.B);
+      const pc = project(C);
+
+      elements.vecA.setAttribute("x1", o.x);
+      elements.vecA.setAttribute("y1", o.y);
+      elements.vecA.setAttribute("x2", pa.x);
+      elements.vecA.setAttribute("y2", pa.y);
+
+      elements.vecB.setAttribute("x1", o.x);
+      elements.vecB.setAttribute("y1", o.y);
+      elements.vecB.setAttribute("x2", pb.x);
+      elements.vecB.setAttribute("y2", pb.y);
+
+      const cMag = len(C);
+      const cVisible = cMag > 0.01;
+      if (cVisible) {
+        elements.vecC.setAttribute("x1", o.x);
+        elements.vecC.setAttribute("y1", o.y);
+        elements.vecC.setAttribute("x2", pc.x);
+        elements.vecC.setAttribute("y2", pc.y);
+        elements.vecC.style.opacity = "1";
+        elements.cArrow.innerHTML = arrowHead(o.x, o.y, pc.x, pc.y, "#dc2626", "cHead");
+      } else {
+        elements.vecC.style.opacity = "0";
+        elements.cArrow.innerHTML = "";
+      }
+
+      const p1 = o;
+      const p2 = pa;
+      const p3 = project(add(state.A, state.B));
+      const p4 = pb;
+      elements.parallelogram.setAttribute("points", `${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y} ${p4.x},${p4.y}`);
+
+      let labelHTML = "";
+      labelHTML += `<text x="${(o.x + pa.x) / 2}" y="${(o.y + pa.y) / 2 - 10}" fill="#08758a" font-size="15" font-weight="800" text-anchor="middle">A</text>`;
+      labelHTML += `<text x="${(o.x + pb.x) / 2 - 14}" y="${(o.y + pb.y) / 2}" fill="#b45309" font-size="15" font-weight="800">B</text>`;
+      if (cVisible) {
+        labelHTML += `<text x="${(o.x + pc.x) / 2 + 12}" y="${(o.y + pc.y) / 2}" fill="#dc2626" font-size="15" font-weight="800">A×B</text>`;
+      }
+      if (state.running && state.animPhase > 0.05) {
+        const phase = state.animPhase;
+        const arcR = 36;
+        const startA = Math.atan2(pa.y - o.y, pa.x - o.x);
+        const endA = Math.atan2(pb.y - o.y, pb.x - o.x);
+        let delta = endA - startA;
+        while (delta > Math.PI) delta -= 2 * Math.PI;
+        while (delta < -Math.PI) delta += 2 * Math.PI;
+        const curA = startA + delta * phase;
+        const arcX = o.x + arcR * Math.cos(curA);
+        const arcY = o.y + arcR * Math.sin(curA);
+        const sweep = delta > 0 ? 1 : 0;
+        const largeArc = Math.abs(delta * phase) > Math.PI ? 1 : 0;
+        labelHTML += `<path d="M ${o.x + arcR * Math.cos(startA)},${o.y + arcR * Math.sin(startA)} A ${arcR},${arcR} 0 ${largeArc} ${sweep} ${arcX},${arcY}" fill="none" stroke="#dc2626" stroke-width="2.5" opacity="0.85"/>`;
+        labelHTML += `<text x="${o.x + (arcR + 14) * Math.cos((startA + curA) / 2)}" y="${o.y + (arcR + 14) * Math.sin((startA + curA) / 2) + 4}" fill="#dc2626" font-size="11" font-weight="700" text-anchor="middle">右手定则</text>`;
+      }
+      elements.labels.innerHTML = labelHTML;
+
+      elements.handleA.setAttribute("cx", pa.x);
+      elements.handleA.setAttribute("cy", pa.y);
+      elements.handleB.setAttribute("cx", pb.x);
+      elements.handleB.setAttribute("cy", pb.y);
+
+      elements.readA.textContent = `(${state.A.x.toFixed(1)}, ${state.A.y.toFixed(1)}, ${state.A.z.toFixed(1)})`;
+      elements.readB.textContent = `(${state.B.x.toFixed(1)}, ${state.B.y.toFixed(1)}, ${state.B.z.toFixed(1)})`;
+      elements.readC.textContent = `(${C.x.toFixed(1)}, ${C.y.toFixed(1)}, ${C.z.toFixed(1)})`;
+      elements.readArea.textContent = cMag.toFixed(2);
+
+      const area = cMag;
+      let insightText;
+      if (area < 0.05) {
+        insightText = "A 与 B 近似共线：叉积为零向量，平行四边形面积为 0。";
+      } else if (area < 3) {
+        insightText = "A 与 B 夹角较小：平行四边形面积小，叉积模长小。";
+      } else {
+        insightText = "A 与 B 张成明显平面：A×B 垂直于该平面，模长等于面积。";
+      }
+      elements.insight.textContent = insightText;
+      elements.azimuthOutput.textContent = `${state.azimuth}°`;
+      elements.elevationOutput.textContent = `${state.elevation}°`;
+    }
+
+    function setParameters(values) {
+      const azDef = parameterSchema[0];
+      const elDef = parameterSchema[1];
+      state.azimuth = clamp(finite(Number(values.azimuth), azDef.default), azDef.min, azDef.max);
+      state.elevation = clamp(finite(Number(values.elevation), elDef.default), elDef.min, elDef.max);
+      elements.azimuthInput.value = String(state.azimuth);
+      elements.elevationInput.value = String(state.elevation);
+      initGrid();
+      initAxes();
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        azimuth: state.azimuth,
+        elevation: state.elevation,
+        A: { ...state.A },
+        B: { ...state.B },
+        animPhase: state.animPhase
+      };
+    }
+    function getReadouts() {
+      const C = cross(state.A, state.B);
+      return {
+        A: { ...state.A },
+        B: { ...state.B },
+        C: C,
+        area: len(C)
+      };
+    }
+
+    function runModelChecks() {
+      const c1 = cross({ x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+      const c2 = cross({ x: 0, y: 1, z: 0 }, { x: 0, y: 0, z: 1 });
+      const c3 = cross({ x: 2, y: 0, z: 0 }, { x: 0, y: 3, z: 0 });
+      const c4 = cross({ x: 1, y: 2, z: 3 }, { x: 4, y: 5, z: 6 });
+      const expected4 = { x: -3, y: 6, z: -3 };
+      const colinear = cross({ x: 2, y: 4, z: 6 }, { x: 1, y: 2, z: 3 });
+      const a = { x: 1, y: 2, z: 3 };
+      const b = { x: 4, y: 5, z: 6 };
+      const ortho1 = Math.abs(dot(cross(a, b), a));
+      const ortho2 = Math.abs(dot(cross(a, b), b));
+      const areaCheck = Math.abs(len(cross({ x: 3, y: 0, z: 0 }, { x: 0, y: 4, z: 0 })) - 12);
+      return [
+        { name: "i×j = k", pass: c1.x === 0 && c1.y === 0 && c1.z === 1, expected: "(0,0,1)", actual: `(${c1.x},${c1.y},${c1.z})`, tolerance: "exact" },
+        { name: "j×k = i", pass: c2.x === 1 && c2.y === 0 && c2.z === 0, expected: "(1,0,0)", actual: `(${c2.x},${c2.y},${c2.z})`, tolerance: "exact" },
+        { name: "2i×3j = 6k", pass: c3.z === 6, expected: 6, actual: c3.z, tolerance: "exact" },
+        { name: "general case (1,2,3)×(4,5,6)", pass: Math.abs(c4.x - expected4.x) < 1e-10 && Math.abs(c4.y - expected4.y) < 1e-10 && Math.abs(c4.z - expected4.z) < 1e-10, expected: "(-3,6,-3)", actual: `(${c4.x},${c4.y},${c4.z})`, tolerance: 1e-10 },
+        { name: "colinear vectors give zero", pass: len(colinear) < 1e-10, expected: 0, actual: len(colinear), tolerance: 1e-10 },
+        { name: "cross product orthogonal to A", pass: ortho1 < 1e-10, expected: 0, actual: ortho1, tolerance: 1e-10 },
+        { name: "cross product orthogonal to B", pass: ortho2 < 1e-10, expected: 0, actual: ortho2, tolerance: 1e-10 },
+        { name: "area = |A×B| for 3×4 rectangle", pass: areaCheck < 1e-10, expected: 12, actual: 12 - areaCheck, tolerance: 1e-10 }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.azimuthInput.addEventListener("input", () => setParameters({ azimuth: elements.azimuthInput.value, elevation: state.elevation }));
+      elements.elevationInput.addEventListener("input", () => setParameters({ azimuth: state.azimuth, elevation: elements.elevationInput.value }));
+    }
+
+    function screenToWorld(sx, sy) {
+      const rect = elements.scene.getBoundingClientRect();
+      const viewBox = elements.scene.viewBox.baseVal;
+      const scaleX = viewBox.width / rect.width;
+      const scaleY = viewBox.height / rect.height;
+      const svgX = (sx - rect.left) * scaleX;
+      const svgY = (sy - rect.top) * scaleY;
+      const az = state.azimuth * Math.PI / 180;
+      const el = state.elevation * Math.PI / 180;
+      const cosEl = Math.cos(el);
+      const sinEl = Math.sin(el);
+      const vx = (svgX - 380) / 38;
+      const vyScreen = (svgY - 230) / 38;
+      const vy = (vyScreen - vx * 0 * sinEl) / sinEl;
+      const vz = 0;
+      const wx = vx * Math.cos(az) + vy * Math.sin(az);
+      const wy = -vx * Math.sin(az) + vy * Math.cos(az);
+      const wz = vz;
+      return { x: wx, y: wy, z: wz };
+    }
+
+    function bindDrag() {
+      function startDrag(e, target) {
+        e.preventDefault();
+        state.drag = target;
+        if (target === "A") elements.handleA.setAttribute("cursor", "grabbing");
+        if (target === "B") elements.handleB.setAttribute("cursor", "grabbing");
+      }
+      function doDrag(e) {
+        if (!state.drag) return;
+        const pt = e.touches ? e.touches[0] : e;
+        const w = screenToWorld(pt.clientX, pt.clientY);
+        const clamped = {
+          x: clamp(finite(w.x, 0), -5, 5),
+          y: clamp(finite(w.y, 0), -5, 5),
+          z: 0
+        };
+        if (state.drag === "A") state.A = clamped;
+        if (state.drag === "B") state.B = clamped;
+        render();
+      }
+      function endDrag() {
+        if (state.drag === "A") elements.handleA.setAttribute("cursor", "grab");
+        if (state.drag === "B") elements.handleB.setAttribute("cursor", "grab");
+        state.drag = null;
+      }
+      elements.handleA.addEventListener("mousedown", (e) => startDrag(e, "A"));
+      elements.handleB.addEventListener("mousedown", (e) => startDrag(e, "B"));
+      elements.handleA.addEventListener("touchstart", (e) => startDrag(e, "A"), { passive: false });
+      elements.handleB.addEventListener("touchstart", (e) => startDrag(e, "B"), { passive: false });
+      window.addEventListener("mousemove", doDrag);
+      window.addEventListener("touchmove", doDrag, { passive: false });
+      window.addEventListener("mouseup", endDrag);
+      window.addEventListener("touchend", endDrag);
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

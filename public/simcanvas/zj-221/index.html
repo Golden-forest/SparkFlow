@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>卫星绕地球运动与开普勒第三定律验证</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050912;
+      --sim-surface: #0d1424;
+      --sim-surface-soft: #131c30;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a98b8;
+      --sim-border: #1f2a44;
+      --sim-grid: #1a2540;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background: var(--sim-bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.5); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+    .header h1 { margin: 0 0 4px; font-size: clamp(1.3rem, 2vw, 1.7rem); letter-spacing: -0.03em; line-height: 1.1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.82rem; }
+    .status { border: 1px solid rgba(15,159,186,.3); border-radius: 999px; padding: 8px 14px; background: rgba(15,159,186,.12); color: var(--sim-accent); font-weight: 700; white-space: nowrap; font-size: 0.85rem; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(320px, 0.72fr); gap: 10px; }
+    .panel { min-width: 0; background: var(--sim-surface); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 400px; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+    .panel-head h2 { margin: 0; font-size: 0.95rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.72rem; }
+    #scene { width: 100%; height: 100%; min-height: 340px; display: block; border: 1px solid var(--sim-border); border-radius: 14px; background: #030610; }
+    .side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1.3fr) auto auto; gap: 10px; }
+    .chart-panel { padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; min-height: 0; }
+    #chart { width: 100%; height: 100%; min-height: 220px; display: block; border: 1px solid var(--sim-border); border-radius: 12px; background: #080d1a; }
+    .readouts { padding: 14px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .metric { padding: 10px 12px; border: 1px solid rgba(15,159,186,.15); border-radius: 12px; background: var(--sim-surface-soft); }
+    .metric small { display: block; margin-bottom: 3px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.15rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .metric.full { grid-column: 1 / -1; }
+    .insight-panel { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(245, 158, 11, 0.06); }
+    .insight-panel .panel-head { margin-bottom: 6px; }
+    .insight-panel .panel-head h2 { color: #f59e0b; }
+    #insight { margin: 0; color: #f0c060; font-weight: 650; line-height: 1.5; font-size: 0.85rem; }
+    .controls { padding: 10px 14px; display: grid; grid-template-columns: auto minmax(160px, 1fr) minmax(160px, 1fr); gap: 16px; align-items: center; border-radius: 16px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .15s ease, background .15s ease, border-color .15s ease; font-size: 0.85rem; }
+    button:hover { border-color: #2d3a5a; background: #1a2540; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.3); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+    .control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+      #chart { min-height: 200px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>卫星绕地球运动与开普勒第三定律验证</h1>
+        <p>拖动轨道半径滑块发射卫星到不同圆轨道，观察半径越大、线速度越小、周期越长的规律</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">轨道演示</h2><span>地球与卫星圆轨道运行</span></div>
+        <canvas id="scene"></canvas>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel chart-panel">
+          <div class="panel-head"><h2>开普勒第三定律验证</h2><span>T^2 - r^3 关系图</span></div>
+          <canvas id="chart"></canvas>
+        </section>
+        <section class="panel insight-panel" data-region="insight" aria-labelledby="insight-title">
+          <div class="panel-head"><h2 id="insight-title">观察提示</h2></div>
+          <p id="insight">拖动半径滑块：半径越大，线速度越小、周期越长，但 T²/r³ 始终为常数。</p>
+        </section>
+        <section class="panel readouts" aria-label="实时读数">
+          <div class="readout-grid">
+            <div class="metric"><small>轨道半径 r</small><strong id="rReadout">--</strong></div>
+            <div class="metric"><small>线速度 v</small><strong id="vReadout">--</strong></div>
+            <div class="metric"><small>周期 T</small><strong id="tReadout">--</strong></div>
+            <div class="metric"><small>T^2 / r^3</small><strong id="ratioReadout">--</strong></div>
+            <div class="metric full"><small>拟合斜率 (应 = 4*pi^2/GM)</small><strong id="slopeReadout">--</strong></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控件">
+      <div class="actions">
+        <button id="launchBtn" class="primary" type="button">发射/换轨道</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="rInput">轨道半径 r <output id="rOutput">--</output></label>
+        <input id="rInput" type="range" min="200" max="42164" step="100" value="6671">
+      </div>
+      <div class="control">
+        <label for="speedInput">时间倍率 <output id="speedOutput">--</output></label>
+        <input id="speedInput" type="range" min="10" max="800" step="10" value="200">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // === 物理常量 ===
+    const GM = 3.986e14;        // 地球引力参数 m^3/s^2
+    const R_EARTH = 6371;      // 地球半径 km
+    const R_LEO = 6671;        // 近地轨道 (地表+300km)
+    const R_GEO = 42164;       // 地球同步轨道
+    const V_COSMIC = 7.9;     // 第一宇宙速度 km/s
+
+    // === 参数 schema ===
+    const parameterSchema = [
+      { key: "r", label: "轨道半径", type: "slider", min: 200, max: 42164, step: 100, default: 6671, unit: "km" },
+      { key: "speed", label: "时间倍率", type: "slider", min: 10, max: 800, step: 10, default: 200, unit: "x" }
+    ];
+
+    // === 状态 ===
+    const state = {
+      running: true,
+      simTime: 0,
+      lastTimestamp: null,
+      r: 6671,
+      speed: 200,
+      angle: 0,
+      trail: [],
+      dataPoints: [],
+      lastSampleAngle: 0,
+      hasSampled: false
+    };
+
+    // === DOM ===
+    const sceneCanvas = document.querySelector("#scene");
+    const chartCanvas = document.querySelector("#chart");
+    const sCtx = sceneCanvas.getContext("2d");
+    const cCtx = chartCanvas.getContext("2d");
+
+    const elements = {
+      status: document.querySelector("#status"),
+      insight: document.querySelector("#insight"),
+      rReadout: document.querySelector("#rReadout"),
+      vReadout: document.querySelector("#vReadout"),
+      tReadout: document.querySelector("#tReadout"),
+      ratioReadout: document.querySelector("#ratioReadout"),
+      slopeReadout: document.querySelector("#slopeReadout"),
+      rInput: document.querySelector("#rInput"),
+      rOutput: document.querySelector("#rOutput"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      launchBtn: document.querySelector("#launchBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    // === 工具 ===
+    function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+    function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+    // === 物理计算 ===
+    function calcV(r_km) { return Math.sqrt(GM / (r_km * 1000)) / 1000; }       // km/s
+    function calcT(r_km) { return 2 * Math.PI * Math.sqrt(Math.pow(r_km * 1000, 3) / GM); } // s
+    function calcOmega(r_km) { return 2 * Math.PI / calcT(r_km); }               // rad/s
+
+    // === Canvas 尺寸 ===
+    function resizeCanvas(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function resizeAll() { resizeCanvas(sceneCanvas); resizeCanvas(chartCanvas); }
+
+    // === 场景绘制 ===
+    function drawScene() {
+      const rect = sceneCanvas.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      sCtx.clearRect(0, 0, w, h);
+
+      // 深空背景
+      sCtx.fillStyle = "#030610";
+      sCtx.fillRect(0, 0, w, h);
+
+      // 星空
+      drawStars(w, h);
+
+      const cx = w / 2, cy = h / 2;
+
+      // 计算缩放
+      const maxR = Math.min(w, h) * 0.42;
+      const rPx = Math.max(1, (state.r / R_GEO) * maxR);
+      const earthPx = Math.max(1, (R_EARTH / R_GEO) * maxR);
+
+      // 特殊轨道参考圆
+      drawRefOrbit(cx, cy, (R_LEO / R_GEO) * maxR, "近地轨道", "#4a90d9", w, h);
+      drawRefOrbit(cx, cy, maxR, "同步轨道", "#d97706", w, h);
+
+      // 当前轨道
+      sCtx.strokeStyle = "rgba(15, 159, 186, 0.5)";
+      sCtx.lineWidth = 1.5;
+      sCtx.beginPath();
+      sCtx.arc(cx, cy, rPx, 0, Math.PI * 2);
+      sCtx.stroke();
+
+      // 轨道留痕
+      if (state.trail.length > 1) {
+        sCtx.strokeStyle = "rgba(15, 159, 186, 0.85)";
+        sCtx.lineWidth = 2.5;
+        sCtx.beginPath();
+        for (let i = 0; i < state.trail.length; i++) {
+          const p = state.trail[i];
+          const x = cx + Math.cos(p.a) * rPx;
+          const y = cy + Math.sin(p.a) * rPx;
+          if (i === 0) sCtx.moveTo(x, y);
+          else sCtx.lineTo(x, y);
+        }
+        sCtx.stroke();
+      }
+
+      // 地球
+      drawEarth(cx, cy, earthPx);
+
+      // 卫星
+      const sx = cx + Math.cos(state.angle) * rPx;
+      const sy = cy + Math.sin(state.angle) * rPx;
+      drawSatellite(sx, sy);
+
+      // 第一宇宙速度标注
+      drawCosmicAnnotation(w, h);
+    }
+
+    function drawStars(w, h) {
+      // 固定种子星空
+      let seed = 42;
+      const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+      sCtx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      for (let i = 0; i < 80; i++) {
+        const x = rng() * w;
+        const y = rng() * h;
+        const r = rng() * 1.2 + 0.3;
+        sCtx.globalAlpha = 0.3 + rng() * 0.5;
+        sCtx.beginPath();
+        sCtx.arc(x, y, r, 0, Math.PI * 2);
+        sCtx.fill();
+      }
+      sCtx.globalAlpha = 1;
+    }
+
+    function drawRefOrbit(cx, cy, rPx, label, color, w, h) {
+      if (rPx < 2) return;
+      sCtx.strokeStyle = color;
+      sCtx.lineWidth = 1;
+      sCtx.setLineDash([4, 6]);
+      sCtx.beginPath();
+      sCtx.arc(cx, cy, rPx, 0, Math.PI * 2);
+      sCtx.stroke();
+      sCtx.setLineDash([]);
+      sCtx.fillStyle = color;
+      sCtx.font = "11px ui-sans-serif, system-ui";
+      sCtx.textAlign = "center";
+      sCtx.fillText(label, cx, cy - rPx - 6);
+    }
+
+    function drawEarth(cx, cy, rPx) {
+      rPx = Math.max(2, rPx);
+      // 大气光晕（双层描边模拟）
+      sCtx.strokeStyle = "rgba(100, 180, 255, 0.15)";
+      sCtx.lineWidth = 6;
+      sCtx.beginPath();
+      sCtx.arc(cx, cy, rPx + 3, 0, Math.PI * 2);
+      sCtx.stroke();
+      sCtx.strokeStyle = "rgba(100, 180, 255, 0.3)";
+      sCtx.lineWidth = 3;
+      sCtx.beginPath();
+      sCtx.arc(cx, cy, rPx + 1, 0, Math.PI * 2);
+      sCtx.stroke();
+
+      // 地球本体
+      const grad = sCtx.createRadialGradient(cx - rPx * 0.3, cy - rPx * 0.3, 0, cx, cy, rPx);
+      grad.addColorStop(0, "#3a8fd0");
+      grad.addColorStop(0.5, "#1e5a9e");
+      grad.addColorStop(1, "#0a2d5a");
+      sCtx.fillStyle = grad;
+      sCtx.beginPath();
+      sCtx.arc(cx, cy, rPx, 0, Math.PI * 2);
+      sCtx.fill();
+
+      // 大陆轮廓（简化）
+      sCtx.fillStyle = "rgba(60, 160, 80, 0.5)";
+      sCtx.beginPath();
+      sCtx.ellipse(cx - rPx * 0.2, cy + rPx * 0.1, rPx * 0.35, rPx * 0.2, 0.3, 0, Math.PI * 2);
+      sCtx.fill();
+      sCtx.beginPath();
+      sCtx.ellipse(cx + rPx * 0.3, cy - rPx * 0.2, rPx * 0.25, rPx * 0.15, -0.5, 0, Math.PI * 2);
+      sCtx.fill();
+
+      // 标注
+      sCtx.fillStyle = "#e8eefc";
+      sCtx.font = "bold 12px ui-sans-serif, system-ui";
+      sCtx.textAlign = "center";
+      sCtx.fillText("地球", cx, cy + rPx + 16);
+      sCtx.fillStyle = "var(--sim-muted)";
+      sCtx.fillStyle = "#8a98b8";
+      sCtx.font = "10px ui-sans-serif, system-ui";
+      sCtx.fillText("R = 6371 km", cx, cy + rPx + 28);
+    }
+
+    function drawSatellite(x, y) {
+      // 光晕（双层描边）
+      sCtx.strokeStyle = "rgba(15, 159, 186, 0.25)";
+      sCtx.lineWidth = 8;
+      sCtx.beginPath();
+      sCtx.arc(x, y, 6, 0, Math.PI * 2);
+      sCtx.stroke();
+      sCtx.strokeStyle = "rgba(15, 159, 186, 0.5)";
+      sCtx.lineWidth = 4;
+      sCtx.beginPath();
+      sCtx.arc(x, y, 6, 0, Math.PI * 2);
+      sCtx.stroke();
+
+      // 卫星本体
+      sCtx.fillStyle = "#0f9fba";
+      sCtx.beginPath();
+      sCtx.arc(x, y, 5, 0, Math.PI * 2);
+      sCtx.fill();
+      sCtx.fillStyle = "#fff";
+      sCtx.beginPath();
+      sCtx.arc(x, y, 2, 0, Math.PI * 2);
+      sCtx.fill();
+
+      // 标注
+      sCtx.fillStyle = "#e8eefc";
+      sCtx.font = "bold 11px ui-sans-serif, system-ui";
+      sCtx.textAlign = "left";
+      sCtx.fillText("卫星", x + 10, y - 8);
+    }
+
+    function drawCosmicAnnotation(w, h) {
+      const v = calcV(state.r);
+      const isCosmic = Math.abs(v - V_COSMIC) < 0.3;
+      if (isCosmic) {
+        sCtx.fillStyle = "rgba(245, 158, 11, 0.9)";
+        sCtx.font = "bold 13px ui-sans-serif, system-ui";
+        sCtx.textAlign = "left";
+        sCtx.fillText("★ 第一宇宙速度 v = 7.9 km/s", 12, h - 14);
+      } else {
+        // 显示当前速度与第一宇宙速度对比
+        sCtx.fillStyle = "#8a98b8";
+        sCtx.font = "11px ui-sans-serif, system-ui";
+        sCtx.textAlign = "left";
+        sCtx.fillText(`参考: 第一宇宙速度 = 7.9 km/s (当前 v = ${v.toFixed(2)} km/s)`, 12, h - 14);
+      }
+    }
+
+    // === 图表绘制 ===
+    function drawChart() {
+      const rect = chartCanvas.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      cCtx.clearRect(0, 0, w, h);
+
+      cCtx.fillStyle = "#080d1a";
+      cCtx.fillRect(0, 0, w, h);
+
+      const padL = 52, padR = 16, padT = 12, padB = 42;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+      if (plotW < 50 || plotH < 50) return;
+
+      // 坐标范围
+      const maxR3 = Math.pow(R_GEO, 3);
+      const maxT2 = Math.pow(calcT(R_GEO), 2);
+      const xMax = maxR3 * 1.05;
+      const yMax = maxT2 * 1.05;
+
+      const toX = (r3) => padL + (r3 / xMax) * plotW;
+      const toY = (t2) => padT + plotH - (t2 / yMax) * plotH;
+
+      // 网格
+      cCtx.strokeStyle = "#1a2540";
+      cCtx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const x = padL + (i / 5) * plotW;
+        cCtx.beginPath();
+        cCtx.moveTo(x, padT);
+        cCtx.lineTo(x, padT + plotH);
+        cCtx.stroke();
+        const y = padT + (i / 5) * plotH;
+        cCtx.beginPath();
+        cCtx.moveTo(padL, y);
+        cCtx.lineTo(padL + plotW, y);
+        cCtx.stroke();
+      }
+
+      // 坐标轴
+      cCtx.strokeStyle = "#5a6a8a";
+      cCtx.lineWidth = 1.5;
+      cCtx.beginPath();
+      cCtx.moveTo(padL, padT);
+      cCtx.lineTo(padL, padT + plotH);
+      cCtx.lineTo(padL + plotW, padT + plotH);
+      cCtx.stroke();
+
+      // 刻度标签
+      cCtx.fillStyle = "#8a98b8";
+      cCtx.font = "10px ui-sans-serif, system-ui";
+      cCtx.textAlign = "center";
+      for (let i = 0; i <= 5; i++) {
+        const val = (i / 5) * xMax;
+        const x = padL + (i / 5) * plotW;
+        cCtx.fillText(formatSci(val), x, padT + plotH + 14);
+      }
+      cCtx.textAlign = "right";
+      for (let i = 0; i <= 5; i++) {
+        const val = (i / 5) * yMax;
+        const y = padT + plotH - (i / 5) * plotH;
+        cCtx.fillText(formatSci(val), padL - 6, y + 3);
+      }
+
+      // 轴标签
+      cCtx.fillStyle = "#e8eefc";
+      cCtx.font = "bold 11px ui-sans-serif, system-ui";
+      cCtx.textAlign = "center";
+      cCtx.fillText("r^3 (km^3)", padL + plotW / 2, h - 8);
+      cCtx.save();
+      cCtx.translate(14, padT + plotH / 2);
+      cCtx.rotate(-Math.PI / 2);
+      cCtx.fillText("T^2 (s^2)", 0, 0);
+      cCtx.restore();
+
+      // 理论直线 T^2 = (4*pi^2/GM) * r^3
+      const slope = 4 * Math.PI * Math.PI / GM * 1e9; // 转换 km^3 -> m^3 后的系数
+      cCtx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      cCtx.lineWidth = 1.5;
+      cCtx.setLineDash([6, 4]);
+      cCtx.beginPath();
+      cCtx.moveTo(toX(0), toY(0));
+      cCtx.lineTo(toX(xMax), toY(slope * xMax));
+      cCtx.stroke();
+      cCtx.setLineDash([]);
+
+      // 数据点
+      for (const p of state.dataPoints) {
+        const x = toX(p.r3);
+        const y = toY(p.t2);
+        // 光晕（双层描边）
+        cCtx.strokeStyle = "rgba(15, 159, 186, 0.3)";
+        cCtx.lineWidth = 6;
+        cCtx.beginPath();
+        cCtx.arc(x, y, 4, 0, Math.PI * 2);
+        cCtx.stroke();
+        cCtx.fillStyle = "#0f9fba";
+        cCtx.beginPath();
+        cCtx.arc(x, y, 3.5, 0, Math.PI * 2);
+        cCtx.fill();
+      }
+
+      // 拟合直线
+      if (state.dataPoints.length >= 2) {
+        const fit = linearFit(state.dataPoints);
+        if (fit && Number.isFinite(fit.slope)) {
+          cCtx.strokeStyle = "#0f9fba";
+          cCtx.lineWidth = 2;
+          cCtx.beginPath();
+          cCtx.moveTo(toX(0), toY(0));
+          cCtx.lineTo(toX(xMax), toY(fit.slope * xMax));
+          cCtx.stroke();
+
+          // 拟合信息
+          cCtx.fillStyle = "#0f9fba";
+          cCtx.font = "bold 10px ui-sans-serif, system-ui";
+          cCtx.textAlign = "left";
+          cCtx.fillText(`拟合: T^2 = ${fit.slope.toExponential(3)} * r^3`, padL + 8, padT + 14);
+          cCtx.fillStyle = "#8a98b8";
+          cCtx.fillText(`理论: 4*pi^2/GM = ${slope.toExponential(3)}`, padL + 8, padT + 28);
+        }
+      }
+
+      // 图例
+      cCtx.font = "10px ui-sans-serif, system-ui";
+      cCtx.textAlign = "left";
+      cCtx.fillStyle = "#0f9fba";
+      cCtx.fillRect(padL + plotW - 100, padT + 4, 10, 10);
+      cCtx.fillStyle = "#e8eefc";
+      cCtx.fillText("数据点+拟合", padL + plotW - 86, padT + 13);
+      cCtx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      cCtx.setLineDash([4, 3]);
+      cCtx.beginPath();
+      cCtx.moveTo(padL + plotW - 100, padT + 24);
+      cCtx.lineTo(padL + plotW - 90, padT + 24);
+      cCtx.stroke();
+      cCtx.setLineDash([]);
+      cCtx.fillStyle = "#e8eefc";
+      cCtx.fillText("理论直线", padL + plotW - 86, padT + 28);
+    }
+
+    function formatSci(v) {
+      if (v === 0) return "0";
+      const exp = Math.floor(Math.log10(Math.abs(v)));
+      const mant = v / Math.pow(10, exp);
+      if (exp >= 0 && exp <= 3) return v.toFixed(0);
+      return mant.toFixed(1) + "e" + exp;
+    }
+
+    function linearFit(points) {
+      if (points.length < 2) return null;
+      let sx = 0, sy = 0, sxx = 0, sxy = 0;
+      const n = points.length;
+      for (const p of points) {
+        sx += p.r3; sy += p.t2;
+        sxx += p.r3 * p.r3; sxy += p.r3 * p.t2;
+      }
+      const denom = n * sxx - sx * sx;
+      if (Math.abs(denom) < 1e-30) return null;
+      const slope = (n * sxy - sx * sy) / denom;
+      return { slope: slope, intercept: 0 };
+    }
+
+    // === 更新 ===
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const simDt = boundedDt * state.speed;
+      const omega = calcOmega(state.r);
+      const prevAngle = state.angle;
+      state.angle += omega * simDt;
+      state.simTime += simDt;
+
+      // 留痕
+      state.trail.push({ a: state.angle });
+      if (state.trail.length > 200) state.trail.shift();
+
+      // 数据采集：每完成约 1/4 圈采集一个点
+      const angleDiff = Math.abs(state.angle - state.lastSampleAngle);
+      if (!state.hasSampled || angleDiff > Math.PI / 2) {
+        sampleDataPoint();
+        state.lastSampleAngle = state.angle;
+        state.hasSampled = true;
+      }
+    }
+
+    function sampleDataPoint() {
+      const r_km = state.r;
+      const T = calcT(r_km);
+      const r3 = Math.pow(r_km, 3);
+      const t2 = T * T;
+      // 避免重复点
+      const exists = state.dataPoints.some(p => Math.abs(p.r3 - r3) / r3 < 0.01);
+      if (!exists) {
+        state.dataPoints.push({ r3: r3, t2: t2, r: r_km, T: T });
+        if (state.dataPoints.length > 60) state.dataPoints.shift();
+      }
+    }
+
+    // === 渲染 ===
+    function render() {
+      drawScene();
+      drawChart();
+      updateReadouts();
+    }
+
+    function updateReadouts() {
+      const r = state.r;
+      const v = calcV(r);
+      const T = calcT(r);
+      const r3 = Math.pow(r, 3);
+      const t2 = T * T;
+      const ratio = t2 / r3;
+      const theorySlope = 4 * Math.PI * Math.PI / GM * 1e9;
+
+      elements.rReadout.textContent = `${r.toFixed(0)} km`;
+      elements.vReadout.textContent = `${v.toFixed(2)} km/s`;
+      elements.tReadout.textContent = T >= 3600 ? `${(T/3600).toFixed(2)} h` : `${(T/60).toFixed(1)} min`;
+      elements.ratioReadout.textContent = ratio.toExponential(3);
+
+      const fit = state.dataPoints.length >= 2 ? linearFit(state.dataPoints) : null;
+      if (fit && Number.isFinite(fit.slope)) {
+        elements.slopeReadout.textContent = `${fit.slope.toExponential(3)} (理论 ${theorySlope.toExponential(3)})`;
+      } else {
+        elements.slopeReadout.textContent = `${theorySlope.toExponential(3)} (理论值)`;
+      }
+
+      elements.rOutput.textContent = `${r.toFixed(0)} km`;
+      elements.speedOutput.textContent = `${state.speed} x`;
+
+      // 洞察文本：随当前半径动态提示
+      const isLeo = Math.abs(r - R_LEO) / R_LEO < 0.05;
+      const isGeo = Math.abs(r - R_GEO) / R_GEO < 0.02;
+      const isCosmic = Math.abs(v - V_COSMIC) < 0.3;
+      let insightText;
+      if (isCosmic) {
+        insightText = `当前为近地轨道：线速度 ≈ 第一宇宙速度 7.9 km/s，周期约 90 分钟。`;
+      } else if (isGeo) {
+        insightText = `当前为地球同步轨道：周期 ≈ 24 小时，半径越大周期越长，但 T²/r³ 仍为常数。`;
+      } else if (r < R_LEO) {
+        insightText = `半径小于近地轨道：速度更快、周期更短，T²/r³ 仍保持恒定。`;
+      } else {
+        insightText = `半径越大，线速度越小、周期越长，但 T²/r³ 始终为常数 ${ratio.toExponential(2)}。`;
+      }
+      elements.insight.textContent = insightText;
+    }
+
+    // === 生命周期 ===
+    function init() {
+      resizeAll();
+      bindControls();
+      setParameters({ r: 6671, speed: 200 });
+      // 预填几个数据点以便初始可见直线趋势
+      [6671, 10000, 20000, 30000, 42164].forEach(r => {
+        const T = calcT(r);
+        state.dataPoints.push({ r3: Math.pow(r, 3), t2: T*T, r: r, T: T });
+      });
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.pauseBtn.setAttribute("aria-pressed", "false");
+      elements.pauseBtn.textContent = "暂停";
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.pauseBtn.setAttribute("aria-pressed", "true");
+      elements.pauseBtn.textContent = "继续";
+    }
+
+    function togglePause() {
+      if (state.running) pause();
+      else start();
+    }
+
+    function launch() {
+      // 发射/换轨道：重新初始化当前轨道
+      state.angle = 0;
+      state.trail = [];
+      state.lastSampleAngle = 0;
+      state.hasSampled = false;
+      sampleDataPoint();
+      state.lastSampleAngle = 0;
+      state.hasSampled = true;
+      if (!state.running) start();
+    }
+
+    function reset() {
+      pause();
+      state.simTime = 0;
+      state.angle = 0;
+      state.trail = [];
+      state.dataPoints = [];
+      state.lastSampleAngle = 0;
+      state.hasSampled = false;
+      setParameters({ r: 6671, speed: 200 });
+      // 预填数据点
+      [6671, 10000, 20000, 30000, 42164].forEach(r => {
+        const T = calcT(r);
+        state.dataPoints.push({ r3: Math.pow(r, 3), t2: T*T, r: r, T: T });
+      });
+      render();
+      start();
+    }
+
+    function setParameters(values) {
+      const rDef = parameterSchema[0], speedDef = parameterSchema[1];
+      state.r = clamp(finite(Number(values.r), rDef.default), rDef.min, rDef.max);
+      state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+      elements.rInput.value = String(Math.round(state.r / 100) * 100);
+      elements.speedInput.value = String(state.speed);
+      // 换轨道时重置留痕
+      state.trail = [];
+      state.angle = 0;
+      state.lastSampleAngle = 0;
+      state.hasSampled = false;
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        simTime: state.simTime,
+        r: state.r,
+        speed: state.speed,
+        angle: state.angle,
+        dataPoints: state.dataPoints.map(p => ({...p}))
+      };
+    }
+
+    function getReadouts() {
+      const r = state.r;
+      const v = calcV(r);
+      const T = calcT(r);
+      return { r, v, T, r3: Math.pow(r,3), t2: T*T };
+    }
+
+    function runModelChecks() {
+      const checks = [];
+      // 1. 圆轨道速度公式 v = sqrt(GM/r)
+      const r_test = 6671; // km
+      const v_expected = Math.sqrt(GM / (r_test * 1000)) / 1000; // km/s
+      const v_calc = calcV(r_test);
+      checks.push({
+        name: "圆轨道速度 v = sqrt(GM/r)",
+        pass: Math.abs(v_calc - v_expected) < 1e-10,
+        expected: v_expected.toFixed(6),
+        actual: v_calc.toFixed(6),
+        tolerance: "1e-10"
+      });
+
+      // 2. 周期公式 T = 2*pi*sqrt(r^3/GM)
+      const T_expected = 2 * Math.PI * Math.sqrt(Math.pow(r_test * 1000, 3) / GM);
+      const T_calc = calcT(r_test);
+      checks.push({
+        name: "周期 T = 2*pi*sqrt(r^3/GM)",
+        pass: Math.abs(T_calc - T_expected) < 1e-6,
+        expected: T_expected.toFixed(6),
+        actual: T_calc.toFixed(6),
+        tolerance: "1e-6"
+      });
+
+      // 3. 开普勒第三定律 T^2 = (4*pi^2/GM)*r^3
+      const r3 = Math.pow(r_test, 3);
+      const t2 = Math.pow(T_calc, 2);
+      const ratio = t2 / r3;
+      const theoryRatio = (4 * Math.PI * Math.PI / GM) * 1e9; // km^3 -> m^3
+      checks.push({
+        name: "T^2/r^3 = 4*pi^2/GM",
+        pass: Math.abs(ratio - theoryRatio) / theoryRatio < 0.001,
+        expected: theoryRatio.toExponential(6),
+        actual: ratio.toExponential(6),
+        tolerance: "0.1%"
+      });
+
+      // 4. 同步轨道周期约 24 小时
+      const T_geo = calcT(R_GEO);
+      checks.push({
+        name: "同步轨道周期 ≈ 24h",
+        pass: Math.abs(T_geo - 86400) / 86400 < 0.01,
+        expected: "86400 s",
+        actual: T_geo.toFixed(0) + " s",
+        tolerance: "1%"
+      });
+
+      // 5. 近地轨道速度约 7.9 km/s
+      const v_leo = calcV(R_LEO);
+      checks.push({
+        name: "近地轨道速度 ≈ 7.9 km/s",
+        pass: Math.abs(v_leo - 7.9) / 7.9 < 0.05,
+        expected: "7.9 km/s",
+        actual: v_leo.toFixed(2) + " km/s",
+        tolerance: "5%"
+      });
+
+      // 6. 半径越大速度越小（单调性）
+      const v1 = calcV(7000);
+      const v2 = calcV(20000);
+      const v3 = calcV(40000);
+      checks.push({
+        name: "半径越大线速度越小",
+        pass: v1 > v2 && v2 > v3,
+        expected: "v(7000) > v(20000) > v(40000)",
+        actual: `${v1.toFixed(2)} > ${v2.toFixed(2)} > ${v3.toFixed(2)}`,
+        tolerance: "strict"
+      });
+
+      // 7. 半径越大周期越大（单调性）
+      const T1 = calcT(7000);
+      const T2 = calcT(20000);
+      const T3 = calcT(40000);
+      checks.push({
+        name: "半径越大周期越大",
+        pass: T1 < T2 && T2 < T3,
+        expected: "T(7000) < T(20000) < T(40000)",
+        actual: `${T1.toFixed(0)} < ${T2.toFixed(0)} < ${T3.toFixed(0)}`,
+        tolerance: "strict"
+      });
+
+      // 8. 拟合斜率与理论值一致
+      const testPoints = [];
+      for (let r = 7000; r <= 42000; r += 3500) {
+        const T = calcT(r);
+        testPoints.push({ r3: Math.pow(r, 3), t2: T*T });
+      }
+      const fit = linearFit(testPoints);
+      const slopeTheory = (4 * Math.PI * Math.PI / GM) * 1e9;
+      checks.push({
+        name: "拟合斜率 = 4*pi^2/GM",
+        pass: fit && Math.abs(fit.slope - slopeTheory) / slopeTheory < 0.001,
+        expected: slopeTheory.toExponential(6),
+        actual: fit ? fit.slope.toExponential(6) : "null",
+        tolerance: "0.1%"
+      });
+
+      return checks;
+    }
+
+    function bindControls() {
+      elements.launchBtn.addEventListener("click", launch);
+      elements.pauseBtn.addEventListener("click", togglePause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.rInput.addEventListener("input", () => {
+        setParameters({ r: Number(elements.rInput.value), speed: state.speed });
+      });
+      elements.speedInput.addEventListener("input", () => {
+        setParameters({ r: state.r, speed: Number(elements.speedInput.value) });
+      });
+      window.addEventListener("resize", () => { resizeAll(); render(); });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

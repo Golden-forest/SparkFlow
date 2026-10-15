@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>摩尔纹干涉模拟</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: #0a0f1a; }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>摩尔纹干涉模拟</h1>
+        <p>两组周期网格叠加产生低频包络条纹，调节间距与夹角观察拍频。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">干涉图案</h2><span>两组网格叠加 · 实时渲染</span></div>
+        <canvas id="scene" width="760" height="420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">显示两组周期性网格叠加产生的摩尔纹干涉条纹。</desc>
+        </canvas>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>拍频周期</small><strong id="beatReadout">— px</strong></div>
+            <div class="metric"><small>条纹方向</small><strong id="angleReadout">0°</strong></div>
+            <div class="metric"><small>网格 A 间距</small><strong id="spacingAReadout">20 px</strong></div>
+            <div class="metric"><small>网格 B 间距</small><strong id="spacingBReadout">22 px</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">按"开始"播放旋转动画，观察条纹方向与间距如何随夹角变化。</p>
+          <p>教学视图：当两网格间距 p₁、p₂ 接近且夹角为 θ 时，摩尔纹条纹间距 Λ ≈ p / √(2(1−cos θ))，方向沿夹角平分线。间距越接近，条纹越宽。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="spacingAInput">网格 A 间距 <output id="spacingAOutput">20</output></label>
+        <input id="spacingAInput" type="range" min="8" max="40" step="1" value="20">
+      </div>
+      <div class="control">
+        <label for="spacingBInput">网格 B 间距 <output id="spacingBOutput">22</output></label>
+        <input id="spacingBInput" type="range" min="8" max="40" step="1" value="22">
+      </div>
+      <div class="control">
+        <label for="angleInput">夹角 <output id="angleOutput">0°</output></label>
+        <input id="angleInput" type="range" min="0" max="45" step="0.5" value="0">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "spacingA", label: "网格 A 间距", type: "slider", min: 8, max: 40, step: 1, default: 20, unit: "px" },
+      { key: "spacingB", label: "网格 B 间距", type: "slider", min: 8, max: 40, step: 1, default: 22, unit: "px" },
+      { key: "angle", label: "夹角", type: "slider", min: 0, max: 45, step: 0.5, default: 0, unit: "°" }
+    ];
+    const state = {
+      running: false,
+      t: 0,
+      spacingA: 20,
+      spacingB: 22,
+      angle: 0,
+      animAngle: 0,
+      lastTimestamp: null
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      scene: document.querySelector("#scene"),
+      beatReadout: document.querySelector("#beatReadout"),
+      angleReadout: document.querySelector("#angleReadout"),
+      spacingAReadout: document.querySelector("#spacingAReadout"),
+      spacingBReadout: document.querySelector("#spacingBReadout"),
+      spacingAInput: document.querySelector("#spacingAInput"),
+      spacingAOutput: document.querySelector("#spacingAOutput"),
+      spacingBInput: document.querySelector("#spacingBInput"),
+      spacingBOutput: document.querySelector("#spacingBOutput"),
+      angleInput: document.querySelector("#angleInput"),
+      angleOutput: document.querySelector("#angleOutput"),
+      insight: document.querySelector("#insight"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+    const ctx = elements.scene.getContext("2d");
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function computeBeatPeriod(p1, p2, theta) {
+      const safeTheta = Math.max(theta, 1e-6);
+      const denom = Math.sqrt(2 * (1 - Math.cos(safeTheta)));
+      if (denom < 1e-6) {
+        const diff = Math.abs(p1 - p2);
+        return diff < 1e-6 ? Infinity : (p1 * p2) / diff;
+      }
+      return p1 / denom;
+    }
+
+    function init() {
+      bindControls();
+      setParameters({ spacingA: 20, spacingB: 22, angle: 0 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.animAngle = 0;
+      state.lastTimestamp = null;
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      state.animAngle = (Math.sin(state.t * 0.6) * 0.5 + 0.5) * 45;
+    }
+
+    function render() {
+      const w = elements.scene.width;
+      const h = elements.scene.height;
+      const p1 = state.spacingA;
+      const p2 = state.spacingB;
+      const theta = state.running ? state.animAngle * Math.PI / 180 : state.angle * Math.PI / 180;
+      const halfTheta = theta / 2;
+
+      ctx.fillStyle = "#0a0f1a";
+      ctx.fillRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const maxR = Math.sqrt(cx * cx + cy * cy);
+
+      const imgData = ctx.createImageData(w, h);
+      const data = imgData.data;
+      const cosA = Math.cos(halfTheta);
+      const sinA = Math.sin(halfTheta);
+      const cosB = Math.cos(-halfTheta);
+      const sinB = Math.sin(-halfTheta);
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const dx = x - cx;
+          const dy = y - cy;
+          const u1 = (dx * cosA + dy * sinA) / p1;
+          const u2 = (dx * cosB + dy * sinB) / p2;
+          const g1 = 0.5 + 0.5 * Math.cos(2 * Math.PI * u1);
+          const g2 = 0.5 + 0.5 * Math.cos(2 * Math.PI * u2);
+          const intensity = g1 * g2;
+          const idx = (y * w + x) * 4;
+          const v = Math.floor(intensity * 255);
+          data[idx] = Math.floor(v * 0.2);
+          data[idx + 1] = Math.floor(v * 0.85);
+          data[idx + 2] = Math.floor(v * 0.95);
+          data[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      const displayAngle = state.running ? state.animAngle : state.angle;
+      const beat = computeBeatPeriod(p1, p2, theta);
+      elements.beatReadout.textContent = Number.isFinite(beat) ? `${beat.toFixed(1)} px` : "∞ px";
+      elements.angleReadout.textContent = `${displayAngle.toFixed(1)}°`;
+      elements.spacingAReadout.textContent = `${p1} px`;
+      elements.spacingBReadout.textContent = `${p2} px`;
+      elements.spacingAOutput.textContent = String(p1);
+      elements.spacingBOutput.textContent = String(p2);
+      elements.angleOutput.textContent = `${displayAngle.toFixed(1)}°`;
+
+      const gap = Math.abs(p1 - p2);
+      if (displayAngle < 0.5 && gap < 0.5) {
+        elements.insight.textContent = "两网格完全重合：无干涉条纹，图案均匀。";
+      } else if (displayAngle < 0.5) {
+        elements.insight.textContent = `夹角为零、间距差 ${gap.toFixed(1)} px：产生平行条纹，周期 ≈ ${(p1 * p2 / gap).toFixed(1)} px。`;
+      } else if (gap < 0.5) {
+        elements.insight.textContent = `间距相同、夹角 ${displayAngle.toFixed(1)}°：条纹方向垂直于网格方向，间距随夹角增大而减小。`;
+      } else {
+        elements.insight.textContent = `间距差 ${gap.toFixed(1)} px、夹角 ${displayAngle.toFixed(1)}°：条纹方向与间距由两者共同决定。`;
+      }
+    }
+
+    function setParameters(values) {
+      const aDef = parameterSchema[0], bDef = parameterSchema[1], angDef = parameterSchema[2];
+      state.spacingA = clamp(finite(Number(values.spacingA), aDef.default), aDef.min, aDef.max);
+      state.spacingB = clamp(finite(Number(values.spacingB), bDef.default), bDef.min, bDef.max);
+      state.angle = clamp(finite(Number(values.angle), angDef.default), angDef.min, angDef.max);
+      elements.spacingAInput.value = String(state.spacingA);
+      elements.spacingBInput.value = String(state.spacingB);
+      elements.angleInput.value = String(state.angle);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        spacingA: state.spacingA,
+        spacingB: state.spacingB,
+        angle: state.angle,
+        animAngle: state.animAngle
+      };
+    }
+
+    function getReadouts() {
+      const theta = state.running ? state.animAngle * Math.PI / 180 : state.angle * Math.PI / 180;
+      return {
+        beatPeriod: computeBeatPeriod(state.spacingA, state.spacingB, theta),
+        angle: state.running ? state.animAngle : state.angle,
+        spacingA: state.spacingA,
+        spacingB: state.spacingB
+      };
+    }
+
+    function runModelChecks() {
+      const checks = [];
+      const p = 20;
+      const theta1 = Math.PI / 6;
+      const beat1 = computeBeatPeriod(p, p, theta1);
+      const expected1 = p / Math.sqrt(2 * (1 - Math.cos(theta1)));
+      checks.push({
+        name: "等间距拍频周期",
+        pass: Math.abs(beat1 - expected1) < 1e-6,
+        expected: expected1.toFixed(4),
+        actual: beat1.toFixed(4),
+        tolerance: "1e-6"
+      });
+
+      const beat2 = computeBeatPeriod(20, 22, 0);
+      const expected2 = (20 * 22) / Math.abs(20 - 22);
+      checks.push({
+        name: "零夹角拍频周期",
+        pass: Math.abs(beat2 - expected2) < 1e-6,
+        expected: expected2.toFixed(4),
+        actual: beat2.toFixed(4),
+        tolerance: "1e-6"
+      });
+
+      const beat3 = computeBeatPeriod(20, 20, 0);
+      checks.push({
+        name: "完全重合边界",
+        pass: !Number.isFinite(beat3),
+        expected: "Infinity",
+        actual: String(beat3),
+        tolerance: "strict"
+      });
+
+      const beatSmall = computeBeatPeriod(20, 21, Math.PI / 12);
+      const beatLarge = computeBeatPeriod(20, 21, Math.PI / 4);
+      checks.push({
+        name: "夹角单调性",
+        pass: beatSmall > beatLarge,
+        expected: "小夹角周期 > 大夹角周期",
+        actual: `${beatSmall.toFixed(2)} > ${beatLarge.toFixed(2)}`,
+        tolerance: "strict"
+      });
+
+      checks.push({
+        name: "有限性检查",
+        pass: Number.isFinite(beat1) && Number.isFinite(beat2),
+        expected: "finite",
+        actual: "finite",
+        tolerance: "finite"
+      });
+
+      return checks;
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.spacingAInput.addEventListener("input", () => setParameters({ spacingA: elements.spacingAInput.value, spacingB: state.spacingB, angle: state.angle }));
+      elements.spacingBInput.addEventListener("input", () => setParameters({ spacingA: state.spacingA, spacingB: elements.spacingBInput.value, angle: state.angle }));
+      elements.angleInput.addEventListener("input", () => setParameters({ spacingA: state.spacingA, spacingB: state.spacingB, angle: elements.angleInput.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

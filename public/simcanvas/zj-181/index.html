@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>流动沙丘 · Dune Drift</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1a;
+      --sim-surface-soft: #0f1626;
+      --sim-text: #e8eefc;
+      --sim-muted: #6b7a96;
+      --sim-border: rgba(255,255,255,0.06);
+      --sim-grid: rgba(255,255,255,0.04);
+      --sim-accent: #e8945a;
+      --sim-accent-deep: #b86838;
+      --sim-accent-soft: rgba(232,148,90,0.15);
+      --sim-positive: #e8945a;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 14px 36px rgba(0,0,0,0.4);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-variant-numeric: tabular-nums;
+    }
+    .app {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh;
+      display: block;
+    }
+    canvas#scene {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      display: block;
+    }
+    .header {
+      position: absolute;
+      left: 24px; top: 20px;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+    }
+    .header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: rgba(232,238,252,0.55);
+      line-height: 1.2;
+    }
+    .header p {
+      margin-top: 4px;
+      font-size: 11px;
+      color: rgba(232,238,252,0.32);
+      letter-spacing: 0.02em;
+    }
+    .corner-text {
+      position: absolute;
+      left: 24px; bottom: 20px;
+      font-size: 11px;
+      line-height: 1.7;
+      color: rgba(232,238,252,0.32);
+      letter-spacing: 0.02em;
+      pointer-events: none;
+      user-select: none;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      white-space: nowrap;
+    }
+    .corner-text .label { color: rgba(232,148,90,0.5); }
+    .insight {
+      position: absolute;
+      right: 24px; top: 20px;
+      z-index: 10;
+      max-width: 240px;
+      padding: 10px 14px;
+      border-left: 2px solid rgba(232,148,90,0.4);
+      border-radius: 0 8px 8px 0;
+      background: rgba(10,15,26,0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      font-size: 11px;
+      line-height: 1.6;
+      color: rgba(232,238,252,0.6);
+      pointer-events: none;
+      user-select: none;
+    }
+    .insight .label {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(232,148,90,0.6);
+    }
+    .play-btn {
+      position: absolute;
+      right: 24px; bottom: 20px;
+      width: 36px; height: 36px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 50%;
+      background: rgba(10,15,26,0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: rgba(232,238,252,0.7);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+      opacity: 0.35;
+    }
+    .play-btn:hover {
+      opacity: 1;
+      background: rgba(20,28,44,0.6);
+      border-color: rgba(255,255,255,0.22);
+      color: rgba(232,238,252,0.95);
+    }
+    .play-btn:focus-visible {
+      outline: 2px solid rgba(232,148,90,0.5);
+      outline-offset: 3px;
+      opacity: 1;
+    }
+    .play-btn svg { width: 14px; height: 14px; fill: currentColor; }
+    @media (max-width: 600px) {
+      .header { left: 16px; top: 14px; }
+      .header h1 { font-size: 13px; }
+      .header p { font-size: 10px; }
+      .corner-text { font-size: 10px; left: 16px; bottom: 14px; }
+      .insight { right: 16px; top: 14px; max-width: 180px; padding: 8px 10px; font-size: 10px; }
+      .play-btn { right: 16px; bottom: 14px; width: 32px; height: 32px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .play-btn { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="analytic">
+    <canvas id="scene" data-region="stage" role="img" aria-label="流动沙丘渐变动画"></canvas>
+    <header class="header" data-region="header">
+      <h1>流动沙丘 · Dune Drift</h1>
+      <p>色相循环驱动的多层正弦叠加沙丘</p>
+    </header>
+    <div class="corner-text" data-region="evidence" aria-hidden="true">
+      <div><span class="label">hue(t)</span> = hue₀ + α·t</div>
+      <div><span class="label">y(x)</span> = Σ Aᵢ·sin(kᵢ·x + φᵢ)</div>
+    </div>
+    <div class="insight" data-region="insight" aria-live="polite">
+      <span class="label">观察</span>
+      <span id="insightText">色相沿暖橙→玫红→紫→冷蓝缓慢循环，沙丘形态随风纹持续漂移。</span>
+    </div>
+    <button class="play-btn" id="playBtn" data-region="controls" type="button" aria-label="暂停" aria-pressed="true">
+      <svg viewBox="0 0 24 24" id="playIcon"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    </button>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d");
+    const playBtn = document.getElementById("playBtn");
+    const playIcon = document.getElementById("playIcon");
+    const insightText = document.getElementById("insightText");
+
+    // ---- 确定性伪随机（固定种子） ----
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function() {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rng = mulberry32(20240916);
+
+    // ---- 色相循环配置 ----
+    // 暖橙(28°) → 玫红(340°) → 紫(280°) → 冷蓝(215°) → 回暖橙
+    const HUE_PATH = [28, 340, 280, 215, 28];
+    const HUE_CYCLE_SECONDS = 90; // 极缓慢：90 秒一轮
+
+    function hueAt(t) {
+      const phase = (t / HUE_CYCLE_SECONDS) % 1;
+      const segCount = HUE_PATH.length - 1;
+      const seg = phase * segCount;
+      const i = Math.floor(seg);
+      const f = seg - i;
+      const h0 = HUE_PATH[i];
+      const h1 = HUE_PATH[i + 1];
+      let d = h1 - h0;
+      if (d > 180) d -= 360;
+      if (d < -180) d += 360;
+      return ((h0 + d * f) % 360 + 360) % 360;
+    }
+
+    // hsl → rgb（返回 [r,g,b] 0-255）
+    function hslToRgb(h, s, l) {
+      h = ((h % 360) + 360) % 360;
+      s = Math.max(0, Math.min(1, s));
+      l = Math.max(0, Math.min(1, l));
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = l - c / 2;
+      let r, g, b;
+      if (h < 60) { r = c; g = x; b = 0; }
+      else if (h < 120) { r = x; g = c; b = 0; }
+      else if (h < 180) { r = 0; g = c; b = x; }
+      else if (h < 240) { r = 0; g = x; b = c; }
+      else if (h < 300) { r = x; g = 0; b = c; }
+      else { r = c; g = 0; b = x; }
+      return [
+        Math.round((r + m) * 255),
+        Math.round((g + m) * 255),
+        Math.round((b + m) * 255)
+      ];
+    }
+
+    function rgbStr(r, g, b, a) {
+      return `rgba(${r},${g},${b},${a == null ? 1 : a})`;
+    }
+
+    // ---- 沙丘层定义 ----
+    // 每层：baseY（基准高度 0-1）、amplitudes（正弦叠加）、phaseOffset（色相相位差）
+    const LAYER_COUNT = 6;
+    const layers = [];
+
+    for (let i = 0; i < LAYER_COUNT; i++) {
+      const depth = i / (LAYER_COUNT - 1); // 0=最远, 1=最近
+      // 远处沙丘在画面上方（baseY 小），近处在下方
+      const baseY = 0.18 + depth * 0.62 + (rng() - 0.5) * 0.04;
+      // 3-4 个正弦叠加，远处的波长长（缓）、近处的波长短（细节多）
+      const harmonics = [];
+      const harmCount = 3 + Math.floor(rng() * 2);
+      for (let j = 0; j < harmCount; j++) {
+        harmonics.push({
+          amp: (0.018 + rng() * 0.05) * (1 - depth * 0.3), // 远处振幅小
+          k: (0.6 + rng() * 2.2) * (1 + depth * 0.8),      // 近处频率高
+          phi: rng() * Math.PI * 2
+        });
+      }
+      layers.push({
+        index: i,
+        depth,
+        baseY,
+        harmonics,
+        huePhase: (i - (LAYER_COUNT - 1) / 2) * 0.06, // 层间色相相位差
+        windOffset: rng() * 1000                       // 风纹初始偏移
+      });
+    }
+
+    // 计算沙丘曲线 y 值（归一化 0-1，y 向下为正）
+    function duneY(layer, xNorm, t) {
+      let y = layer.baseY;
+      for (const h of layer.harmonics) {
+        y += h.amp * Math.sin(h.k * xNorm * Math.PI * 2 + h.phi + t * 0.03);
+      }
+      return y;
+    }
+
+    // ---- 状态 ----
+    const state = {
+      running: true,
+      t: 0,
+      lastTimestamp: null,
+      dpr: 1,
+      w: 0,
+      h: 0
+    };
+
+    // ---- 尺寸管理 ----
+    function resize() {
+      state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+      state.w = window.innerWidth;
+      state.h = window.innerHeight;
+      canvas.width = Math.round(state.w * state.dpr);
+      canvas.height = Math.round(state.h * state.dpr);
+      canvas.style.width = state.w + "px";
+      canvas.style.height = state.h + "px";
+      ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    }
+
+    // ---- 渲染 ----
+    function render() {
+      const W = state.w, H = state.h, t = state.t;
+      const hue = hueAt(t);
+
+      // 1. 深色背景渐变
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      const [br, bg, bb] = hslToRgb(hue, 0.45, 0.04);
+      const [br2, bg2, bb2] = hslToRgb(hue + 20, 0.5, 0.07);
+      bgGrad.addColorStop(0, rgbStr(br, bg, bb, 1));
+      bgGrad.addColorStop(0.6, rgbStr(br2, bg2, bb2, 1));
+      bgGrad.addColorStop(1, rgbStr(0, 0, 0, 1));
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // 2. 远处天空微光（地平线附近）
+      const skyHue = hue + 15;
+      const [sr, sg, sb] = hslToRgb(skyHue, 0.5, 0.18);
+      const skyGrad = ctx.createLinearGradient(0, H * 0.1, 0, H * 0.5);
+      skyGrad.addColorStop(0, rgbStr(sr, sg, sb, 0));
+      skyGrad.addColorStop(1, rgbStr(sr, sg, sb, 0.12));
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H * 0.55);
+
+      // 3. 绘制每层沙丘（从远到近）
+      const samples = Math.max(120, Math.ceil(W / 4)); // 采样密度
+      for (let li = 0; li < layers.length; li++) {
+        const layer = layers[li];
+        const layerHue = hueAt(t + layer.huePhase * HUE_CYCLE_SECONDS);
+        drawDuneLayer(layer, layerHue, t, W, H, samples);
+      }
+    }
+
+    function drawDuneLayer(layer, hue, t, W, H, samples) {
+      const depth = layer.depth;
+      // 采样曲线点
+      const pts = new Array(samples + 1);
+      for (let i = 0; i <= samples; i++) {
+        const xNorm = i / samples;
+        const yNorm = duneY(layer, xNorm, t);
+        pts[i] = {
+          x: xNorm * W,
+          y: yNorm * H
+        };
+      }
+
+      // ---- 填充丘体 ----
+      const litColor = hslToRgb(hue, 0.5, 0.42 + depth * 0.08);
+      const shadowColor = hslToRgb(hue + 8, 0.55, 0.10 + depth * 0.05);
+      const valleyColor = hslToRgb(hue - 5, 0.5, 0.06 + depth * 0.04);
+
+      const fillGrad = ctx.createLinearGradient(0, layer.baseY * H - 60, 0, H);
+      fillGrad.addColorStop(0, rgbStr(litColor[0], litColor[1], litColor[2], 0.95));
+      fillGrad.addColorStop(0.35, rgbStr(litColor[0], litColor[1], litColor[2], 0.85));
+      fillGrad.addColorStop(0.7, rgbStr(shadowColor[0], shadowColor[1], shadowColor[2], 0.95));
+      fillGrad.addColorStop(1, rgbStr(valleyColor[0], valleyColor[1], valleyColor[2], 1));
+
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fillStyle = fillGrad;
+      ctx.fill();
+
+      // ---- 逆光侧亮边（丘缘上沿，双层模拟发光，无 shadowBlur）----
+      // 第一遍：粗线低透明度
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      const edgeColor = hslToRgb(hue - 5, 0.6, 0.62);
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = rgbStr(edgeColor[0], edgeColor[1], edgeColor[2], 0.18);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      // 第二遍：细线高透明度
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = rgbStr(edgeColor[0], edgeColor[1], edgeColor[2], 0.55);
+      ctx.stroke();
+
+      // ---- 风纹细线（沿丘面法向偏移，缓慢平移）----
+      const windSpeed = 8; // px/s
+      const windShift = (t * windSpeed + layer.windOffset) % 40;
+      const ridgeColor = hslToRgb(hue + 5, 0.4, 0.5 + depth * 0.1);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      ctx.lineTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.clip();
+
+      const ridgeCount = 14;
+      for (let r = 0; r < ridgeCount; r++) {
+        const offset = (r * 22 + windShift) % (ridgeCount * 22);
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i <= samples; i++) {
+          const p = pts[i];
+          // 沿丘面法向偏移（向下，即向丘体内部）
+          const nx = i < samples ? pts[i + 1].x - p.x : pts[i - 1].x - p.x;
+          const ny = i < samples ? pts[i + 1].y - p.y : pts[i - 1].y - p.y;
+          const len = Math.sqrt(nx * nx + ny * ny) || 1;
+          // 法向（顺时针 90°）：(ny, -nx) 朝上，(-ny, nx) 朝下
+          const nDownX = -ny / len;
+          const nDownY = nx / len;
+          const wx = p.x + nDownX * offset;
+          const wy = p.y + nDownY * offset;
+          if (wy < H + 10) {
+            if (!started) { ctx.moveTo(wx, wy); started = true; }
+            else ctx.lineTo(wx, wy);
+          }
+        }
+        const alpha = 0.06 + (r / ridgeCount) * 0.05;
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = rgbStr(ridgeColor[0], ridgeColor[1], ridgeColor[2], alpha);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // ---- 更新 ----
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = Math.min(Math.max(dt, 0), 0.05);
+      state.t += boundedDt;
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    // ---- 洞察文本更新 ----
+    function updateInsight() {
+      if (!state.running) {
+        insightText.textContent = "已暂停 — 色相与风纹静止于当前时刻。";
+        return;
+      }
+      const hue = hueAt(state.t);
+      let phase;
+      const h = ((hue % 360) + 360) % 360;
+      if (h >= 0 && h < 60) phase = "暖橙色调";
+      else if (h >= 60 && h < 150) phase = "玫红色调";
+      else if (h >= 150 && h < 250) phase = "紫色调";
+      else if (h >= 250 && h < 330) phase = "冷蓝色调";
+      else phase = "回暖橙色调";
+      insightText.textContent = `当前处于${phase}，沙丘形态随风纹持续漂移。`;
+    }
+
+    // ---- 控制 ----
+    function togglePlay() {
+      state.running = !state.running;
+      if (state.running) {
+        playBtn.setAttribute("aria-label", "暂停");
+        playBtn.setAttribute("aria-pressed", "true");
+        playIcon.innerHTML = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+      } else {
+        playBtn.setAttribute("aria-label", "播放");
+        playBtn.setAttribute("aria-pressed", "false");
+        playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      }
+      updateInsight();
+    }
+
+    // ---- 生命周期 ----
+    function init() {
+      resize();
+      window.addEventListener("resize", resize);
+      playBtn.addEventListener("click", togglePlay);
+      requestAnimationFrame(frame);
+    }
+
+    function start() { state.running = true; updateInsight(); }
+    function pause() { state.running = false; updateInsight(); }
+    function reset() { state.t = 0; updateInsight(); }
+    function setParameters() {}
+    function getState() { return { running: state.running, t: state.t }; }
+    function getReadouts() { return { time: state.t, hue: hueAt(state.t) }; }
+    function runModelChecks() {
+      // 验证色相循环确定性 + 范围
+      const h0 = hueAt(0);
+      const h1 = hueAt(HUE_CYCLE_SECONDS / 4);
+      const h2 = hueAt(HUE_CYCLE_SECONDS / 2);
+      const h3 = hueAt(HUE_CYCLE_SECONDS * 3 / 4);
+      const h4 = hueAt(HUE_CYCLE_SECONDS);
+      const cycleCloses = Math.abs(h0 - h4) < 0.001;
+      const allFinite = [h0, h1, h2, h3].every(v => Number.isFinite(v));
+      // 验证沙丘曲线有限
+      let duneFinite = true;
+      for (const layer of layers) {
+        for (let i = 0; i <= 10; i++) {
+          const y = duneY(layer, i / 10, 0);
+          if (!Number.isFinite(y)) duneFinite = false;
+        }
+      }
+      return [
+        { name: "hue cycle closes", pass: cycleCloses, expected: "hue(0) == hue(T)", actual: `${h0.toFixed(2)} vs ${h4.toFixed(2)}`, tolerance: "strict" },
+        { name: "hue values finite", pass: allFinite, expected: "all finite", actual: [h0, h1, h2, h3].map(v => v.toFixed(1)).join(", "), tolerance: "finite" },
+        { name: "dune curves finite", pass: duneFinite, expected: "all finite", actual: duneFinite ? "finite" : "non-finite found", tolerance: "finite" }
+      ];
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

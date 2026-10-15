@@ -149,13 +149,14 @@ atomic_physics/
 
 ### 环境要求
 
-- Node.js 18+
+- Node.js 22.12+（推荐使用 `.nvmrc` 中的 Node 22）
 - 现代浏览器(支持 WebGL 2.0)
 
 ### 安装与运行
 
 ```bash
-npm install          # 安装依赖
+npm ci               # 按锁文件安装前端依赖
+npm run setup:accounts # 安装独立账户服务依赖
 npm run dev          # 启动开发服务器 (默认 http://localhost:5173)
 npm run build        # 构建生产版本
 npm run preview      # 预览生产构建
@@ -164,9 +165,14 @@ npm run preview      # 预览生产构建
 ### 测试
 
 ```bash
+npm run test:e2e:install  # 首次安装 Chromium
+npm run verify           # lint + 类型 + 测试 + 安全审计 + 构建 + 浏览器检查（需联网）
+npm test                 # 单元、物理、共享授权码与真实 PostgreSQL 账户测试
 npm run test:e2e          # 运行 E2E 冒烟测试(5 个力学实验)
 npm run test:e2e:headed   # 有头模式运行,看浏览器实际操作
 ```
+
+可复用基座的状态与边界见 [docs/foundation.md](docs/foundation.md)，账户配置、完整验证与业务路由复用见 [docs/accounts.md](docs/accounts.md)。个人注册、登录、恢复密码、资料、会话撤销和用户数据隔离已有独立实现；正式使用需要配置 PostgreSQL、SMTP 和 HTTPS 来源。共享授权码继续作为独立站点门禁。
 
 ### 导入课件
 

@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>卡诺循环热机</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-hot: #dc2626;
+      --sim-cold: #2563eb;
+      --sim-work: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(220, 38, 38, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(37, 99, 235, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .iso-label { fill: var(--sim-muted); font-size: 11px; font-weight: 700; }
+    .adiabat-label { fill: #6b7280; font-size: 11px; font-weight: 700; }
+    .phase-label { font-size: 13px; font-weight: 800; }
+    .point-label { font-size: 12px; font-weight: 700; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>卡诺循环热机</h1>
+        <p>调节高温与低温热源温度，观察理想可逆循环中热、功与效率的关系。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">P–V 图中的卡诺循环</h2><span>压强 p 随体积 V 变化，工作点沿循环移动</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">压强-体积图，显示由两条等温线和两条绝热线构成的卡诺循环，工作点沿循环移动。</desc>
+          <defs>
+            <linearGradient id="traceGlow" x1="0" x2="1"><stop stop-color="#0f9fba"></stop><stop offset="1" stop-color="#08758a"></stop></linearGradient>
+            <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0f9fba"></path></marker>
+          </defs>
+          <g id="grid"></g>
+          <line class="axis" x1="58" y1="360" x2="724" y2="360"></line>
+          <line class="axis" x1="58" y1="30" x2="58" y2="360"></line>
+          <text class="axis-label" x="700" y="389">体积 V</text>
+          <text class="axis-label" x="18" y="35">压强 p</text>
+          <path id="cyclePath" d="" fill="none" stroke="url(#traceGlow)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"></path>
+          <path id="iso1" d="" fill="none" stroke="#dc2626" stroke-width="2.5" opacity="0.7"></path>
+          <path id="adiabat1" d="" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="6 4" opacity="0.7"></path>
+          <path id="iso2" d="" fill="none" stroke="#2563eb" stroke-width="2.5" opacity="0.7"></path>
+          <path id="adiabat2" d="" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-dasharray="6 4" opacity="0.7"></path>
+          <text id="iso1Label" class="iso-label" text-anchor="middle">等温膨胀 T_h</text>
+          <text id="iso2Label" class="iso-label" text-anchor="middle">等温压缩 T_c</text>
+          <text id="adi1Label" class="adiabat-label" text-anchor="middle">绝热膨胀</text>
+          <text id="adi2Label" class="adiabat-label" text-anchor="middle">绝热压缩</text>
+          <circle id="markerHalo" cx="58" cy="360" r="15" fill="rgba(15,159,186,.14)"></circle>
+          <circle id="marker" cx="58" cy="360" r="7" fill="#0f9fba" stroke="white" stroke-width="3"></circle>
+          <text id="phaseLabel" class="phase-label" x="380" y="25" text-anchor="middle" fill="#0f9fba">等温膨胀</text>
+          <g id="pointLabels"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>效率 η = 1 − T_c/T_h</small><strong id="effReadout">0.00%</strong></div>
+            <div class="metric"><small>循环做功 W</small><strong id="workReadout">0.00 J</strong></div>
+            <div class="metric"><small>吸热 Q_h</small><strong id="qhReadout">0.00 J</strong></div>
+            <div class="metric"><small>放热 |Q_c|</small><strong id="qcReadout">0.00 J</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">点击开始，工作点沿循环移动。等温膨胀时从高温热源吸热，绝热膨胀时温度下降。</p>
+          <p>教学视图：理想气体可逆卡诺循环。η = 1 − T_c/T_h 仅由两热源温度决定；等温过程 pV = nRT，绝热过程 pV^γ = const（γ = 5/3）。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">复位</button>
+      </div>
+      <div class="control">
+        <label for="thInput">高温 T_h <output id="thOutput">600 K</output></label>
+        <input id="thInput" type="range" min="400" max="800" step="10" value="600">
+      </div>
+      <div class="control">
+        <label for="tcInput">低温 T_c <output id="tcOutput">300 K</output></label>
+        <input id="tcInput" type="range" min="200" max="400" step="10" value="300">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "th", label: "高温 T_h", type: "slider", min: 400, max: 800, step: 10, default: 600, unit: "K" },
+      { key: "tc", label: "低温 T_c", type: "slider", min: 200, max: 400, step: 10, default: 300, unit: "K" }
+    ];
+    const GAMMA = 5 / 3;
+    const N_MOLES = 1;
+    const R_GAS = 8.314;
+    const V1_BASE = 0.001;
+    const V_RATIO_ISO = 2;
+    const V_RATIO_ADI = 2;
+    const PHASES = [
+      { name: "等温膨胀", key: "iso1", color: "#dc2626" },
+      { name: "绝热膨胀", key: "adi1", color: "#6b7280" },
+      { name: "等温压缩", key: "iso2", color: "#2563eb" },
+      { name: "绝热压缩", key: "adi2", color: "#6b7280" }
+    ];
+    const state = {
+      running: false, t: 0, phase: 0, phaseProgress: 0,
+      th: 600, tc: 300, lastTimestamp: null,
+      V: V1_BASE, p: 0, W: 0, Qh: 0, Qc: 0,
+      cycleCount: 0, history: []
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      grid: document.querySelector("#grid"),
+      cyclePath: document.querySelector("#cyclePath"),
+      iso1: document.querySelector("#iso1"), iso2: document.querySelector("#iso2"),
+      adiabat1: document.querySelector("#adiabat1"), adiabat2: document.querySelector("#adiabat2"),
+      iso1Label: document.querySelector("#iso1Label"), iso2Label: document.querySelector("#iso2Label"),
+      adi1Label: document.querySelector("#adi1Label"), adi2Label: document.querySelector("#adi2Label"),
+      marker: document.querySelector("#marker"), markerHalo: document.querySelector("#markerHalo"),
+      phaseLabel: document.querySelector("#phaseLabel"),
+      pointLabels: document.querySelector("#pointLabels"),
+      effReadout: document.querySelector("#effReadout"),
+      workReadout: document.querySelector("#workReadout"),
+      qhReadout: document.querySelector("#qhReadout"),
+      qcReadout: document.querySelector("#qcReadout"),
+      thInput: document.querySelector("#thInput"), thOutput: document.querySelector("#thOutput"),
+      tcInput: document.querySelector("#tcInput"), tcOutput: document.querySelector("#tcOutput"),
+      startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+      insight: document.querySelector("#insight")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function getCornerVolumes() {
+      const V1 = V1_BASE;
+      const V2 = V1 * V_RATIO_ISO;
+      const V3 = V2 * Math.pow(V_RATIO_ADI, 1 / (GAMMA - 1));
+      const V4 = V1 * Math.pow(V_RATIO_ADI, 1 / (GAMMA - 1));
+      return { V1, V2, V3, V4 };
+    }
+    function getCornerPressures() {
+      const { V1, V2, V3, V4 } = getCornerVolumes();
+      const p1 = N_MOLES * R_GAS * state.th / V1;
+      const p2 = N_MOLES * R_GAS * state.th / V2;
+      const p3 = N_MOLES * R_GAS * state.tc / V3;
+      const p4 = N_MOLES * R_GAS * state.tc / V4;
+      return { p1, p2, p3, p4 };
+    }
+    function getCorners() {
+      return { ...getCornerVolumes(), ...getCornerPressures() };
+    }
+    function getPlotBounds() {
+      const c = getCorners();
+      const pMax = c.p1 * 1.15;
+      const pMin = Math.min(c.p3, c.p4) * 0.85;
+      const vMax = c.V3 * 1.08;
+      const vMin = c.V1 * 0.92;
+      return { pMax, pMin, vMax, vMin };
+    }
+    function toScreen(V, p) {
+      const { pMax, pMin, vMax, vMin } = getPlotBounds();
+      const x = 58 + ((V - vMin) / (vMax - vMin)) * 666;
+      const y = 360 - ((p - pMin) / (pMax - pMin)) * 330;
+      return { x: finite(x, 58), y: finite(y, 360) };
+    }
+    function isoPath(Va, Vb, T, n) {
+      const pts = [];
+      for (let i = 0; i <= n; i++) {
+        const V = Va + (Vb - Va) * (i / n);
+        const p = N_MOLES * R_GAS * T / V;
+        pts.push(toScreen(V, p));
+      }
+      return pts.map(pt => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(" ");
+    }
+    function adiPath(Va, Vb, pStart, n) {
+      const pts = [];
+      const C = pStart * Math.pow(Va, GAMMA);
+      for (let i = 0; i <= n; i++) {
+        const V = Va + (Vb - Va) * (i / n);
+        const p = C / Math.pow(V, GAMMA);
+        pts.push(toScreen(V, p));
+      }
+      return pts.map(pt => `${pt.x.toFixed(2)},${pt.y.toFixed(2)}`).join(" ");
+    }
+    function buildCyclePath() {
+      const c = getCorners();
+      const seg1 = isoPath(c.V1, c.V2, state.th, 30);
+      const seg2 = adiPath(c.V2, c.V3, c.p2, 30);
+      const seg3 = isoPath(c.V3, c.V4, state.tc, 30);
+      const seg4 = adiPath(c.V4, c.V1, c.p4, 30);
+      const pts = [seg1, seg2, seg3, seg4].join(" ");
+      elements.cyclePath.setAttribute("d", `M${pts.replace(/ /g, " L")}`);
+      elements.iso1.setAttribute("d", `M${seg1.replace(/ /g, " L")}`);
+      elements.adiabat1.setAttribute("d", `M${seg2.replace(/ /g, " L")}`);
+      elements.iso2.setAttribute("d", `M${seg3.replace(/ /g, " L")}`);
+      elements.adiabat2.setAttribute("d", `M${seg4.replace(/ /g, " L")}`);
+    }
+    function placeLabels() {
+      const c = getCorners();
+      const m1 = toScreen((c.V1 + c.V2) / 2, N_MOLES * R_GAS * state.th / ((c.V1 + c.V2) / 2));
+      const m2 = toScreen((c.V2 + c.V3) / 2, c.p2 * Math.pow(c.V2, GAMMA) / Math.pow((c.V2 + c.V3) / 2, GAMMA));
+      const m3 = toScreen((c.V3 + c.V4) / 2, N_MOLES * R_GAS * state.tc / ((c.V3 + c.V4) / 2));
+      const m4 = toScreen((c.V4 + c.V1) / 2, c.p4 * Math.pow(c.V4, GAMMA) / Math.pow((c.V4 + c.V1) / 2, GAMMA));
+      elements.iso1Label.setAttribute("x", m1.x); elements.iso1Label.setAttribute("y", m1.y - 12);
+      elements.adi1Label.setAttribute("x", m2.x + 8); elements.adi1Label.setAttribute("y", m2.y);
+      elements.iso2Label.setAttribute("x", m3.x); elements.iso2Label.setAttribute("y", m3.y + 20);
+      elements.adi2Label.setAttribute("x", m4.x - 8); elements.adi2Label.setAttribute("y", m4.y);
+      const labels = [
+        { name: "1", pos: toScreen(c.V1, c.p1), dx: -14, dy: -6 },
+        { name: "2", pos: toScreen(c.V2, c.p2), dx: 8, dy: -6 },
+        { name: "3", pos: toScreen(c.V3, c.p3), dx: 8, dy: 14 },
+        { name: "4", pos: toScreen(c.V4, c.p4), dx: -14, dy: 14 }
+      ];
+      elements.pointLabels.innerHTML = labels.map(l =>
+        `<text class="point-label" x="${l.pos.x + l.dx}" y="${l.pos.y + l.dy}" fill="#172033">${l.name}</text>`
+      ).join("");
+    }
+    function initGrid() {
+      const lines = [];
+      for (let i = 0; i <= 10; i += 1) {
+        const x = 58 + i * 66.6;
+        const y = 360 - i * 33;
+        lines.push(`<line class="grid-line" x1="${x}" y1="30" x2="${x}" y2="360"></line>`);
+        lines.push(`<line class="grid-line" x1="58" y1="${y}" x2="724" y2="${y}"></line>`);
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+    function getCurrentState() {
+      const c = getCorners();
+      const phase = state.phase;
+      const u = state.phaseProgress;
+      let V, p;
+      if (phase === 0) {
+        V = c.V1 + (c.V2 - c.V1) * u;
+        p = N_MOLES * R_GAS * state.th / V;
+      } else if (phase === 1) {
+        V = c.V2 + (c.V3 - c.V2) * u;
+        const C = c.p2 * Math.pow(c.V2, GAMMA);
+        p = C / Math.pow(V, GAMMA);
+      } else if (phase === 2) {
+        V = c.V3 + (c.V4 - c.V3) * u;
+        p = N_MOLES * R_GAS * state.tc / V;
+      } else {
+        V = c.V4 + (c.V1 - c.V4) * u;
+        const C = c.p4 * Math.pow(c.V4, GAMMA);
+        p = C / Math.pow(V, GAMMA);
+      }
+      return { V: finite(V, c.V1), p: finite(p, c.p1) };
+    }
+    function init() {
+      initGrid();
+      bindControls();
+      setParameters({ th: 600, tc: 300 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+    function reset() {
+      pause();
+      state.t = 0;
+      state.phase = 0;
+      state.phaseProgress = 0;
+      state.W = 0;
+      state.Qh = 0;
+      state.Qc = 0;
+      state.cycleCount = 0;
+      state.lastTimestamp = null;
+      const c = getCorners();
+      state.V = c.V1;
+      state.p = c.p1;
+      render();
+    }
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const phaseDuration = 2.0;
+      state.phaseProgress += boundedDt / phaseDuration;
+      while (state.phaseProgress >= 1) {
+        state.phaseProgress -= 1;
+        state.phase = (state.phase + 1) % 4;
+        if (state.phase === 0) state.cycleCount += 1;
+      }
+      state.t += boundedDt;
+      const cur = getCurrentState();
+      state.V = cur.V;
+      state.p = cur.p;
+      const c = getCorners();
+      const Qh_cycle = N_MOLES * R_GAS * state.th * Math.log(c.V2 / c.V1);
+      const Qc_cycle = N_MOLES * R_GAS * state.tc * Math.log(c.V4 / c.V3);
+      const W_cycle = Qh_cycle - Qc_cycle;
+      const totalProgress = state.cycleCount + (state.phase + state.phaseProgress) / 4;
+      state.Qh = Qh_cycle * totalProgress;
+      state.Qc = Qc_cycle * totalProgress;
+      state.W = W_cycle * totalProgress;
+    }
+    function render() {
+      buildCyclePath();
+      placeLabels();
+      const cur = getCurrentState();
+      const pos = toScreen(cur.V, cur.p);
+      elements.marker.setAttribute("cx", pos.x);
+      elements.marker.setAttribute("cy", pos.y);
+      elements.markerHalo.setAttribute("cx", pos.x);
+      elements.markerHalo.setAttribute("cy", pos.y);
+      const phaseInfo = PHASES[state.phase];
+      elements.phaseLabel.textContent = phaseInfo.name;
+      elements.phaseLabel.setAttribute("fill", phaseInfo.color);
+      const eff = state.th > state.tc ? (1 - state.tc / state.th) * 100 : 0;
+      elements.effReadout.textContent = `${eff.toFixed(1)}%`;
+      elements.workReadout.textContent = `${state.W.toFixed(2)} J`;
+      elements.qhReadout.textContent = `${state.Qh.toFixed(2)} J`;
+      elements.qcReadout.textContent = `${Math.abs(state.Qc).toFixed(2)} J`;
+      elements.thOutput.textContent = `${state.th} K`;
+      elements.tcOutput.textContent = `${state.tc} K`;
+      const insights = [
+        "等温膨胀：气体从高温热源吸热 Q_h，温度不变，压强随体积增大而下降。",
+        "绝热膨胀：气体对外做功，不吸热不放热，温度从 T_h 降到 T_c。",
+        "等温压缩：气体向低温热源放热 |Q_c|，温度不变，压强随体积减小而上升。",
+        "绝热压缩：外界对气体做功，温度从 T_c 升回 T_h，完成一个循环。"
+      ];
+      elements.insight.textContent = state.running ? insights[state.phase] : "点击开始，工作点沿循环移动。等温膨胀时从高温热源吸热，绝热膨胀时温度下降。";
+    }
+    function setParameters(values) {
+      const thDef = parameterSchema[0], tcDef = parameterSchema[1];
+      state.th = clamp(finite(Number(values.th), thDef.default), thDef.min, thDef.max);
+      state.tc = clamp(finite(Number(values.tc), tcDef.default), tcDef.min, tcDef.max);
+      if (state.tc >= state.th) state.tc = state.th - 10;
+      elements.thInput.value = String(state.th);
+      elements.tcInput.value = String(state.tc);
+      const cur = getCurrentState();
+      state.V = cur.V;
+      state.p = cur.p;
+      render();
+    }
+    function getState() {
+      return {
+        running: state.running, t: state.t, phase: state.phase,
+        phaseProgress: state.phaseProgress, th: state.th, tc: state.tc,
+        V: state.V, p: state.p, W: state.W, Qh: state.Qh, Qc: state.Qc,
+        cycleCount: state.cycleCount
+      };
+    }
+    function getReadouts() {
+      const eff = state.th > state.tc ? (1 - state.tc / state.th) : 0;
+      return {
+        efficiency: eff, work: state.W,
+        Qh: state.Qh, Qc: state.Qc,
+        th: state.th, tc: state.tc
+      };
+    }
+    function runModelChecks() {
+      const c = getCorners();
+      const Qh = N_MOLES * R_GAS * state.th * Math.log(c.V2 / c.V1);
+      const Qc = N_MOLES * R_GAS * state.tc * Math.log(c.V4 / c.V3);
+      const W = Qh - Qc;
+      const eff = W / Qh;
+      const effFormula = 1 - state.tc / state.th;
+      const adiCheck1 = Math.abs(c.p2 * Math.pow(c.V2, GAMMA) - c.p3 * Math.pow(c.V3, GAMMA));
+      const adiCheck2 = Math.abs(c.p4 * Math.pow(c.V4, GAMMA) - c.p1 * Math.pow(c.V1, GAMMA));
+      const ratioCheck = Math.abs(c.V3 / c.V4 - c.V2 / c.V1);
+      return [
+        { name: "效率公式一致", pass: Math.abs(eff - effFormula) < 1e-9, expected: effFormula, actual: eff, tolerance: 1e-9 },
+        { name: "能量守恒 W = Qh - Qc", pass: Math.abs(W - (Qh - Qc)) < 1e-9, expected: Qh - Qc, actual: W, tolerance: 1e-9 },
+        { name: "绝热线1 pV^γ 守恒", pass: adiCheck1 < 1e-6, expected: 0, actual: adiCheck1, tolerance: 1e-6 },
+        { name: "绝热线2 pV^γ 守恒", pass: adiCheck2 < 1e-6, expected: 0, actual: adiCheck2, tolerance: 1e-6 },
+        { name: "体积比一致 V3/V4 = V2/V1", pass: ratioCheck < 1e-9, expected: 0, actual: ratioCheck, tolerance: 1e-9 },
+        { name: "效率随温差增大", pass: effFormula > 0 && effFormula < 1, expected: "0 < η < 1", actual: effFormula, tolerance: "range" }
+      ];
+    }
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.thInput.addEventListener("input", () => setParameters({ th: elements.thInput.value, tc: state.tc }));
+      elements.tcInput.addEventListener("input", () => setParameters({ th: state.th, tc: elements.tcInput.value }));
+    }
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+    window.simulation = {
+      init: init, start: start, pause: pause, reset: reset,
+      update: update, render: render, setParameters: setParameters,
+      getState: getState, getReadouts: getReadouts, runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

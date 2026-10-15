@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>最速降线 · 三轨赛跑</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0f1828;
+  --sim-text: #e8f0fc;
+  --sim-muted: #7a8a9e;
+  --sim-border: #1a2538;
+  --sim-grid: #131c2e;
+  --sim-accent: #4dd0e1;
+  --sim-accent-deep: #00838f;
+  --sim-accent-soft: #003a4a;
+  --sim-positive: #4dd0e1;
+  --sim-warning: #ffb74d;
+  --sim-danger: #ef5350;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --c-line: #5b9bd5;
+  --c-arc: #f0a050;
+  --c-cycloid: #4dd0e1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0;
+}
+.header {
+  padding: 10px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.header h1 {
+  font-size: 1.15rem;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  color: var(--sim-text);
+}
+.header h1 .sep { color: var(--sim-muted); margin: 0 8px; }
+.header h1 .sub { color: var(--c-cycloid); font-weight: 400; }
+.status {
+  font-size: 0.75rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.status .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--sim-muted);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.status.running .dot { background: var(--c-cycloid); }
+.status.done .dot { background: var(--sim-warning); }
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#stageCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.legend {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legend-swatch {
+  width: 20px; height: 3px;
+  border-radius: 2px;
+}
+.readouts {
+  position: absolute;
+  bottom: 10px;
+  left: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+.readout-block { display: flex; flex-direction: column; gap: 2px; }
+.readout-block .label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.12em; }
+.readout-block .vals { display: flex; gap: 14px; }
+.readout-block .val { color: var(--sim-text); font-variant-numeric: tabular-nums; }
+.readout-block .val .num { font-weight: 600; }
+.readout-block .val .unit { color: var(--sim-muted); font-size: 0.62rem; margin-left: 2px; }
+.winner-badge {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  padding: 5px 12px;
+  border: 1px solid var(--c-cycloid);
+  border-radius: 999px;
+  color: var(--c-cycloid);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: rgba(77, 208, 225, 0.08);
+}
+.winner-badge.show { opacity: 1; }
+.insight-panel {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  max-width: 260px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 183, 77, 0.08);
+  color: #ffd591;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.insight-panel .insight-title {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--sim-warning);
+  margin-bottom: 4px;
+}
+.controls {
+  padding: 10px 24px 14px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--sim-surface);
+  border-top: 1px solid var(--sim-border);
+}
+.btn-group { display: flex; gap: 8px; }
+button {
+  background: transparent;
+  border: 1px solid var(--sim-border);
+  color: var(--sim-text);
+  padding: 8px 18px;
+  border-radius: var(--sim-radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+button:hover {
+  border-color: var(--c-cycloid);
+  color: var(--c-cycloid);
+}
+button.primary {
+  border-color: var(--c-cycloid);
+  color: var(--c-cycloid);
+  background: rgba(77, 208, 225, 0.08);
+}
+button.primary:hover {
+  background: rgba(77, 208, 225, 0.15);
+}
+button:focus-visible {
+  outline: 2px solid var(--c-cycloid);
+  outline-offset: 2px;
+}
+.slider-group {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+.slider-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.slider-block label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.05em;
+}
+.slider-block output {
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--c-cycloid);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--c-cycloid);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+}
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--c-cycloid);
+  outline-offset: 4px;
+}
+@media (max-width: 720px) {
+  .header { padding: 8px 14px; }
+  .header h1 { font-size: 0.95rem; }
+  .controls { padding: 8px 14px 12px; flex-wrap: wrap; gap: 12px; }
+  .slider-group { flex-wrap: wrap; gap: 12px; }
+  .slider-block { min-width: 100px; }
+  .readouts { font-size: 0.62rem; gap: 8px; }
+  .readout-block .vals { gap: 8px; }
+  .insight-panel { max-width: 180px; font-size: 0.65rem; padding: 8px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <h1>最速降线<span class="sep">·</span><span class="sub">三轨赛跑</span></h1>
+    <div id="status" class="status"><span class="dot"></span>就绪</div>
+  </header>
+  <div class="stage-wrap" data-region="stage">
+    <canvas id="stageCanvas"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--c-line)"></div>直线</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--c-arc)"></div>圆弧</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--c-cycloid)"></div>摆线（最速降线）</div>
+    </div>
+    <div id="winnerBadge" class="winner-badge">摆线最先到达</div>
+    <div class="insight-panel" data-region="insight">
+      <span class="insight-title">观察</span>
+      <span id="insightText">点击「开始」，观察三条轨道上的小球如何同时出发、先后到达终点。</span>
+    </div>
+    <div class="readouts" data-region="evidence">
+      <div class="readout-block">
+        <div class="label">路程</div>
+        <div class="vals">
+          <span class="val" style="color:var(--c-line)">直线 <span class="num" id="distLine">0.00</span><span class="unit">m</span></span>
+          <span class="val" style="color:var(--c-arc)">圆弧 <span class="num" id="distArc">0.00</span><span class="unit">m</span></span>
+          <span class="val" style="color:var(--c-cycloid)">摆线 <span class="num" id="distCyc">0.00</span><span class="unit">m</span></span>
+        </div>
+      </div>
+      <div class="readout-block">
+        <div class="label">速度</div>
+        <div class="vals">
+          <span class="val" style="color:var(--c-line)">直线 <span class="num" id="velLine">0.00</span><span class="unit">m/s</span></span>
+          <span class="val" style="color:var(--c-arc)">圆弧 <span class="num" id="velArc">0.00</span><span class="unit">m/s</span></span>
+          <span class="val" style="color:var(--c-cycloid)">摆线 <span class="num" id="velCyc">0.00</span><span class="unit">m/s</span></span>
+        </div>
+      </div>
+      <div class="readout-block">
+        <div class="label">时间</div>
+        <div class="vals">
+          <span class="val" style="color:var(--c-line)">直线 <span class="num" id="timeLine">—</span></span>
+          <span class="val" style="color:var(--c-arc)">圆弧 <span class="num" id="timeArc">—</span></span>
+          <span class="val" style="color:var(--c-cycloid)">摆线 <span class="num" id="timeCyc">—</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <section class="controls" data-region="controls">
+    <div class="btn-group">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="slider-group">
+      <div class="slider-block">
+        <label for="heightInput">高度差 <output id="heightOutput">0.60 m</output></label>
+        <input id="heightInput" type="range" min="0.20" max="1.50" step="0.05" value="0.60">
+      </div>
+      <div class="slider-block">
+        <label for="distInput">水平距离 <output id="distOutput">1.00 m</output></label>
+        <input id="distInput" type="range" min="0.50" max="2.00" step="0.05" value="1.00">
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const G = 9.81;
+  const PHYS_DT = 1 / 240;
+  const MAX_SIM_T = 3.0;
+  const HISTORY_LIMIT = 1200;
+
+  const COLORS = {
+    line: "#5b9bd5",
+    arc: "#f0a050",
+    cycloid: "#4dd0e1",
+    trackDim: "rgba(255,255,255,0.08)",
+    trackGlow: "rgba(255,255,255,0.04)",
+    grid: "#0e1525",
+    text: "#e8f0fc",
+    muted: "#5a6a7e",
+    axis: "#1a2538",
+    start: "#e8f0fc",
+    end: "#e8f0fc"
+  };
+
+  const state = {
+    running: false,
+    finished: false,
+    simTime: 0,
+    heightDiff: 0.60,
+    horizDist: 1.00,
+    lastFrameTime: null,
+    accumulator: 0,
+    balls: {
+      line: { s: 0, v: 0, finished: false, finishTime: null, history: [] },
+      arc: { s: 0, v: 0, finished: false, finishTime: null, history: [] },
+      cycloid: { s: 0, v: 0, finished: false, finishTime: null, history: [] }
+    },
+    tracks: null,
+    canvas: null,
+    ctx: null,
+    dpr: 1,
+    cssW: 0,
+    cssH: 0
+  };
+
+  const els = {
+    canvas: document.getElementById("stageCanvas"),
+    startBtn: document.getElementById("startBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    heightInput: document.getElementById("heightInput"),
+    heightOutput: document.getElementById("heightOutput"),
+    distInput: document.getElementById("distInput"),
+    distOutput: document.getElementById("distOutput"),
+    status: document.getElementById("status"),
+    winnerBadge: document.getElementById("winnerBadge"),
+    insightText: document.getElementById("insightText"),
+    distLine: document.getElementById("distLine"),
+    distArc: document.getElementById("distArc"),
+    distCyc: document.getElementById("distCyc"),
+    velLine: document.getElementById("velLine"),
+    velArc: document.getElementById("velArc"),
+    velCyc: document.getElementById("velCyc"),
+    timeLine: document.getElementById("timeLine"),
+    timeArc: document.getElementById("timeArc"),
+    timeCyc: document.getElementById("timeCyc")
+  };
+
+  // ---- Track geometry ----
+
+  function buildTracks(h, d) {
+    const tracks = {};
+
+    // Line track
+    const lineLen = Math.sqrt(h * h + d * d);
+    const lineAngle = Math.atan2(h, d);
+    tracks.line = {
+      length: lineLen,
+      angle: lineAngle,
+      getPoint: (s) => ({
+        x: (s / lineLen) * d,
+        y: (s / lineLen) * h
+      }),
+      getTangent: () => ({ dx: Math.cos(lineAngle), dy: Math.sin(lineAngle) }),
+      getSpeed: (s) => Math.sqrt(2 * G * (s / lineLen) * h),
+      totalTime: Math.sqrt(2 * lineLen / (G * Math.sin(lineAngle)))
+    };
+
+    // Arc track (circle centered below start, radius = distance to end)
+    const arcRadius = Math.sqrt(h * h + d * d);
+    const arcAngle = Math.atan2(d, h); // angle swept
+    const arcLen = arcRadius * arcAngle;
+    tracks.arc = {
+      length: arcLen,
+      radius: arcRadius,
+      totalAngle: arcAngle,
+      getPoint: (s) => {
+        const frac = s / arcLen;
+        const ang = frac * arcAngle;
+        return {
+          x: arcRadius * Math.sin(ang),
+          y: arcRadius * (1 - Math.cos(ang))
+        };
+      },
+      getTangent: (s) => {
+        const frac = s / arcLen;
+        const ang = frac * arcAngle;
+        return { dx: Math.cos(ang), dy: Math.sin(ang) };
+      },
+      getSpeed: (s) => {
+        const frac = s / arcLen;
+        const ang = frac * arcAngle;
+        const yDrop = arcRadius * (1 - Math.cos(ang));
+        return Math.sqrt(2 * G * yDrop);
+      },
+      totalTime: null // computed by integration
+    };
+
+    // Cycloid track
+    const a = solveCycloidA(h, d);
+    const thetaEnd = Math.acos(1 - h / a);
+    const cycloidArcToTheta = (s) => {
+      const val = 1 - s / (4 * a);
+      return 2 * Math.acos(Math.max(-1, Math.min(1, val)));
+    };
+    tracks.cycloid = {
+      length: 4 * a * (1 - Math.cos(thetaEnd / 2)),
+      a: a,
+      thetaEnd: thetaEnd,
+      getPoint: (s) => {
+        const theta = cycloidArcToTheta(s);
+        return {
+          x: a * (theta - Math.sin(theta)),
+          y: a * (1 - Math.cos(theta))
+        };
+      },
+      getTangent: (s) => {
+        const theta = cycloidArcToTheta(s);
+        const dx = a * (1 - Math.cos(theta));
+        const dy = a * Math.sin(theta);
+        const mag = Math.sqrt(dx * dx + dy * dy);
+        return { dx: dx / mag, dy: dy / mag };
+      },
+      getSpeed: (s) => {
+        const theta = cycloidArcToTheta(s);
+        const yDrop = a * (1 - Math.cos(theta));
+        return Math.sqrt(2 * G * yDrop);
+      },
+      totalTime: Math.sqrt(a / G) * Math.PI
+    };
+
+    // Compute arc total time by integration
+    let s = 0, v = 0, t = 0;
+    while (s < arcLen - 1e-9 && t < 10) {
+      const ang = (s / arcLen) * arcAngle;
+      const yDrop = arcRadius * (1 - Math.cos(ang));
+      v = Math.sqrt(Math.max(0, 2 * G * yDrop));
+      if (v < 1e-6) { t = Infinity; break; }
+      const ds = v * PHYS_DT;
+      s += ds;
+      t += PHYS_DT;
+    }
+    tracks.arc.totalTime = t;
+
+    return tracks;
+  }
+
+  function solveCycloidA(h, d) {
+    const ratio = h / d;
+    let theta = 2.0;
+    for (let iter = 0; iter < 100; iter++) {
+      const f = (1 - Math.cos(theta)) / (theta - Math.sin(theta)) - ratio;
+      const dfNum = (Math.sin(theta) * (theta - Math.sin(theta))) - ((1 - Math.cos(theta)) * (1 - Math.cos(theta)));
+      const dfDen = (theta - Math.sin(theta)) * (theta - Math.sin(theta));
+      if (Math.abs(dfDen) < 1e-15) break;
+      const df = dfNum / dfDen;
+      if (Math.abs(df) < 1e-15) break;
+      const newTheta = theta - f / df;
+      if (Math.abs(newTheta - theta) < 1e-12) { theta = newTheta; break; }
+      theta = Math.max(0.01, newTheta);
+    }
+    const a = h / (1 - Math.cos(theta));
+    return a;
+  }
+
+  // ---- Physics step ----
+
+  function stepPhysics(dt) {
+    const tracks = state.tracks;
+    const balls = state.balls;
+
+    // Line ball
+    if (!balls.line.finished) {
+      const angle = tracks.line.angle;
+      const accel = G * Math.sin(angle);
+      balls.line.v += accel * dt;
+      balls.line.s += balls.line.v * dt;
+      if (balls.line.s >= tracks.line.length) {
+        balls.line.s = tracks.line.length;
+        balls.line.finished = true;
+        balls.line.finishTime = state.simTime;
+      }
+    }
+
+    // Arc ball
+    if (!balls.arc.finished) {
+      const s = balls.arc.s;
+      const frac = s / tracks.arc.length;
+      const ang = frac * tracks.arc.totalAngle;
+      const yDrop = tracks.arc.radius * (1 - Math.cos(ang));
+      const v2 = 2 * G * yDrop;
+      balls.arc.v = Math.sqrt(Math.max(0, v2));
+      const ds = balls.arc.v * dt;
+      balls.arc.s += ds;
+      if (balls.arc.s >= tracks.arc.length) {
+        balls.arc.s = tracks.arc.length;
+        balls.arc.finished = true;
+        balls.arc.finishTime = state.simTime;
+      }
+    }
+
+    // Cycloid ball
+    if (!balls.cycloid.finished) {
+      const s = balls.cycloid.s;
+      const theta = sToTheta(s, tracks.cycloid.a);
+      const yDrop = tracks.cycloid.a * (1 - Math.cos(theta));
+      const v2 = 2 * G * yDrop;
+      balls.cycloid.v = Math.sqrt(Math.max(0, v2));
+      const ds = balls.cycloid.v * dt;
+      balls.cycloid.s += ds;
+      if (balls.cycloid.s >= tracks.cycloid.length) {
+        balls.cycloid.s = tracks.cycloid.length;
+        balls.cycloid.finished = true;
+        balls.cycloid.finishTime = state.simTime;
+      }
+    }
+
+    // Record history for v-t chart
+    if (state.simTime - (balls.line.history.length > 0 ? balls.line.history[balls.line.history.length - 1].t : -1) >= 0.01) {
+      const rec = { t: state.simTime, vLine: balls.line.v, vArc: balls.arc.v, vCyc: balls.cycloid.v };
+      balls.line.history.push(rec);
+      if (balls.line.history.length > HISTORY_LIMIT) balls.line.history.shift();
+    }
+
+    state.simTime += dt;
+
+    // Check all finished
+    if (balls.line.finished && balls.arc.finished && balls.cycloid.finished && !state.finished) {
+      state.finished = true;
+      state.running = false;
+      els.status.className = "status done";
+      els.status.innerHTML = '<span class="dot"></span>完成';
+      els.startBtn.textContent = "开始";
+      els.winnerBadge.classList.add("show");
+    }
+  }
+
+  function sToTheta(s, a) {
+    const val = 1 - s / (4 * a);
+    return 2 * Math.acos(Math.max(-1, Math.min(1, val)));
+  }
+
+  // ---- Rendering ----
+
+  function resizeCanvas() {
+    const rect = els.canvas.parentElement.getBoundingClientRect();
+    state.dpr = window.devicePixelRatio || 1;
+    state.cssW = rect.width;
+    state.cssH = rect.height;
+    els.canvas.width = Math.round(rect.width * state.dpr);
+    els.canvas.height = Math.round(rect.height * state.dpr);
+    els.canvas.style.width = rect.width + "px";
+    els.canvas.style.height = rect.height + "px";
+    state.ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  }
+
+  function getLayout() {
+    const w = state.cssW;
+    const h = state.cssH;
+    const padTop = 40;
+    const padBottom = 90;
+    const padLeft = 50;
+    const padRight = 50;
+    const sceneH = h - padTop - padBottom;
+    const sceneW = w - padLeft - padRight;
+    const trackOffsetY = [0, -16, -32];
+    return { w, h, padTop, padBottom, padLeft, padRight, sceneH, sceneW, trackOffsetY };
+  }
+
+  function worldToScreen(wx, wy, layout, trackIndex) {
+    const scaleX = layout.sceneW / state.horizDist;
+    const scaleY = layout.sceneH / state.heightDiff;
+    const scale = Math.min(scaleX, scaleY) * 0.92;
+    const offsetX = layout.padLeft;
+    const offsetY = layout.padTop + layout.sceneH;
+    const sx = offsetX + wx * scale;
+    const sy = offsetY - wy * scale + layout.trackOffsetY[trackIndex];
+    return { x: sx, y: sy, scale };
+  }
+
+  function render() {
+    const ctx = state.ctx;
+    const layout = getLayout();
+    const w = layout.w;
+    const h = layout.h;
+
+    ctx.fillStyle = "#050810";
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    ctx.beginPath();
+    for (let x = 0; x < w; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y < h; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+
+    drawTrack(ctx, layout, "line", 0, COLORS.line);
+    drawTrack(ctx, layout, "arc", 1, COLORS.arc);
+    drawTrack(ctx, layout, "cycloid", 2, COLORS.cycloid);
+
+    const startScreen = worldToScreen(0, 0, layout, 0);
+    const endScreen = worldToScreen(state.horizDist, state.heightDiff, layout, 0);
+
+    ctx.fillStyle = COLORS.start;
+    ctx.beginPath();
+    ctx.arc(startScreen.x, startScreen.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(startScreen.x, startScreen.y, 8, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.end;
+    ctx.beginPath();
+    ctx.arc(endScreen.x, endScreen.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.beginPath();
+    ctx.arc(endScreen.x, endScreen.y, 8, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("A", startScreen.x - 12, startScreen.y + 4);
+    ctx.textAlign = "left";
+    ctx.fillText("B", endScreen.x + 12, endScreen.y + 4);
+
+    drawBall(ctx, layout, "line", 0, COLORS.line);
+    drawBall(ctx, layout, "arc", 1, COLORS.arc);
+    drawBall(ctx, layout, "cycloid", 2, COLORS.cycloid);
+
+    drawVelocityChart(ctx, layout);
+  }
+
+  function drawTrack(ctx, layout, type, trackIndex, color) {
+    const track = state.tracks[type];
+    const steps = 120;
+    const points = [];
+    for (let i = 0; i <= steps; i++) {
+      const s = (i / steps) * track.length;
+      const p = track.getPoint(s);
+      const screen = worldToScreen(p.x, p.y, layout, trackIndex);
+      points.push(screen);
+    }
+
+    ctx.strokeStyle = COLORS.trackDim;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+      if (i === 0) ctx.moveTo(points[i].x, points[i].y);
+      else ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.25;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+      if (i === 0) ctx.moveTo(points[i].x, points[i].y);
+      else ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+
+    const ball = state.balls[type];
+    const traveledSteps = Math.max(2, Math.floor((ball.s / track.length) * steps));
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i <= traveledSteps && i < points.length; i++) {
+      if (i === 0) ctx.moveTo(points[i].x, points[i].y);
+      else ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+  }
+
+  function drawBall(ctx, layout, type, trackIndex, color) {
+    const ball = state.balls[type];
+    const track = state.tracks[type];
+    const p = track.getPoint(ball.s);
+    const screen = worldToScreen(p.x, p.y, layout, trackIndex);
+
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.15;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 7, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 7, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.beginPath();
+    ctx.arc(screen.x - 1.5, screen.y - 1.5, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawVelocityChart(ctx, layout) {
+    const chartTop = layout.h - layout.padBottom + 14;
+    const chartBottom = layout.h - 10;
+    const chartLeft = layout.padLeft;
+    const chartRight = layout.w - layout.padRight;
+    const chartW = chartRight - chartLeft;
+    const chartH = chartBottom - chartTop;
+
+    if (chartH < 30) return;
+
+    ctx.fillStyle = "rgba(10, 16, 32, 0.6)";
+    ctx.fillRect(chartLeft, chartTop, chartW, chartH);
+
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(chartLeft, chartTop, chartW, chartH);
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("速度 v (m/s)", chartLeft + 6, chartTop + 12);
+    ctx.textAlign = "right";
+    ctx.fillText("时间 t (s)", chartRight - 6, chartBottom - 4);
+
+    const maxT = Math.max(state.simTime, 1.0, getMaxFinishTime() * 1.05);
+    const maxV = Math.sqrt(2 * G * state.heightDiff) * 1.15;
+
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < 4; i++) {
+      const y = chartTop + (i / 4) * chartH;
+      ctx.beginPath();
+      ctx.moveTo(chartLeft, y);
+      ctx.lineTo(chartRight, y);
+      ctx.stroke();
+    }
+    for (let i = 1; i < 5; i++) {
+      const x = chartLeft + (i / 5) * chartW;
+      ctx.beginPath();
+      ctx.moveTo(x, chartTop);
+      ctx.lineTo(x, chartBottom);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(maxV.toFixed(1), chartLeft + 4, chartTop + 10);
+    ctx.fillText("0", chartLeft + 4, chartBottom - 4);
+    ctx.textAlign = "center";
+    ctx.fillText((maxT / 2).toFixed(2), chartLeft + chartW / 2, chartBottom + 10);
+    ctx.textAlign = "right";
+    ctx.fillText(maxT.toFixed(2), chartRight - 4, chartBottom + 10);
+
+    const history = state.balls.line.history;
+    if (history.length < 2) return;
+
+    const drawCurve = (key, color) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      let started = false;
+      for (let i = 0; i < history.length; i++) {
+        const rec = history[i];
+        const x = chartLeft + (rec.t / maxT) * chartW;
+        const y = chartBottom - (rec[key] / maxV) * chartH;
+        if (!started) { ctx.moveTo(x, y); started = true; }
+        else ctx.lineTo(x, y);
+      }
+      const curX = chartLeft + (state.simTime / maxT) * chartW;
+      const ball = state.balls[key === "vLine" ? "line" : key === "vArc" ? "arc" : "cycloid"];
+      const curY = chartBottom - (ball.v / maxV) * chartH;
+      if (started) ctx.lineTo(curX, curY);
+      ctx.stroke();
+
+      if (started) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(curX, curY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+
+    drawCurve("vLine", COLORS.line);
+    drawCurve("vArc", COLORS.arc);
+    drawCurve("vCyc", COLORS.cycloid);
+  }
+
+  function getMaxFinishTime() {
+    const times = [];
+    if (state.balls.line.finishTime) times.push(state.balls.line.finishTime);
+    if (state.balls.arc.finishTime) times.push(state.balls.arc.finishTime);
+    if (state.balls.cycloid.finishTime) times.push(state.balls.cycloid.finishTime);
+    if (state.tracks) {
+      times.push(state.tracks.line.totalTime);
+      times.push(state.tracks.arc.totalTime);
+      times.push(state.tracks.cycloid.totalTime);
+    }
+    return times.length > 0 ? Math.max(...times) : 1.0;
+  }
+
+  // ---- UI updates ----
+
+  function updateReadouts() {
+    const t = state.tracks;
+    const b = state.balls;
+    els.distLine.textContent = b.line.s.toFixed(2);
+    els.distArc.textContent = b.arc.s.toFixed(2);
+    els.distCyc.textContent = b.cycloid.s.toFixed(2);
+    els.velLine.textContent = b.line.v.toFixed(2);
+    els.velArc.textContent = b.arc.v.toFixed(2);
+    els.velCyc.textContent = b.cycloid.v.toFixed(2);
+    els.timeLine.textContent = b.line.finishTime !== null ? b.line.finishTime.toFixed(3) + " s" : "—";
+    els.timeArc.textContent = b.arc.finishTime !== null ? b.arc.finishTime.toFixed(3) + " s" : "—";
+    els.timeCyc.textContent = b.cycloid.finishTime !== null ? b.cycloid.finishTime.toFixed(3) + " s" : "—";
+
+    if (state.finished) {
+      els.insightText.textContent = "摆线最先到达终点：它先陡降获取速度，再平缓滑行，总用时最短。";
+    } else if (state.running) {
+      els.insightText.textContent = "摆线轨道先陡后缓，小球早期加速更快，因此始终领先。";
+    } else if (state.simTime === 0) {
+      els.insightText.textContent = "点击「开始」，观察三条轨道上的小球如何同时出发、先后到达终点。";
+    } else {
+      els.insightText.textContent = "已暂停。继续观察三条轨道的速度差异。";
+    }
+  }
+
+  // ---- Lifecycle ----
+
+  function init() {
+    state.ctx = els.canvas.getContext("2d");
+    resizeCanvas();
+    state.tracks = buildTracks(state.heightDiff, state.horizDist);
+    bindControls();
+    reset();
+    requestAnimationFrame(frame);
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      render();
+    });
+  }
+
+  function start() {
+    if (state.finished) {
+      reset();
+    }
+    state.running = true;
+    state.lastFrameTime = null;
+    els.status.className = "status running";
+    els.status.innerHTML = '<span class="dot"></span>运行中';
+    els.startBtn.textContent = "暂停";
+  }
+
+  function pause() {
+    state.running = false;
+    els.status.className = "status";
+    els.status.innerHTML = '<span class="dot"></span>暂停';
+    els.startBtn.textContent = "继续";
+  }
+
+  function reset() {
+    state.running = false;
+    state.finished = false;
+    state.simTime = 0;
+    state.lastFrameTime = null;
+    state.accumulator = 0;
+    state.balls.line = { s: 0, v: 0, finished: false, finishTime: null, history: [] };
+    state.balls.arc = { s: 0, v: 0, finished: false, finishTime: null, history: [] };
+    state.balls.cycloid = { s: 0, v: 0, finished: false, finishTime: null, history: [] };
+    els.status.className = "status";
+    els.status.innerHTML = '<span class="dot"></span>就绪';
+    els.startBtn.textContent = "开始";
+    els.winnerBadge.classList.remove("show");
+    render();
+    updateReadouts();
+  }
+
+  function setParameters(values) {
+    if (values.heightDiff !== undefined) {
+      state.heightDiff = Math.max(0.20, Math.min(1.50, Number(values.heightDiff) || 0.60));
+      els.heightInput.value = String(state.heightDiff);
+      els.heightOutput.textContent = state.heightDiff.toFixed(2) + " m";
+    }
+    if (values.horizDist !== undefined) {
+      state.horizDist = Math.max(0.50, Math.min(2.00, Number(values.horizDist) || 1.00));
+      els.distInput.value = String(state.horizDist);
+      els.distOutput.textContent = state.horizDist.toFixed(2) + " m";
+    }
+    state.tracks = buildTracks(state.heightDiff, state.horizDist);
+    reset();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      simTime: state.simTime,
+      heightDiff: state.heightDiff,
+      horizDist: state.horizDist,
+      balls: {
+        line: { ...state.balls.line },
+        arc: { ...state.balls.arc },
+        cycloid: { ...state.balls.cycloid }
+      }
+    };
+  }
+
+  function getReadouts() {
+    return {
+      simTime: state.simTime,
+      lineDist: state.balls.line.s,
+      arcDist: state.balls.arc.s,
+      cycloidDist: state.balls.cycloid.s,
+      lineVel: state.balls.line.v,
+      arcVel: state.balls.arc.v,
+      cycloidVel: state.balls.cycloid.v,
+      lineFinishTime: state.balls.line.finishTime,
+      arcFinishTime: state.balls.arc.finishTime,
+      cycloidFinishTime: state.balls.cycloid.finishTime
+    };
+  }
+
+  function runModelChecks() {
+    const h = 0.60, d = 1.00;
+    const tracks = buildTracks(h, d);
+
+    const a = tracks.cycloid.a;
+    const analyticT = Math.PI * Math.sqrt(a / G);
+    let s = 0, t = 0;
+    while (s < tracks.cycloid.length - 1e-9 && t < 10) {
+      const theta = sToTheta(s, a);
+      const yDrop = a * (1 - Math.cos(theta));
+      const v = Math.sqrt(Math.max(0, 2 * G * yDrop));
+      if (v < 1e-6) break;
+      s += v * PHYS_DT;
+      t += PHYS_DT;
+    }
+    const cycloidError = Math.abs(t - analyticT);
+
+    const lineAnalytic = tracks.line.totalTime;
+    let s2 = 0, t2 = 0, v2 = 0;
+    while (s2 < tracks.line.length - 1e-9 && t2 < 10) {
+      v2 += G * Math.sin(tracks.line.angle) * PHYS_DT;
+      s2 += v2 * PHYS_DT;
+      t2 += PHYS_DT;
+    }
+    const lineError = Math.abs(t2 - lineAnalytic);
+
+    const expectedV = Math.sqrt(2 * G * h);
+    const arcVFinal = tracks.arc.getSpeed(tracks.arc.length);
+    const cycloidVFinal = tracks.cycloid.getSpeed(tracks.cycloid.length);
+    const energyOk = Math.abs(arcVFinal - expectedV) < 0.01 && Math.abs(cycloidVFinal - expectedV) < 0.01;
+
+    const cycloidFaster = analyticT < lineAnalytic && analyticT < tracks.arc.totalTime;
+
+    const tracks2 = buildTracks(1.0, 0.5);
+    const a2 = tracks2.cycloid.a;
+    const analyticT2 = Math.PI * Math.sqrt(a2 / G);
+    const cycloidFaster2 = analyticT2 < tracks2.line.totalTime && analyticT2 < tracks2.arc.totalTime;
+
+    let sCoarse = 0, tCoarse = 0;
+    const coarseDt = 1/60;
+    while (sCoarse < tracks.cycloid.length - 1e-9 && tCoarse < 10) {
+      const theta = sToTheta(sCoarse, a);
+      const yDrop = a * (1 - Math.cos(theta));
+      const v = Math.sqrt(Math.max(0, 2 * G * yDrop));
+      if (v < 1e-6) break;
+      sCoarse += v * coarseDt;
+      tCoarse += coarseDt;
+    }
+    const coarseError = Math.abs(tCoarse - analyticT);
+
+    return [
+      { name: "cycloid time vs analytic", pass: cycloidError < 0.005, expected: analyticT.toFixed(4), actual: t.toFixed(4), tolerance: 0.005 },
+      { name: "line time vs analytic", pass: lineError < 0.01, expected: lineAnalytic.toFixed(4), actual: t2.toFixed(4), tolerance: 0.01 },
+      { name: "energy conservation at endpoint", pass: energyOk, expected: expectedV.toFixed(4), actual: `arc=${arcVFinal.toFixed(4)}, cyc=${cycloidVFinal.toFixed(4)}`, tolerance: 0.01 },
+      { name: "cycloid fastest (h=0.6, d=1.0)", pass: cycloidFaster, expected: "cycloid < line < arc", actual: `cyc=${analyticT.toFixed(4)}, line=${lineAnalytic.toFixed(4)}, arc=${tracks.arc.totalTime.toFixed(4)}`, tolerance: "strict" },
+      { name: "cycloid fastest (h=1.0, d=0.5)", pass: cycloidFaster2, expected: "cycloid < line, cycloid < arc", actual: `cyc=${analyticT2.toFixed(4)}, line=${tracks2.line.totalTime.toFixed(4)}, arc=${tracks2.arc.totalTime.toFixed(4)}`, tolerance: "strict" },
+      { name: "step-halving convergence", pass: cycloidError < coarseError, expected: "fine error < coarse error", actual: `${cycloidError.toFixed(6)} < ${coarseError.toFixed(6)}`, tolerance: "strict" }
+    ];
+  }
+
+  function bindControls() {
+    els.startBtn.addEventListener("click", () => {
+      if (state.running) pause();
+      else start();
+    });
+    els.resetBtn.addEventListener("click", reset);
+    els.heightInput.addEventListener("input", () => {
+      setParameters({ heightDiff: els.heightInput.value });
+    });
+    els.distInput.addEventListener("input", () => {
+      setParameters({ horizDist: els.distInput.value });
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastFrameTime === null) state.lastFrameTime = timestamp;
+    const realDt = (timestamp - state.lastFrameTime) / 1000;
+    state.lastFrameTime = timestamp;
+    const dtClamped = Math.min(0.05, Math.max(0, realDt));
+
+    if (state.running) {
+      state.accumulator += dtClamped;
+      while (state.accumulator >= PHYS_DT) {
+        stepPhysics(PHYS_DT);
+        state.accumulator -= PHYS_DT;
+        if (state.finished) { state.accumulator = 0; break; }
+      }
+    }
+
+    render();
+    updateReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update: stepPhysics, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

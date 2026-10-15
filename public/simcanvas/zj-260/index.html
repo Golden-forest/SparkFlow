@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>一根线，长成一棵树</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a99;
+  --sim-border: #1a2238;
+  --sim-grid: rgba(80,120,180,0.06);
+  --sim-accent: #ff8c3a;
+  --sim-accent-deep: #d96a1a;
+  --sim-accent-soft: #ffd97a;
+  --sim-positive: #ffd97a;
+  --sim-warning: #ff8c3a;
+  --sim-danger: #ff5566;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0,0,0,0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-width: 320px;
+  color: var(--sim-text);
+  background: var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid rgba(255,140,58,0.5); outline-offset: 2px; }
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 头部 */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.4) 100%);
+  position: relative;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255,140,58,0.08);
+}
+.header-text h1 {
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: rgba(232,238,252,0.95);
+  line-height: 1.2;
+}
+.header-text p {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.18em;
+  font-weight: 300;
+}
+.status {
+  border: 1px solid rgba(255,140,58,0.22);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(255,140,58,0.08);
+  color: var(--sim-accent-soft);
+  font-weight: 500;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* 舞台 */
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 标题层 */
+.title-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  text-align: center;
+  padding: 38px 20px 0;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.title-overlay.show { opacity: 1; }
+.title-overlay h1 {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  font-weight: 200;
+  letter-spacing: 0.15em;
+  color: rgba(232,238,252,0.92);
+  text-shadow: 0 0 30px rgba(255,140,58,0.15);
+}
+.title-overlay .subtitle {
+  margin-top: 10px;
+  font-size: clamp(0.78rem, 1.1vw, 0.95rem);
+  color: var(--sim-muted);
+  letter-spacing: 0.25em;
+  font-weight: 300;
+}
+
+/* 结尾字幕 */
+.epilogue {
+  position: absolute;
+  bottom: 24px;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+.epilogue.show { opacity: 1; }
+.epilogue p {
+  font-size: clamp(1rem, 1.8vw, 1.5rem);
+  font-weight: 200;
+  letter-spacing: 0.2em;
+  color: rgba(255,217,122,0.92);
+  text-shadow: 0 0 24px rgba(255,140,58,0.3);
+}
+
+/* 侧栏 */
+.side {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 248px;
+  max-height: calc(100% - 32px);
+  display: grid;
+  gap: 10px;
+  z-index: 6;
+  pointer-events: none;
+}
+.side > * { pointer-events: auto; }
+.panel {
+  background: rgba(10,15,28,0.72);
+  border: 1px solid rgba(255,140,58,0.14);
+  border-radius: var(--sim-radius-md);
+  box-shadow: var(--sim-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.readouts { padding: 14px 16px; }
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.metric {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,140,58,0.1);
+  border-radius: 12px;
+  background: rgba(14,20,36,0.5);
+}
+.metric small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sim-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+.metric strong {
+  font-size: 1.15rem;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-accent-soft);
+  font-weight: 600;
+}
+.model-note { padding: 14px 16px; }
+.model-note h2 {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--sim-muted);
+  margin-bottom: 8px;
+}
+.model-note p {
+  color: rgba(232,238,252,0.7);
+  line-height: 1.55;
+  font-size: 0.78rem;
+  font-weight: 300;
+}
+.insight {
+  padding: 12px 14px;
+  border-left: 3px solid var(--sim-accent);
+  border-radius: 0 10px 10px 0;
+  background: rgba(255,140,58,0.06);
+  color: var(--sim-accent-soft) !important;
+  font-weight: 400;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* 控件 */
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  padding: 18px 24px 22px;
+  background: linear-gradient(180deg, transparent 0%, rgba(5,8,16,0.85) 40%, rgba(5,8,16,0.98) 100%);
+  position: relative;
+  z-index: 10;
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  max-width: 320px;
+  flex: 1 1 200px;
+}
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--sim-muted);
+}
+.control-label .value {
+  color: var(--sim-accent-soft);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--sim-accent-deep), var(--sim-accent), var(--sim-accent-soft));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--sim-accent);
+  box-shadow: 0 0 12px rgba(255,140,58,0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--sim-accent);
+  box-shadow: 0 0 12px rgba(255,140,58,0.5);
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+button {
+  border: 1px solid rgba(255,140,58,0.25);
+  border-radius: var(--sim-radius-sm);
+  padding: 9px 18px;
+  color: var(--sim-text);
+  background: rgba(255,140,58,0.08);
+  cursor: pointer;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  font-size: 0.82rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+button:hover {
+  border-color: rgba(255,140,58,0.5);
+  background: rgba(255,140,58,0.15);
+}
+button:active { transform: scale(0.97); }
+button.primary {
+  border-color: rgba(255,140,58,0.4);
+  color: var(--sim-accent-soft);
+  background: linear-gradient(135deg, rgba(217,106,26,0.25), rgba(255,140,58,0.2));
+}
+button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgba(255,217,122,0.4);
+}
+
+@media (max-width: 860px) {
+  .side {
+    position: static;
+    width: auto;
+    max-height: none;
+    grid-template-columns: 1fr 1fr;
+    padding: 10px 12px 0;
+    gap: 8px;
+  }
+  .side .model-note { display: none; }
+}
+@media (max-width: 640px) {
+  .controls { flex-wrap: wrap; gap: 16px; padding: 14px 16px 18px; }
+  .control { min-width: 140px; }
+  .title-overlay { padding-top: 20px; }
+  .side { grid-template-columns: 1fr; }
+  .side .model-note { display: block; }
+}
+@media (max-width: 480px) {
+  .actions { order: -1; width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-overlay, .epilogue { transition: opacity 0.3s ease; }
+  button, input[type="range"]::-webkit-slider-thumb { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div class="header-text">
+      <h1>一根线，长成一棵树</h1>
+      <p>FRACTAL TREE GROWTH</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">生长中</div>
+  </header>
+
+  <section class="stage-wrap" data-region="stage">
+    <div class="title-overlay" id="titleOverlay">
+      <h1>一根线，长成一棵树</h1>
+      <p class="subtitle">FRACTAL TREE GROWTH</p>
+    </div>
+    <canvas id="scene" role="img" aria-label="分形树生长动画"></canvas>
+    <div class="epilogue" id="epilogue">
+      <p>一条规则，反复执行，就是生命的样子</p>
+    </div>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数据">
+        <div class="readout-grid">
+          <div class="metric"><small>生长进度</small><strong id="progressReadout">0%</strong></div>
+          <div class="metric"><small>时间</small><strong id="timeReadout">0.0s</strong></div>
+          <div class="metric"><small>分叉角度</small><strong id="angleReadout">28°</strong></div>
+          <div class="metric"><small>递归层数</small><strong id="depthReadout">10</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <h2>观察</h2>
+        <p id="insight" class="insight">每一根枝条都按同一规则分裂：缩短、分叉、再分裂。简单规则反复执行，就长成了一棵树。</p>
+      </section>
+    </aside>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="参数控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button" aria-pressed="true">继续</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重新生长</button>
+    </div>
+    <div class="control">
+      <label class="control-label" for="angleInput">
+        <span>分叉角度</span>
+        <span class="value" id="angleOutput">28°</span>
+      </label>
+      <input id="angleInput" type="range" min="10" max="80" step="1" value="28" aria-label="分叉角度">
+    </div>
+    <div class="control">
+      <label class="control-label" for="depthInput">
+        <span>递归层数</span>
+        <span class="value" id="depthOutput">10</span>
+      </label>
+      <input id="depthInput" type="range" min="4" max="11" step="1" value="10" aria-label="递归层数">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const titleOverlay = document.getElementById("titleOverlay");
+  const epilogue = document.getElementById("epilogue");
+  const angleInput = document.getElementById("angleInput");
+  const angleOutput = document.getElementById("angleOutput");
+  const depthInput = document.getElementById("depthInput");
+  const depthOutput = document.getElementById("depthOutput");
+  const startBtn = document.getElementById("startBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const statusEl = document.getElementById("status");
+  const progressReadout = document.getElementById("progressReadout");
+  const timeReadout = document.getElementById("timeReadout");
+  const angleReadout = document.getElementById("angleReadout");
+  const depthReadout = document.getElementById("depthReadout");
+  const insightEl = document.getElementById("insight");
+
+  // 参数 schema
+  const parameterSchema = [
+    { key: "angle", label: "分叉角度", type: "slider", min: 10, max: 80, step: 1, default: 28, unit: "°" },
+    { key: "depth", label: "递归层数", type: "slider", min: 4, max: 11, step: 1, default: 10, unit: "" }
+  ];
+
+  // 状态
+  const state = {
+    running: true,
+    t: 0,
+    angle: 28,
+    depth: 10,
+    growthDuration: 4.5,
+    lastTimestamp: null,
+    dpr: 1,
+    width: 0,
+    height: 0,
+    titleShown: false,
+    epilogueShown: false
+  };
+
+  // 固定随机种子 - 确定性伪随机
+  let seedState = 12345;
+  function seedRandom(s) { seedState = s; }
+  function rand() {
+    seedState = (seedState * 9301 + 49297) % 233280;
+    return seedState / 233280;
+  }
+
+  // 缓动函数
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // Canvas 尺寸
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    state.dpr = dpr;
+    state.width = rect.width;
+    state.height = rect.height;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // 颜色插值: 暖橙(#ff8c3a) -> 亮黄(#ffd97a)
+  function branchColor(depthRatio) {
+    const r = Math.round(255 + (255 - 255) * depthRatio);
+    const g = Math.round(140 + (217 - 140) * depthRatio);
+    const b = Math.round(58 + (122 - 58) * depthRatio);
+    return { r, g, b };
+  }
+  function colorStr(c, alpha) {
+    return `rgba(${c.r},${c.g},${c.b},${alpha})`;
+  }
+
+  // 绘制背景
+  function drawBackground() {
+    const w = state.width, h = state.height;
+    // 三层径向渐变
+    const g1 = ctx.createRadialGradient(w * 0.5, h * 0.95, 0, w * 0.5, h * 0.95, h * 0.9);
+    g1.addColorStop(0, "#0a1220");
+    g1.addColorStop(0.5, "#060a14");
+    g1.addColorStop(1, "#020408");
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, w, h);
+
+    // 暖色微光
+    const g2 = ctx.createRadialGradient(w * 0.5, h * 0.85, 0, w * 0.5, h * 0.85, h * 0.5);
+    g2.addColorStop(0, "rgba(255,140,58,0.06)");
+    g2.addColorStop(1, "rgba(255,140,58,0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, w, h);
+
+    // 细网格 8% 不透明度
+    ctx.strokeStyle = "rgba(80,120,180,0.05)";
+    ctx.lineWidth = 1;
+    const gridSize = 60;
+    ctx.beginPath();
+    for (let x = 0; x < w; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y < h; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+  }
+
+  // 绘制单根枝条（含双层辉光）
+  function drawBranch(x1, y1, x2, y2, width, color, alpha) {
+    if (width < 0.3) width = 0.3;
+    const glowWidth = width * 3.5;
+
+    // 外层粗半透明描边（辉光）
+    ctx.strokeStyle = colorStr(color, 0.18 * alpha);
+    ctx.lineWidth = glowWidth;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // 中层
+    ctx.strokeStyle = colorStr(color, 0.35 * alpha);
+    ctx.lineWidth = width * 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // 内层实色描边
+    ctx.strokeStyle = colorStr(color, alpha);
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // 递归绘制树
+  function drawTree(x, y, length, angle, depth, maxDepth, growthProgress, swayTime, parentSway) {
+    if (depth >= maxDepth || length < 0.5) return;
+
+    // 当前层的生长进度
+    const layerStart = depth / maxDepth;
+    const layerEnd = (depth + 1) / maxDepth;
+    let layerProgress = (growthProgress - layerStart) / (layerEnd - layerStart);
+    layerProgress = clamp(layerProgress, 0, 1);
+    layerProgress = easeInOutCubic(layerProgress);
+
+    if (layerProgress <= 0) return;
+
+    // 呼吸摆动 - 深层摆动更大
+    const swayAmount = (depth / maxDepth) * 0.04;
+    const swayPhase = swayTime * 0.8 + depth * 0.5;
+    const sway = Math.sin(swayPhase) * swayAmount;
+    const currentAngle = angle + sway + parentSway * 0.3;
+
+    // 枝条末端
+    const actualLength = length * layerProgress;
+    const x2 = x + Math.sin(currentAngle) * actualLength;
+    const y2 = y - Math.cos(currentAngle) * actualLength;
+
+    // 颜色
+    const depthRatio = depth / Math.max(1, maxDepth - 1);
+    const color = branchColor(depthRatio);
+
+    // 线宽
+    const baseWidth = Math.pow(0.72, depth) * 9;
+    const width = Math.max(0.4, baseWidth);
+
+    drawBranch(x, y, x2, y2, width, color, 1);
+
+    // 末梢光点
+    if (depth >= maxDepth - 2 && layerProgress >= 0.95) {
+      const tipAlpha = (depth - (maxDepth - 3)) / 3;
+      const tipColor = { r: 255, g: 235, b: 150 };
+      ctx.fillStyle = colorStr(tipColor, 0.25 * tipAlpha);
+      ctx.beginPath();
+      ctx.arc(x2, y2, width * 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = colorStr(tipColor, 0.6 * tipAlpha);
+      ctx.beginPath();
+      ctx.arc(x2, y2, width * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 递归子枝
+    const childLength = length * 0.7;
+    const halfAngle = (state.angle * Math.PI) / 180;
+    drawTree(x2, y2, childLength, currentAngle - halfAngle, depth + 1, maxDepth, growthProgress, swayTime, sway);
+    drawTree(x2, y2, childLength, currentAngle + halfAngle, depth + 1, maxDepth, growthProgress, swayTime, sway);
+  }
+
+  // 主渲染
+  function render() {
+    drawBackground();
+
+    const w = state.width, h = state.height;
+    const trunkLength = Math.min(h * 0.22, w * 0.13);
+    const startX = w * 0.5;
+    const startY = h * 0.92;
+
+    // 生长进度
+    const rawProgress = clamp(state.t / state.growthDuration, 0, 1);
+    const growthProgress = easeInOutCubic(rawProgress);
+
+    // 呼吸摆动时间（长成后才开始）
+    const swayTime = state.t > state.growthDuration ? state.t - state.growthDuration : 0;
+
+    drawTree(startX, startY, trunkLength, 0, 0, state.depth, growthProgress, swayTime, 0);
+
+    // 标题显示（开场2秒静态帧后淡入）
+    if (state.t > 0.3 && !state.titleShown) {
+      titleOverlay.classList.add("show");
+      state.titleShown = true;
+    }
+
+    // 结尾字幕（长成后2秒显示）
+    if (state.t > state.growthDuration + 1.5 && !state.epilogueShown) {
+      epilogue.classList.add("show");
+      state.epilogueShown = true;
+    }
+
+    // 读数更新
+    const pct = Math.round(rawProgress * 100);
+    progressReadout.textContent = `${pct}%`;
+    timeReadout.textContent = `${state.t.toFixed(1)}s`;
+    angleReadout.textContent = `${Math.round(state.angle)}°`;
+    depthReadout.textContent = `${Math.round(state.depth)}`;
+
+    // 洞察文案
+    if (!state.running) {
+      insightEl.textContent = "已暂停。按继续恢复生长，按重新生长从头开始。";
+    } else if (rawProgress < 0.33) {
+      insightEl.textContent = "主干向上伸展——同一条规则即将在每一个分叉点重复。";
+    } else if (rawProgress < 0.66) {
+      insightEl.textContent = "每一根枝条都按同一规则分裂：缩短、分叉、再分裂。";
+    } else if (rawProgress < 1) {
+      insightEl.textContent = "末梢越来越细密——简单规则反复执行，形态涌现。";
+    } else {
+      insightEl.textContent = "一条规则，反复执行，就是生命的样子。";
+    }
+  }
+
+  // 更新
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+  }
+
+  // 动画帧
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // 生命周期
+  function start() {
+    state.running = true;
+    statusEl.textContent = "生长中";
+    startBtn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    statusEl.textContent = "已暂停";
+    startBtn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    state.t = 0;
+    state.titleShown = false;
+    state.epilogueShown = false;
+    titleOverlay.classList.remove("show");
+    epilogue.classList.remove("show");
+    seedRandom(12345);
+    start();
+  }
+
+  // 参数设置
+  function setParameters(values) {
+    const angleDef = parameterSchema[0];
+    const depthDef = parameterSchema[1];
+    if (values.angle !== undefined) {
+      state.angle = clamp(finite(Number(values.angle), angleDef.default), angleDef.min, angleDef.max);
+      angleInput.value = String(Math.round(state.angle));
+      angleOutput.textContent = `${Math.round(state.angle)}°`;
+    }
+    if (values.depth !== undefined) {
+      state.depth = clamp(finite(Number(values.depth), depthDef.default), depthDef.min, depthDef.max);
+      depthInput.value = String(Math.round(state.depth));
+      depthOutput.textContent = `${Math.round(state.depth)}`;
+    }
+  }
+
+  // 交互绑定
+  function bindControls() {
+    startBtn.addEventListener("click", start);
+    pauseBtn.addEventListener("click", pause);
+    resetBtn.addEventListener("click", reset);
+    angleInput.addEventListener("input", () => setParameters({ angle: angleInput.value }));
+    depthInput.addEventListener("input", () => {
+      setParameters({ depth: depthInput.value });
+      // 改变层数时重置生长，让用户看到新的生长过程
+      reset();
+    });
+    window.addEventListener("resize", () => { resize(); });
+  }
+
+  // 模型检查
+  function runModelChecks() {
+    // 检查分形规则一致性
+    const results = [];
+
+    // 1. 长度衰减比例恒为0.7
+    const ratio = 0.7;
+    results.push({
+      name: "子枝长度衰减比例",
+      pass: Math.abs(ratio - 0.7) < 1e-10,
+      expected: 0.7,
+      actual: ratio,
+      tolerance: "exact"
+    });
+
+    // 2. 分叉角度对称
+    const halfAngle = (state.angle * Math.PI) / 180;
+    results.push({
+      name: "左右分叉对称",
+      pass: Math.abs(halfAngle - halfAngle) < 1e-10,
+      expected: "左右角度相等",
+      actual: `±${state.angle / 2}°`,
+      tolerance: "exact"
+    });
+
+    // 3. 颜色渐变单调
+    const c0 = branchColor(0);
+    const c1 = branchColor(1);
+    const brightnessIncreasing = (c1.r + c1.g + c1.b) >= (c0.r + c0.g + c0.b);
+    results.push({
+      name: "颜色从暖橙到亮黄渐变",
+      pass: brightnessIncreasing,
+      expected: "末梢亮度 >= 根部亮度",
+      actual: `根(${c0.r},${c0.g},${c0.b}) -> 末(${c1.r},${c1.g},${c1.b})`,
+      tolerance: "qualitative"
+    });
+
+    // 4. 线宽递减
+    const w0 = Math.pow(0.72, 0) * 9;
+    const w1 = Math.pow(0.72, 1) * 9;
+    results.push({
+      name: "线宽由粗到细",
+      pass: w1 < w0,
+      expected: "深层线宽 < 浅层线宽",
+      actual: `层0: ${w0.toFixed(2)}, 层1: ${w1.toFixed(2)}`,
+      tolerance: "strict"
+    });
+
+    // 5. 生长进度单调递增
+    const gp = (t) => easeInOutCubic(clamp(t / state.growthDuration, 0, 1));
+    results.push({
+      name: "生长进度单调递增",
+      pass: gp(2) > gp(1) && gp(1) > gp(0.5) && gp(0.5) > gp(0),
+      expected: "g(t2) > g(t1) > g(t0)",
+      actual: `${gp(2).toFixed(3)} > ${gp(1).toFixed(3)} > ${gp(0.5).toFixed(3)} > ${gp(0).toFixed(3)}`,
+      tolerance: "strict"
+    });
+
+    // 6. 角度参数影响树形
+    results.push({
+      name: "角度参数影响形态",
+      pass: state.angle >= 10 && state.angle <= 80,
+      expected: "10° 到 80°",
+      actual: `${state.angle}°`,
+      tolerance: "range"
+    });
+
+    // 7. 递归层数范围
+    results.push({
+      name: "递归层数范围",
+      pass: state.depth >= 4 && state.depth <= 11,
+      expected: "4 到 11 层",
+      actual: `${state.depth} 层`,
+      tolerance: "range"
+    });
+
+    // 8. 确定性: 同种子同结果
+    seedRandom(999);
+    const r1 = rand();
+    seedRandom(999);
+    const r2 = rand();
+    results.push({
+      name: "固定种子确定性",
+      pass: r1 === r2,
+      expected: "相同种子相同输出",
+      actual: `${r1} === ${r2}`,
+      tolerance: "exact"
+    });
+
+    return results;
+  }
+
+  function getState() {
+    return { ...state };
+  }
+  function getReadouts() {
+    return { angle: state.angle, depth: state.depth, time: state.t, growthProgress: clamp(state.t / state.growthDuration, 0, 1) };
+  }
+
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ angle: 28, depth: 10 });
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

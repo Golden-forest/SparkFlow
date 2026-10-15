@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>翻译过程演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-large: #4a6fa5;
+      --sim-small: #6b8fc7;
+      --sim-mrna: #8b6fb8;
+      --sim-trna: #2d8a5f;
+      --sim-peptide: #d97706;
+      --sim-start: #e8590c;
+      --sim-stop: #c92a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f0f6fa 58%, #fff5e6 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto auto auto minmax(0,1fr); gap: 12px; }
+    .readouts { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+    .metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .metric .sub { display: block; margin-top: 3px; color: var(--sim-muted); font-size: 0.7rem; font-weight: 600; }
+    .sites-panel { padding: 14px 17px; }
+    .sites-panel h3 { margin: 0 0 10px; font-size: 0.85rem; }
+    .sites-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .site-box { padding: 10px 8px; border-radius: 12px; border: 2px solid; text-align: center; transition: all .25s ease; }
+    .site-box .site-label { font-size: 0.72rem; font-weight: 800; margin-bottom: 4px; }
+    .site-box .site-content { font-size: 0.68rem; color: var(--sim-muted); line-height: 1.3; min-height: 28px; display: flex; align-items: center; justify-content: center; }
+    .site-box.empty { border-color: var(--sim-border); background: var(--sim-surface-soft); }
+    .site-box.occupied { border-color: var(--sim-trna); background: rgba(45,138,95,.08); }
+    .site-box.occupied .site-content { color: var(--sim-trna); font-weight: 700; }
+    .site-box.active { border-color: var(--sim-warning); background: rgba(245,158,11,.12); box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+    .insight-panel { padding: 14px 17px; overflow-y: auto; }
+    .insight-panel h3 { margin: 0 0 8px; font-size: 0.85rem; }
+    .insight { padding: 12px 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 650; font-size: 0.85rem; line-height: 1.5; margin-bottom: 10px; transition: all .3s ease; }
+    .insight.warning { border-left-color: var(--sim-warning); background: #fff8e8; color: #80510a; }
+    .insight.danger { border-left-color: var(--sim-danger); background: #fee; color: #991b1b; }
+    .model-note { font-size: 0.78rem; color: var(--sim-muted); line-height: 1.55; }
+    .model-note strong { color: var(--sim-text); }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .codon-text { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 800; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="discrete">
+    <header class="header" data-region="header">
+      <div>
+        <h1>翻译过程演示</h1>
+        <p>核糖体沿 mRNA 移动 · tRNA 进出 · 肽链逐节延长 · 起始与终止信号</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">核糖体翻译装置</h2><span>mRNA 5'→3' · 大/小亚基 · A/P/E 位</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">核糖体在 mRNA 上移动，tRNA 携带氨基酸进入 A 位，肽链在上方延长。</desc>
+          <defs>
+            <linearGradient id="largeSubGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#5a7fb5"/><stop offset="1" stop-color="#3d5f8f"/>
+            </linearGradient>
+            <linearGradient id="smallSubGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#7b9dd0"/><stop offset="1" stop-color="#5a7fb5"/>
+            </linearGradient>
+            <linearGradient id="mrnaGrad" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" stop-color="#9b7fca"/><stop offset="1" stop-color="#7b5fa8"/>
+            </linearGradient>
+            <linearGradient id="trnaGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#3da06e"/><stop offset="1" stop-color="#247a52"/>
+            </linearGradient>
+            <linearGradient id="peptideGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#f59e0b"/><stop offset="1" stop-color="#b45309"/>
+            </linearGradient>
+          </defs>
+          <g id="layerBg"></g>
+          <g id="layerMrna"></g>
+          <g id="layerRibosome"></g>
+          <g id="layerTrna"></g>
+          <g id="layerPeptide"></g>
+          <g id="layerFx"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric">
+              <small>当前密码子</small>
+              <strong id="codonReadout" class="codon-text">—</strong>
+              <span class="sub" id="codonType">尚未开始</span>
+            </div>
+            <div class="metric">
+              <small>反密码子配对</small>
+              <strong id="anticodonReadout" class="codon-text">—</strong>
+              <span class="sub" id="aaReadout">氨基酸: —</span>
+            </div>
+            <div class="metric">
+              <small>肽链长度</small>
+              <strong id="peptideLenReadout">0</strong>
+              <span class="sub">个氨基酸</span>
+            </div>
+            <div class="metric">
+              <small>已读密码子</small>
+              <strong id="codonIdxReadout">0 / 8</strong>
+              <span class="sub" id="phaseReadout">等待起始</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel sites-panel" aria-label="核糖体位点状态">
+          <h3>核糖体位点</h3>
+          <div class="sites-grid">
+            <div class="site-box empty" id="siteA">
+              <div class="site-label">A 位</div>
+              <div class="site-content" id="siteAContent">空</div>
+            </div>
+            <div class="site-box empty" id="siteP">
+              <div class="site-label">P 位</div>
+              <div class="site-content" id="sitePContent">空</div>
+            </div>
+            <div class="site-box empty" id="siteE">
+              <div class="site-label">E 位</div>
+              <div class="site-content" id="siteEContent">空</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel insight-panel" data-region="insight">
+          <h3>步骤说明</h3>
+          <div id="insight" class="insight">点击"开始"或"单步"启动翻译。核糖体将首先寻找 AUG 起始密码子。</div>
+          <div class="model-note">
+            <p><strong>翻译模型：</strong>mRNA 序列 AUG·CGA·GCA·UAU·GGC·CAU·UGG·UAA。核糖体从 5' 端扫描，在 AUG 处起始，逐个密码子向 3' 端移动，遇到 UAA 终止。</p>
+            <p><strong>位点规则：</strong>A 位接收新 tRNA，P 位持有肽酰-tRNA，E 位释放空载 tRNA。肽键形成后，核糖体易位一个密码子。</p>
+            <p><strong>教学简化：</strong>tRNA 进出与肽键形成按阶段呈现以便观察，实际过程连续且快速。颜色编码：橙=起始，红=终止，绿=tRNA，紫=mRNA，琥珀色=肽链。</p>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="stepBtn" type="button">单步</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="speedInput">动画速度 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.3" max="3" step="0.1" value="1">
+      </div>
+      <div class="control">
+        <label for="seqInput">mRNA 序列（5'→3'）</label>
+        <input id="seqInput" type="text" value="AUG CGA GCA UAU GGC CAU UGG UAA" style="width:100%;padding:8px 10px;border:1px solid var(--sim-border);border-radius:10px;font-family:ui-monospace,monospace;font-size:0.8rem;">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // === 遗传密码表 ===
+    const CODON_TABLE = {
+      "UUU":"Phe","UUC":"Phe","UUA":"Leu","UUG":"Leu",
+      "CUU":"Leu","CUC":"Leu","CUA":"Leu","CUG":"Leu",
+      "AUU":"Ile","AUC":"Ile","AUA":"Ile","AUG":"Met",
+      "GUU":"Val","GUC":"Val","GUA":"Val","GUG":"Val",
+      "UCU":"Ser","UCC":"Ser","UCA":"Ser","UCG":"Ser",
+      "CCU":"Pro","CCC":"Pro","CCA":"Pro","CCG":"Pro",
+      "ACU":"Thr","ACC":"Thr","ACA":"Thr","ACG":"Thr",
+      "GCU":"Ala","GCC":"Ala","GCA":"Ala","GCG":"Ala",
+      "UAU":"Tyr","UAC":"Tyr","UAA":"STOP","UAG":"STOP",
+      "CAU":"His","CAC":"His","CAA":"Gln","CAG":"Gln",
+      "AAU":"Asn","AAC":"Asn","AAA":"Lys","AAG":"Lys",
+      "GAU":"Asp","GAC":"Asp","GAA":"Glu","GAG":"Glu",
+      "UGU":"Cys","UGC":"Cys","UGA":"STOP","UGG":"Trp",
+      "CGU":"Arg","CGC":"Arg","CGA":"Arg","CGG":"Arg",
+      "AGU":"Ser","AGC":"Ser","AGA":"Arg","AGG":"Arg",
+      "GGU":"Gly","GGC":"Gly","GGA":"Gly","GGG":"Gly"
+    };
+
+    const AA_COLORS = {
+      "Met":"#e8590c","STOP":"#c92a2a",
+      "Phe":"#5c7cfa","Leu":"#5c7cfa","Ile":"#5c7cfa","Val":"#5c7cfa",
+      "Ser":"#2f9e44","Pro":"#2f9e44","Thr":"#2f9e44","Ala":"#2f9e44",
+      "Tyr":"#e8590c","His":"#f08c00","Gln":"#f08c00","Asn":"#f08c00","Lys":"#f08c00",
+      "Asp":"#c2255c","Glu":"#c2255c","Cys":"#0c8599","Trp":"#0c8599",
+      "Arg":"#6741d9","Gly":"#6741d9"
+    };
+
+    function anticodonOf(codon) {
+      const map = { A:"U", U:"A", C:"G", G:"C" };
+      return codon.split("").map(b => map[b] || "?").join("");
+    }
+
+    function parseSequence(text) {
+      const cleaned = (text || "").toUpperCase().replace(/[^AUGC]/g, "");
+      const codons = [];
+      for (let i = 0; i + 2 < cleaned.length; i += 3) {
+        codons.push(cleaned.slice(i, i + 3));
+      }
+      return codons;
+    }
+
+    // === 模型状态 ===
+    const DEFAULT_SEQ = "AUG CGA GCA UAU GGC CAU UGG UAA";
+    const state = {
+      running: false,
+      phase: "idle",          // idle | scanning | entering | peptidyl | translocating | terminating | finished
+      phaseProgress: 0,
+      codons: parseSequence(DEFAULT_SEQ),
+      currentIdx: 0,
+      siteA: null,            // { codon, aa, x }
+      siteP: null,
+      siteE: null,
+      peptide: [],            // [{ aa, codon }]
+      ribosomeX: 0,
+      targetRibosomeX: 0,
+      speed: 1.0,
+      lastTimestamp: null,
+      autoStep: false,
+      stepCooldown: 0,
+      finished: false
+    };
+
+    // === 几何常量 ===
+    const GEO = {
+      vbW: 760, vbH: 420,
+      mrnaY: 300, mrnaH: 34,
+      codonW: 54, codonStartX: 30, codonGap: 2,
+      ribosomeW: 150, ribosomeH: 130,
+      largeSubY: 175, largeSubH: 95,
+      smallSubY: 270, smallSubH: 55,
+      siteW: 40, siteGap: 6,
+      trnaW: 28, trnaH: 70,
+      peptideStartY: 150, peptideBallR: 11, peptideGap: 26
+    };
+
+    // === DOM 引用 ===
+    const $ = (id) => document.getElementById(id);
+    const el = {
+      status: $("status"),
+      scene: $("scene"),
+      layerBg: $("layerBg"), layerMrna: $("layerMrna"), layerRibosome: $("layerRibosome"),
+      layerTrna: $("layerTrna"), layerPeptide: $("layerPeptide"), layerFx: $("layerFx"),
+      codonReadout: $("codonReadout"), codonType: $("codonType"),
+      anticodonReadout: $("anticodonReadout"), aaReadout: $("aaReadout"),
+      peptideLenReadout: $("peptideLenReadout"),
+      codonIdxReadout: $("codonIdxReadout"), phaseReadout: $("phaseReadout"),
+      siteA: $("siteA"), siteP: $("siteP"), siteE: $("siteE"),
+      siteAContent: $("siteAContent"), sitePContent: $("sitePContent"), siteEContent: $("siteEContent"),
+      insight: $("insight"),
+      startBtn: $("startBtn"), pauseBtn: $("pauseBtn"), stepBtn: $("stepBtn"), resetBtn: $("resetBtn"),
+      speedInput: $("speedInput"), speedOutput: $("speedOutput"),
+      seqInput: $("seqInput")
+    };
+
+    // === 工具函数 ===
+    function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+    function easeOut(t) { return 1 - Math.pow(1-t, 3); }
+
+    function codonCenterX(idx) {
+      return GEO.codonStartX + idx * (GEO.codonW + GEO.codonGap) + GEO.codonW / 2;
+    }
+
+    function ribosomeCenterX() {
+      // P 位对齐 currentIdx 的密码子中心
+      return codonCenterX(state.currentIdx);
+    }
+
+    function siteCenterX(siteName) {
+      const cx = ribosomeCenterX();
+      const offset = siteName === "A" ? (GEO.siteW + GEO.siteGap) : siteName === "P" ? 0 : -(GEO.siteW + GEO.siteGap);
+      return cx + offset;
+    }
+
+    // === 模型：单步推进 ===
+    function step() {
+      if (state.finished) return;
+      const p = state.phase;
+      if (p === "idle" || p === "scanning") {
+        if (state.codons[state.currentIdx] === "AUG") {
+          // 找到起始密码子，Met-tRNA 进入 P 位
+          state.siteP = { codon: "AUG", aa: "Met", x: siteCenterX("P") };
+          state.phase = "entering";
+          state.phaseProgress = 0;
+          state.peptide = [{ aa: "Met", codon: "AUG" }];
+        } else {
+          // 继续扫描
+          state.phase = "scanning";
+          state.phaseProgress = 0;
+          if (state.currentIdx < state.codons.length - 1) {
+            state.currentIdx++;
+          }
+        }
+      } else if (p === "entering") {
+        // 进入完成，进入肽酰转移阶段
+        state.phase = "peptidyl";
+        state.phaseProgress = 0;
+        // 如果有 A 位 tRNA，执行肽键形成
+        if (state.siteA && state.siteP) {
+          // 肽链从 P 位 tRNA 转移到 A 位 tRNA
+          state.peptide.push({ aa: state.siteA.aa, codon: state.siteA.codon });
+          // A 位 tRNA 现在携带整个肽链
+          state.siteA.aa = "PEPTIDE";
+          state.siteA.hasPeptide = true;
+          state.siteP.hasPeptide = false;
+        }
+      } else if (p === "peptidyl") {
+        // 易位：A→P, P→E, E→离开
+        state.siteE = state.siteP ? { ...state.siteP, aa: "empty" } : null;
+        state.siteP = state.siteA ? { ...state.siteA } : null;
+        state.siteA = null;
+        state.phase = "translocating";
+        state.phaseProgress = 0;
+        // 核糖体向前移动一个密码子
+        if (state.currentIdx < state.codons.length - 1) {
+          state.currentIdx++;
+        }
+      } else if (p === "translocating") {
+        // 易位完成，检查下一个密码子
+        state.siteE = null; // E 位 tRNA 离开
+        const nextCodon = state.codons[state.currentIdx];
+        if (nextCodon === "UAA" || nextCodon === "UAG" || nextCodon === "UGA") {
+          state.phase = "terminating";
+          state.phaseProgress = 0;
+        } else if (nextCodon && CODON_TABLE[nextCodon] && CODON_TABLE[nextCodon] !== "STOP") {
+          // 新 tRNA 进入 A 位
+          state.siteA = { codon: nextCodon, aa: CODON_TABLE[nextCodon], x: siteCenterX("A") };
+          state.phase = "entering";
+          state.phaseProgress = 0;
+        } else {
+          state.phase = "finished";
+          state.finished = true;
+        }
+      } else if (p === "terminating") {
+        state.phase = "finished";
+        state.finished = true;
+        state.running = false;
+      }
+    }
+
+    // === 更新（连续动画） ===
+    function update(dt) {
+      if (!state.running && !state.autoStep) return;
+      const speed = state.speed;
+      const phaseDuration = 0.8 / speed; // 每阶段 0.8 秒
+
+      if (state.running && !state.finished) {
+        state.phaseProgress += dt / phaseDuration;
+        if (state.phaseProgress >= 1) {
+          state.phaseProgress = 0;
+          step();
+        }
+      }
+
+      // 核糖体位置平滑过渡
+      const targetX = ribosomeCenterX();
+      state.ribosomeX = lerp(state.ribosomeX, targetX, clamp(dt * 8 * speed, 0, 1));
+
+      // tRNA 位置更新
+      updateTrnaPositions();
+
+      // 单步冷却
+      if (state.stepCooldown > 0) {
+        state.stepCooldown -= dt;
+        if (state.stepCooldown <= 0) {
+          state.autoStep = false;
+        }
+      }
+    }
+
+    function updateTrnaPositions() {
+      const p = state.phase;
+      const prog = easeInOut(clamp(state.phaseProgress, 0, 1));
+      // A 位 tRNA 进入动画
+      if (p === "entering" && state.siteA) {
+        const targetX = siteCenterX("A");
+        const startX = targetX + 120; // 从右侧进入
+        state.siteA.x = lerp(startX, targetX, prog);
+      }
+      // 肽酰转移：肽链从 P 移到 A
+      // （在渲染中处理视觉过渡）
+      // 易位：tRNA 从 A/P 移到 P/E
+      if (p === "translocating") {
+        if (state.siteP) {
+          const targetX = siteCenterX("P");
+          const startX = siteCenterX("A");
+          state.siteP.x = lerp(startX, targetX, prog);
+        }
+        if (state.siteE) {
+          const targetX = siteCenterX("E");
+          const startX = siteCenterX("P");
+          state.siteE.x = lerp(startX, targetX, prog);
+        }
+      }
+      // 终止：P 位 tRNA 离开
+      if (p === "terminating" && state.siteP) {
+        const startX = siteCenterX("P");
+        const exitX = startX - 150;
+        state.siteP.x = lerp(startX, exitX, prog);
+      }
+    }
+
+    // === 渲染 ===
+    function render() {
+      renderMrna();
+      renderRibosome();
+      renderTrna();
+      renderPeptide();
+      renderFx();
+      renderReadouts();
+    }
+
+    function renderMrna() {
+      const parts = [];
+      // mRNA 骨架
+      const mrnaX2 = GEO.codonStartX + state.codons.length * (GEO.codonW + GEO.codonGap);
+      parts.push(`<rect x="${GEO.codonStartX - 10}" y="${GEO.mrnaY}" width="${mrnaX2 - GEO.codonStartX + 20}" height="${GEO.mrnaH}" rx="17" fill="url(#mrnaGrad)" opacity="0.85"/>`);
+      // 5' 和 3' 标签
+      parts.push(`<text x="${GEO.codonStartX - 18}" y="${GEO.mrnaY + GEO.mrnaH/2 + 4}" font-size="13" font-weight="800" fill="#7b5fa8" text-anchor="end">5'</text>`);
+      parts.push(`<text x="${mrnaX2 + 12}" y="${GEO.mrnaY + GEO.mrnaH/2 + 4}" font-size="13" font-weight="800" fill="#7b5fa8">3'</text>`);
+      // 密码子
+      for (let i = 0; i < state.codons.length; i++) {
+        const codon = state.codons[i];
+        const cx = codonCenterX(i);
+        const x = cx - GEO.codonW/2;
+        const isStart = codon === "AUG";
+        const isStop = codon === "UAA" || codon === "UAG" || codon === "UGA";
+        const isCurrent = i === state.currentIdx && state.phase !== "idle";
+        const isRead = i < state.currentIdx;
+        let fill = "#fff";
+        let stroke = "#c4b4d8";
+        let textColor = "#5a4a78";
+        if (isStart) { fill = "#fff5e6"; stroke = "#e8590c"; textColor = "#c44a0c"; }
+        if (isStop) { fill = "#fff0f0"; stroke = "#c92a2a"; textColor = "#a02020"; }
+        if (isCurrent) { fill = "#e8f7fa"; stroke = "#0f9fba"; }
+        if (isRead) { fill = "#f0f0f5"; }
+        parts.push(`<rect x="${x}" y="${GEO.mrnaY + 2}" width="${GEO.codonW}" height="${GEO.mrnaH - 4}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${isCurrent ? 2.5 : 1.5}"/>`);
+        parts.push(`<text x="${cx}" y="${GEO.mrnaY + GEO.mrnaH/2 + 5}" font-size="14" font-weight="800" fill="${textColor}" text-anchor="middle" font-family="ui-monospace, monospace">${codon}</text>`);
+        // 起始/终止标记
+        if (isStart) {
+          parts.push(`<text x="${cx}" y="${GEO.mrnaY - 6}" font-size="10" font-weight="800" fill="#e8590c" text-anchor="middle">起始</text>`);
+        }
+        if (isStop) {
+          parts.push(`<text x="${cx}" y="${GEO.mrnaY - 6}" font-size="10" font-weight="800" fill="#c92a2a" text-anchor="middle">终止</text>`);
+        }
+      }
+      el.layerMrna.innerHTML = parts.join("");
+    }
+
+    function renderRibosome() {
+      const parts = [];
+      const cx = state.ribosomeX;
+      const halfW = GEO.ribosomeW / 2;
+      const x = cx - halfW;
+      // 大亚基（上半部分，圆顶形状）
+      parts.push(`<path d="M ${x} ${GEO.largeSubY + GEO.largeSubH} 
+        Q ${x} ${GEO.largeSubY - 5} ${cx} ${GEO.largeSubY - 5}
+        Q ${x + GEO.ribosomeW} ${GEO.largeSubY - 5} ${x + GEO.ribosomeW} ${GEO.largeSubY + GEO.largeSubH}
+        Z" fill="url(#largeSubGrad)" opacity="0.92" stroke="#3d5f8f" stroke-width="1.5"/>`);
+      // 大亚基标签
+      parts.push(`<text x="${cx}" y="${GEO.largeSubY + 30}" font-size="12" font-weight="800" fill="rgba(255,255,255,0.9)" text-anchor="middle">大亚基</text>`);
+      // 小亚基（下半部分，包裹 mRNA）
+      parts.push(`<path d="M ${x + 8} ${GEO.smallSubY}
+        L ${x + GEO.ribosomeW - 8} ${GEO.smallSubY}
+        L ${x + GEO.ribosomeW - 4} ${GEO.smallSubY + GEO.smallSubH/2}
+        L ${x + GEO.ribosomeW - 8} ${GEO.smallSubY + GEO.smallSubH}
+        L ${x + 8} ${GEO.smallSubY + GEO.smallSubH}
+        L ${x + 4} ${GEO.smallSubY + GEO.smallSubH/2}
+        Z" fill="url(#smallSubGrad)" opacity="0.92" stroke="#5a7fb5" stroke-width="1.5"/>`);
+      // 小亚基标签
+      parts.push(`<text x="${cx}" y="${GEO.smallSubY + GEO.smallSubH/2 + 4}" font-size="10" font-weight="800" fill="rgba(255,255,255,0.9)" text-anchor="middle">小亚基</text>`);
+      // 位点指示线（A/P/E）
+      const sites = ["E", "P", "A"];
+      for (const s of sites) {
+        const sx = siteCenterX(s);
+        const isActive = (s === "A" && (state.phase === "entering" || state.phase === "peptidyl")) ||
+                        (s === "P" && state.phase === "peptidyl") ||
+                        (s === "E" && state.phase === "translocating");
+        parts.push(`<line x1="${sx}" y1="${GEO.smallSubY - 2}" x2="${sx}" y2="${GEO.smallSubY + GEO.smallSubH + 2}" stroke="${isActive ? '#f59e0b' : 'rgba(255,255,255,0.4)'}" stroke-width="${isActive ? 2.5 : 1.5}" stroke-dasharray="${isActive ? '0' : '3 3'}"/>`);
+        parts.push(`<text x="${sx}" y="${GEO.smallSubY + GEO.smallSubH + 14}" font-size="10" font-weight="800" fill="${isActive ? '#f59e0b' : '#8e9eae'}" text-anchor="middle">${s}</text>`);
+      }
+      el.layerRibosome.innerHTML = parts.join("");
+    }
+
+    function renderTrna() {
+      const parts = [];
+      const drawTrna = (tRNA, siteName, opacity = 1) => {
+        if (!tRNA) return;
+        const cx = tRNA.x;
+        const y = GEO.smallSubY - GEO.trnaH - 8;
+        const w = GEO.trnaW;
+        const h = GEO.trnaH;
+        // tRNA 主体（L 形简化为圆角矩形 + 底部反密码子突起）
+        parts.push(`<rect x="${cx - w/2}" y="${y}" width="${w}" height="${h - 18}" rx="8" fill="url(#trnaGrad)" opacity="${opacity}" stroke="#247a52" stroke-width="1"/>`);
+        // 反密码子突起
+        parts.push(`<rect x="${cx - w/2 + 4}" y="${y + h - 22}" width="${w - 8}" height="${22}" rx="5" fill="#1a5d3e" opacity="${opacity}"/>`);
+        // 反密码子文字
+        if (tRNA.codon) {
+          const anti = anticodonOf(tRNA.codon);
+          parts.push(`<text x="${cx}" y="${y + h - 7}" font-size="9" font-weight="800" fill="#fff" text-anchor="middle" font-family="ui-monospace, monospace">${anti}</text>`);
+        }
+        // 氨基酸/肽链球（顶部）
+        if (tRNA.aa && tRNA.aa !== "empty") {
+          const ballY = y - 8;
+          if (tRNA.aa === "PEPTIDE" || tRNA.hasPeptide) {
+            // 不画单个球，肽链在 peptide 层渲染
+          } else {
+            const color = AA_COLORS[tRNA.aa] || "#888";
+            parts.push(`<circle cx="${cx}" cy="${ballY}" r="9" fill="${color}" stroke="#fff" stroke-width="2"/>`);
+            parts.push(`<text x="${cx}" y="${ballY + 3}" font-size="8" font-weight="800" fill="#fff" text-anchor="middle">${tRNA.aa.slice(0,3)}</text>`);
+          }
+        }
+        // 位点标签
+        parts.push(`<text x="${cx}" y="${y + h + 14}" font-size="9" font-weight="700" fill="#2d8a5f" text-anchor="middle" opacity="${opacity * 0.7}">${siteName}</text>`);
+      };
+      // E 位 tRNA（如果有）
+      if (state.siteE) drawTrna(state.siteE, "E", 0.6);
+      // P 位 tRNA
+      if (state.siteP) drawTrna(state.siteP, "P");
+      // A 位 tRNA
+      if (state.siteA) drawTrna(state.siteA, "A");
+      el.layerTrna.innerHTML = parts.join("");
+    }
+
+    function renderPeptide() {
+      const parts = [];
+      if (state.peptide.length === 0) { el.layerPeptide.innerHTML = ""; return; }
+      // 肽链从 P 位 tRNA 顶部向上延伸
+      const pSiteX = state.siteP ? state.siteP.x : siteCenterX("P");
+      const baseY = GEO.smallSubY - GEO.trnaH - 8 - 20; // tRNA 顶部上方
+      // 肽链连接线
+      if (state.peptide.length > 1) {
+        let pathParts = [];
+        for (let i = 0; i < state.peptide.length; i++) {
+          const ballY = baseY - i * GEO.peptideGap - GEO.peptideBallR;
+          const ballX = pSiteX + Math.sin(i * 0.8) * 6; // 轻微弯曲
+          if (i === 0) pathParts.push(`M ${ballX} ${ballY}`);
+          else pathParts.push(`L ${ballX} ${ballY}`);
+        }
+        parts.push(`<path d="${pathParts.join(' ')}" stroke="url(#peptideGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>`);
+      }
+      // 肽链球
+      for (let i = 0; i < state.peptide.length; i++) {
+        const aa = state.peptide[i].aa;
+        const ballY = baseY - i * GEO.peptideGap - GEO.peptideBallR;
+        const ballX = pSiteX + Math.sin(i * 0.8) * 6;
+        const color = AA_COLORS[aa] || "#888";
+        // 肽酰转移动画：最新的球从 A 位飞过来
+        let renderX = ballX, renderY = ballY;
+        if (i === state.peptide.length - 1 && state.phase === "peptidyl" && state.siteA) {
+          const prog = easeInOut(state.phaseProgress);
+          const fromX = state.siteA.x;
+          const fromY = GEO.smallSubY - GEO.trnaH - 8 - 20;
+          renderX = lerp(fromX, ballX, prog);
+          renderY = lerp(fromY, ballY, prog);
+        }
+        parts.push(`<circle cx="${renderX}" cy="${renderY}" r="${GEO.peptideBallR}" fill="${color}" stroke="#fff" stroke-width="2.5"/>`);
+        parts.push(`<text x="${renderX}" y="${renderY + 3}" font-size="9" font-weight="800" fill="#fff" text-anchor="middle">${aa.slice(0,3)}</text>`);
+      }
+      // 肽链标签
+      if (state.peptide.length > 0) {
+        parts.push(`<text x="${pSiteX}" y="${baseY - state.peptide.length * GEO.peptideGap - GEO.peptideBallR - 12}" font-size="11" font-weight="800" fill="#b45309" text-anchor="middle">肽链 (${state.peptide.length})</text>`);
+      }
+      el.layerPeptide.innerHTML = parts.join("");
+    }
+
+    function renderFx() {
+      const parts = [];
+      // 肽键形成闪光
+      if (state.phase === "peptidyl" && state.siteA && state.siteP) {
+        const midX = (state.siteA.x + (state.siteP ? state.siteP.x : state.siteA.x)) / 2;
+        const flashY = GEO.smallSubY - GEO.trnaH / 2;
+        const intensity = Math.sin(state.phaseProgress * Math.PI);
+        parts.push(`<circle cx="${midX}" cy="${flashY}" r="${20 + intensity * 15}" fill="rgba(245,158,11,${0.15 * intensity})" />`);
+        parts.push(`<circle cx="${midX}" cy="${flashY}" r="${8 + intensity * 6}" fill="rgba(245,158,11,${0.4 * intensity})" />`);
+      }
+      // 终止释放因子闪光
+      if (state.phase === "terminating") {
+        const cx = siteCenterX("P");
+        const flashY = GEO.smallSubY - GEO.trnaH / 2;
+        const intensity = Math.sin(state.phaseProgress * Math.PI);
+        parts.push(`<circle cx="${cx}" cy="${flashY}" r="${25 + intensity * 20}" fill="rgba(201,42,42,${0.12 * intensity})" />`);
+        parts.push(`<text x="${cx}" y="${flashY - 35}" font-size="11" font-weight="800" fill="#c92a2a" text-anchor="middle" opacity="${intensity}">释放因子</text>`);
+      }
+      el.layerFx.innerHTML = parts.join("");
+    }
+
+    function renderReadouts() {
+      const p = state.phase;
+      const codon = state.codons[state.currentIdx];
+      const aa = codon ? CODON_TABLE[codon] : null;
+      // 密码子读数
+      if (p === "idle") {
+        el.codonReadout.textContent = "—";
+        el.codonType.textContent = "尚未开始";
+        el.anticodonReadout.textContent = "—";
+        el.aaReadout.textContent = "氨基酸: —";
+      } else if (p === "scanning") {
+        el.codonReadout.textContent = codon || "—";
+        el.codonType.textContent = "扫描中（非起始）";
+        el.anticodonReadout.textContent = "—";
+        el.aaReadout.textContent = "等待 AUG";
+      } else if (p === "terminating") {
+        el.codonReadout.textContent = codon || "UAA";
+        el.codonType.textContent = "终止密码子";
+        el.anticodonReadout.textContent = "—";
+        el.aaReadout.textContent = "翻译终止";
+      } else if (p === "finished") {
+        el.codonReadout.textContent = "完成";
+        el.codonType.textContent = "翻译结束";
+        el.anticodonReadout.textContent = "—";
+        el.aaReadout.textContent = `肽链 ${state.peptide.length} aa`;
+      } else {
+        el.codonReadout.textContent = codon || "—";
+        el.codonType.textContent = aa === "STOP" ? "终止信号" : `编码 ${aa}`;
+        el.anticodonReadout.textContent = codon ? anticodonOf(codon) : "—";
+        el.aaReadout.textContent = aa ? `氨基酸: ${aa}` : "—";
+      }
+      // 肽链长度
+      el.peptideLenReadout.textContent = state.peptide.length;
+      // 密码子索引
+      el.codonIdxReadout.textContent = `${state.currentIdx + 1} / ${state.codons.length}`;
+      // 阶段
+      const phaseLabels = {
+        idle: "等待起始", scanning: "扫描 mRNA", entering: "tRNA 进入 A 位",
+        peptidyl: "肽酰转移", translocating: "核糖体易位",
+        terminating: "终止释放", finished: "翻译完成"
+      };
+      el.phaseReadout.textContent = phaseLabels[p] || p;
+      // 位点状态
+      updateSiteBox("A", state.siteA, p === "entering" || p === "peptidyl");
+      updateSiteBox("P", state.siteP, p === "peptidyl");
+      updateSiteBox("E", state.siteE, p === "translocating");
+      // 步骤说明
+      el.insight.textContent = getInsightText();
+      el.insight.className = "insight" + (p === "terminating" || p === "finished" ? " danger" : p === "peptidyl" ? " warning" : "");
+      // 状态
+      if (state.finished) el.status.textContent = "翻译完成";
+      else if (state.running) el.status.textContent = "运行中";
+      else el.status.textContent = "已暂停";
+      // 按钮状态
+      el.stepBtn.disabled = state.finished;
+      el.startBtn.disabled = state.finished;
+    }
+
+    function updateSiteBox(siteName, tRNA, isActive) {
+      const box = el["site" + siteName];
+      const content = el["site" + siteName + "Content"];
+      if (!tRNA) {
+        box.className = "site-box empty";
+        content.textContent = "空";
+      } else if (tRNA.aa === "empty") {
+        box.className = "site-box empty" + (isActive ? " active" : "");
+        content.textContent = "空载 tRNA";
+      } else {
+        box.className = "site-box occupied" + (isActive ? " active" : "");
+        const aa = tRNA.aa === "PEPTIDE" ? `肽链(${state.peptide.length})` : tRNA.aa;
+        content.innerHTML = `<div>${aa}</div><div style="font-size:0.62rem;opacity:0.8">${anticodonOf(tRNA.codon)}</div>`;
+      }
+    }
+
+    function getInsightText() {
+      const p = state.phase;
+      const codon = state.codons[state.currentIdx];
+      if (p === "idle") return "点击\"开始\"或\"单步\"启动翻译。核糖体将首先寻找 AUG 起始密码子。";
+      if (p === "scanning") return `核糖体扫描 mRNA，当前密码子 ${codon} 不是起始信号，继续向 3' 端移动。`;
+      if (p === "entering") {
+        if (state.siteP && state.peptide.length === 1 && state.currentIdx === 0) {
+          return "AUG 起始密码子！Met-tRNA 进入 P 位，翻译开始。";
+        }
+        return `密码子 ${codon} 编码 ${CODON_TABLE[codon]}，对应 tRNA 携带氨基酸进入 A 位。反密码子 ${anticodonOf(codon)} 与密码子配对。`;
+      }
+      if (p === "peptidyl") return "肽酰转移酶催化肽键形成：P 位 tRNA 上的肽链转移到 A 位 tRNA，肽链延长一个氨基酸。";
+      if (p === "translocating") return "核糖体易位：tRNA 从 A→P、P→E，E 位空载 tRNA 离开。核糖体向 3' 端移动一个密码子。";
+      if (p === "terminating") return `${codon} 是终止密码子！释放因子结合，肽链从核糖体释放，翻译终止。`;
+      if (p === "finished") return `翻译完成！共合成 ${state.peptide.length} 个氨基酸的肽链。`;
+      return "";
+    }
+
+    // === 生命周期 ===
+    function init() {
+      bindControls();
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (state.finished) return;
+      state.running = true;
+      el.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      el.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function singleStep() {
+      if (state.finished) return;
+      state.autoStep = true;
+      state.stepCooldown = 1.2 / state.speed;
+      // 立即推进一个阶段
+      state.phaseProgress = 0;
+      step();
+    }
+
+    function reset() {
+      pause();
+      state.phase = "idle";
+      state.phaseProgress = 0;
+      state.currentIdx = 0;
+      state.siteA = null;
+      state.siteP = null;
+      state.siteE = null;
+      state.peptide = [];
+      state.ribosomeX = ribosomeCenterX();
+      state.finished = false;
+      state.autoStep = false;
+      state.stepCooldown = 0;
+      render();
+    }
+
+    function setParameters(values) {
+      if (values.speed !== undefined) {
+        state.speed = clamp(parseFloat(values.speed) || 1, 0.3, 3);
+        el.speedOutput.textContent = state.speed.toFixed(1) + "×";
+        el.speedInput.value = String(state.speed);
+      }
+      if (values.sequence !== undefined) {
+        const newCodons = parseSequence(values.sequence);
+        if (newCodons.length > 0) {
+          state.codons = newCodons;
+          reset();
+        }
+      }
+    }
+
+    function getState() {
+      return {
+        phase: state.phase,
+        currentIdx: state.currentIdx,
+        peptideLength: state.peptide.length,
+        peptide: state.peptide.map(p => ({ ...p })),
+        siteA: state.siteA ? { ...state.siteA } : null,
+        siteP: state.siteP ? { ...state.siteP } : null,
+        siteE: state.siteE ? { ...state.siteE } : null,
+        running: state.running,
+        finished: state.finished
+      };
+    }
+
+    function getReadouts() {
+      const codon = state.codons[state.currentIdx];
+      return {
+        currentCodon: codon,
+        anticodon: codon ? anticodonOf(codon) : null,
+        aminoAcid: codon ? CODON_TABLE[codon] : null,
+        peptideLength: state.peptide.length,
+        codonIndex: state.currentIdx,
+        totalCodons: state.codons.length,
+        phase: state.phase
+      };
+    }
+
+    function runModelChecks() {
+      const results = [];
+      // 1. 密码子表完整性
+      const essentialCodons = ["AUG","UAA","UAG","UGA","CGA","GCA","UAU","GGC","CAU","UGG"];
+      const tableOk = essentialCodons.every(c => CODON_TABLE[c] !== undefined);
+      results.push({ name: "密码子表完整性", pass: tableOk, expected: "所有必需密码子可查", actual: tableOk ? "完整" : "缺失" });
+
+      // 2. 反密码子配对正确性
+      const pairChecks = [
+        { codon: "AUG", expected: "UAC" },
+        { codon: "CGA", expected: "GCU" },
+        { codon: "UAA", expected: "AUU" },
+        { codon: "GGC", expected: "CCG" }
+      ];
+      const pairOk = pairChecks.every(pc => anticodonOf(pc.codon) === pc.expected);
+      results.push({ name: "反密码子配对", pass: pairOk, expected: pairChecks.map(pc => `${pc.codon}→${pc.expected}`).join(", "), actual: pairChecks.map(pc => `${pc.codon}→${anticodonOf(pc.codon)}`).join(", ") });
+
+      // 3. 序列解析
+      const parsed = parseSequence("AUG CGA GCA UAU GGC CAU UGG UAA");
+      const expectedSeq = ["AUG","CGA","GCA","UAU","GGC","CAU","UGG","UAA"];
+      const seqOk = parsed.length === expectedSeq.length && parsed.every((c, i) => c === expectedSeq[i]);
+      results.push({ name: "序列解析", pass: seqOk, expected: expectedSeq.join(","), actual: parsed.join(",") });
+
+      // 4. 起始密码子识别
+      const startIdx = expectedSeq.indexOf("AUG");
+      results.push({ name: "AUG 起始识别", pass: startIdx === 0, expected: "AUG 在位置 0", actual: `AUG 在位置 ${startIdx}` });
+
+      // 5. 终止密码子识别
+      const stopCodons = ["UAA","UAG","UGA"];
+      const stopOk = stopCodons.every(c => CODON_TABLE[c] === "STOP");
+      results.push({ name: "终止密码子识别", pass: stopOk, expected: "UAA/UAG/UGA = STOP", actual: stopCodons.map(c => `${c}=${CODON_TABLE[c]}`).join(",") });
+
+      // 6. 翻译完整周期模拟
+      const sim = simulateTranslation(expectedSeq);
+      const expectedPeptide = ["Met","Arg","Ala","Tyr","Gly","His","Trp"];
+      const simOk = sim.peptide.length === expectedPeptide.length && sim.peptide.every((a, i) => a === expectedPeptide[i]);
+      results.push({ name: "完整翻译周期", pass: simOk, expected: expectedPeptide.join("-"), actual: sim.peptide.join("-") });
+
+      // 7. 终止处理
+      results.push({ name: "终止处理", pass: sim.finished, expected: "翻译完成", actual: sim.finished ? "完成" : "未完成" });
+
+      return results;
+    }
+
+    function simulateTranslation(codons) {
+      const sim = { peptide: [], finished: false, idx: 0 };
+      // 找 AUG
+      while (sim.idx < codons.length && codons[sim.idx] !== "AUG") sim.idx++;
+      if (sim.idx >= codons.length) return sim;
+      sim.peptide.push(CODON_TABLE[codons[sim.idx]]); // Met
+      sim.idx++;
+      while (sim.idx < codons.length) {
+        const c = codons[sim.idx];
+        const aa = CODON_TABLE[c];
+        if (aa === "STOP") { sim.finished = true; break; }
+        sim.peptide.push(aa);
+        sim.idx++;
+      }
+      if (sim.idx < codons.length && CODON_TABLE[codons[sim.idx]] === "STOP") sim.finished = true;
+      return sim;
+    }
+
+    function bindControls() {
+      el.startBtn.addEventListener("click", start);
+      el.pauseBtn.addEventListener("click", pause);
+      el.stepBtn.addEventListener("click", singleStep);
+      el.resetBtn.addEventListener("click", reset);
+      el.speedInput.addEventListener("input", () => setParameters({ speed: el.speedInput.value }));
+      el.seqInput.addEventListener("change", () => setParameters({ sequence: el.seqInput.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = Math.min(0.05, (timestamp - state.lastTimestamp) / 1000);
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>

@@ -243,4 +243,4 @@ function importCourseware(sourcePath: string, nameOverride: string | undefined, 
 
 // --- Entry point ---
 const { sourcePath, name, force } = parseArgs(process.argv);
-importCourseware(sourcePath, name, force);
+importCourseware(sourcePath, name, force ?? false);

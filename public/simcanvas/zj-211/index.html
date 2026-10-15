@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单摆能量演化演示</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #070b18;
+  --sim-surface: #131829;
+  --sim-surface-soft: #1a2138;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a96b0;
+  --sim-border: #2a3454;
+  --sim-grid: #1e2740;
+  --sim-accent: #4dd0e1;
+  --sim-accent-deep: #26a69a;
+  --sim-accent-soft: #1a3a4a;
+  --sim-positive: #4dd0e1;
+  --sim-warning: #ffb74d;
+  --sim-danger: #ef5350;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-width: 320px;
+  color: var(--sim-text);
+  background: var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--sim-accent); outline-offset: 2px; }
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--sim-space-2);
+  padding: var(--sim-space-3) var(--sim-space-4);
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sim-space-4);
+  min-height: 48px;
+}
+.header h1 {
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.header p {
+  color: var(--sim-muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+.status {
+  border: 1px solid var(--sim-accent-deep);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr);
+  gap: var(--sim-space-2);
+}
+.panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+  box-shadow: var(--sim-shadow);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sim-space-3);
+  padding: var(--sim-space-3) var(--sim-space-4);
+  border-bottom: 1px solid var(--sim-border);
+}
+.panel-head h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.panel-head span {
+  color: var(--sim-muted);
+  font-size: 0.72rem;
+}
+.scene-panel { flex: 1; }
+#sceneCanvas {
+  flex: 1;
+  width: 100%;
+  min-height: 280px;
+  display: block;
+}
+.side {
+  display: grid;
+  grid-template-rows: minmax(0, 1.2fr) auto auto;
+  gap: var(--sim-space-2);
+  min-height: 0;
+}
+.chart-panel { min-height: 0; }
+#chartCanvas {
+  flex: 1;
+  width: 100%;
+  min-height: 180px;
+  display: block;
+}
+.readouts {
+  padding: var(--sim-space-3) var(--sim-space-4);
+  border-top: 1px solid var(--sim-border);
+}
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sim-space-2);
+}
+.metric {
+  padding: var(--sim-space-2) var(--sim-space-3);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  background: var(--sim-surface-soft);
+  text-align: center;
+}
+.metric small {
+  display: block;
+  color: var(--sim-muted);
+  font-size: 0.7rem;
+  margin-bottom: 3px;
+}
+.metric strong {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.metric.ep strong { color: #64b5f6; }
+.metric.ek strong { color: #ef5350; }
+.metric.et strong { color: #e8eefc; }
+.insight-panel {
+  padding: var(--sim-space-3) var(--sim-space-4);
+  border-top: 1px solid var(--sim-border);
+  background: rgba(77, 208, 225, 0.04);
+}
+.insight-panel h2 {
+  font-size: 0.78rem;
+  color: var(--sim-muted);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+#insight {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--sim-text);
+}
+.controls {
+  padding: var(--sim-space-3) var(--sim-space-4);
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: var(--sim-space-5);
+  align-items: center;
+}
+.actions {
+  display: flex;
+  gap: var(--sim-space-2);
+}
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  padding: 8px 14px;
+  background: var(--sim-surface-soft);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+button:hover {
+  border-color: var(--sim-accent-deep);
+  background: rgba(77, 208, 225, 0.08);
+}
+button:active { transform: scale(0.97); }
+button.primary {
+  border-color: var(--sim-accent-deep);
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #070b18;
+  font-weight: 700;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sim-space-3);
+  margin-bottom: 5px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.control output {
+  color: var(--sim-accent);
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--sim-surface-soft);
+  border: 1px solid var(--sim-border);
+  border-radius: 3px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid var(--sim-bg);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  border: 2px solid var(--sim-bg);
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-2); }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; gap: var(--sim-space-3); }
+  #sceneCanvas { min-height: 240px; aspect-ratio: 4/3; }
+  #chartCanvas { min-height: 160px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="continuous-ode">
+  <header class="header" data-region="header">
+    <div>
+      <h1>单摆能量演化演示</h1>
+      <p>动能 Ek 与势能 Ep 此消彼长，机械能 E总 守恒或因摩擦衰减</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-label="单摆装置动画">
+      <div class="panel-head">
+        <h2>单摆装置</h2>
+        <span>θ₀ = 45° · g = 9.8 m/s² · m = 1 kg</span>
+      </div>
+      <canvas id="sceneCanvas"></canvas>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel chart-panel" aria-label="能量时间曲线">
+        <div class="panel-head">
+          <h2>能量-时间曲线</h2>
+          <span>Ep(蓝) · Ek(红) · E总(白)</span>
+        </div>
+        <canvas id="chartCanvas"></canvas>
+      </section>
+
+      <section class="readouts" aria-label="实时读数">
+        <div class="readout-grid">
+          <div class="metric ep"><small>势能 Ep / J</small><strong id="epReadout">0.00</strong></div>
+          <div class="metric ek"><small>动能 Ek / J</small><strong id="ekReadout">0.00</strong></div>
+          <div class="metric et"><small>机械能 E总 / J</small><strong id="etReadout">0.00</strong></div>
+        </div>
+      </section>
+
+      <section class="insight-panel" data-region="insight">
+        <h2>洞察</h2>
+        <p id="insight">按"开始"启动。无摩擦时 E总 保持水平线；有摩擦时 E总 缓慢下降，转化为内能 Q。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="lengthInput">摆长 L <output id="lengthOutput">1.50 m</output></label>
+      <input id="lengthInput" type="range" min="0.5" max="2" step="0.05" value="1.5">
+    </div>
+    <div class="control">
+      <label for="frictionInput">摩擦系数 γ <output id="frictionOutput">0.05</output></label>
+      <input id="frictionInput" type="range" min="0" max="0.2" step="0.005" value="0.05">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // === 物理常量 ===
+  const G = 9.8;
+  const MASS = 1.0;
+  const THETA0 = Math.PI / 4;
+  const DT = 1 / 240;
+  const SUBSTEPS = 4;
+  const HISTORY_MAX = 1500;
+  const CHART_WINDOW = 10;
+
+  // === 状态 ===
+  const state = {
+    running: false,
+    t: 0,
+    theta: THETA0,
+    omega: 0,
+    L: 1.5,
+    gamma: 0.05,
+    lastTimestamp: null,
+    history: [],
+    initialE: 0
+  };
+
+  // === DOM ===
+  const sceneCanvas = document.getElementById("sceneCanvas");
+  const chartCanvas = document.getElementById("chartCanvas");
+  const sCtx = sceneCanvas.getContext("2d");
+  const cCtx = chartCanvas.getContext("2d");
+
+  const els = {
+    status: document.getElementById("status"),
+    ep: document.getElementById("epReadout"),
+    ek: document.getElementById("ekReadout"),
+    et: document.getElementById("etReadout"),
+    insight: document.getElementById("insight"),
+    lengthInput: document.getElementById("lengthInput"),
+    lengthOutput: document.getElementById("lengthOutput"),
+    frictionInput: document.getElementById("frictionInput"),
+    frictionOutput: document.getElementById("frictionOutput"),
+    startBtn: document.getElementById("startBtn"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    resetBtn: document.getElementById("resetBtn")
+  };
+
+  // === 工具 ===
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  // === 物理 ===
+  function computeEnergies(theta, omega, L) {
+    const h = L * (1 - Math.cos(theta));
+    const v = Math.abs(L * omega);
+    const ep = MASS * G * h;
+    const ek = 0.5 * MASS * v * v;
+    return { ep, ek, total: ep + ek, h, v };
+  }
+
+  function stepPhysics(dt) {
+    // 半隐式 Euler：先更新 omega 再更新 theta
+    const alpha = -(G / state.L) * Math.sin(state.theta) - state.gamma * state.omega;
+    state.omega += alpha * dt;
+    state.theta += state.omega * dt;
+    state.t += dt;
+  }
+
+  // === 生命周期 ===
+  function init() {
+    resizeCanvases();
+    bindControls();
+    reset();
+    requestAnimationFrame(frame);
+    window.addEventListener("resize", resizeCanvases);
+  }
+
+  function start() {
+    state.running = true;
+    els.status.textContent = "运行中";
+    els.startBtn.textContent = "运行中";
+    els.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    els.status.textContent = "已暂停";
+    els.startBtn.textContent = "开始";
+    els.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.theta = THETA0;
+    state.omega = 0;
+    state.lastTimestamp = null;
+    state.history = [];
+    const e = computeEnergies(state.theta, state.omega, state.L);
+    state.initialE = e.total;
+    state.history.push({ t: 0, ep: e.ep, ek: e.ek, total: e.total });
+    render();
+  }
+
+  function setParameters(values) {
+    if (values.length !== undefined) {
+      state.L = clamp(finite(Number(values.length), 1.5), 0.5, 2);
+      els.lengthInput.value = String(state.L);
+    }
+    if (values.gamma !== undefined) {
+      state.gamma = clamp(finite(Number(values.gamma), 0.05), 0, 0.2);
+      els.frictionInput.value = String(state.gamma);
+    }
+    render();
+  }
+
+  function getState() {
+    return {
+      t: state.t, theta: state.theta, omega: state.omega,
+      L: state.L, gamma: state.gamma, running: state.running
+    };
+  }
+
+  function getReadouts() {
+    const e = computeEnergies(state.theta, state.omega, state.L);
+    return { ep: e.ep, ek: e.ek, total: e.total, h: e.h, v: e.v, Q: state.initialE - e.total };
+  }
+
+  // === 模型检查 ===
+  function runModelChecks() {
+    const simulate = (duration, { L = 1.5, gamma = 0, theta0 = THETA0, omega0 = 0, dt = DT } = {}) => {
+      let th = theta0, om = omega0;
+      for (let t = 0; t < duration - 1e-12; t += dt) {
+        const a = -(G / L) * Math.sin(th) - gamma * om;
+        om += a * dt;
+        th += om * dt;
+      }
+      return { theta: th, omega: om };
+    };
+
+    // 1. 无摩擦能量守恒
+    let maxDev = 0;
+    let e0 = null;
+    for (let t = 0; t < 6; t += 0.05) {
+      const r = simulate(t, { gamma: 0 });
+      const e = computeEnergies(r.theta, r.omega, 1.5);
+      if (e0 === null) e0 = e.total;
+      maxDev = Math.max(maxDev, Math.abs(e.total - e0));
+    }
+
+    // 2. 小角度周期 T = 2*pi*sqrt(L/g)
+    const smallAngleSim = (L, duration) => {
+      let th = 0.1, om = 0, dt = DT;
+      let crossings = 0, lastTh = th, prevSign = 1;
+      for (let t = 0; t < duration; t += dt) {
+        const a = -(G / L) * Math.sin(th);
+        om += a * dt;
+        th += om * dt;
+        const sign = th >= 0 ? 1 : -1;
+        if (sign !== prevSign) crossings++;
+        prevSign = sign;
+      }
+      return crossings;
+    };
+    const crossings = smallAngleSim(1.0, 20);
+    const periods = crossings / 2;
+    const T_sim = 20 / periods;
+    const T_exact = 2 * Math.PI * Math.sqrt(1.0 / G);
+
+    // 3. 摩擦单调衰减
+    const eFrictionStart = computeEnergies(THETA0, 0, 1.5).total;
+    const rF = simulate(8, { gamma: 0.1 });
+    const eFrictionEnd = computeEnergies(rF.theta, rF.omega, 1.5).total;
+
+    // 4. 摆长影响周期
+    const cL1 = smallAngleSim(1.0, 20);
+    const cL2 = smallAngleSim(2.0, 20);
+    const TL1 = 20 / (cL1 / 2);
+    const TL2 = 20 / (cL2 / 2);
+    const ratio = TL2 / TL1;
+    const ratioExact = Math.sqrt(2.0 / 1.0);
+
+    // 5. 步长收敛
+    const r1 = simulate(2, { dt: 1/60 });
+    const r2 = simulate(2, { dt: 1/240 });
+    const e1 = computeEnergies(r1.theta, r1.omega, 1.5).total;
+    const e2 = computeEnergies(r2.theta, r2.omega, 1.5).total;
+
+    return [
+      { name: "无摩擦能量守恒 (6s)", pass: maxDev < 0.05,
+        expected: "maxDev < 0.05 J", actual: `maxDev = ${maxDev.toFixed(4)} J`, tolerance: "0.05 J" },
+      { name: "小角度周期 T = 2*pi*sqrt(L/g)", pass: Math.abs(T_sim - T_exact) < 0.05,
+        expected: T_exact.toFixed(3), actual: T_sim.toFixed(3), tolerance: "0.05 s" },
+      { name: "摩擦使机械能单调衰减", pass: eFrictionEnd < eFrictionStart * 0.95,
+        expected: `E_end < ${eFrictionStart * 0.95}`, actual: eFrictionEnd.toFixed(3), tolerance: "5%" },
+      { name: "摆长影响周期 T ∝ sqrt(L)", pass: Math.abs(ratio - ratioExact) < 0.05,
+        expected: ratioExact.toFixed(3), actual: ratio.toFixed(3), tolerance: "0.05" },
+      { name: "步长收敛 (细步长更接近守恒)", pass: Math.abs(e2 - e0) < Math.abs(e1 - e0),
+        expected: "|e_fine - E0| < |e_coarse - E0|", actual: `${Math.abs(e2-e0).toFixed(5)} < ${Math.abs(e1-e0).toFixed(5)}`, tolerance: "strict" }
+    ];
+  }
+
+  // === 渲染：场景 ===
+  function renderScene() {
+    const w = sceneCanvas.width;
+    const h = sceneCanvas.height;
+    const ctx = sCtx;
+
+    // 背景
+    ctx.fillStyle = "#0d1220";
+    ctx.fillRect(0, 0, w, h);
+
+    // 网格
+    ctx.strokeStyle = "#1a2138";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+
+    // 坐标系
+    const cx = w / 2;
+    const cy = h * 0.18;
+    const scale = Math.min(w, h) * 0.32;
+    const Lpix = state.L * scale * 0.55;
+
+    // 零势能参考线（摆球最低点）
+    const refY = cy + Lpix;
+    ctx.strokeStyle = "rgba(255, 183, 77, 0.4)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(cx - Lpix * 1.3, refY);
+    ctx.lineTo(cx + Lpix * 1.3, refY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 参考线标签
+    ctx.fillStyle = "rgba(255, 183, 77, 0.7)";
+    ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("零势能参考线 h = 0", cx + Lpix * 1.3 + 6, refY + 4);
+
+    // 摆球位置
+    const bx = cx + Lpix * Math.sin(state.theta);
+    const by = cy + Lpix * Math.cos(state.theta);
+
+    // 悬挂点
+    ctx.fillStyle = "#8a96b0";
+    ctx.fillRect(cx - 14, cy - 6, 28, 6);
+    ctx.fillStyle = "#4a5578";
+    ctx.fillRect(cx - 14, cy, 28, 2);
+
+    // 摆线
+    ctx.strokeStyle = "#6a7595";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+
+    // 速度矢量
+    const v = state.L * state.omega;
+    const vScale = 50;
+    const vx = state.L * state.omega * Math.cos(state.theta) * vScale;
+    const vy = -state.L * state.omega * Math.sin(state.theta) * vScale;
+
+    if (Math.abs(v) > 0.05) {
+      // 双层描边模拟发光
+      ctx.strokeStyle = "rgba(239, 83, 80, 0.3)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + vx, by + vy);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#ef5350";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + vx, by + vy);
+      ctx.stroke();
+
+      // 箭头
+      const ang = Math.atan2(vy, vx);
+      const ah = 10;
+      ctx.fillStyle = "#ef5350";
+      ctx.beginPath();
+      ctx.moveTo(bx + vx, by + vy);
+      ctx.lineTo(bx + vx - ah * Math.cos(ang - 0.4), by + vy - ah * Math.sin(ang - 0.4));
+      ctx.lineTo(bx + vx - ah * Math.cos(ang + 0.4), by + vy - ah * Math.sin(ang + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 摆球（双层描边发光）
+    const ballR = 14;
+    ctx.fillStyle = "rgba(77, 208, 225, 0.2)";
+    ctx.beginPath();
+    ctx.arc(bx, by, ballR + 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const grad = ctx.createRadialGradient(bx - 4, by - 4, 2, bx, by, ballR);
+    grad.addColorStop(0, "#80deea");
+    grad.addColorStop(1, "#00838f");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#4dd0e1";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(bx, by, ballR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 高度标注
+    const hVal = state.L * (1 - Math.cos(state.theta));
+    if (Math.abs(state.theta) > 0.05) {
+      ctx.strokeStyle = "rgba(100, 181, 246, 0.5)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(bx + ballR + 8, by);
+      ctx.lineTo(bx + ballR + 8, refY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 箭头
+      ctx.fillStyle = "rgba(100, 181, 246, 0.7)";
+      ctx.beginPath();
+      ctx.moveTo(bx + ballR + 8, by);
+      ctx.lineTo(bx + ballR + 5, by + 6);
+      ctx.lineTo(bx + ballR + 11, by + 6);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#64b5f6";
+      ctx.font = "11px ui-sans-serif, system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(`h = ${hVal.toFixed(2)} m`, bx + ballR + 14, (by + refY) / 2 + 4);
+    }
+
+    // 角度标注
+    if (Math.abs(state.theta) > 0.05) {
+      ctx.strokeStyle = "rgba(138, 150, 176, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 30, Math.PI/2, Math.PI/2 + state.theta, state.theta < 0);
+      ctx.stroke();
+
+      ctx.fillStyle = "#8a96b0";
+      ctx.font = "11px ui-sans-serif, system-ui";
+      ctx.textAlign = "center";
+      const labelAng = Math.PI/2 + state.theta * 0.5;
+      ctx.fillText(`θ = ${(state.theta * 180 / Math.PI).toFixed(0)}°`,
+                   cx + 40 * Math.cos(labelAng), cy + 40 * Math.sin(labelAng));
+    }
+
+    // 速度标签
+    if (Math.abs(v) > 0.05) {
+      ctx.fillStyle = "#ef5350";
+      ctx.font = "bold 11px ui-sans-serif, system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(`v = ${Math.abs(v).toFixed(2)} m/s`, bx + vx + 8, by + vy - 4);
+    }
+
+    // 公式标注
+    ctx.fillStyle = "rgba(232, 238, 252, 0.5)";
+    ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("Ep = m*g*h", 12, h - 28);
+    ctx.fillText("Ek = 0.5*m*v^2", 12, h - 14);
+    ctx.textAlign = "right";
+    ctx.fillText("E总 = Ek + Ep", w - 12, h - 28);
+    ctx.fillText("Q = E0 - E总 (摩擦耗散)", w - 12, h - 14);
+  }
+
+  // === 渲染：图表 ===
+  function renderChart() {
+    const w = chartCanvas.width;
+    const h = chartCanvas.height;
+    const ctx = cCtx;
+
+    // 背景
+    ctx.fillStyle = "#0d1220";
+    ctx.fillRect(0, 0, w, h);
+
+    const padL = 48, padR = 16, padT = 12, padB = 28;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // Y 轴范围
+    let yMax = state.initialE * 1.15;
+    if (yMax < 1) yMax = 1;
+
+    // X 范围（滚动窗口）
+    const tNow = state.t;
+    const tMin = Math.max(0, tNow - CHART_WINDOW);
+    const tMax = Math.max(CHART_WINDOW, tNow);
+
+    // 网格
+    ctx.strokeStyle = "#1a2138";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+      const y = padT + (i / 5) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 5; i++) {
+      const x = padL + (i / 5) * plotW;
+      ctx.beginPath();
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, padT + plotH);
+      ctx.stroke();
+    }
+
+    // Y 轴刻度
+    ctx.fillStyle = "#8a96b0";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 5; i++) {
+      const val = yMax * (1 - i / 5);
+      const y = padT + (i / 5) * plotH;
+      ctx.fillText(val.toFixed(1), padL - 4, y + 3);
+    }
+
+    // X 轴刻度
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 5; i++) {
+      const val = tMin + (tMax - tMin) * (i / 5);
+      const x = padL + (i / 5) * plotW;
+      ctx.fillText(val.toFixed(1), x, padT + plotH + 14);
+    }
+
+    // 坐标轴
+    ctx.strokeStyle = "#4a5578";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, padT + plotH);
+    ctx.lineTo(padL + plotW, padT + plotH);
+    ctx.stroke();
+
+    // 轴标签
+    ctx.fillStyle = "#8a96b0";
+    ctx.font = "11px ui-sans-serif, system-ui";
+    ctx.textAlign = "right";
+    ctx.fillText("E / J", padL - 4, padT - 2);
+    ctx.textAlign = "right";
+    ctx.fillText("t / s", padL + plotW, padT + plotH + 24);
+
+    // 绘制曲线
+    const toX = (t) => padL + ((t - tMin) / (tMax - tMin)) * plotW;
+    const toY = (e) => padT + (1 - e / yMax) * plotH;
+
+    const drawCurve = (key, color, glowColor, lineWidth) => {
+      const pts = [];
+      for (const p of state.history) {
+        if (p.t < tMin - 0.1) continue;
+        pts.push({ x: toX(p.t), y: toY(p[key]) });
+      }
+      if (pts.length < 2) return;
+
+      // 双层描边模拟发光
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = lineWidth + 4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    };
+
+    // 顺序：Ep, Ek, E总
+    drawCurve("ep", "#64b5f6", "rgba(100, 181, 246, 0.25)", 2);
+    drawCurve("ek", "#ef5350", "rgba(239, 83, 80, 0.25)", 2);
+    drawCurve("total", "#e8eefc", "rgba(232, 238, 252, 0.2)", 2);
+
+    // 图例
+    const legend = [
+      { label: "Ep 势能", color: "#64b5f6" },
+      { label: "Ek 动能", color: "#ef5350" },
+      { label: "E总 机械能", color: "#e8eefc" }
+    ];
+    ctx.font = "10px ui-sans-serif, system-ui";
+    let lx = padL + 8;
+    for (const item of legend) {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(lx, padT + 4, 10, 10);
+      ctx.fillStyle = "#e8eefc";
+      ctx.textAlign = "left";
+      ctx.fillText(item.label, lx + 14, padT + 13);
+      lx += ctx.measureText(item.label).width + 28;
+    }
+
+    // 当前时间标记
+    if (state.history.length > 0) {
+      const last = state.history[state.history.length - 1];
+      const cx = toX(last.t);
+      if (cx >= padL && cx <= padL + plotW) {
+        ctx.strokeStyle = "rgba(232, 238, 252, 0.3)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(cx, padT);
+        ctx.lineTo(cx, padT + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // === 渲染：读数与洞察 ===
+  function renderReadouts() {
+    const e = computeEnergies(state.theta, state.omega, state.L);
+    els.ep.textContent = e.ep.toFixed(2);
+    els.ek.textContent = e.ek.toFixed(2);
+    els.et.textContent = e.total.toFixed(2);
+
+    const Q = state.initialE - e.total;
+    const gap = Math.abs(e.ek - e.ep);
+
+    if (!state.running && state.t === 0) {
+      els.insight.textContent = "按\"开始\"启动。无摩擦时 E总 保持水平线；有摩擦时 E总 缓慢下降，转化为内能 Q。";
+    } else if (state.gamma < 0.005) {
+      if (gap < 0.15) {
+        els.insight.textContent = "摆球经过最低点：Ek 最大、Ep ≈ 0，E总 守恒不变。";
+      } else if (e.ek > e.ep) {
+        els.insight.textContent = "动能为主：摆球靠近最低点，Ek > Ep，E总 保持水平。";
+      } else {
+        els.insight.textContent = "势能为主：摆球靠近最高点，Ep > Ek，E总 保持水平。";
+      }
+    } else {
+      if (Q < 0.05) {
+        els.insight.textContent = "摩擦刚开始作用：E总 缓慢下降，Q 逐渐积累。";
+      } else if (Q < state.initialE * 0.3) {
+        els.insight.textContent = `摩擦持续耗散：E总 已下降 ${Q.toFixed(2)} J 转为内能 Q。`;
+      } else if (Q < state.initialE * 0.7) {
+        els.insight.textContent = `机械能明显衰减：Q = ${Q.toFixed(2)} J，摆球振幅缩小。`;
+      } else {
+        els.insight.textContent = `接近静止：Q = ${Q.toFixed(2)} J，机械能几乎全部转为内能。`;
+      }
+    }
+
+    els.lengthOutput.textContent = `${state.L.toFixed(2)} m`;
+    els.frictionOutput.textContent = state.gamma.toFixed(3);
+  }
+
+  function render() {
+    renderScene();
+    renderChart();
+    renderReadouts();
+  }
+
+  // === Canvas 尺寸 ===
+  function resizeCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    for (const cv of [sceneCanvas, chartCanvas]) {
+      const rect = cv.getBoundingClientRect();
+      cv.width = Math.max(1, Math.floor(rect.width * dpr));
+      cv.height = Math.max(1, Math.floor(rect.height * dpr));
+      const ctx = cv.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cv._cssW = rect.width;
+      cv._cssH = rect.height;
+    }
+    // 重新设置 canvas 尺寸为 CSS 像素
+    sceneCanvas.width = sceneCanvas._cssW;
+    sceneCanvas.height = sceneCanvas._cssH;
+    chartCanvas.width = chartCanvas._cssW;
+    chartCanvas.height = chartCanvas._cssH;
+    render();
+  }
+
+  // === 主循环 ===
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    dt = clamp(dt, 0, 0.05);
+
+    if (state.running) {
+      const steps = SUBSTEPS;
+      const subDt = dt / steps;
+      for (let i = 0; i < steps; i++) stepPhysics(subDt);
+
+      // 采样历史
+      const e = computeEnergies(state.theta, state.omega, state.L);
+      const last = state.history[state.history.length - 1];
+      if (!last || state.t - last.t >= 0.04) {
+        state.history.push({ t: state.t, ep: e.ep, ek: e.ek, total: e.total });
+        if (state.history.length > HISTORY_MAX) state.history.shift();
+      }
+    }
+
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // === 控件绑定 ===
+  function bindControls() {
+    els.startBtn.addEventListener("click", () => {
+      if (state.running) pause(); else start();
+    });
+    els.pauseBtn.addEventListener("click", pause);
+    els.resetBtn.addEventListener("click", reset);
+    els.lengthInput.addEventListener("input", () => {
+      setParameters({ length: els.lengthInput.value, gamma: state.gamma });
+    });
+    els.frictionInput.addEventListener("input", () => {
+      setParameters({ length: state.L, gamma: els.frictionInput.value });
+    });
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update: stepPhysics, render,
+    setParameters, getState, getReadouts, runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

@@ -2,8 +2,6 @@
  * 氢原子能级跃迁物理计算模块
  */
 
-import * as THREE from 'three';
-
 // 物理常量
 export const PLANCK_CONSTANT = 6.626e-34; // 普朗克常量 (J·s)
 export const ELECTRON_CHARGE = 1.602e-19; // 电子电荷 (C)
@@ -239,7 +237,8 @@ export function generateSpontaneousPath(startLevel: number): Transition[] {
 }
 
 // 预计算的能级数据
-export const ENERGY_LEVELS = generateEnergyLevels(6);
+// 轨道按玻尔半径 r_n=n²·r₁ 呈现（1:4:9:16），仅取前 4 条以保证比例在视野内可辨
+export const ENERGY_LEVELS = generateEnergyLevels(4);
 
 // 预计算的所有可能跃迁
 export const ALL_TRANSITIONS = calculateAllTransitions(6);

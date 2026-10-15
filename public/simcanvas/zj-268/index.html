@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>万物如何划分领地 · 泰森多边形</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0d1428;
+  --sim-text: #e8eefc;
+  --sim-muted: #7a8aa8;
+  --sim-border: #1a2540;
+  --sim-grid: rgba(120, 160, 220, 0.06);
+  --sim-accent: #22d3ee;
+  --sim-accent-deep: #0891b2;
+  --sim-accent-soft: rgba(34, 211, 238, 0.18);
+  --sim-positive: #22d3ee;
+  --sim-warning: #fbbf24;
+  --sim-danger: #f87171;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(20, 50, 90, 0.35), transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(15, 35, 70, 0.30), transparent 55%),
+    var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.app {
+  width: 100vw; height: 100vh; height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0;
+  overflow: hidden;
+}
+.header {
+  padding: 22px 32px 6px;
+  text-align: center;
+  z-index: 2;
+  opacity: 0;
+  animation: fadeIn 1.2s ease 0.3s forwards;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+.header h1 {
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f0f6ff;
+  text-shadow: 0 0 24px rgba(34, 211, 238, 0.25);
+}
+.header p {
+  margin-top: 6px;
+  font-size: clamp(0.85rem, 1.2vw, 1rem);
+  color: var(--sim-muted);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.hint {
+  position: absolute;
+  top: 14px; left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  background: rgba(10, 16, 32, 0.7);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  border-radius: 999px;
+  color: var(--sim-accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+  opacity: 0;
+  animation: fadeIn 0.8s ease 2.2s forwards, fadeOut 0.8s ease 7s forwards;
+}
+@keyframes fadeOut { to { opacity: 0; } }
+.ending {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+  background: radial-gradient(ellipse at center, rgba(5, 8, 16, 0.92), rgba(5, 8, 16, 0.98));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.5s ease;
+  z-index: 5;
+}
+.ending.show { opacity: 1; pointer-events: auto; }
+.ending h2 {
+  font-size: clamp(1.3rem, 2.4vw, 1.9rem);
+  font-weight: 700;
+  color: #f0f6ff;
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+}
+.ending p {
+  font-size: clamp(0.9rem, 1.3vw, 1.05rem);
+  color: var(--sim-muted);
+  max-width: 580px;
+  line-height: 1.7;
+}
+.ending button {
+  margin-top: 28px;
+  padding: 11px 28px;
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #051018;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ending button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(34, 211, 238, 0.3);
+}
+.controls {
+  padding: 14px 28px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: linear-gradient(to top, rgba(5, 8, 16, 0.95), rgba(5, 8, 16, 0.4));
+  border-top: 1px solid rgba(34, 211, 238, 0.08);
+  z-index: 2;
+}
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ctrl-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sim-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ctrl-group output {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--sim-accent);
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 220px;
+  height: 4px;
+  background: linear-gradient(to right, var(--sim-accent-deep), var(--sim-accent));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--sim-accent);
+  cursor: grab;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+input[type="range"]::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.05); }
+input[type="range"]::-moz-range-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--sim-accent);
+  cursor: grab;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+}
+.divider {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, rgba(34, 211, 238, 0.2), transparent);
+}
+.btn-reset, .btn-action {
+  padding: 8px 18px;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  border-radius: 999px;
+  color: var(--sim-accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.2s ease;
+}
+.btn-reset:hover, .btn-action:hover {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.5);
+}
+.btn-action.primary {
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  color: #051018;
+  border-color: transparent;
+}
+.btn-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+@media (max-width: 720px) {
+  .header { padding: 14px 16px 4px; }
+  .controls { padding: 10px 16px 14px; gap: 16px; flex-wrap: wrap; }
+  input[type="range"] { width: 140px; }
+  .divider { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header { animation: none; opacity: 1; }
+  .hint { animation: none; opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="rule-based">
+  <header class="header" data-region="header">
+    <h1>万物如何划分领地 · 泰森多边形</h1>
+    <p>每一块领地，都属于离它最近的种子</p>
+  </header>
+
+  <div class="stage-wrap" data-region="stage">
+    <canvas id="scene" role="img" aria-label="泰森多边形生成动画"></canvas>
+    <div class="hint">点击画面任意位置添加新种子</div>
+    <div class="ending" id="ending">
+      <h2>每一块领地，都属于离它最近的种子</h2>
+      <p>自然界的许多镶嵌图案——蜻蜓翅膀的脉络、长颈鹿斑纹的边界、龟壳的拼接、气泡的挤压——都与这套几何惊人相似。</p>
+      <button id="restartBtn">重新观察</button>
+    </div>
+  </div>
+
+  <aside class="side" data-region="evidence" aria-label="实时数据">
+    <section class="panel readouts" aria-label="实时读数">
+      <div class="readout-grid">
+        <div class="metric"><small>种子数</small><strong id="seedCountReadout">12</strong></div>
+        <div class="metric"><small>扩张半径</small><strong id="radiusReadout">0 px</strong></div>
+        <div class="metric"><small>单元数</small><strong id="cellCountReadout">12</strong></div>
+        <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.0 s</strong></div>
+      </div>
+    </section>
+    <section class="panel model-note" data-region="insight" aria-label="模型说明">
+      <div class="panel-head"><h2>模型</h2></div>
+      <p id="insight" class="insight">每个单元是"离该种子最近的所有点"的集合，由相邻种子中垂线裁剪而成。</p>
+      <p>教学视图：半平面交集法。扩张圆仅用于可视化揭示过程，不改变单元归属。</p>
+    </section>
+  </aside>
+
+  <section class="controls" data-region="controls" aria-label="参数控制">
+    <div class="actions">
+      <button id="startBtn" class="btn-action primary" type="button">开始</button>
+      <button id="pauseBtn" class="btn-action" type="button">暂停</button>
+      <button id="resetBtn" class="btn-reset" type="button">重新撒种</button>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <label for="countInput">种子数量</label>
+      <input id="countInput" type="range" min="5" max="60" step="1" value="12" aria-label="种子数量">
+      <output id="countOutput">12</output>
+    </div>
+    <div class="divider"></div>
+    <div class="ctrl-group">
+      <label for="speedInput">扩张速度</label>
+      <input id="speedInput" type="range" min="0.3" max="2.5" step="0.1" value="1.2" aria-label="扩张速度">
+      <output id="speedOutput">1.2</output>
+    </div>
+  </section>
+</div>
+
+<style>
+/* 侧栏样式：在窄屏堆叠到主场景下方 */
+.side {
+  display: none;
+}
+.readouts {
+  padding: 14px 18px;
+  background: rgba(10, 16, 32, 0.6);
+  border: 1px solid rgba(34, 211, 238, 0.12);
+  border-radius: var(--sim-radius-md);
+}
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.metric {
+  padding: 10px 12px;
+  border: 1px solid rgba(34, 211, 238, 0.10);
+  border-radius: 12px;
+  background: rgba(13, 20, 40, 0.5);
+}
+.metric small {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--sim-muted);
+  font-size: 0.72rem;
+}
+.metric strong {
+  font-size: 1.2rem;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-accent);
+}
+.model-note {
+  padding: 14px 18px;
+  background: rgba(10, 16, 32, 0.6);
+  border: 1px solid rgba(34, 211, 238, 0.12);
+  border-radius: var(--sim-radius-md);
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.model-note .panel-head { display: flex; justify-content: space-between; align-items: baseline; }
+.model-note h2 { margin: 0; font-size: 0.95rem; color: var(--sim-text); }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+.insight {
+  padding: 10px 12px;
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 10px 10px 0;
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24 !important;
+  font-weight: 600;
+  font-size: 0.85rem !important;
+}
+@media (min-width: 1100px) {
+  .app {
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "header header"
+      "stage evidence"
+      "controls controls";
+  }
+  .header { grid-area: header; }
+  .stage-wrap { grid-area: stage; }
+  .side {
+    grid-area: evidence;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 12px;
+    padding: 12px 16px 12px 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .controls { grid-area: controls; }
+}
+@media (max-width: 1099px) {
+  .app {
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 8px 16px;
+  }
+  .readouts { grid-column: 1; }
+  .model-note { grid-column: 2; }
+}
+@media (max-width: 720px) {
+  .side {
+    grid-template-columns: 1fr;
+  }
+  .readouts, .model-note { grid-column: 1; }
+}
+</style>
+
+<script>
+(() => {
+  "use strict";
+
+  // ========== 状态 ==========
+  const state = {
+    seeds: [],
+    count: 12,
+    speed: 1.2,
+    t: 0,
+    running: false,
+    cycleStart: 0,
+    lastTimestamp: null,
+    rngState: 12345,
+    canvas: null,
+    ctx: null,
+    W: 0, H: 0,
+    dpr: 1,
+    introPhase: true,
+    introStart: 0,
+    endingShown: false,
+    endingTimer: null,
+    trails: [],
+  };
+
+  // ========== 确定性随机数（线性同余） ==========
+  function rng() {
+    state.rngState = (state.rngState * 1664525 + 1013904223) >>> 0;
+    return state.rngState / 4294967296;
+  }
+  function resetRng(seed) {
+    state.rngState = seed >>> 0;
+  }
+
+  // ========== 种子生成 ==========
+  function generateSeeds(n) {
+    resetRng(987654321);
+    const seeds = [];
+    const pad = 0.08;
+    for (let i = 0; i < n; i++) {
+      seeds.push({
+        x: pad + rng() * (1 - 2 * pad),
+        y: pad + rng() * (1 - 2 * pad),
+        hue: 170 + (i * 360 / n) % 200,
+        born: 0,
+        isNew: false,
+      });
+    }
+    return seeds;
+  }
+
+  // ========== 简化版：用半平面交法计算每个种子的多边形 ==========
+  function computeVoronoiSimple(seeds, width, height) {
+    const cells = [];
+    const margin = Math.max(width, height) * 3;
+
+    for (let i = 0; i < seeds.length; i++) {
+      const s = seeds[i];
+      const sx = s.x * width;
+      const sy = s.y * height;
+
+      const halfPlanes = [];
+      for (let j = 0; j < seeds.length; j++) {
+        if (i === j) continue;
+        const o = seeds[j];
+        const ox = o.x * width;
+        const oy = o.y * height;
+        const a = 2 * (ox - sx);
+        const b = 2 * (oy - sy);
+        const c = ox * ox + oy * oy - sx * sx - sy * sy;
+        halfPlanes.push({ a, b, c });
+      }
+
+      let polygon = [
+        { x: -margin, y: -margin },
+        { x: width + margin, y: -margin },
+        { x: width + margin, y: height + margin },
+        { x: -margin, y: height + margin },
+      ];
+
+      for (const hp of halfPlanes) {
+        polygon = clipPolygon(polygon, hp);
+        if (polygon.length === 0) break;
+      }
+
+      cells.push({ seedIdx: i, polygon });
+    }
+
+    return cells;
+  }
+
+  function clipPolygon(polygon, hp) {
+    const result = [];
+    const n = polygon.length;
+    for (let i = 0; i < n; i++) {
+      const cur = polygon[i];
+      const next = polygon[(i + 1) % n];
+      const curIn = hp.a * cur.x + hp.b * cur.y <= hp.c + 1e-6;
+      const nextIn = hp.a * next.x + hp.b * next.y <= hp.c + 1e-6;
+
+      if (curIn) {
+        result.push(cur);
+        if (!nextIn) {
+          result.push(lineIntersect(cur, next, hp));
+        }
+      } else {
+        if (nextIn) {
+          result.push(lineIntersect(cur, next, hp));
+        }
+      }
+    }
+    return result;
+  }
+
+  function lineIntersect(a, b, hp) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const denom = hp.a * dx + hp.b * dy;
+    if (Math.abs(denom) < 1e-12) return { x: a.x, y: a.y };
+    const t = (hp.c - hp.a * a.x - hp.b * a.y) / denom;
+    return { x: a.x + t * dx, y: a.y + t * dy };
+  }
+
+  // ========== 渲染 ==========
+  function setupCanvas() {
+    state.canvas = document.getElementById('scene');
+    state.ctx = state.canvas.getContext('2d');
+    resizeCanvas();
+  }
+
+  function resizeCanvas() {
+    const wrap = state.canvas.parentElement;
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    state.canvas.width = w * state.dpr;
+    state.canvas.height = h * state.dpr;
+    state.canvas.style.width = w + 'px';
+    state.canvas.style.height = h + 'px';
+    state.W = w;
+    state.H = h;
+    state.ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  }
+
+  function drawBackground() {
+    const ctx = state.ctx;
+    const W = state.W, H = state.H;
+
+    const g1 = ctx.createRadialGradient(W * 0.25, H * 0.15, 0, W * 0.25, H * 0.15, W * 0.7);
+    g1.addColorStop(0, 'rgba(20, 45, 85, 0.4)');
+    g1.addColorStop(1, 'rgba(5, 8, 16, 0)');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, W, H);
+
+    const g2 = ctx.createRadialGradient(W * 0.8, H * 0.85, 0, W * 0.8, H * 0.85, W * 0.6);
+    g2.addColorStop(0, 'rgba(15, 30, 60, 0.35)');
+    g2.addColorStop(1, 'rgba(5, 8, 16, 0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(120, 160, 220, 0.05)';
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+    }
+    for (let y = 0; y <= H; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+  }
+
+  function drawScene() {
+    const ctx = state.ctx;
+    const W = state.W, H = state.H;
+    ctx.clearRect(0, 0, W, H);
+
+    drawBackground();
+
+    const cells = computeVoronoiSimple(state.seeds, W, H);
+
+    const maxDist = Math.hypot(W, H);
+    const expandR = state.t * state.speed * 80;
+
+    // 1. 绘制扩张圆
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < state.seeds.length; i++) {
+      const s = state.seeds[i];
+      const sx = s.x * W;
+      const sy = s.y * H;
+      const age = state.t - s.born;
+      if (age < 0) continue;
+      const r = Math.max(0, age * state.speed * 80);
+
+      if (r < 1) continue;
+
+      const hue = s.hue;
+      ctx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.12)`;
+      ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = `hsla(${hue}, 85%, 65%, 0.25)`;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = `hsla(${hue}, 90%, 70%, 0.5)`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // 2. 绘制泰森多边形边界
+    for (const cell of cells) {
+      if (cell.polygon.length < 3) continue;
+
+      const seed = state.seeds[cell.seedIdx];
+      const sx = seed.x * W;
+      const sy = seed.y * H;
+      const age = state.t - seed.born;
+      if (age < 0) continue;
+      const localR = Math.max(0, age * state.speed * 80);
+
+      let visible = false;
+      for (const v of cell.polygon) {
+        if (Math.hypot(v.x - sx, v.y - sy) <= localR + 2) {
+          visible = true;
+          break;
+        }
+      }
+      if (!visible && localR < maxDist) continue;
+
+      const hue = seed.hue;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(sx, sy, localR, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.strokeStyle = `hsla(${hue}, 85%, 60%, 0.35)`;
+      ctx.lineWidth = 5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cell.polygon[0].x, cell.polygon[0].y);
+      for (let i = 1; i < cell.polygon.length; i++) {
+        ctx.lineTo(cell.polygon[i].x, cell.polygon[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.strokeStyle = `hsla(${hue}, 95%, 75%, 0.9)`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cell.polygon[0].x, cell.polygon[0].y);
+      for (let i = 1; i < cell.polygon.length; i++) {
+        ctx.lineTo(cell.polygon[i].x, cell.polygon[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 3. 绘制种子点
+    for (const s of state.seeds) {
+      const sx = s.x * W;
+      const sy = s.y * H;
+      const age = state.t - s.born;
+      if (age < 0) continue;
+      const hue = s.hue;
+
+      let scale = 1;
+      if (s.isNew && age < 0.5) {
+        const p = age / 0.5;
+        scale = easeOutBack(p);
+      }
+
+      const baseR = 5 * scale;
+
+      ctx.fillStyle = `hsla(${hue}, 90%, 60%, 0.18)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseR * 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `hsla(${hue}, 90%, 65%, 0.4)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseR * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = `hsla(${hue}, 95%, 80%, 1)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.beginPath();
+      ctx.arc(sx - baseR * 0.3, sy - baseR * 0.3, baseR * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function easeOutBack(t) {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // ========== 动画循环 ==========
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) {
+      state.lastTimestamp = timestamp;
+      state.introStart = timestamp;
+    }
+    const dt = Math.min((timestamp - state.lastTimestamp) / 1000, 0.05);
+    state.lastTimestamp = timestamp;
+
+    // 开场 2 秒静态标题帧
+    const sinceIntro = (timestamp - state.introStart) / 1000;
+    if (sinceIntro < 2.0) {
+      drawBackground();
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    update(dt);
+    render();
+
+    requestAnimationFrame(frame);
+  }
+
+  function showEnding() {
+    document.getElementById('ending').classList.add('show');
+  }
+
+  function hideEnding() {
+    document.getElementById('ending').classList.remove('show');
+    if (state.endingTimer) {
+      clearTimeout(state.endingTimer);
+      state.endingTimer = null;
+    }
+  }
+
+  // ========== 交互 ==========
+  function setSeedCount(n) {
+    n = Math.max(5, Math.min(60, Math.floor(n)));
+    state.count = n;
+    state.seeds = generateSeeds(n);
+    state.t = 0;
+    state.endingShown = false;
+    hideEnding();
+    document.getElementById('countOutput').textContent = n;
+    render();
+  }
+
+  function setSpeed(v) {
+    state.speed = Math.max(0.3, Math.min(2.5, v));
+    document.getElementById('speedOutput').textContent = state.speed.toFixed(1);
+  }
+
+  function addSeed(x, y) {
+    if (state.seeds.length >= 60) return;
+    const nx = x / state.W;
+    const ny = y / state.H;
+    const hue = 170 + (state.seeds.length * 360 / 60) % 200;
+    state.seeds.push({
+      x: nx, y: ny, hue, born: state.t, isNew: true,
+    });
+    document.getElementById('countOutput').textContent = state.seeds.length;
+    document.getElementById('countInput').value = state.seeds.length;
+    state.count = state.seeds.length;
+  }
+
+  function reset() {
+    pause();
+    setSeedCount(state.count);
+    state.t = 0;
+    state.endingShown = false;
+    hideEnding();
+    render();
+  }
+
+  function bindControls() {
+    const countInput = document.getElementById('countInput');
+    const speedInput = document.getElementById('speedInput');
+    const resetBtn = document.getElementById('resetBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+
+    countInput.addEventListener('input', () => setSeedCount(parseInt(countInput.value)));
+    speedInput.addEventListener('input', () => setSpeed(parseFloat(speedInput.value)));
+    resetBtn.addEventListener('click', reset);
+    restartBtn.addEventListener('click', reset);
+    startBtn.addEventListener('click', start);
+    pauseBtn.addEventListener('click', pause);
+
+    state.canvas.addEventListener('click', (e) => {
+      const rect = state.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      addSeed(x, y);
+    });
+
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      render();
+    });
+  }
+
+  // ========== 运行时钩子 ==========
+  function init() {
+    setupCanvas();
+    setSeedCount(12);
+    setSpeed(1.2);
+    bindControls();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.textContent = '运行中';
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) startBtn.setAttribute('aria-pressed', 'true');
+  }
+
+  function pause() {
+    state.running = false;
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.textContent = '已暂停';
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) startBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.max(0, Math.min(dt, 0.05));
+    state.t += boundedDt;
+
+    const maxR = Math.hypot(state.W, state.H);
+    const fullyExpanded = state.t * state.speed * 80 >= maxR * 1.1;
+    if (fullyExpanded && !state.endingShown) {
+      state.endingShown = true;
+      state.endingTimer = setTimeout(() => {
+        showEnding();
+      }, 3000);
+    }
+  }
+
+  function render() {
+    drawScene();
+    updateReadouts();
+  }
+
+  function updateReadouts() {
+    const seedCountEl = document.getElementById('seedCountReadout');
+    const radiusEl = document.getElementById('radiusReadout');
+    const cellCountEl = document.getElementById('cellCountReadout');
+    const timeEl = document.getElementById('timeReadout');
+    const insightEl = document.getElementById('insight');
+
+    if (seedCountEl) seedCountEl.textContent = state.seeds.length;
+    if (radiusEl) {
+      const r = state.t * state.speed * 80;
+      radiusEl.textContent = `${r.toFixed(0)} px`;
+    }
+    if (cellCountEl) cellCountEl.textContent = state.seeds.length;
+    if (timeEl) timeEl.textContent = `${state.t.toFixed(1)} s`;
+
+    if (insightEl) {
+      const maxR = Math.hypot(state.W, state.H);
+      const expandR = state.t * state.speed * 80;
+      if (!state.running && state.t === 0) {
+        insightEl.textContent = '点击开始，观察种子如何向外扩张并相遇形成边界。';
+      } else if (expandR < maxR * 0.3) {
+        insightEl.textContent = '种子正在扩张：每个圆尚未相遇，边界还未形成。';
+      } else if (expandR < maxR * 0.7) {
+        insightEl.textContent = '圆开始相交：相交线就是两颗种子的中垂线。';
+      } else if (expandR < maxR * 1.1) {
+        insightEl.textContent = '领地成型：每个单元内的点都离自己的种子最近。';
+      } else {
+        insightEl.textContent = '完成：整张画面被划分成泰森多边形镶嵌。';
+      }
+    }
+  }
+
+  function setParameters(values) {
+    if (values.count !== undefined) setSeedCount(values.count);
+    if (values.speed !== undefined) setSpeed(values.speed);
+    render();
+  }
+
+  function getReadouts() {
+    return {
+      seedCount: state.seeds.length,
+      cellCount: state.seeds.length,
+      expandRadius: state.t * state.speed * 80,
+      time: state.t,
+      speed: state.speed,
+      running: state.running,
+    };
+  }
+
+  function getState() {
+    return {
+      ...state,
+      seeds: state.seeds.map(s => ({ ...s })),
+    };
+  }
+
+  function runModelChecks() {
+    const checks = [];
+    const testSeeds = generateSeeds(8);
+    const W = 800, H = 600;
+    const cells = computeVoronoiSimple(testSeeds, W, H);
+
+    // 检查 1：每个单元包含自己的种子
+    let allContainSeed = true;
+    for (const cell of cells) {
+      const s = testSeeds[cell.seedIdx];
+      const sx = s.x * W, sy = s.y * H;
+      let inside = false;
+      if (cell.polygon.length >= 3) {
+        inside = pointInPolygon({ x: sx, y: sy }, cell.polygon);
+      }
+      if (!inside) allContainSeed = false;
+    }
+    checks.push({
+      name: '每个单元包含自己的种子',
+      pass: allContainSeed,
+      expected: 'all true',
+      actual: allContainSeed,
+      tolerance: 'strict',
+    });
+
+    // 检查 2：单元内随机采样点离本单元种子最近
+    let nearestCorrect = true;
+    let testedCount = 0;
+    for (const cell of cells) {
+      if (cell.polygon.length < 3) continue;
+      const s = testSeeds[cell.seedIdx];
+      const sx = s.x * W, sy = s.y * H;
+      for (let k = 0; k < 5; k++) {
+        const idx = Math.floor(Math.random() * cell.polygon.length);
+        const v = cell.polygon[idx];
+        const px = v.x + (Math.random() - 0.5) * 10;
+        const py = v.y + (Math.random() - 0.5) * 10;
+        if (!pointInPolygon({ x: px, y: py }, cell.polygon)) continue;
+
+        let minDist = Infinity;
+        let nearestIdx = -1;
+        for (let j = 0; j < testSeeds.length; j++) {
+          const d = Math.hypot(px - testSeeds[j].x * W, py - testSeeds[j].y * H);
+          if (d < minDist) { minDist = d; nearestIdx = j; }
+        }
+        if (nearestIdx !== cell.seedIdx) nearestCorrect = false;
+        testedCount++;
+      }
+    }
+    checks.push({
+      name: '单元内点离本单元种子最近',
+      pass: nearestCorrect && testedCount > 0,
+      expected: 'all nearest = self',
+      actual: `${testedCount} samples, correct: ${nearestCorrect}`,
+      tolerance: 'strict',
+    });
+
+    // 检查 3：确定性——相同种子产生相同结果
+    const cells2 = computeVoronoiSimple(generateSeeds(8), W, H);
+    let deterministic = true;
+    for (let i = 0; i < cells.length; i++) {
+      if (cells[i].polygon.length !== cells2[i].polygon.length) {
+        deterministic = false;
+        break;
+      }
+    }
+    checks.push({
+      name: '相同种子产生确定性结果',
+      pass: deterministic,
+      expected: 'identical',
+      actual: deterministic,
+      tolerance: 'strict',
+    });
+
+    return checks;
+  }
+
+  function pointInPolygon(p, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x, yi = polygon[i].y;
+      const xj = polygon[j].x, yj = polygon[j].y;
+      const intersect = ((yi > p.y) !== (yj > p.y)) &&
+        (p.x < (xj - xi) * (p.y - yi) / (yj - yi + 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks,
+    setSeedCount,
+    setSpeed,
+    addSeed,
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

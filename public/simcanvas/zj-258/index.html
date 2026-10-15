@@ -1,0 +1,1149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阿基米德逼近圆周率 · 用多边形夹住圆</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #7a8aa8;
+  --sim-border: #1a2238;
+  --sim-grid: rgba(120, 160, 220, 0.06);
+  --sim-accent: #4dd4e8;
+  --sim-accent-deep: #2a9aaf;
+  --sim-accent-soft: rgba(77, 212, 232, 0.14);
+  --sim-positive: #4dd4e8;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  color: var(--sim-text);
+  background: #050810;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+}
+.header {
+  padding: 14px 28px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.15rem, 1.8vw, 1.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #e8eefc;
+}
+.header p {
+  margin: 2px 0 0;
+  color: var(--sim-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+.status {
+  border: 1px solid rgba(77, 212, 232, 0.25);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+.main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 0;
+  overflow: hidden;
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+.side {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--sim-border);
+  background: linear-gradient(180deg, rgba(10, 15, 28, 0.6), rgba(5, 8, 16, 0.9));
+}
+.evidence {
+  padding: 18px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.evidence-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.evidence-head h2 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--sim-text);
+  letter-spacing: 0.04em;
+}
+.evidence-head span {
+  color: var(--sim-muted);
+  font-size: 0.68rem;
+}
+.metric {
+  padding: 11px 13px;
+  border: 1px solid rgba(120, 160, 220, 0.14);
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgba(20, 30, 52, 0.5), rgba(10, 15, 28, 0.7));
+}
+.metric small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sim-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.metric strong {
+  display: block;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+.metric.cyan strong { color: #4dd4e8; }
+.metric.orange strong { color: #f59e0b; }
+.metric.gold strong { color: #ffd166; }
+.metric.muted strong { color: #7a8aa8; font-size: 0.95rem; }
+.interval-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(120, 160, 220, 0.12);
+  overflow: hidden;
+  margin-top: 6px;
+}
+.interval-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4dd4e8, #ffd166, #f59e0b);
+}
+.pi-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+  transform: translateX(-50%);
+}
+.pi-label {
+  position: absolute;
+  top: -18px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #ffffff;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.insight {
+  padding: 14px 20px 16px;
+  border-top: 1px solid var(--sim-border);
+  background: rgba(14, 20, 36, 0.6);
+}
+.insight-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--sim-muted);
+  letter-spacing: 0.06em;
+}
+.insight-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--sim-text);
+  font-weight: 500;
+}
+.controls {
+  padding: 12px 28px 18px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--sim-border);
+  background: rgba(5, 8, 16, 0.6);
+}
+.sides-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+.sides-control label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--sim-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+input[type="range"] {
+  flex: 1;
+  min-width: 140px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, #4dd4e8 0%, #4dd4e8 var(--fill, 50%), rgba(120, 160, 220, 0.18) var(--fill, 50%));
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4dd4e8;
+  border: 2px solid #0a0f1c;
+  box-shadow: 0 0 0 1px rgba(77, 212, 232, 0.4), 0 0 12px rgba(77, 212, 232, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4dd4e8;
+  border: 2px solid #0a0f1c;
+  box-shadow: 0 0 0 1px rgba(77, 212, 232, 0.4), 0 0 12px rgba(77, 212, 232, 0.5);
+  cursor: pointer;
+}
+input[type="range"]:focus-visible {
+  outline: 2px solid rgba(77, 212, 232, 0.5);
+  outline-offset: 4px;
+}
+.sides-value {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #4dd4e8;
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+button {
+  border: 1px solid rgba(120, 160, 220, 0.2);
+  border-radius: var(--sim-radius-sm);
+  padding: 8px 18px;
+  color: var(--sim-text);
+  background: rgba(20, 28, 48, 0.6);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  backdrop-filter: blur(6px);
+}
+button:hover {
+  border-color: rgba(77, 212, 232, 0.4);
+  background: rgba(30, 42, 68, 0.8);
+}
+button:active { transform: scale(0.96); }
+button:focus-visible {
+  outline: 2px solid rgba(77, 212, 232, 0.6);
+  outline-offset: 2px;
+}
+button.primary {
+  border-color: rgba(77, 212, 232, 0.5);
+  color: #0a0f1c;
+  background: linear-gradient(135deg, #4dd4e8, #2a9aaf);
+  box-shadow: 0 4px 16px rgba(77, 212, 232, 0.25);
+}
+button.primary:hover {
+  background: linear-gradient(135deg, #6ae0f0, #34aebf);
+  box-shadow: 0 6px 20px rgba(77, 212, 232, 0.4);
+}
+@media (max-width: 860px) {
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .side {
+    border-left: none;
+    border-top: 1px solid var(--sim-border);
+    max-height: 38vh;
+  }
+  .evidence { padding: 12px 16px 6px; }
+  .insight { padding: 10px 16px 12px; }
+}
+@media (max-width: 640px) {
+  .header { padding: 10px 16px 4px; }
+  .controls { padding: 10px 16px 14px; gap: 12px; }
+  .sides-control { flex: 1 1 100%; min-width: 0; }
+  .actions { flex: 1 1 100%; justify-content: center; }
+  button { padding: 8px 14px; font-size: 0.78rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>阿基米德逼近圆周率</h1>
+      <p>用多边形从内外两侧夹住圆，边数越多越逼近</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+
+  <main class="main">
+    <section class="stage" data-region="stage" aria-label="圆与多边形逼近可视化">
+      <canvas id="scene" role="img" aria-labelledby="scene-desc"></canvas>
+      <div id="scene-desc" style="display:none">深色背景中央一个金色发光圆，青色内接多边形从内侧贴合，暖橙外切多边形从外侧包住，随边数增加两族多边形夹紧圆。</div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="evidence" aria-label="实时数值">
+        <div class="evidence-head">
+          <h2>实时数值</h2>
+          <span>单位圆面积 = π ≈ 3.14159</span>
+        </div>
+        <div class="metric">
+          <small>多边形边数 n</small>
+          <strong id="sidesReadout">6</strong>
+        </div>
+        <div class="metric cyan">
+          <small>内接多边形面积 A<sub>内</sub></small>
+          <strong id="inscribedAreaReadout">2.5981</strong>
+        </div>
+        <div class="metric orange">
+          <small>外切多边形面积 A<sub>外</sub></small>
+          <strong id="circumscribedAreaReadout">3.4641</strong>
+        </div>
+        <div class="metric gold">
+          <small>夹逼区间 A<sub>内</sub> &lt; π &lt; A<sub>外</sub></small>
+          <strong id="intervalReadout">2.5981 — 3.4641</strong>
+          <div class="interval-bar" id="intervalBar">
+            <div class="interval-fill" id="intervalFill"></div>
+            <div class="pi-mark" id="piMark"><span class="pi-label">π</span></div>
+          </div>
+        </div>
+        <div class="metric muted">
+          <small>区间宽度 A<sub>外</sub> − A<sub>内</sub></small>
+          <strong id="widthReadout">0.8660</strong>
+        </div>
+      </section>
+
+      <section class="insight" data-region="insight" aria-live="polite">
+        <span class="insight-label">观察</span>
+        <p class="insight-text" id="insightText">按"开始"看边数翻倍如何夹紧圆，或拖动滑块手动浏览。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="sides-control">
+      <label for="sidesInput">边数</label>
+      <input id="sidesInput" type="range" min="6" max="384" step="6" value="96" aria-label="多边形边数，6 到 384，只取 6 乘 2 的幂">
+      <span class="sides-value" id="sidesValue">96</span>
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const SIDES_SEQUENCE = [6, 12, 24, 48, 96, 192, 384];
+  const FINAL_SIDES = 96;
+  const OPENING_DURATION = 2.0;
+  const AUTOPLAY_INTERVAL = 2.6;
+  const AUTOPLAY_DURATION = AUTOPLAY_INTERVAL * (SIDES_SEQUENCE.length - 1);
+
+  const COLORS = {
+    bg1: "#050810",
+    bg2: "#0a0f1c",
+    bg3: "#02040a",
+    grid: "rgba(120, 160, 220, 0.05)",
+    circleOuter: "rgba(255, 200, 80, 0.22)",
+    circleInner: "#ffd166",
+    inscribedGlow: "rgba(77, 212, 232, 0.22)",
+    inscribedSolid: "#4dd4e8",
+    circumscribedGlow: "rgba(245, 158, 11, 0.22)",
+    circumscribedSolid: "#f59e0b",
+    textPrimary: "#e8eefc",
+    textMuted: "#7a8aa8",
+    textGold: "#ffd166",
+    textCyan: "#4dd4e8",
+    textOrange: "#f59e0b",
+    textDim: "#5a6a88",
+  };
+
+  const state = {
+    running: false,
+    t: 0,
+    sides: 6,
+    targetSides: 96,
+    lastTimestamp: null,
+    autoPlay: false,
+    autoTimer: 0,
+    openingPhase: true,
+    openingT: 0,
+    finalReveal: false,
+    finalT: 0,
+    canvas: null,
+    ctx: null,
+    width: 0,
+    height: 0,
+    dpr: 1,
+  };
+
+  const elements = {};
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function easeInOutCubic(t) {
+    const x = clamp(t, 0, 1);
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  }
+  function easeOutCubic(t) {
+    const x = clamp(t, 0, 1);
+    return 1 - Math.pow(1 - x, 3);
+  }
+  function lerp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+
+  function inscribedArea(n) {
+    const safeN = Math.max(3, Math.floor(n));
+    return (safeN / 2) * Math.sin(2 * Math.PI / safeN);
+  }
+  function circumscribedArea(n) {
+    const safeN = Math.max(3, Math.floor(n));
+    return safeN * Math.tan(Math.PI / safeN);
+  }
+  function inscribedPerimeter(n) {
+    const safeN = Math.max(3, Math.floor(n));
+    return 2 * safeN * Math.sin(Math.PI / safeN);
+  }
+  function circumscribedPerimeter(n) {
+    const safeN = Math.max(3, Math.floor(n));
+    return 2 * safeN * Math.tan(Math.PI / safeN);
+  }
+
+  function nearestSidesIndex(target) {
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < SIDES_SEQUENCE.length; i++) {
+      const d = Math.abs(SIDES_SEQUENCE[i] - target);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
+
+  function setupCanvas() {
+    const canvas = elements.canvas;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(320, rect.width);
+    const cssH = Math.max(240, rect.height);
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    state.canvas = canvas;
+    state.ctx = canvas.getContext("2d");
+    state.width = cssW;
+    state.height = cssH;
+    state.dpr = dpr;
+    state.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function init() {
+    elements.canvas = document.getElementById("scene");
+    elements.status = document.getElementById("status");
+    elements.sidesInput = document.getElementById("sidesInput");
+    elements.sidesValue = document.getElementById("sidesValue");
+    elements.startBtn = document.getElementById("startBtn");
+    elements.pauseBtn = document.getElementById("pauseBtn");
+    elements.resetBtn = document.getElementById("resetBtn");
+    elements.sidesReadout = document.getElementById("sidesReadout");
+    elements.inscribedAreaReadout = document.getElementById("inscribedAreaReadout");
+    elements.circumscribedAreaReadout = document.getElementById("circumscribedAreaReadout");
+    elements.intervalReadout = document.getElementById("intervalReadout");
+    elements.widthReadout = document.getElementById("widthReadout");
+    elements.intervalBar = document.getElementById("intervalBar");
+    elements.intervalFill = document.getElementById("intervalFill");
+    elements.piMark = document.getElementById("piMark");
+    elements.insightText = document.getElementById("insightText");
+
+    setupCanvas();
+    bindControls();
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (state.finalReveal) return;
+    state.running = true;
+    state.autoPlay = true;
+    state.autoTimer = 0;
+    state.openingPhase = false;
+    state.openingT = OPENING_DURATION;
+    elements.status.textContent = "自动逼近中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    state.autoPlay = false;
+    elements.status.textContent = state.finalReveal ? "已定格" : "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    state.running = false;
+    state.autoPlay = false;
+    state.t = 0;
+    state.sides = 6;
+    state.targetSides = 96;
+    state.lastTimestamp = null;
+    state.autoTimer = 0;
+    state.openingPhase = true;
+    state.openingT = 0;
+    state.finalReveal = false;
+    state.finalT = 0;
+    elements.sidesInput.value = "96";
+    elements.sidesValue.textContent = "96";
+    updateSliderFill();
+    elements.status.textContent = "就绪";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+    render();
+  }
+
+  function updateSliderFill() {
+    const min = parseFloat(elements.sidesInput.min);
+    const max = parseFloat(elements.sidesInput.max);
+    const val = parseFloat(elements.sidesInput.value);
+    const pct = ((val - min) / (max - min)) * 100;
+    elements.sidesInput.style.setProperty("--fill", pct + "%");
+  }
+
+  function update(dt) {
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+
+    if (state.openingPhase) {
+      state.openingT += boundedDt;
+      if (state.openingT >= OPENING_DURATION) {
+        state.openingPhase = false;
+        state.openingT = OPENING_DURATION;
+      }
+      return;
+    }
+
+    if (state.finalReveal) {
+      state.finalT += boundedDt;
+      return;
+    }
+
+    if (state.autoPlay && state.running) {
+      state.autoTimer += boundedDt;
+      const idx = Math.min(SIDES_SEQUENCE.length - 1, Math.floor(state.autoTimer / AUTOPLAY_INTERVAL));
+      const localT = clamp((state.autoTimer - idx * AUTOPLAY_INTERVAL) / AUTOPLAY_INTERVAL, 0, 1);
+      const eased = easeInOutCubic(localT);
+      if (idx >= SIDES_SEQUENCE.length - 1) {
+        state.sides = FINAL_SIDES;
+        if (localT >= 1) {
+          state.finalReveal = true;
+          state.finalT = 0;
+          state.running = false;
+          state.autoPlay = false;
+          elements.status.textContent = "已定格 223/71 < π < 22/7";
+          elements.startBtn.setAttribute("aria-pressed", "false");
+        }
+      } else {
+        state.sides = lerp(SIDES_SEQUENCE[idx], SIDES_SEQUENCE[idx + 1], eased);
+      }
+      state.t += boundedDt;
+    }
+  }
+
+  function render() {
+    const ctx = state.ctx;
+    if (!ctx) return;
+    const W = state.width, H = state.height;
+    ctx.clearRect(0, 0, W, H);
+
+    drawBackground(ctx, W, H);
+    drawGrid(ctx, W, H);
+
+    const cx = W / 2;
+    const cy = H / 2;
+    const R = Math.max(40, Math.min(W, H) * 0.26);
+
+    const openingAlpha = state.openingPhase ? easeOutCubic(state.openingT / OPENING_DURATION) : 1;
+
+    drawCircumscribed(ctx, cx, cy, R, state.sides, openingAlpha);
+    drawInscribed(ctx, cx, cy, R, state.sides, openingAlpha);
+    drawCircle(ctx, cx, cy, R, openingAlpha);
+
+    drawReadouts(ctx, W, H, state.sides);
+    drawLegend(ctx, W, H);
+
+    if (state.finalReveal) {
+      drawFinalReveal(ctx, W, H, state.finalT);
+    } else if (state.openingPhase) {
+      drawOpeningTitle(ctx, W, H, state.openingT);
+    }
+
+    updateEvidence();
+    updateInsight();
+  }
+
+  function updateEvidence() {
+    const n = Math.max(3, Math.round(state.sides));
+    const A_in = inscribedArea(n);
+    const A_out = circumscribedArea(n);
+    const width = A_out - A_in;
+
+    elements.sidesReadout.textContent = String(n);
+    elements.inscribedAreaReadout.textContent = A_in.toFixed(4);
+    elements.circumscribedAreaReadout.textContent = A_out.toFixed(4);
+    elements.intervalReadout.textContent = A_in.toFixed(4) + " — " + A_out.toFixed(4);
+    elements.widthReadout.textContent = width.toFixed(4);
+
+    const lo = 2.5, hi = 3.5;
+    const leftPct = clamp(((A_in - lo) / (hi - lo)) * 100, 0, 100);
+    const rightPct = clamp(((A_out - lo) / (hi - lo)) * 100, 0, 100);
+    const piPct = clamp(((Math.PI - lo) / (hi - lo)) * 100, 0, 100);
+
+    elements.intervalFill.style.left = leftPct + "%";
+    elements.intervalFill.style.width = (rightPct - leftPct) + "%";
+    elements.piMark.style.left = piPct + "%";
+  }
+
+  function updateInsight() {
+    const n = Math.max(3, Math.round(state.sides));
+    const A_in = inscribedArea(n);
+    const A_out = circumscribedArea(n);
+    const width = A_out - A_in;
+
+    let text;
+    if (state.openingPhase) {
+      text = "按"开始"看边数翻倍如何夹紧圆，或拖动滑块手动浏览。";
+    } else if (state.finalReveal) {
+      text = "n=96 时阿基米德得到 223/71 < π < 22/7。不硬算公式，用逼近就够了——这就是积分思想的雏形。";
+    } else if (n <= 6) {
+      text = "n=6：六边形很粗糙，区间宽约 " + width.toFixed(2) + "，但已把 π 夹住。边数翻倍会快速收紧。";
+    } else if (n <= 24) {
+      text = "n=" + n + "：多边形开始贴着圆，区间宽度降到 " + width.toFixed(3) + "，逼近加速。";
+    } else if (n <= 96) {
+      text = "n=" + n + "：区间已很窄（宽 " + width.toFixed(4) + "），π 被牢牢夹在 A内 与 A外 之间。";
+    } else {
+      text = "n=" + n + "：区间极窄（宽 " + width.toExponential(1) + "），内外多边形几乎与圆重合。";
+    }
+    elements.insightText.textContent = text;
+  }
+
+  function drawBackground(ctx, W, H) {
+    const cx = W / 2, cy = H / 2;
+    const maxR = Math.max(W, H) * 0.75;
+    const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+    g1.addColorStop(0, "#0a0f1c");
+    g1.addColorStop(0.5, "#060a14");
+    g1.addColorStop(1, "#02040a");
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, W, H);
+
+    const g2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.5);
+    g2.addColorStop(0, "rgba(40, 70, 120, 0.18)");
+    g2.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, W, H);
+
+    const g3 = ctx.createRadialGradient(W * 0.3, H * 0.2, 0, W * 0.3, H * 0.2, Math.min(W, H) * 0.4);
+    g3.addColorStop(0, "rgba(20, 40, 80, 0.12)");
+    g3.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = g3;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawGrid(ctx, W, H) {
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    const spacing = 40;
+    ctx.beginPath();
+    for (let x = (W % spacing) / 2; x < W; x += spacing) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+    }
+    for (let y = (H % spacing) / 2; y < H; y += spacing) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+  }
+
+  function polygonVertices(n, R, rotation) {
+    const verts = [];
+    const safeN = Math.max(3, Math.floor(n));
+    for (let i = 0; i < safeN; i++) {
+      const a = rotation + (i / safeN) * Math.PI * 2;
+      verts.push({ x: Math.cos(a) * R, y: Math.sin(a) * R });
+    }
+    return verts;
+  }
+
+  function drawInscribed(ctx, cx, cy, R, n, alpha) {
+    const verts = polygonVertices(n, R, -Math.PI / 2);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = alpha;
+
+    ctx.beginPath();
+    for (let i = 0; i < verts.length; i++) {
+      const v = verts[i];
+      if (i === 0) ctx.moveTo(v.x, v.y);
+      else ctx.lineTo(v.x, v.y);
+    }
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(77, 212, 232, 0.04)";
+    ctx.fill();
+
+    ctx.strokeStyle = COLORS.inscribedGlow;
+    ctx.lineWidth = 8;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    ctx.strokeStyle = COLORS.inscribedSolid;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawCircumscribed(ctx, cx, cy, R, n, alpha) {
+    const safeN = Math.max(3, Math.floor(n));
+    const Rcirc = R / Math.cos(Math.PI / safeN);
+    const verts = polygonVertices(n, Rcirc, -Math.PI / 2 + Math.PI / safeN);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = alpha;
+
+    ctx.beginPath();
+    for (let i = 0; i < verts.length; i++) {
+      const v = verts[i];
+      if (i === 0) ctx.moveTo(v.x, v.y);
+      else ctx.lineTo(v.x, v.y);
+    }
+    ctx.closePath();
+
+    ctx.fillStyle = "rgba(245, 158, 11, 0.03)";
+    ctx.fill();
+
+    ctx.strokeStyle = COLORS.circumscribedGlow;
+    ctx.lineWidth = 8;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    ctx.strokeStyle = COLORS.circumscribedSolid;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawCircle(ctx, cx, cy, R, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.circleOuter;
+    ctx.lineWidth = 10;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.circleInner;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawReadouts(ctx, W, H, sides) {
+    const n = Math.max(3, Math.round(sides));
+    const A_in = inscribedArea(n);
+    const A_out = circumscribedArea(n);
+
+    ctx.save();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "alphabetic";
+
+    const x = W - 36;
+    const yStart = 64;
+    const lineH = 30;
+
+    ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText("边数  n", x, yStart);
+
+    ctx.font = "700 22px ui-monospace, 'SF Mono', Menlo, monospace";
+    ctx.fillStyle = COLORS.textPrimary;
+    ctx.fillText(String(n), x, yStart + lineH);
+
+    ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = COLORS.textCyan;
+    ctx.fillText("内接多边形面积", x, yStart + lineH * 2 + 6);
+
+    ctx.font = "700 20px ui-monospace, 'SF Mono', Menlo, monospace";
+    ctx.fillStyle = COLORS.textCyan;
+    ctx.fillText(A_in.toFixed(4), x, yStart + lineH * 3 + 2);
+
+    ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = COLORS.textOrange;
+    ctx.fillText("外切多边形面积", x, yStart + lineH * 4 + 6);
+
+    ctx.font = "700 20px ui-monospace, 'SF Mono', Menlo, monospace";
+    ctx.fillStyle = COLORS.textOrange;
+    ctx.fillText(A_out.toFixed(4), x, yStart + lineH * 5 + 2);
+
+    ctx.restore();
+  }
+
+  function drawLegend(ctx, W, H) {
+    ctx.save();
+    const y = H - 30;
+    const items = [
+      { color: COLORS.circumscribedSolid, label: "外切" },
+      { color: COLORS.circleInner, label: "圆" },
+      { color: COLORS.inscribedSolid, label: "内接" },
+    ];
+    const itemW = 80;
+    const totalW = items.length * itemW;
+    let x = W / 2 - totalW / 2;
+
+    ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    for (const item of items) {
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 18, y);
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(item.label, x + 24, y);
+      x += itemW;
+    }
+
+    ctx.restore();
+  }
+
+  function drawOpeningTitle(ctx, W, H, t) {
+    const alpha = easeOutCubic(t / OPENING_DURATION);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.font = "800 " + Math.round(Math.min(W * 0.04, 32)) + "px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = COLORS.textPrimary;
+    ctx.fillText("阿基米德逼近圆周率", W / 2, H / 2 - 18);
+
+    ctx.font = "400 14px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText("用多边形从内外两侧夹住圆", W / 2, H / 2 + 14);
+
+    ctx.restore();
+  }
+
+  function drawFinalReveal(ctx, W, H, t) {
+    const lines = [
+      { text: "223/71 < 圆周率 < 22/7", color: COLORS.textGold, size: Math.min(W * 0.038, 30), delay: 0, weight: "800" },
+      { text: "不用公式硬算，用逼近就够了", color: COLORS.textPrimary, size: Math.min(W * 0.026, 20), delay: 0.9, weight: "600" },
+      { text: "——这就是积分的思想雏形", color: COLORS.textMuted, size: Math.min(W * 0.022, 17), delay: 1.8, weight: "500" },
+    ];
+
+    const cy = H / 2 + Math.min(W, H) * 0.26 + 50;
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (const line of lines) {
+      const lineT = clamp((t - line.delay) / 0.6, 0, 1);
+      if (lineT <= 0) continue;
+      const alpha = easeOutCubic(lineT);
+      const yOffset = (1 - alpha) * 12;
+      ctx.globalAlpha = alpha;
+      ctx.font = line.weight + " " + Math.round(line.size) + "px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillStyle = line.color;
+      ctx.fillText(line.text, W / 2, cy + line.delay * 32 + yOffset);
+    }
+
+    ctx.restore();
+  }
+
+  function setSidesFromSlider(value) {
+    const v = parseInt(value, 10);
+    if (!Number.isFinite(v)) return;
+    const idx = nearestSidesIndex(v);
+    state.sides = SIDES_SEQUENCE[idx];
+    state.targetSides = SIDES_SEQUENCE[idx];
+    state.openingPhase = false;
+    state.openingT = OPENING_DURATION;
+    state.finalReveal = false;
+    state.finalT = 0;
+    state.autoPlay = false;
+    state.running = false;
+    elements.status.textContent = "手动浏览";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+    elements.sidesValue.textContent = String(SIDES_SEQUENCE[idx]);
+    elements.sidesInput.value = String(SIDES_SEQUENCE[idx]);
+    updateSliderFill();
+    render();
+  }
+
+  function setParameters(values) {
+    if (values.sides !== undefined) {
+      setSidesFromSlider(values.sides);
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      sides: state.sides,
+      targetSides: state.targetSides,
+      openingPhase: state.openingPhase,
+      openingT: state.openingT,
+      finalReveal: state.finalReveal,
+      finalT: state.finalT,
+    };
+  }
+
+  function getReadouts() {
+    const n = Math.max(3, Math.round(state.sides));
+    return {
+      sides: n,
+      inscribedArea: inscribedArea(n),
+      circumscribedArea: circumscribedArea(n),
+      inscribedPerimeter: inscribedPerimeter(n),
+      circumscribedPerimeter: circumscribedPerimeter(n),
+    };
+  }
+
+  function runModelChecks() {
+    const results = [];
+    const n6 = 6, n96 = 96, n384 = 384;
+
+    const A_in_6 = inscribedArea(n6);
+    const A_out_6 = circumscribedArea(n6);
+    const A_in_96 = inscribedArea(n96);
+    const A_out_96 = circumscribedArea(n96);
+    const A_in_384 = inscribedArea(n384);
+    const A_out_384 = circumscribedArea(n384);
+
+    results.push({
+      name: "n=6 内接面积 = 3√3/2 ≈ 2.5981",
+      pass: Math.abs(A_in_6 - 3 * Math.sqrt(3) / 2) < 1e-10,
+      expected: 3 * Math.sqrt(3) / 2,
+      actual: A_in_6,
+      tolerance: 1e-10,
+    });
+
+    results.push({
+      name: "n=6 外切面积 = 2√3 ≈ 3.4641",
+      pass: Math.abs(A_out_6 - 2 * Math.sqrt(3)) < 1e-10,
+      expected: 2 * Math.sqrt(3),
+      actual: A_out_6,
+      tolerance: 1e-10,
+    });
+
+    results.push({
+      name: "n=6 夹逼: 2.5981 < π < 3.4641",
+      pass: A_in_6 < Math.PI && Math.PI < A_out_6,
+      expected: "2.5981 < π < 3.4641",
+      actual: A_in_6.toFixed(4) + " < π < " + A_out_6.toFixed(4),
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "n=96 夹逼: 223/71 < π < 22/7",
+      pass: A_in_96 > 223/71 && A_out_96 < 22/7 && A_in_96 < Math.PI && Math.PI < A_out_96,
+      expected: "223/71 ≈ 3.1408 < π < 22/7 ≈ 3.1429",
+      actual: A_in_96.toFixed(6) + " < π < " + A_out_96.toFixed(6),
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "n=96 内接面积 > 223/71",
+      pass: A_in_96 > 223/71,
+      expected: 223/71,
+      actual: A_in_96,
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "n=96 外切面积 < 22/7",
+      pass: A_out_96 < 22/7,
+      expected: 22/7,
+      actual: A_out_96,
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "单调收紧: A_in(n) 随 n 增大而增大",
+      pass: A_in_96 > A_in_6 && A_in_384 > A_in_96,
+      expected: "A_in(384) > A_in(96) > A_in(6)",
+      actual: A_in_384.toFixed(6) + " > " + A_in_96.toFixed(6) + " > " + A_in_6.toFixed(6),
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "单调收紧: A_out(n) 随 n 增大而减小",
+      pass: A_out_96 < A_out_6 && A_out_384 < A_out_96,
+      expected: "A_out(384) < A_out(96) < A_out(6)",
+      actual: A_out_384.toFixed(6) + " < " + A_out_96.toFixed(6) + " < " + A_out_6.toFixed(6),
+      tolerance: "strict",
+    });
+
+    results.push({
+      name: "n=384 高度逼近 π",
+      pass: Math.abs(A_in_384 - Math.PI) < 0.001 && Math.abs(A_out_384 - Math.PI) < 0.001,
+      expected: "|A_in - π| < 0.001 且 |A_out - π| < 0.001",
+      actual: "Δin = " + (Math.PI - A_in_384).toExponential(2) + ", Δout = " + (A_out_384 - Math.PI).toExponential(2),
+      tolerance: 0.001,
+    });
+
+    results.push({
+      name: "夹逼区间宽度随 n 增大而缩小",
+      pass: (A_out_96 - A_in_96) < (A_out_6 - A_in_6) && (A_out_384 - A_in_384) < (A_out_96 - A_in_96),
+      expected: "width(384) < width(96) < width(6)",
+      actual: (A_out_384 - A_in_384).toExponential(2) + " < " + (A_out_96 - A_in_96).toExponential(2) + " < " + (A_out_6 - A_in_6).toFixed(4),
+      tolerance: "strict",
+    });
+
+    return results;
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+
+    elements.sidesInput.addEventListener("input", () => {
+      setSidesFromSlider(elements.sidesInput.value);
+    });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setupCanvas();
+        render();
+      }, 100);
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks,
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>音乐律动可视化</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #070b18;
+      --sim-surface: #111a2e;
+      --sim-surface-soft: #0e1626;
+      --sim-text: #e8eefc;
+      --sim-muted: #8a99b8;
+      --sim-border: #1f2c45;
+      --sim-grid: #182238;
+      --sim-accent: #00e5ff;
+      --sim-accent-deep: #00b8d4;
+      --sim-accent-soft: rgba(0, 229, 255, 0.16);
+      --sim-positive: #00e5ff;
+      --sim-warning: #ffb300;
+      --sim-danger: #ff5252;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(0, 229, 255, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(255, 179, 0, 0.08), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(0, 229, 255, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: var(--sim-space-4) var(--sim-space-5) var(--sim-space-3); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--sim-space-3); overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: var(--sim-space-5); min-height: 52px; }
+    .header h1 { margin: 0 0 var(--sim-space-1); font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(0, 229, 255, 0.28); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: var(--sim-space-3); }
+    .panel { min-width: 0; background: rgba(17, 26, 46, 0.92); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: var(--sim-space-3); display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sim-space-3); margin-bottom: var(--sim-space-3); }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 18px; background: radial-gradient(circle at 50% 100%, #0a1428 0%, #050810 70%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--sim-space-3); }
+    .readouts, .model-note { padding: var(--sim-space-5); }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sim-space-3); }
+    .metric { padding: var(--sim-space-4); border: 1px solid rgba(0, 229, 255, 0.12); border-radius: 15px; background: linear-gradient(145deg, #0e1626, #0b1220); }
+    .metric small { display: block; margin-bottom: var(--sim-space-1); color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent); }
+    .model-note { display: grid; align-content: start; gap: var(--sim-space-4); }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: var(--sim-space-4); border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(255, 179, 0, 0.10); color: #ffd180 !important; font-weight: 650; }
+    .controls { padding: var(--sim-space-3); display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: var(--sim-space-4); align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: var(--sim-space-2); }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #2a3a5a; background: #162038; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #001017; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(0, 229, 255, 0.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45); }
+    .control label { display: flex; justify-content: space-between; gap: var(--sim-space-3); margin-bottom: var(--sim-space-1); font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .bar { transition: height 0.06s linear, y 0.06s linear, fill 0.12s ease; }
+    .bar.peak { filter: drop-shadow(0 0 6px rgba(255, 179, 0, 0.75)); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-3); }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>音乐律动可视化</h1>
+        <p>调整节拍与强度，观察频谱柱随时间起伏的律动。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">频谱律动</h2><span>32 条频谱柱 · 彩虹色系 · 模拟节拍</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">32 条频谱柱随模拟节拍起伏，柱体按位置呈现红橙黄绿青蓝紫彩虹渐变，中心柱较高并向两侧衰减，峰值柱以暖色发光高亮。</desc>
+          <defs id="defs"></defs>
+          <g id="grid"></g>
+          <line class="axis" style="stroke:#2a3a5a;stroke-width:1.5" x1="40" y1="380" x2="740" y2="380"></line>
+          <g id="bars"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>平均强度</small><strong id="avgReadout">0.00</strong></div>
+            <div class="metric"><small>峰值强度</small><strong id="peakReadout">0.00</strong></div>
+            <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+            <div class="metric"><small>节拍相位</small><strong id="phaseReadout">0.00</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">按下开始，频谱柱会随节拍起伏。柱体颜色按位置呈现彩虹色系，中心频段能量最高，向两侧逐渐衰减。</p>
+          <p>教学视图：每条柱的高度 = 基线 × 节拍包络 × 频段衰减 × 随机抖动。柱体颜色按位置映射为红→橙→黄→绿→青→蓝→紫彩虹渐变；节拍越快，起伏越频繁；强度越大，柱体越高。峰值柱以暖色发光高亮，与彩虹基色形成层次区分。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="bpmInput">节拍速率 <output id="bpmOutput">120 BPM</output></label>
+        <input id="bpmInput" type="range" min="60" max="240" step="10" value="120">
+      </div>
+      <div class="control">
+        <label for="intensityInput">整体强度 <output id="intensityOutput">0.80</output></label>
+        <input id="intensityInput" type="range" min="0.1" max="1" step="0.05" value="0.8">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "bpm", label: "节拍速率", type: "slider", min: 60, max: 240, step: 10, default: 120, unit: "BPM" },
+      { key: "intensity", label: "整体强度", type: "slider", min: 0.1, max: 1, step: 0.05, default: 0.8, unit: "" }
+    ];
+    const BAR_COUNT = 32;
+    const state = {
+      running: false,
+      t: 0,
+      bpm: 120,
+      intensity: 0.8,
+      lastTimestamp: null,
+      bars: new Array(BAR_COUNT).fill(0),
+      targets: new Array(BAR_COUNT).fill(0),
+      peakValue: 0,
+      avgValue: 0,
+      phase: 0
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      bars: document.querySelector("#bars"),
+      defs: document.querySelector("#defs"),
+      grid: document.querySelector("#grid"),
+      avgReadout: document.querySelector("#avgReadout"),
+      peakReadout: document.querySelector("#peakReadout"),
+      timeReadout: document.querySelector("#timeReadout"),
+      phaseReadout: document.querySelector("#phaseReadout"),
+      insight: document.querySelector("#insight"),
+      bpmInput: document.querySelector("#bpmInput"),
+      bpmOutput: document.querySelector("#bpmOutput"),
+      intensityInput: document.querySelector("#intensityInput"),
+      intensityOutput: document.querySelector("#intensityOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // 彩虹色系：按柱位置从左到右映射 红→橙→黄→绿→青→蓝→紫
+    // 使用 HSL 色相 0°(红) → 30°(橙) → 60°(黄) → 120°(绿) → 180°(青) → 240°(蓝) → 300°(紫)
+    // 为每条柱生成一个垂直渐变（底部深色 → 顶部亮色），保留立体感
+    function rainbowHueForIndex(i) {
+      const ratio = BAR_COUNT === 1 ? 0 : i / (BAR_COUNT - 1);
+      // 色相从 0° 平滑过渡到 300°，覆盖完整彩虹光谱
+      return ratio * 300;
+    }
+
+    function hslToRgb(h, s, l) {
+      h = ((h % 360) + 360) % 360 / 360;
+      s = clamp(s, 0, 1);
+      l = clamp(l, 0, 1);
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1 / 6) return p + (q - p) * 6 * t;
+          if (t < 1 / 2) return q;
+          if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+          return p;
+        };
+        const q = l >= 0.5 ? l + s - l * s : l * (1 + s);
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+      }
+      return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+      };
+    }
+
+    function rgbToCss(c) {
+      return `rgb(${c.r}, ${c.g}, ${c.b})`;
+    }
+
+    function initDefs() {
+      const parts = [];
+      for (let i = 0; i < BAR_COUNT; i += 1) {
+        const hue = rainbowHueForIndex(i);
+        const top = hslToRgb(hue, 0.85, 0.62);
+        const bottom = hslToRgb(hue, 0.90, 0.32);
+        parts.push(`<linearGradient id="barGrad-${i}" x1="0" y1="1" x2="0" y2="0">`);
+        parts.push(`<stop offset="0" stop-color="${rgbToCss(bottom)}"></stop>`);
+        parts.push(`<stop offset="0.6" stop-color="${rgbToCss(top)}"></stop>`);
+        parts.push(`<stop offset="1" stop-color="${rgbToCss(hslToRgb(hue, 0.75, 0.75))}"></stop>`);
+        parts.push(`</linearGradient>`);
+      }
+      // 峰值高亮渐变：暖色发光，与彩虹基色形成层次区分
+      parts.push(`<linearGradient id="barGradPeak" x1="0" y1="1" x2="0" y2="0">`);
+      parts.push(`<stop offset="0" stop-color="#ffb300"></stop>`);
+      parts.push(`<stop offset="1" stop-color="#ffe082"></stop>`);
+      parts.push(`</linearGradient>`);
+      elements.defs.innerHTML = parts.join("");
+    }
+
+    function initGrid() {
+      const lines = [];
+      for (let i = 0; i <= 8; i += 1) {
+        const y = 60 + i * 40;
+        lines.push(`<line class="grid-line" style="stroke:var(--sim-grid);stroke-width:1" x1="40" y1="${y}" x2="740" y2="${y}"></line>`);
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+
+    function initBars() {
+      const barWidth = 660 / BAR_COUNT;
+      const gap = 4;
+      const parts = [];
+      for (let i = 0; i < BAR_COUNT; i += 1) {
+        const x = 40 + i * barWidth + gap / 2;
+        parts.push(`<rect class="bar" id="bar-${i}" x="${x}" y="380" width="${barWidth - gap}" height="0" rx="3" fill="url(#barGrad-${i})"></rect>`);
+      }
+      elements.bars.innerHTML = parts.join("");
+    }
+
+    function init() {
+      initDefs();
+      initGrid();
+      initBars();
+      bindControls();
+      setParameters({ bpm: 120, intensity: 0.8 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.lastTimestamp = null;
+      state.bars.fill(0);
+      state.targets.fill(0);
+      state.peakValue = 0;
+      state.avgValue = 0;
+      state.phase = 0;
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      const beatPeriod = 60 / state.bpm;
+      state.phase = (state.t % beatPeriod) / beatPeriod;
+      const beatEnvelope = Math.exp(-state.phase * 4) * (1 - Math.cos(state.phase * Math.PI * 2)) * 0.5 + 0.2;
+
+      let sum = 0;
+      let peak = 0;
+      for (let i = 0; i < BAR_COUNT; i += 1) {
+        const centerDist = Math.abs(i - (BAR_COUNT - 1) / 2) / ((BAR_COUNT - 1) / 2);
+        const bandDecay = Math.exp(-centerDist * centerDist * 1.8);
+        const noise = 0.65 + Math.random() * 0.35;
+        state.targets[i] = clamp(state.intensity * beatEnvelope * bandDecay * noise, 0, 1);
+        state.bars[i] += (state.targets[i] - state.bars[i]) * Math.min(1, boundedDt * 14);
+        sum += state.bars[i];
+        if (state.bars[i] > peak) peak = state.bars[i];
+      }
+      state.avgValue = sum / BAR_COUNT;
+      state.peakValue = peak;
+    }
+
+    function render() {
+      const maxBarHeight = 320;
+      for (let i = 0; i < BAR_COUNT; i += 1) {
+        const barEl = document.querySelector(`#bar-${i}`);
+        if (!barEl) continue;
+        const h = state.bars[i] * maxBarHeight;
+        barEl.setAttribute("height", String(h));
+        barEl.setAttribute("y", String(380 - h));
+        if (state.bars[i] > 0.75) {
+          barEl.setAttribute("fill", "url(#barGradPeak)");
+          barEl.classList.add("peak");
+        } else {
+          barEl.setAttribute("fill", `url(#barGrad-${i})`);
+          barEl.classList.remove("peak");
+        }
+      }
+      elements.avgReadout.textContent = state.avgValue.toFixed(2);
+      elements.peakReadout.textContent = state.peakValue.toFixed(2);
+      elements.timeReadout.textContent = `${state.t.toFixed(2)} s`;
+      elements.phaseReadout.textContent = state.phase.toFixed(2);
+      elements.bpmOutput.textContent = `${state.bpm} BPM`;
+      elements.intensityOutput.textContent = state.intensity.toFixed(2);
+
+      if (!state.running && state.t === 0) {
+        elements.insight.textContent = "按下开始，频谱柱会随节拍起伏。柱体颜色按位置呈现彩虹色系，中心频段能量最高，向两侧逐渐衰减。";
+      } else if (state.peakValue > 0.75) {
+        elements.insight.textContent = "峰值区：中心频段接近满幅，节拍包络处于上升相位，峰值柱以暖色发光高亮。";
+      } else if (state.avgValue > 0.4) {
+        elements.insight.textContent = "活跃区：整体能量较强，彩虹色柱随节拍周期起伏。";
+      } else if (state.avgValue > 0.1) {
+        elements.insight.textContent = "衰减区：节拍包络回落，柱体高度逐渐下降。";
+      } else if (state.t > 0) {
+        elements.insight.textContent = "静默区：等待下一个节拍上升沿。";
+      }
+    }
+
+    function setParameters(values) {
+      const bpmDef = parameterSchema[0];
+      const intensityDef = parameterSchema[1];
+      state.bpm = clamp(finite(Number(values.bpm), bpmDef.default), bpmDef.min, bpmDef.max);
+      state.intensity = clamp(finite(Number(values.intensity), intensityDef.default), intensityDef.min, intensityDef.max);
+      elements.bpmInput.value = String(state.bpm);
+      elements.intensityInput.value = String(state.intensity);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        bpm: state.bpm,
+        intensity: state.intensity,
+        bars: state.bars.slice(),
+        targets: state.targets.slice(),
+        peakValue: state.peakValue,
+        avgValue: state.avgValue,
+        phase: state.phase
+      };
+    }
+
+    function getReadouts() {
+      return {
+        avg: state.avgValue,
+        peak: state.peakValue,
+        time: state.t,
+        phase: state.phase,
+        bpm: state.bpm,
+        intensity: state.intensity
+      };
+    }
+
+    function runModelChecks() {
+      const beatPeriod = 60 / 120;
+      const phase0 = 0;
+      const phaseHalf = 0.5;
+      const env0 = Math.exp(-phase0 * 4) * (1 - Math.cos(phase0 * Math.PI * 2)) * 0.5 + 0.2;
+      const envHalf = Math.exp(-phaseHalf * 4) * (1 - Math.cos(phaseHalf * Math.PI * 2)) * 0.5 + 0.2;
+      const centerDecay = Math.exp(0);
+      const edgeDecay = Math.exp(-1 * 1.8);
+      // 彩虹色系覆盖检查：首柱红色域(hue≈0)，末柱紫色域(hue≈300)
+      const firstHue = rainbowHueForIndex(0);
+      const lastHue = rainbowHueForIndex(BAR_COUNT - 1);
+      const midHue = rainbowHueForIndex(Math.floor((BAR_COUNT - 1) / 2));
+      return [
+        { name: "finite envelope", pass: Number.isFinite(env0) && Number.isFinite(envHalf), expected: "finite", actual: `${env0}, ${envHalf}`, tolerance: "finite" },
+        { name: "phase in [0,1)", pass: phase0 >= 0 && phase0 < 1 && phaseHalf >= 0 && phaseHalf < 1, expected: "[0,1)", actual: `${phase0}, ${phaseHalf}`, tolerance: "range" },
+        { name: "band decay center > edge", pass: centerDecay > edgeDecay, expected: "center > edge", actual: `${centerDecay} > ${edgeDecay}`, tolerance: "strict" },
+        { name: "bars bounded [0,1]", pass: state.bars.every((b) => b >= 0 && b <= 1), expected: "[0,1]", actual: `min ${Math.min(...state.bars)}, max ${Math.max(...state.bars)}`, tolerance: "range" },
+        { name: "peak >= avg", pass: state.peakValue >= state.avgValue, expected: "peak >= avg", actual: `${state.peakValue} >= ${state.avgValue}`, tolerance: "strict" },
+        { name: "rainbow hue range red→purple", pass: firstHue === 0 && lastHue === 300, expected: "0° (red) → 300° (purple)", actual: `${firstHue}° → ${lastHue}°`, tolerance: "strict" },
+        { name: "rainbow mid hue green region", pass: midHue >= 100 && midHue <= 160, expected: "green region ~120°", actual: `${midHue}°`, tolerance: "range" }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.bpmInput.addEventListener("input", () => setParameters({ bpm: elements.bpmInput.value, intensity: state.intensity }));
+      elements.intensityInput.addEventListener("input", () => setParameters({ bpm: state.bpm, intensity: elements.intensityInput.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

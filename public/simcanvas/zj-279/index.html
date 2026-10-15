@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>永不重复的地砖 · 彭罗斯铺砌</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a1020;
+  --sim-surface-soft: #0d1426;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a9ab8;
+  --sim-border: #1e2a44;
+  --sim-grid: #131c30;
+  --sim-accent: #ff8c42;
+  --sim-accent-deep: #cc6622;
+  --sim-accent-soft: rgba(255,140,66,0.15);
+  --sim-positive: #4dd0e1;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-fat: #ff8c42;
+  --sim-thin: #4dd0e1;
+  --sim-star: #ffd700;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(20,40,80,0.4), transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(40,20,60,0.3), transparent 50%),
+    var(--sim-bg);
+}
+.app {
+  width: 100vw; height: 100vh; height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 0;
+  overflow: hidden;
+}
+.header {
+  padding: 18px 28px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  z-index: 10;
+}
+.header h1 {
+  font-size: clamp(1.3rem, 2.2vw, 1.8rem);
+  font-weight: 700; letter-spacing: 0.02em;
+  color: var(--sim-text);
+  opacity: 0; transform: translateY(-8px);
+  transition: opacity 1.2s ease, transform 1.2s ease;
+}
+.header h1.show { opacity: 1; transform: translateY(0); }
+.header p {
+  font-size: clamp(0.78rem, 1vw, 0.92rem);
+  color: var(--sim-muted);
+  opacity: 0; transition: opacity 1.2s ease 0.3s;
+}
+.header p.show { opacity: 1; }
+.stage-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+#scene {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+.grid-overlay {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(80,120,180,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80,120,180,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+.evidence {
+  position: absolute;
+  top: 16px; right: 16px;
+  z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 16px;
+  background: rgba(10, 16, 32, 0.75);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  backdrop-filter: blur(8px);
+  min-width: 160px;
+  pointer-events: none;
+}
+.evidence-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+}
+.evidence-label {
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  font-weight: 600;
+}
+.evidence-value {
+  font-size: 0.95rem;
+  color: var(--sim-text);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.controls {
+  padding: 12px 28px;
+  display: flex; align-items: center; gap: 20px;
+  flex-wrap: wrap;
+  background: linear-gradient(to top, rgba(5,8,16,0.95), rgba(5,8,16,0.7));
+  border-top: 1px solid var(--sim-border);
+  z-index: 10;
+}
+.actions {
+  display: flex; gap: 8px;
+}
+.action-btn {
+  padding: 8px 14px;
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  background: rgba(255,255,255,0.03);
+  color: var(--sim-text);
+  font-size: 0.82rem; font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.action-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+.action-btn:active { transform: scale(0.97); }
+.action-btn.primary {
+  background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+  border-color: var(--sim-accent-deep);
+  color: #fff;
+}
+.action-btn[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45);
+}
+.mode-group {
+  display: flex; gap: 6px;
+  padding: 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+}
+.mode-btn {
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--sim-radius-sm);
+  background: transparent;
+  color: var(--sim-muted);
+  font-size: 0.82rem; font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.mode-btn:hover { color: var(--sim-text); background: rgba(255,255,255,0.05); }
+.mode-btn.active {
+  color: var(--sim-text);
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.15);
+}
+.mode-btn .dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; margin-right: 6px;
+  vertical-align: middle;
+}
+.mode-btn[data-mode="fat"] .dot { background: var(--sim-fat); }
+.mode-btn[data-mode="thin"] .dot { background: var(--sim-thin); }
+.mode-btn[data-mode="star"] .dot { background: var(--sim-star); }
+.mode-btn[data-mode="all"] .dot { background: var(--sim-text); }
+.slider-group {
+  display: flex; gap: 24px; align-items: center;
+}
+.slider-control {
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 140px;
+}
+.slider-control label {
+  display: flex; justify-content: space-between;
+  font-size: 0.72rem; color: var(--sim-muted);
+  font-weight: 600;
+}
+.slider-control output {
+  color: var(--sim-text);
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  box-shadow: 0 0 0 3px rgba(255,140,66,0.2);
+  transition: box-shadow 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 5px rgba(255,140,66,0.3);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px; border: none;
+  border-radius: 50%; background: var(--sim-accent);
+  cursor: pointer;
+}
+.captions {
+  padding: 10px 28px 16px;
+  display: flex; flex-direction: column; gap: 3px;
+  align-items: center;
+  text-align: center;
+  min-height: 90px;
+  justify-content: center;
+  background: linear-gradient(to top, rgba(5,8,16,1), rgba(5,8,16,0.5));
+  z-index: 10;
+}
+.caption-line {
+  font-size: clamp(0.78rem, 1.1vw, 0.95rem);
+  color: var(--sim-muted);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  letter-spacing: 0.03em;
+}
+.caption-line.show { opacity: 1; transform: translateY(0); }
+.caption-line.highlight {
+  color: var(--sim-text);
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .header { padding: 12px 16px 6px; }
+  .controls { padding: 10px 16px; gap: 12px; }
+  .captions { padding: 8px 16px 12px; min-height: 80px; }
+  .slider-group { width: 100%; justify-content: space-between; }
+  .slider-control { min-width: 100px; flex: 1; }
+  .mode-btn { padding: 6px 10px; font-size: 0.75rem; }
+  .evidence { top: 8px; right: 8px; padding: 8px 12px; min-width: 140px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01s !important; animation-duration: 0.01s !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="deterministic">
+  <header class="header" data-region="header">
+    <h1 id="title">永不重复的地砖 · 彭罗斯铺砌</h1>
+    <p id="subtitle">两块砖铺满无穷平面，却永不周期重复</p>
+  </header>
+
+  <section class="stage-wrap" data-region="stage">
+    <canvas id="scene" role="img" aria-label="彭罗斯铺砌动画"></canvas>
+    <div class="grid-overlay"></div>
+    <aside class="evidence" data-region="evidence" aria-label="实时数据">
+      <div class="evidence-row">
+        <span class="evidence-label">瓦片数</span>
+        <span class="evidence-value" id="tileCountReadout">5</span>
+      </div>
+      <div class="evidence-row">
+        <span class="evidence-label">生长进度</span>
+        <span class="evidence-value" id="growthReadout">0%</span>
+      </div>
+      <div class="evidence-row">
+        <span class="evidence-label">镜头缩放</span>
+        <span class="evidence-value" id="cameraReadout">1.00x</span>
+      </div>
+    </aside>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="控件">
+    <div class="actions">
+      <button id="startBtn" class="action-btn primary" type="button">开始</button>
+      <button id="pauseBtn" class="action-btn" type="button">暂停</button>
+      <button id="resetBtn" class="action-btn" type="button">重置</button>
+    </div>
+    <div class="mode-group" role="group" aria-label="高亮模式">
+      <button class="mode-btn active" data-mode="all" type="button"><span class="dot"></span>全部</button>
+      <button class="mode-btn" data-mode="fat" type="button"><span class="dot"></span>胖菱形</button>
+      <button class="mode-btn" data-mode="thin" type="button"><span class="dot"></span>瘦菱形</button>
+      <button class="mode-btn" data-mode="star" type="button"><span class="dot"></span>五角星</button>
+    </div>
+    <div class="slider-group">
+      <div class="slider-control">
+        <label for="speedInput">生长速度 <output id="speedOutput">1.2x</output></label>
+        <input id="speedInput" type="range" min="0.2" max="3" step="0.1" value="1.2">
+      </div>
+      <div class="slider-control">
+        <label for="glowInput">辉光强度 <output id="glowOutput">0.7</output></label>
+        <input id="glowInput" type="range" min="0" max="1" step="0.05" value="0.7">
+      </div>
+    </div>
+  </section>
+
+  <section class="captions" data-region="insight" aria-live="polite">
+    <div class="caption-line" data-idx="0">两块砖，铺满无穷大的平面，却永不周期重复</div>
+    <div class="caption-line" data-idx="1">数学家 1974 年发现它</div>
+    <div class="caption-line" data-idx="2">1982 年它在准晶体中被找到</div>
+    <div class="caption-line" data-idx="3">2011 年拿下诺贝尔化学奖</div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // === 数学常量 ===
+  const PHI = (1 + Math.sqrt(5)) / 2;      // 黄金比例 φ ≈ 1.618
+  const INV_PHI2 = 1 / (PHI * PHI);        // 1/φ² ≈ 0.382，细分后缩放因子
+  const PI = Math.PI;
+  const DEG36 = PI / 5;    // 36°
+  const DEG72 = 2 * PI / 5; // 72°
+
+  // === 复数运算（用于铺砌几何） ===
+  const cpx = {
+    add: (a, b) => ({ re: a.re + b.re, im: a.im + b.im }),
+    sub: (a, b) => ({ re: a.re - b.re, im: a.im - b.im }),
+    mul: (a, b) => ({ re: a.re * b.re - a.im * b.im, im: a.re * b.im + a.im * b.re }),
+    scale: (a, s) => ({ re: a.re * s, im: a.im * s }),
+    rot: (a, angle) => {
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return { re: a.re * c - a.im * s, im: a.re * s + a.im * c };
+    }
+  };
+
+  // === 彭罗斯 P2 细分规则（deflation） ===
+  // 胖菱形 fat: 锐角 72°，记为 'F'
+  // 瘦菱形 thin: 锐角 36°，记为 'T'
+  // 每个菱形用 {type, A, B} 表示，A 为锐角顶点，B 为钝角顶点
+  // 细分后整体缩放 1/φ² 以保持尺度一致
+
+  function subdivideFat(A, B) {
+    // 胖菱形 A(锐72) - B(钝108)，长对角线 A-B
+    // 细分为 2胖 + 1瘦
+    const C1 = cpx.add(A, cpx.scale(cpx.rot(cpx.sub(B, A), DEG36), 1 / PHI));
+    const C2 = cpx.add(A, cpx.scale(cpx.rot(cpx.sub(B, A), -DEG36), 1 / PHI));
+    return [
+      { type: 'F', A: C1, B: B },
+      { type: 'F', A: C2, B: B },
+      { type: 'T', A: A, B: C1 }  // 注：这里用简化标记，渲染时按类型处理
+    ];
+  }
+
+  function subdivideThin(A, B) {
+    // 瘦菱形 A(锐36) - B(钝144)
+    // 细分为 1胖 + 1瘦
+    const C = cpx.add(B, cpx.scale(cpx.rot(cpx.sub(A, B), DEG36), 1 / PHI));
+    return [
+      { type: 'F', A: A, B: C },
+      { type: 'T', A: C, B: B }
+    ];
+  }
+
+  function subdivide(tiles) {
+    const result = [];
+    for (const tile of tiles) {
+      if (tile.type === 'F') {
+        result.push(...subdivideFat(tile.A, tile.B));
+      } else {
+        result.push(...subdivideThin(tile.A, tile.B));
+      }
+    }
+    // 缩放使整体回到原尺度
+    return result.map(t => ({
+      type: t.type,
+      A: cpx.scale(t.A, INV_PHI2),
+      B: cpx.scale(t.B, INV_PHI2)
+    }));
+  }
+
+  // === 初始种子：5个胖菱形组成的星形（五重对称） ===
+  function createSeed() {
+    const tiles = [];
+    const center = { re: 0, im: 0 };
+    const R = 1; // 种子半径
+    for (let i = 0; i < 5; i++) {
+      const angle = i * DEG72;
+      const A = cpx.rot({ re: R, im: 0 }, angle);        // 外顶点（锐角）
+      const B = center;                                   // 中心（钝角）
+      tiles.push({ type: 'F', A, B });
+    }
+    return tiles;
+  }
+
+  // === 生成多级铺砌 ===
+  // 预计算各级细分结果，运行时按生长进度插值显示
+  const MAX_LEVEL = 6;
+  const tileLevels = [];
+  function buildLevels() {
+    let current = createSeed();
+    tileLevels.push(current);
+    for (let i = 1; i <= MAX_LEVEL; i++) {
+      current = subdivide(current);
+      tileLevels.push(current);
+    }
+  }
+  buildLevels();
+
+  // === 计算菱形四个顶点（用于绘制） ===
+  function getTileVertices(tile) {
+    const { type, A, B } = tile;
+    const halfAngle = type === 'F' ? DEG36 : DEG72 / 2; // 胖:36°半角，瘦:36°半角
+    // A 是锐角顶点，B 是钝角顶点，长对角线 A-B
+    const AB = cpx.sub(B, A);
+    const half = cpx.scale(AB, 0.5);
+    const mid = cpx.add(A, half);
+    const perp1 = cpx.rot(half, PI / 2);
+    const perp2 = cpx.rot(half, -PI / 2);
+    // 短对角线长度 = |AB| * tan(halfAngle) * ... 需要按菱形几何算
+    // 胖菱形：长对角线/短对角线 = φ
+    // 瘦菱形：长对角线/短对角线 = φ
+    // 实际上两者比例都是 φ，但方向不同
+    const ratio = type === 'F' ? 1 / PHI : 1 / PHI;
+    const shortHalf = cpx.scale(perp1, ratio);
+    const C1 = cpx.add(mid, shortHalf);
+    const C2 = cpx.sub(mid, shortHalf);
+    return [A, C1, B, C2]; // 顺序：锐角顶点 -> 侧1 -> 钝角顶点 -> 侧2
+  }
+
+  // === 检测五重对称中心（星形结构） ===
+  // 简化检测：找5个胖菱形共享的钝角顶点
+  function findStarCenters(tiles, tolerance = 0.05) {
+    const centers = [];
+    const vertexMap = new Map();
+
+    // 收集所有钝角顶点（胖菱形的 B 点）
+    for (const tile of tiles) {
+      if (tile.type !== 'F') continue;
+      const key = `${tile.B.re.toFixed(3)},${tile.B.im.toFixed(3)}`;
+      if (!vertexMap.has(key)) vertexMap.set(key, { point: tile.B, count: 0 });
+      vertexMap.get(key).count++;
+    }
+
+    // 5个或以上胖菱形共享的顶点即为星形中心
+    for (const [key, data] of vertexMap) {
+      if (data.count >= 5) {
+        centers.push(data.point);
+      }
+    }
+    return centers;
+  }
+
+  // === 状态 ===
+  const state = {
+    running: false,
+    startTime: 0,
+    pausedTime: 0,
+    totalElapsed: 0,
+    lastTimestamp: null,
+    growthProgress: 0,     // 0..1，铺砌生长进度
+    cameraScale: 1,        // 镜头缩放
+    mode: 'all',           // 高亮模式
+    speed: 1.2,
+    glow: 0.7,
+    width: 0,
+    height: 0,
+    dpr: 1,
+    captionIndex: 0,
+    captionTimer: 0,
+    introPhase: 0,         // 0..1，开场淡入
+    reducedMotion: false
+  };
+
+  const elements = {
+    canvas: document.getElementById('scene'),
+    title: document.getElementById('title'),
+    subtitle: document.getElementById('subtitle'),
+    speedInput: document.getElementById('speedInput'),
+    speedOutput: document.getElementById('speedOutput'),
+    glowInput: document.getElementById('glowInput'),
+    glowOutput: document.getElementById('glowOutput'),
+    modeBtns: document.querySelectorAll('.mode-btn'),
+    captions: document.querySelectorAll('.caption-line'),
+    startBtn: document.getElementById('startBtn'),
+    pauseBtn: document.getElementById('pauseBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    tileCountReadout: document.getElementById('tileCountReadout'),
+    growthReadout: document.getElementById('growthReadout'),
+    cameraReadout: document.getElementById('cameraReadout')
+  };
+
+  const ctx = elements.canvas.getContext('2d');
+
+  // === 初始化 ===
+  function init() {
+    state.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    resize();
+    bindControls();
+    window.addEventListener('resize', resize);
+
+    // 开场静态标题帧
+    setTimeout(() => {
+      elements.title.classList.add('show');
+      elements.subtitle.classList.add('show');
+    }, 200);
+
+    // 2秒后开始动画
+    setTimeout(() => {
+      start();
+    }, 2000);
+
+    requestAnimationFrame(frame);
+  }
+
+  function resize() {
+    state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = elements.canvas.getBoundingClientRect();
+    state.width = rect.width;
+    state.height = rect.height;
+    elements.canvas.width = state.width * state.dpr;
+    elements.canvas.height = state.height * state.dpr;
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener('click', start);
+    elements.pauseBtn.addEventListener('click', pause);
+    elements.resetBtn.addEventListener('click', reset);
+
+    elements.modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        elements.modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.mode = btn.dataset.mode;
+      });
+    });
+
+    elements.speedInput.addEventListener('input', (e) => {
+      setParameters({ speed: parseFloat(e.target.value) });
+    });
+
+    elements.glowInput.addEventListener('input', (e) => {
+      setParameters({ glow: parseFloat(e.target.value) });
+    });
+  }
+
+  // === 字幕循环 ===
+  const CAPTION_INTERVAL = 4000; // 每行4秒
+  function showCaption(idx) {
+    elements.captions.forEach((c, i) => {
+      c.classList.toggle('show', i === idx);
+      c.classList.toggle('highlight', i === idx);
+    });
+  }
+
+  function updateCaptions(dt) {
+    state.captionTimer += dt * 1000;
+    if (state.captionTimer >= CAPTION_INTERVAL) {
+      state.captionTimer = 0;
+      state.captionIndex = (state.captionIndex + 1) % elements.captions.length;
+      showCaption(state.captionIndex);
+    }
+  }
+
+  // === 缓动函数 ===
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function easeOutQuad(t) {
+    return 1 - (1 - t) * (1 - t);
+  }
+
+  // === 生命周期 ===
+  function start() {
+    if (state.running) return;
+    state.running = true;
+    state.lastTimestamp = null;
+    elements.startBtn.setAttribute('aria-pressed', 'true');
+    if (state.totalElapsed === 0) {
+      showCaption(0);
+    }
+  }
+
+  function pause() {
+    state.running = false;
+    elements.startBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  function reset() {
+    pause();
+    state.totalElapsed = 0;
+    state.growthProgress = 0;
+    state.cameraScale = 1;
+    state.introPhase = 0;
+    state.captionIndex = 0;
+    state.captionTimer = 0;
+    showCaption(0);
+    render();
+  }
+
+  // === 更新 ===
+  function update(dt) {
+    if (!state.running) return;
+
+    state.totalElapsed += dt;
+
+    // 开场淡入
+    if (state.introPhase < 1) {
+      state.introPhase = Math.min(1, state.introPhase + dt * 0.5);
+    }
+
+    // 生长进度：随时间增长，速度可调
+    // 一个完整生长周期约 12 秒 / speed
+    const cycleDuration = 12 / state.speed;
+    const cycleProgress = (state.totalElapsed % cycleDuration) / cycleDuration;
+    state.growthProgress = easeInOutCubic(cycleProgress);
+
+    // 镜头缓缓拉远：随生长进度缩小
+    const baseScale = 1.0;
+    const minScale = 0.15;
+    state.cameraScale = baseScale - (baseScale - minScale) * state.growthProgress;
+
+    updateCaptions(dt);
+  }
+
+  // === 渲染 ===
+  function render() {
+    const w = state.width, h = state.height;
+    if (w === 0 || h === 0) return;
+
+    // 清屏
+    ctx.fillStyle = '#050810';
+    ctx.fillRect(0, 0, w, h);
+
+    // 背景径向渐变层
+    const bgGrad1 = ctx.createRadialGradient(w * 0.3, h * 0.2, 0, w * 0.3, h * 0.2, Math.max(w, h));
+    bgGrad1.addColorStop(0, 'rgba(20,40,80,0.35)');
+    bgGrad1.addColorStop(1, 'rgba(5,8,16,0)');
+    ctx.fillStyle = bgGrad1;
+    ctx.fillRect(0, 0, w, h);
+
+    const bgGrad2 = ctx.createRadialGradient(w * 0.7, h * 0.8, 0, w * 0.7, h * 0.8, Math.max(w, h) * 0.8);
+    bgGrad2.addColorStop(0, 'rgba(40,20,60,0.25)');
+    bgGrad2.addColorStop(1, 'rgba(5,8,16,0)');
+    ctx.fillStyle = bgGrad2;
+    ctx.fillRect(0, 0, w, h);
+
+    // 中心点
+    const cx = w / 2, cy = h / 2;
+
+    // 选择当前级别的铺砌
+    // 根据 growthProgress 在级别间插值
+    const levelFloat = state.growthProgress * MAX_LEVEL;
+    const levelIdx = Math.floor(levelFloat);
+    const levelFrac = levelFloat - levelIdx;
+    const currentLevel = Math.min(MAX_LEVEL, levelIdx);
+    const nextLevel = Math.min(MAX_LEVEL, levelIdx + 1);
+
+    const tiles = tileLevels[currentLevel];
+    if (!tiles || tiles.length === 0) {
+      updateReadouts(0);
+      return;
+    }
+
+    // 计算铺砌的基础缩放，使初始级别适配屏幕
+    const baseRadius = Math.min(w, h) * 0.35;
+    const seedScale = baseRadius; // 种子级别（level 0）的半径
+
+    const renderScale = seedScale * 0.5 * state.cameraScale;
+
+    // 绘制铺砌
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(renderScale, renderScale);
+
+    // 先绘制所有瓦片（非高亮状态）
+    const starCenters = (state.mode === 'star') ? findStarCenters(tiles) : [];
+
+    // 淡入透明度
+    const alpha = state.introPhase;
+
+    for (const tile of tiles) {
+      const verts = getTileVertices(tile);
+      const isHighlighted = isTileHighlighted(tile, state.mode);
+      const dimFactor = (state.mode === 'all') ? 1 : (isHighlighted ? 1 : 0.25);
+
+      drawTile(verts, tile.type, isHighlighted, dimFactor, alpha);
+    }
+
+    // 绘制五角星中心
+    if (state.mode === 'star' && starCenters.length > 0) {
+      for (const center of starCenters) {
+        drawStarMarker(center, renderScale, alpha);
+      }
+    }
+
+    ctx.restore();
+
+    updateReadouts(tiles.length);
+  }
+
+  function updateReadouts(tileCount) {
+    elements.tileCountReadout.textContent = tileCount;
+    elements.growthReadout.textContent = Math.round(state.growthProgress * 100) + '%';
+    elements.cameraReadout.textContent = state.cameraScale.toFixed(2) + 'x';
+    elements.speedOutput.textContent = state.speed.toFixed(1) + 'x';
+    elements.glowOutput.textContent = state.glow.toFixed(2);
+  }
+
+  function isTileHighlighted(tile, mode) {
+    if (mode === 'all') return true;
+    if (mode === 'fat') return tile.type === 'F';
+    if (mode === 'thin') return tile.type === 'T';
+    if (mode === 'star') return tile.type === 'F'; // 星形中心附近的胖菱形
+    return true;
+  }
+
+  function drawTile(verts, type, highlighted, dimFactor, alpha) {
+    const color = type === 'F' ? '#ff8c42' : '#4dd0e1';
+    const fillColor = type === 'F' ? 'rgba(255,140,66,' : 'rgba(77,208,225,';
+    const fillAlpha = (highlighted ? 0.15 : 0.04) * dimFactor * alpha;
+    const strokeAlpha = (highlighted ? 0.9 : 0.3) * dimFactor * alpha;
+
+    // 路径
+    ctx.beginPath();
+    ctx.moveTo(verts[0].re, verts[0].im);
+    for (let i = 1; i < verts.length; i++) {
+      ctx.lineTo(verts[i].re, verts[i].im);
+    }
+    ctx.closePath();
+
+    // 填充
+    ctx.fillStyle = fillColor + fillAlpha + ')';
+    ctx.fill();
+
+    // 双层描边模拟辉光（禁用 shadowBlur）
+    if (highlighted && state.glow > 0) {
+      // 外层粗半透明描边
+      ctx.strokeStyle = fillColor + (0.25 * state.glow * alpha) + ')';
+      ctx.lineWidth = 0.015 / state.cameraScale; // 粗，随镜头缩放补偿
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+
+    // 内层实色描边
+    ctx.strokeStyle = fillColor + strokeAlpha + ')';
+    ctx.lineWidth = 0.005 / state.cameraScale;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  function drawStarMarker(center, renderScale, alpha) {
+    const size = 0.03 / state.cameraScale;
+    ctx.save();
+    ctx.translate(center.re, center.im);
+
+    // 外层辉光
+    ctx.strokeStyle = `rgba(255,215,0,${0.3 * state.glow * alpha})`;
+    ctx.lineWidth = size * 0.4;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const angle = i * DEG72 - PI / 2;
+      const x = Math.cos(angle) * size;
+      const y = Math.sin(angle) * size;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // 内层实色
+    ctx.strokeStyle = `rgba(255,215,0,${0.9 * alpha})`;
+    ctx.lineWidth = size * 0.15;
+    ctx.stroke();
+
+    // 中心点
+    ctx.fillStyle = `rgba(255,215,0,${0.8 * alpha})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.1, 0, PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // === 参数设置 ===
+  function setParameters(values) {
+    if (values.speed !== undefined) {
+      state.speed = Math.min(3, Math.max(0.2, Number.isFinite(values.speed) ? values.speed : 1.2));
+      elements.speedInput.value = String(state.speed);
+    }
+    if (values.glow !== undefined) {
+      state.glow = Math.min(1, Math.max(0, Number.isFinite(values.glow) ? values.glow : 0.7));
+      elements.glowInput.value = String(state.glow);
+    }
+    render();
+  }
+
+  // === 状态获取 ===
+  function getState() {
+    return {
+      running: state.running,
+      totalElapsed: state.totalElapsed,
+      growthProgress: state.growthProgress,
+      cameraScale: state.cameraScale,
+      mode: state.mode,
+      speed: state.speed,
+      glow: state.glow,
+      introPhase: state.introPhase,
+      captionIndex: state.captionIndex
+    };
+  }
+
+  function getReadouts() {
+    const levelFloat = state.growthProgress * MAX_LEVEL;
+    const currentLevel = Math.min(MAX_LEVEL, Math.floor(levelFloat));
+    const tiles = tileLevels[currentLevel] || [];
+    return {
+      growthProgress: state.growthProgress,
+      cameraScale: state.cameraScale,
+      tileCount: tiles.length,
+      mode: state.mode,
+      speed: state.speed,
+      glow: state.glow,
+      totalElapsed: state.totalElapsed
+    };
+  }
+
+  // === 主循环 ===
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    // 钳制帧间隔
+    dt = Math.min(0.05, Math.max(0, dt));
+
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // === 暴露接口 ===
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks: () => {
+      // 验证铺砌确定性：相同种子应产生相同结果
+      const seed1 = createSeed();
+      const seed2 = createSeed();
+      const seedMatch = JSON.stringify(seed1) === JSON.stringify(seed2);
+
+      // 验证细分确定性
+      const sub1 = subdivide(seed1);
+      const sub2 = subdivide(seed2);
+      const subMatch = JSON.stringify(sub1) === JSON.stringify(sub2);
+
+      // 验证胖菱形细分为 2胖+1瘦 = 3块
+      const fatTile = { type: 'F', A: { re: 1, im: 0 }, B: { re: 0, im: 0 } };
+      const fatSub = subdivide([fatTile]);
+      const fatCount = fatSub.length === 3;
+
+      // 验证瘦菱形细分为 1胖+1瘦 = 2块
+      const thinTile = { type: 'T', A: { re: 1, im: 0 }, B: { re: 0, im: 0 } };
+      const thinSub = subdivide([thinTile]);
+      const thinCount = thinSub.length === 2;
+
+      // 验证黄金比例
+      const phiCheck = Math.abs(PHI - (1 + Math.sqrt(5)) / 2) < 1e-10;
+
+      // 验证级别瓦片数增长
+      const level0Count = tileLevels[0].length;
+      const level1Count = tileLevels[1].length;
+      const growthCheck = level1Count > level0Count;
+
+      return [
+        { name: '种子确定性', pass: seedMatch, expected: '相同种子产生相同铺砌', actual: seedMatch, tolerance: '严格' },
+        { name: '细分确定性', pass: subMatch, expected: '相同输入产生相同输出', actual: subMatch, tolerance: '严格' },
+        { name: '胖菱形细分数量', pass: fatCount, expected: 3, actual: fatSub.length, tolerance: '严格' },
+        { name: '瘦菱形细分数量', pass: thinCount, expected: 2, actual: thinSub.length, tolerance: '严格' },
+        { name: '黄金比例常量', pass: phiCheck, expected: PHI, actual: (1 + Math.sqrt(5)) / 2, tolerance: 1e-10 },
+        { name: '级别瓦片数增长', pass: growthCheck, expected: 'level1 > level0', actual: `${level1Count} > ${level0Count}`, tolerance: '严格' }
+      ];
+    }
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

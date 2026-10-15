@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>程序化城市生长</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #f59e0b;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-road: #475569;
+  --sim-road-line: #fbbf24;
+  --sim-block: #cbd5e1;
+  --sim-building-low: #94a3b8;
+  --sim-building-mid: #64748b;
+  --sim-building-high: #334155;
+  --sim-building-tower: #1e293b;
+  --sim-window: #fde68a;
+  --sim-window-bright: #fef3c7;
+  --sim-ground: #e2e8f0;
+  --sim-ground-night: #0f172a;
+  --sim-sky-top: #87ceeb;
+  --sim-sky-bottom: #e0f2fe;
+  --sim-sky-top-night: #020617;
+  --sim-sky-bottom-night: #0c1e3a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 12px 16px 10px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 48px; }
+.header h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 2.2vw, 1.9rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.82rem; }
+.status-group { display: flex; gap: 8px; align-items: center; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 7px 12px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; font-size: 0.8rem; }
+.fps { border: 1px solid var(--sim-border); border-radius: 999px; padding: 7px 12px; background: var(--sim-surface-soft); color: var(--sim-muted); font-weight: 700; white-space: nowrap; font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 10px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 0; padding: 10px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.panel-head h2 { margin: 0; font-size: 0.95rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.72rem; }
+#scene-container { width: 100%; height: 100%; min-height: 300px; position: relative; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, var(--sim-sky-top) 0%, var(--sim-sky-bottom) 100%); transition: background 0.8s ease; }
+#scene-container.night { background: linear-gradient(180deg, var(--sim-sky-top-night) 0%, var(--sim-sky-bottom-night) 100%); }
+#scene-canvas { width: 100%; height: 100%; display: block; }
+.phase-indicator { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; z-index: 5; }
+.phase-chip { padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,0.85); border: 1px solid var(--sim-border); font-size: 0.7rem; font-weight: 700; color: var(--sim-muted); transition: all 0.3s ease; backdrop-filter: blur(4px); }
+.phase-chip.active { background: var(--sim-accent); color: white; border-color: var(--sim-accent-deep); box-shadow: 0 4px 12px rgba(15,159,186,0.3); }
+.phase-chip.done { background: var(--sim-accent-soft); color: var(--sim-accent-deep); border-color: rgba(15,159,186,0.3); }
+.growth-overlay { position: absolute; bottom: 12px; left: 12px; right: 12px; pointer-events: none; z-index: 5; }
+.growth-bar-container { background: rgba(255,255,255,0.85); border: 1px solid var(--sim-border); border-radius: 999px; padding: 4px; backdrop-filter: blur(4px); }
+.growth-bar { height: 6px; border-radius: 999px; background: var(--sim-accent); width: 0%; transition: width 0.1s linear; }
+.growth-label { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--sim-muted); margin-top: 4px; }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+.readouts, .model-note { padding: 14px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 12px; border: 1px solid rgba(15,159,186,.12); border-radius: 12px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.2rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.model-note { display: grid; align-content: start; gap: 10px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+.insight { padding: 12px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; font-size: 0.85rem; }
+.controls { padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; font-size: 0.8rem; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button.active { border-color: var(--sim-warning); background: #fef3c7; color: #92400e; box-shadow: 0 4px 12px rgba(245,158,11,0.2); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.params { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.control label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: 0.72rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; font-size: 0.72rem; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); height: 4px; }
+.legend { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.85); border: 1px solid var(--sim-border); border-radius: 10px; padding: 8px 10px; font-size: 0.68rem; pointer-events: none; z-index: 5; backdrop-filter: blur(4px); }
+.legend-item { display: flex; align-items: center; gap: 6px; color: var(--sim-muted); font-weight: 600; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+  .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .params { grid-template-columns: repeat(2, 1fr); }
+  .scene-panel { min-height: 0; }
+  #scene-container { min-height: 0; height: 50vh; aspect-ratio: 4 / 3; }
+  .legend { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="rule-system">
+  <header class="header" data-region="header">
+    <div>
+      <h1>程序化城市生长</h1>
+      <p>从道路骨架到街区、建筑、中心与灯光，观察城市如有机体般逐层涌现</p>
+    </div>
+    <div class="status-group">
+      <div id="fps" class="fps">FPS: --</div>
+      <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">3D 城市生长</h2><span>道路 → 街区 → 建筑 → 中心 → 灯光</span></div>
+      <div id="scene-container">
+        <canvas id="scene-canvas"></canvas>
+        <div class="phase-indicator" id="phaseIndicator">
+          <div class="phase-chip" data-phase="0">道路</div>
+          <div class="phase-chip" data-phase="1">街区</div>
+          <div class="phase-chip" data-phase="2">低层</div>
+          <div class="phase-chip" data-phase="3">高层</div>
+          <div class="phase-chip" data-phase="4">中心</div>
+          <div class="phase-chip" data-phase="5">灯光</div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--sim-building-low)"></div>低层</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--sim-building-mid)"></div>中层</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--sim-building-high)"></div>高层</div>
+          <div class="legend-item"><div class="legend-swatch" style="background:var(--sim-building-tower)"></div>塔楼</div>
+        </div>
+        <div class="growth-overlay">
+          <div class="growth-bar-container"><div id="growthBar" class="growth-bar"></div></div>
+          <div id="growthLabel" class="growth-label">生长进度 0%</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel readouts" data-region="evidence" aria-label="Live values">
+        <div class="panel-head"><h2>实时数据</h2><span>生成统计</span></div>
+        <div class="readout-grid">
+          <div class="metric"><small>道路数</small><strong id="roadCountReadout">0</strong></div>
+          <div class="metric"><small>街区数</small><strong id="blockCountReadout">0</strong></div>
+          <div class="metric"><small>建筑数</small><strong id="buildingCountReadout">0</strong></div>
+          <div class="metric"><small>生长进度</small><strong id="growthReadout">0%</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>观察</h2></div>
+        <p id="insight" class="insight">点击「生成城市」，观察道路骨架如何先于建筑涌现。</p>
+        <p>教学视图：L 形道路分形递归生成主干与支路；建筑高度随距中心距离衰减；夜间灯光仅在高层以上随机点亮。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="Simulation controls">
+    <div class="actions">
+      <button id="generateBtn" class="primary" type="button">生成城市</button>
+      <button id="startBtn" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+      <button id="nightBtn" type="button">夜间模式</button>
+      <button id="flyBtn" type="button">飞行穿梭</button>
+      <button id="resetCamBtn" type="button">重置视角</button>
+    </div>
+    <div class="params">
+      <div class="control">
+        <label for="sizeInput">规模 <output id="sizeOutput">8</output></label>
+        <input id="sizeInput" type="range" min="4" max="14" step="1" value="8">
+      </div>
+      <div class="control">
+        <label for="densityInput">密度 <output id="densityOutput">0.60</output></label>
+        <input id="densityInput" type="range" min="0.2" max="0.95" step="0.05" value="0.6">
+      </div>
+      <div class="control">
+        <label for="roadInput">道路规则 <output id="roadOutput">0.5</output></label>
+        <input id="roadInput" type="range" min="0" max="1" step="0.05" value="0.5">
+      </div>
+      <div class="control">
+        <label for="heightInput">建筑高度 <output id="heightOutput">1.0</output></label>
+        <input id="heightInput" type="range" min="0.4" max="2.5" step="0.1" value="1.0">
+      </div>
+      <div class="control">
+        <label for="centersInput">中心数量 <output id="centersOutput">1</output></label>
+        <input id="centersInput" type="range" min="1" max="5" step="1" value="1">
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+
+(() => {
+  "use strict";
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "size", label: "规模", type: "slider", min: 4, max: 14, step: 1, default: 8, unit: "" },
+    { key: "density", label: "密度", type: "slider", min: 0.2, max: 0.95, step: 0.05, default: 0.6, unit: "" },
+    { key: "road", label: "道路规则", type: "slider", min: 0, max: 1, step: 0.05, default: 0.5, unit: "" },
+    { key: "height", label: "建筑高度", type: "slider", min: 0.4, max: 2.5, step: 0.1, default: 1.0, unit: "" },
+    { key: "centers", label: "中心数量", type: "slider", min: 1, max: 5, step: 1, default: 1, unit: "" }
+  ];
+
+  // ===== 状态 =====
+  const state = {
+    running: false,
+    generating: false,
+    growthProgress: 0,
+    growthSpeed: 1.0,
+    nightMode: false,
+    flyMode: false,
+    flyTime: 0,
+    params: { size: 8, density: 0.6, road: 0.5, height: 1.0, centers: 1 },
+    city: null,
+    lastTimestamp: null,
+    fpsAccum: 0,
+    fpsCount: 0
+  };
+
+  // ===== Three.js 场景 =====
+  const canvas = document.getElementById("scene-canvas");
+  const sceneContainer = document.getElementById("scene-container");
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+  scene.fog = new THREE.Fog(0xc8e0f0, 200, 600);
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.5, 2000);
+  camera.position.set(200, 240, 200);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  // 光照
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambientLight);
+
+  const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  sunLight.position.set(150, 200, 100);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -300;
+  sunLight.shadow.camera.right = 300;
+  sunLight.shadow.camera.top = 300;
+  sunLight.shadow.camera.bottom = -300;
+  sunLight.shadow.camera.near = 10;
+  sunLight.shadow.camera.far = 600;
+  sunLight.shadow.bias = -0.0005;
+  scene.add(sunLight);
+
+  const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0xe2e8f0, 0.3);
+  scene.add(hemiLight);
+
+  // 容器组
+  const groundGroup = new THREE.Group();
+  const roadGroup = new THREE.Group();
+  const blockGroup = new THREE.Group();
+  const buildingGroup = new THREE.Group();
+  const centerGroup = new THREE.Group();
+  const lightGroup = new THREE.Group();
+  scene.add(groundGroup, roadGroup, blockGroup, buildingGroup, centerGroup, lightGroup);
+
+  // 相机控制状态
+  const camControl = {
+    targetX: 200, targetY: 240, targetZ: 200,
+    lookX: 0, lookY: 0, lookZ: 0,
+    curX: 200, curY: 240, curZ: 200,
+    curLookX: 0, curLookY: 0, curLookZ: 0
+  };
+
+  function resizeRenderer() {
+    const rect = sceneContainer.getBoundingClientRect();
+    const w = Math.max(1, rect.width);
+    const h = Math.max(1, rect.height);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  // ===== 城市生成（保留原有规则） =====
+  function generateCity(params) {
+    const size = params.size;
+    const cellSize = 20;
+    const halfSize = (size * cellSize) / 2;
+    const roadRule = params.road;
+    const density = params.density;
+    const heightMult = params.height;
+    const numCenters = params.centers;
+
+    const centers = [];
+    for (let i = 0; i < numCenters; i++) {
+      const angle = (i / numCenters) * Math.PI * 2;
+      const dist = numCenters > 1 ? halfSize * 0.4 : 0;
+      centers.push({ x: Math.cos(angle) * dist, z: Math.sin(angle) * dist, influence: 1.0 });
+    }
+
+    const roadSegments = [];
+    function addRoad(x1, z1, x2, z2, width) { roadSegments.push({ x1, z1, x2, z2, width }); }
+
+    const mainRoads = [];
+    for (const c of centers) {
+      for (let dir = 0; dir < 4; dir++) {
+        const angle = (dir / 4) * Math.PI * 2 + Math.PI / 4;
+        const len = halfSize * 0.9;
+        const ex = c.x + Math.cos(angle) * len;
+        const ez = c.z + Math.sin(angle) * len;
+        mainRoads.push({ x1: c.x, z1: c.z, x2: ex, z2: ez });
+        addRoad(c.x, c.z, ex, ez, 3);
+      }
+    }
+
+    function branch(x, z, angle, length, depth, maxDepth) {
+      if (depth >= maxDepth || length < 8) return;
+      const ex = x + Math.cos(angle) * length;
+      const ez = z + Math.sin(angle) * length;
+      addRoad(x, z, ex, ez, depth < 2 ? 2.5 : 1.5);
+      const branchProb = 0.4 + roadRule * 0.5;
+      if (Math.random() < branchProb) {
+        const turnAngle = (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 3 + (Math.random() - 0.5) * 0.4);
+        branch(ex, ez, angle + turnAngle, length * 0.65, depth + 1, maxDepth);
+      }
+      if (Math.random() < branchProb * 0.8) {
+        const turnAngle = (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 3 + (Math.random() - 0.5) * 0.4);
+        branch(ex, ez, angle - turnAngle, length * 0.55, depth + 1, maxDepth);
+      }
+      if (Math.random() < 0.3 + roadRule * 0.3) {
+        branch(ex, ez, angle + (Math.random() - 0.5) * 0.3, length * 0.7, depth + 1, maxDepth);
+      }
+    }
+
+    const maxBranchDepth = 3 + Math.floor(roadRule * 3);
+    for (const mr of mainRoads) {
+      const angle = Math.atan2(mr.z2 - mr.z1, mr.x2 - mr.x1);
+      branch(mr.x2, mr.z2, angle, halfSize * 0.4, 0, maxBranchDepth);
+      branch(mr.x2, mr.z2, angle + Math.PI / 2, halfSize * 0.3, 0, maxBranchDepth);
+      branch(mr.x2, mr.z2, angle - Math.PI / 2, halfSize * 0.3, 0, maxBranchDepth);
+    }
+
+    const blocks = [];
+    const buildings = [];
+    const gridStep = cellSize;
+    const blockGrid = new Set();
+
+    for (const seg of roadSegments) {
+      const dx = seg.x2 - seg.x1;
+      const dz = seg.z2 - seg.z1;
+      const segLen = Math.sqrt(dx * dx + dz * dz);
+      const steps = Math.ceil(segLen / (gridStep * 0.5));
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps;
+        const cx = seg.x1 + dx * t;
+        const cz = seg.z1 + dz * t;
+        const perpX = -dz / (segLen || 1);
+        const perpZ = dx / (segLen || 1);
+        for (const side of [-1, 1]) {
+          for (let offset = 1; offset <= 2; offset++) {
+            const bx = cx + perpX * side * offset * gridStep * 0.8;
+            const bz = cz + perpZ * side * offset * gridStep * 0.8;
+            const gx = Math.round(bx / gridStep) * gridStep;
+            const gz = Math.round(bz / gridStep) * gridStep;
+            const key = gx + "," + gz;
+            if (!blockGrid.has(key) && Math.abs(gx) < halfSize && Math.abs(gz) < halfSize) {
+              blockGrid.add(key);
+              blocks.push({ x: gx, z: gz });
+            }
+          }
+        }
+      }
+    }
+
+    for (const block of blocks) {
+      if (Math.random() > density) continue;
+      let minDist = Infinity;
+      let nearestCenter = centers[0];
+      for (const c of centers) {
+        const d = Math.sqrt((block.x - c.x) ** 2 + (block.z - c.z) ** 2);
+        if (d < minDist) { minDist = d; nearestCenter = c; }
+      }
+      const maxDist = halfSize * 0.8;
+      const centerProximity = Math.max(0, 1 - minDist / maxDist);
+      const baseHeight = (0.5 + centerProximity * 0.8) * heightMult * 30;
+      const heightVar = Math.random() * baseHeight * 0.6;
+      const buildingHeight = baseHeight + heightVar;
+      let type;
+      if (centerProximity > 0.7 && Math.random() < 0.4) type = "tower";
+      else if (centerProximity > 0.5 && Math.random() < 0.5) type = "high";
+      else if (centerProximity > 0.3) type = "mid";
+      else type = "low";
+      const buildingSize = gridStep * 0.35 + Math.random() * gridStep * 0.15;
+      buildings.push({
+        x: block.x + (Math.random() - 0.5) * gridStep * 0.2,
+        z: block.z + (Math.random() - 0.5) * gridStep * 0.2,
+        w: buildingSize, d: buildingSize, h: buildingHeight,
+        type, centerProximity, growthOrder: 0
+      });
+    }
+
+    buildings.sort((a, b) => b.centerProximity - a.centerProximity);
+    buildings.forEach((b, i) => { b.growthOrder = i; });
+
+    const cityCenters = centers.map(c => ({ x: c.x, z: c.z, radius: 15 }));
+    return {
+      roads: roadSegments, blocks, buildings,
+      centers: cityCenters, halfSize,
+      totalElements: roadSegments.length + blocks.length + buildings.length + cityCenters.length
+    };
+  }
+
+  // ===== 3D 场景构建 =====
+  function clearGroup(group) {
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+        else child.material.dispose();
+      }
+    }
+  }
+
+  function buildScene(city) {
+    clearGroup(groundGroup);
+    clearGroup(roadGroup);
+    clearGroup(blockGroup);
+    clearGroup(buildingGroup);
+    clearGroup(centerGroup);
+    clearGroup(lightGroup);
+
+    // 地面
+    const groundGeo = new THREE.PlaneGeometry(city.halfSize * 2, city.halfSize * 2);
+    const groundMat = new THREE.MeshStandardMaterial({ color: state.nightMode ? 0x0f172a : 0xe2e8f0, roughness: 0.9 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    groundGroup.add(ground);
+
+    // 道路
+    for (const r of city.roads) {
+      const dx = r.x2 - r.x1;
+      const dz = r.z2 - r.z1;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.1) continue;
+      const roadGeo = new THREE.PlaneGeometry(len, r.width);
+      const roadMat = new THREE.MeshStandardMaterial({ color: state.nightMode ? 0x1e293b : 0x475569, roughness: 0.8 });
+      const road = new THREE.Mesh(roadGeo, roadMat);
+      road.rotation.x = -Math.PI / 2;
+      road.rotation.z = -Math.atan2(dz, dx);
+      road.position.set((r.x1 + r.x2) / 2, 0.2, (r.z1 + r.z2) / 2);
+      road.receiveShadow = true;
+      roadGroup.add(road);
+    }
+
+    // 街区
+    for (const b of city.blocks) {
+      const blockGeo = new THREE.BoxGeometry(16, 1, 16);
+      const blockMat = new THREE.MeshStandardMaterial({ color: state.nightMode ? 0x1e293b : 0xcbd5e1, roughness: 0.85 });
+      const block = new THREE.Mesh(blockGeo, blockMat);
+      block.position.set(b.x, -0.5, b.z);
+      block.castShadow = false;
+      block.receiveShadow = true;
+      block.userData = { type: "block", item: b };
+      blockGroup.add(block);
+    }
+
+    // 建筑
+    for (const b of city.buildings) {
+      const color = getBuildingColor(b.type, state.nightMode);
+      const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
+      const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.1 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(b.x, b.h / 2, b.z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData = { type: "building", item: b, fullHeight: b.h };
+      mesh.scale.y = 0.01;
+      buildingGroup.add(mesh);
+    }
+
+    // 中心标记
+    for (const c of city.centers) {
+      const centerGeo = new THREE.CylinderGeometry(c.radius, c.radius, 2, 24);
+      const centerMat = new THREE.MeshStandardMaterial({
+        color: state.nightMode ? 0xf59e0b : 0x0f9fba,
+        emissive: state.nightMode ? 0xf59e0b : 0x0f9fba,
+        emissiveIntensity: 0.4, roughness: 0.4
+      });
+      const center = new THREE.Mesh(centerGeo, centerMat);
+      center.position.set(c.x, 0.5, c.z);
+      center.userData = { type: "center", item: c };
+      centerGroup.add(center);
+
+      // 光柱
+      const beamGeo = new THREE.CylinderGeometry(1.5, 3, 80, 12, 1, true);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: state.nightMode ? 0xf59e0b : 0x0f9fba,
+        transparent: true, opacity: 0.25, side: THREE.DoubleSide
+      });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.set(c.x, 40, c.z);
+      beam.userData = { type: "beam" };
+      centerGroup.add(beam);
+    }
+
+    // 灯光（夜间）
+    if (state.nightMode) {
+      for (const b of city.buildings) {
+        if (b.type === "low" || b.type === "mid") continue;
+        const numFloors = Math.floor(b.h / 6);
+        for (let w = 0; w < numFloors; w++) {
+          if (Math.random() > 0.5) continue;
+          const wy = w * 6 + 3;
+          const sides = [[1,0],[-1,0],[0,1],[0,-1]];
+          const side = sides[Math.floor(Math.random() * 4)];
+          const wx = b.x + side[0] * b.w * 0.5;
+          const wz = b.z + side[1] * b.d * 0.5;
+          const lightGeo = new THREE.PlaneGeometry(2, 2);
+          const lightMat = new THREE.MeshBasicMaterial({ color: 0xfde04a, transparent: true, opacity: 0.9 });
+          const light = new THREE.Mesh(lightGeo, lightMat);
+          light.position.set(wx, wy, wz);
+          if (side[0] !== 0) light.rotation.y = Math.PI / 2;
+          light.userData = { type: "light" };
+          lightGroup.add(light);
+        }
+      }
+    }
+  }
+
+  function getBuildingColor(type, night) {
+    if (night) {
+      switch (type) {
+        case "low": return 0x1e293b;
+        case "mid": return 0x0f172a;
+        case "high": return 0x020617;
+        case "tower": return 0x000000;
+        default: return 0x1e293b;
+      }
+    } else {
+      switch (type) {
+        case "low": return 0x94a3b8;
+        case "mid": return 0x64748b;
+        case "high": return 0x334155;
+        case "tower": return 0x1e293b;
+        default: return 0x94a3b8;
+      }
+    }
+  }
+
+  // ===== 生长更新 =====
+  function updateGrowth() {
+    if (!state.city) return;
+    const progress = state.growthProgress;
+
+    // 道路
+    const roadProgress = Math.min(1, progress * 3);
+    const roadCount = Math.floor(state.city.roads.length * roadProgress);
+    for (let i = 0; i < roadGroup.children.length; i++) {
+      roadGroup.children[i].visible = i < roadCount;
+    }
+
+    // 街区
+    const blockProgress = Math.min(1, Math.max(0, progress - 0.15) * 3);
+    const blockCount = Math.floor(state.city.blocks.length * blockProgress);
+    for (let i = 0; i < blockGroup.children.length; i++) {
+      blockGroup.children[i].visible = i < blockCount;
+    }
+
+    // 建筑
+    const buildingStart = 0.3;
+    const buildingProgress = Math.min(1, Math.max(0, progress - buildingStart) / 0.5);
+    const buildingCount = Math.floor(state.city.buildings.length * buildingProgress);
+    for (let i = 0; i < buildingGroup.children.length; i++) {
+      const mesh = buildingGroup.children[i];
+      if (i >= buildingCount) { mesh.visible = false; continue; }
+      mesh.visible = true;
+      const itemProgress = Math.min(1, Math.max(0, (progress - buildingStart - (i / state.city.buildings.length) * 0.3) / 0.2));
+      mesh.scale.y = Math.max(0.01, itemProgress);
+      mesh.position.y = (mesh.userData.fullHeight * mesh.scale.y) / 2;
+    }
+
+    // 中心
+    const centerProgress = Math.min(1, Math.max(0, progress - 0.7) * 4);
+    centerGroup.children.forEach(child => {
+      if (child.userData.type === "center") {
+        child.visible = centerProgress > 0;
+        child.scale.set(centerProgress, 1, centerProgress);
+      } else if (child.userData.type === "beam") {
+        child.visible = centerProgress > 0;
+        child.material.opacity = 0.25 * centerProgress;
+        child.scale.y = centerProgress;
+      }
+    });
+
+    // 灯光
+    const lightProgress = Math.min(1, Math.max(0, progress - 0.85) * 6);
+    lightGroup.children.forEach(child => {
+      child.material.opacity = 0.9 * lightProgress;
+      child.visible = lightProgress > 0;
+    });
+  }
+
+  // ===== 夜间模式 =====
+  function applyNightMode() {
+    if (state.nightMode) {
+      scene.background = new THREE.Color(0x020617);
+      scene.fog = new THREE.Fog(0x0c1e3a, 150, 500);
+      ambientLight.intensity = 0.25;
+      sunLight.intensity = 0.15;
+      sunLight.color.setHex(0x4a6fa5);
+      hemiLight.intensity = 0.15;
+    } else {
+      scene.background = new THREE.Color(0x87ceeb);
+      scene.fog = new THREE.Fog(0xc8e0f0, 200, 600);
+      ambientLight.intensity = 0.55;
+      sunLight.intensity = 0.9;
+      sunLight.color.setHex(0xffffff);
+      hemiLight.intensity = 0.3;
+    }
+    sceneContainer.classList.toggle("night", state.nightMode);
+    if (state.city) buildScene(state.city);
+  }
+
+  // ===== 飞行穿梭（样条曲线运镜） =====
+  function updateFlyCamera(dt) {
+    if (!state.flyMode || !state.city) return;
+    state.flyTime += dt;
+    const t = state.flyTime;
+    const halfSize = state.city.halfSize;
+
+    const cycle = 30;
+    const phase = (t % cycle) / cycle;
+
+    if (phase < 0.2) {
+      const p = phase / 0.2;
+      const angle = p * Math.PI * 0.8 + 0.6;
+      const radius = halfSize * 2.5;
+      camControl.targetX = Math.cos(angle) * radius;
+      camControl.targetZ = Math.sin(angle) * radius;
+      camControl.targetY = halfSize * 1.5 * (1 - p * 0.3);
+      camControl.lookX = 0; camControl.lookY = 0; camControl.lookZ = 0;
+    } else if (phase < 0.5) {
+      const p = (phase - 0.2) / 0.3;
+      const angle = 0.6 + p * Math.PI * 0.5;
+      const radius = halfSize * 2.5 * (1 - p * 0.6);
+      camControl.targetX = Math.cos(angle) * radius;
+      camControl.targetZ = Math.sin(angle) * radius;
+      camControl.targetY = halfSize * 1.05 * (1 - p * 0.5);
+      camControl.lookX = 0; camControl.lookY = 0; camControl.lookZ = 0;
+    } else if (phase < 0.8) {
+      const p = (phase - 0.5) / 0.3;
+      const angle = p * Math.PI * 2;
+      const radius = halfSize * 0.5;
+      camControl.targetX = Math.cos(angle) * radius;
+      camControl.targetZ = Math.sin(angle) * radius;
+      camControl.targetY = 15 + Math.sin(p * Math.PI) * 10;
+      camControl.lookX = Math.cos(angle + 0.3) * radius;
+      camControl.lookY = 10;
+      camControl.lookZ = Math.sin(angle + 0.3) * radius;
+    } else {
+      const p = (phase - 0.8) / 0.2;
+      const angle = Math.PI * 2 + p * Math.PI * 0.5;
+      const radius = halfSize * (0.5 + p * 2);
+      camControl.targetX = Math.cos(angle) * radius;
+      camControl.targetZ = Math.sin(angle) * radius;
+      camControl.targetY = 15 + p * halfSize * 1.2;
+      camControl.lookX = 0; camControl.lookY = 0; camControl.lookZ = 0;
+    }
+  }
+
+  function updateCamera(dt) {
+    const lerp = 0.06;
+    camControl.curX += (camControl.targetX - camControl.curX) * lerp;
+    camControl.curY += (camControl.targetY - camControl.curY) * lerp;
+    camControl.curZ += (camControl.targetZ - camControl.curZ) * lerp;
+    camControl.curLookX += (camControl.lookX - camControl.curLookX) * lerp;
+    camControl.curLookY += (camControl.lookY - camControl.curLookY) * lerp;
+    camControl.curLookZ += (camControl.lookZ - camControl.curLookZ) * lerp;
+    camera.position.set(camControl.curX, camControl.curY, camControl.curZ);
+    camera.lookAt(camControl.curLookX, camControl.curLookY, camControl.curLookZ);
+  }
+
+  // ===== 更新 =====
+  function update(dt) {
+    const boundedDt = Math.min(0.05, Math.max(0, dt));
+    if (state.running && state.generating) {
+      state.growthProgress += boundedDt * 0.15 * state.growthSpeed;
+      if (state.growthProgress >= 1) {
+        state.growthProgress = 1;
+        state.generating = false;
+        elements.status.textContent = "城市已生成";
+      }
+    }
+    updateFlyCamera(boundedDt);
+    updateCamera(dt);
+    updateGrowth();
+    updatePhaseIndicator();
+    updateGrowthBar();
+    updateReadouts();
+  }
+
+  // ===== 渲染 =====
+  function render() {
+    renderer.render(scene, camera);
+  }
+
+  function updatePhaseIndicator() {
+    const progress = state.growthProgress;
+    const phases = [
+      { threshold: 0 }, { threshold: 0.15 }, { threshold: 0.3 },
+      { threshold: 0.5 }, { threshold: 0.7 }, { threshold: 0.85 }
+    ];
+    const chips = elements.phaseIndicator.querySelectorAll(".phase-chip");
+    chips.forEach((chip, i) => {
+      chip.classList.remove("active", "done");
+      if (progress >= phases[i].threshold) {
+        if (i < phases.length - 1 && progress < phases[i + 1].threshold) chip.classList.add("active");
+        else chip.classList.add("done");
+      }
+    });
+  }
+
+  function updateGrowthBar() {
+    const pct = Math.round(state.growthProgress * 100);
+    elements.growthBar.style.width = pct + "%";
+    elements.growthLabel.textContent = "生长进度 " + pct + "%";
+  }
+
+  function updateReadouts() {
+    const city = state.city;
+    elements.roadCountReadout.textContent = city ? city.roads.length : 0;
+    elements.blockCountReadout.textContent = city ? city.blocks.length : 0;
+    elements.buildingCountReadout.textContent = city ? city.buildings.length : 0;
+    elements.growthReadout.textContent = Math.round(state.growthProgress * 100) + "%";
+  }
+
+  // ===== 控件 =====
+  const elements = {
+    status: document.getElementById("status"),
+    fps: document.getElementById("fps"),
+    generateBtn: document.getElementById("generateBtn"),
+    startBtn: document.getElementById("startBtn"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    nightBtn: document.getElementById("nightBtn"),
+    flyBtn: document.getElementById("flyBtn"),
+    resetCamBtn: document.getElementById("resetCamBtn"),
+    sizeInput: document.getElementById("sizeInput"),
+    sizeOutput: document.getElementById("sizeOutput"),
+    densityInput: document.getElementById("densityInput"),
+    densityOutput: document.getElementById("densityOutput"),
+    roadInput: document.getElementById("roadInput"),
+    roadOutput: document.getElementById("roadOutput"),
+    heightInput: document.getElementById("heightInput"),
+    heightOutput: document.getElementById("heightOutput"),
+    centersInput: document.getElementById("centersInput"),
+    centersOutput: document.getElementById("centersOutput"),
+    phaseIndicator: document.getElementById("phaseIndicator"),
+    growthBar: document.getElementById("growthBar"),
+    growthLabel: document.getElementById("growthLabel"),
+    roadCountReadout: document.getElementById("roadCountReadout"),
+    blockCountReadout: document.getElementById("blockCountReadout"),
+    buildingCountReadout: document.getElementById("buildingCountReadout"),
+    growthReadout: document.getElementById("growthReadout"),
+    insight: document.getElementById("insight")
+  };
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  function generate() {
+    state.city = generateCity(state.params);
+    buildScene(state.city);
+    state.growthProgress = 0;
+    state.generating = true;
+    state.running = true;
+    state.flyTime = 0;
+    elements.status.textContent = "生长中…";
+    elements.generateBtn.textContent = "重新生成";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+
+    const halfSize = state.city.halfSize;
+    camControl.targetX = halfSize * 1.5;
+    camControl.targetY = halfSize * 1.8;
+    camControl.targetZ = halfSize * 1.5;
+    camControl.lookX = 0; camControl.lookY = 0; camControl.lookZ = 0;
+  }
+
+  function start() {
+    if (!state.city) { generate(); return; }
+    state.running = true;
+    elements.status.textContent = state.generating ? "生长中…" : "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.growthProgress = 0;
+    state.generating = false;
+    state.flyTime = 0;
+    if (state.city) {
+      state.generating = true;
+      state.running = true;
+      elements.status.textContent = "生长中…";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    } else {
+      elements.status.textContent = "就绪";
+    }
+  }
+
+  function toggleNight() {
+    state.nightMode = !state.nightMode;
+    applyNightMode();
+    elements.nightBtn.classList.toggle("active", state.nightMode);
+    elements.nightBtn.textContent = state.nightMode ? "白天模式" : "夜间模式";
+  }
+
+  function toggleFly() {
+    state.flyMode = !state.flyMode;
+    state.flyTime = 0;
+    elements.flyBtn.classList.toggle("active", state.flyMode);
+    elements.flyBtn.textContent = state.flyMode ? "停止穿梭" : "飞行穿梭";
+  }
+
+  function resetCamera() {
+    state.flyMode = false;
+    elements.flyBtn.classList.remove("active");
+    elements.flyBtn.textContent = "飞行穿梭";
+    if (state.city) {
+      const halfSize = state.city.halfSize;
+      camControl.targetX = halfSize * 1.5;
+      camControl.targetY = halfSize * 1.8;
+      camControl.targetZ = halfSize * 1.5;
+      camControl.lookX = 0; camControl.lookY = 0; camControl.lookZ = 0;
+    }
+  }
+
+  function setParameters(values) {
+    const defs = {};
+    parameterSchema.forEach(p => { defs[p.key] = p; });
+    for (const key in values) {
+      const def = defs[key];
+      if (!def) continue;
+      const val = clamp(finite(Number(values[key]), def.default), def.min, def.max);
+      state.params[key] = val;
+    }
+    elements.sizeOutput.textContent = state.params.size;
+    elements.densityOutput.textContent = state.params.density.toFixed(2);
+    elements.roadOutput.textContent = state.params.road.toFixed(2);
+    elements.heightOutput.textContent = state.params.height.toFixed(1);
+    elements.centersOutput.textContent = state.params.centers;
+    elements.sizeInput.value = state.params.size;
+    elements.densityInput.value = state.params.density;
+    elements.roadInput.value = state.params.road;
+    elements.heightInput.value = state.params.height;
+    elements.centersInput.value = state.params.centers;
+  }
+
+  function bindControls() {
+    elements.generateBtn.addEventListener("click", generate);
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.nightBtn.addEventListener("click", toggleNight);
+    elements.flyBtn.addEventListener("click", toggleFly);
+    elements.resetCamBtn.addEventListener("click", resetCamera);
+
+    elements.sizeInput.addEventListener("input", () => setParameters({ size: elements.sizeInput.value }));
+    elements.densityInput.addEventListener("input", () => setParameters({ density: elements.densityInput.value }));
+    elements.roadInput.addEventListener("input", () => setParameters({ road: elements.roadInput.value }));
+    elements.heightInput.addEventListener("input", () => setParameters({ height: elements.heightInput.value }));
+    elements.centersInput.addEventListener("input", () => setParameters({ centers: elements.centersInput.value }));
+
+    // 鼠标拖拽旋转
+    let isDragging = false, lastX = 0, lastY = 0;
+    let dragYaw = 0, dragPitch = 0.5;
+    let dragDist = 300;
+
+    canvas.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      state.flyMode = false;
+      elements.flyBtn.classList.remove("active");
+      elements.flyBtn.textContent = "飞行穿梭";
+      const dx = camControl.curX - camControl.curLookX;
+      const dy = camControl.curY - camControl.curLookY;
+      const dz = camControl.curZ - camControl.curLookZ;
+      dragDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      dragYaw = Math.atan2(dx, dz);
+      dragPitch = Math.atan2(Math.sqrt(dx * dx + dz * dz), -dy);
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      dragYaw -= dx * 0.005;
+      dragPitch = clamp(dragPitch + dy * 0.005, 0.1, 1.4);
+      const cp = Math.cos(dragPitch), sp = Math.sin(dragPitch);
+      camControl.targetX = camControl.curLookX + dragDist * sp * Math.sin(dragYaw);
+      camControl.targetY = camControl.curLookY - dragDist * Math.cos(dragPitch);
+      camControl.targetZ = camControl.curLookZ + dragDist * sp * Math.cos(dragYaw);
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+    window.addEventListener("mouseup", () => { isDragging = false; });
+
+    // 滚轮缩放
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const scale = e.deltaY > 0 ? 1.1 : 0.9;
+      const dx = camControl.targetX - camControl.lookX;
+      const dy = camControl.targetY - camControl.lookY;
+      const dz = camControl.targetZ - camControl.lookZ;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const newDist = clamp(dist * scale, 30, 500);
+      const ratio = newDist / (dist || 1);
+      camControl.targetX = camControl.lookX + dx * ratio;
+      camControl.targetY = camControl.lookY + dy * ratio;
+      camControl.targetZ = camControl.lookZ + dz * ratio;
+    }, { passive: false });
+
+    window.addEventListener("resize", resizeRenderer);
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+
+    update(dt);
+    render();
+
+    state.fpsAccum += dt;
+    state.fpsCount++;
+    if (state.fpsAccum >= 0.5) {
+      const fps = Math.round(state.fpsCount / state.fpsAccum);
+      elements.fps.textContent = "FPS: " + fps;
+      state.fpsAccum = 0;
+      state.fpsCount = 0;
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 初始化 =====
+  function init() {
+    resizeRenderer();
+    setParameters({ size: 8, density: 0.6, road: 0.5, height: 1.0, centers: 1 });
+    bindControls();
+    setTimeout(() => generate(), 300);
+    requestAnimationFrame(frame);
+  }
+
+  function getState() { return { ...state, params: { ...state.params } }; }
+  function getReadouts() {
+    return {
+      growthProgress: state.growthProgress, nightMode: state.nightMode, flyMode: state.flyMode,
+      buildingCount: state.city ? state.city.buildings.length : 0,
+      roadCount: state.city ? state.city.roads.length : 0
+    };
+  }
+
+  function runModelChecks() {
+    const results = [];
+    const city1 = generateCity({ size: 6, density: 0.5, road: 0.5, height: 1.0, centers: 1 });
+    results.push({
+      name: "城市生成产生有效数据",
+      pass: city1.buildings.length > 0 && city1.roads.length > 0 && city1.blocks.length > 0,
+      expected: "buildings > 0, roads > 0, blocks > 0",
+      actual: "buildings=" + city1.buildings.length + ", roads=" + city1.roads.length + ", blocks=" + city1.blocks.length,
+      tolerance: "valid"
+    });
+    const citySmall = generateCity({ size: 4, density: 0.5, road: 0.5, height: 1.0, centers: 1 });
+    const cityLarge = generateCity({ size: 10, density: 0.5, road: 0.5, height: 1.0, centers: 1 });
+    results.push({
+      name: "规模参数影响建筑数量",
+      pass: cityLarge.buildings.length > citySmall.buildings.length,
+      expected: "larger size → more buildings",
+      actual: "size=4: " + citySmall.buildings.length + ", size=10: " + cityLarge.buildings.length,
+      tolerance: "strict"
+    });
+    const cityLowD = generateCity({ size: 8, density: 0.2, road: 0.5, height: 1.0, centers: 1 });
+    const cityHighD = generateCity({ size: 8, density: 0.9, road: 0.5, height: 1.0, centers: 1 });
+    results.push({
+      name: "密度参数影响建筑数量",
+      pass: cityHighD.buildings.length > cityLowD.buildings.length,
+      expected: "higher density → more buildings",
+      actual: "density=0.2: " + cityLowD.buildings.length + ", density=0.9: " + cityHighD.buildings.length,
+      tolerance: "strict"
+    });
+    const city1c = generateCity({ size: 8, density: 0.6, road: 0.5, height: 1.0, centers: 1 });
+    const city3c = generateCity({ size: 8, density: 0.6, road: 0.5, height: 1.0, centers: 3 });
+    results.push({
+      name: "中心数量参数影响中心数",
+      pass: city3c.centers.length === 3 && city1c.centers.length === 1,
+      expected: "centers=3 → 3 centers",
+      actual: "1 center: " + city1c.centers.length + ", 3 centers: " + city3c.centers.length,
+      tolerance: "strict"
+    });
+    const sorted = city1.buildings.every((b, i, arr) => i === 0 || arr[i - 1].centerProximity >= b.centerProximity);
+    results.push({
+      name: "建筑按中心距离排序",
+      pass: sorted,
+      expected: "sorted by centerProximity descending",
+      actual: sorted ? "sorted" : "not sorted",
+      tolerance: "strict"
+    });
+    const hasLow = city1.buildings.some(b => b.type === "low");
+    results.push({
+      name: "建筑类型多样性",
+      pass: hasLow,
+      expected: "at least low type present",
+      actual: "low=" + hasLow,
+      tolerance: "valid"
+    });
+    return results;
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, generate, toggleNight, toggleFly, resetCamera, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

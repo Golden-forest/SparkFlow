@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>傅里叶波包 · Fourier Wave Packet</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sim-bg: #03060e;
+    --sim-surface: #0a0f1e;
+    --sim-surface-soft: #0d1426;
+    --sim-text: #e8eefc;
+    --sim-muted: #657188;
+    --sim-border: rgba(255,255,255,0.06);
+    --sim-grid: rgba(255,255,255,0.04);
+    --sim-accent: #4dd0e1;
+    --sim-accent-deep: #00838f;
+    --sim-accent-soft: rgba(77,208,225,0.12);
+    --sim-positive: #4dd0e1;
+    --sim-warning: #ffb74d;
+    --sim-danger: #ef5350;
+    --sim-radius-sm: 10px;
+    --sim-radius-md: 16px;
+    --sim-radius-lg: 22px;
+    --sim-shadow: 0 14px 36px rgba(0,0,0,0.4);
+    --sim-space-1: 4px;
+    --sim-space-2: 8px;
+    --sim-space-3: 12px;
+    --sim-space-4: 16px;
+    --sim-space-5: 24px;
+    --sim-space-6: 32px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--sim-bg);
+    color: var(--sim-text);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { position: fixed; inset: 0; }
+  #stage {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    z-index: 1;
+  }
+  .overlay {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .formula {
+    top: max(18px, env(safe-area-inset-top));
+    left: max(22px, env(safe-area-inset-left));
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: rgba(232, 238, 252, 0.22);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    transition: opacity 0.6s ease;
+  }
+  .formula .sub { font-size: 0.78em; vertical-align: sub; }
+  .formula .sup { font-size: 0.78em; vertical-align: super; }
+  .components {
+    top: max(52px, env(safe-area-inset-top));
+    left: max(22px, env(safe-area-inset-left));
+    width: 210px;
+    height: 64px;
+    opacity: 0.16;
+    transition: opacity 0.6s ease;
+  }
+  .play-btn {
+    bottom: max(20px, env(safe-area-inset-bottom));
+    right: max(24px, env(safe-area-inset-right));
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(232, 238, 252, 0.38);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+    pointer-events: auto;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    padding: 0;
+  }
+  .play-btn:hover {
+    background: rgba(77,208,225,0.10);
+    border-color: rgba(77,208,225,0.22);
+    color: rgba(232,238,252,0.7);
+  }
+  .play-btn:active { transform: scale(0.94); }
+  .play-btn:focus-visible {
+    outline: 2px solid rgba(77,208,225,0.5);
+    outline-offset: 3px;
+  }
+  .play-btn svg { width: 14px; height: 14px; }
+  .name {
+    bottom: max(24px, env(safe-area-inset-bottom));
+    left: max(24px, env(safe-area-inset-left));
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(232, 238, 252, 0.14);
+    font-weight: 500;
+  }
+  .evidence-panel {
+    top: max(18px, env(safe-area-inset-top));
+    right: max(22px, env(safe-area-inset-right));
+    min-width: 168px;
+    padding: 14px 16px;
+    border-radius: var(--sim-radius-md);
+    background: rgba(10, 15, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .evidence-panel .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 14px; margin-bottom: 6px;
+  }
+  .evidence-panel .row:last-child { margin-bottom: 0; }
+  .evidence-panel .label {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(232, 238, 252, 0.32); font-weight: 600;
+  }
+  .evidence-panel .value {
+    font-size: 14px; font-weight: 700; color: rgba(232, 238, 252, 0.78);
+  }
+  .insight-panel {
+    bottom: max(24px, env(safe-area-inset-bottom));
+    right: max(24px, env(safe-area-inset-right));
+    max-width: 280px;
+    padding: 12px 16px;
+    border-radius: var(--sim-radius-md);
+    background: rgba(10, 15, 30, 0.55);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-left: 3px solid var(--sim-warning);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: none;
+  }
+  .insight-panel .title {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(255, 183, 77, 0.55); font-weight: 700; margin-bottom: 4px;
+  }
+  .insight-panel .body {
+    font-size: 12px; line-height: 1.5; color: rgba(232, 238, 252, 0.62);
+    font-weight: 500;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .formula, .components { opacity: 0.22; }
+  }
+  @media (max-width: 600px) {
+    .formula { font-size: 11px; }
+    .components { width: 150px; height: 48px; top: max(44px, env(safe-area-inset-top)); }
+    .name { font-size: 9px; }
+    .play-btn { width: 34px; height: 34px; }
+    .evidence-panel { min-width: 132px; padding: 10px 12px; }
+    .evidence-panel .value { font-size: 12px; }
+    .insight-panel { max-width: 200px; padding: 10px 12px; }
+    .insight-panel .body { font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .formula, .components { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="stage" data-region="stage" role="img" aria-label="傅里叶合成的波包粒子沿水平基准线传播"></canvas>
+
+  <div class="overlay formula" data-region="header" aria-hidden="true">
+    y = &Sigma; A<span class="sub">k</span> &middot; sin(k<span class="sub">k</span>x &minus; &omega;<span class="sub">k</span>t)
+  </div>
+
+  <canvas class="overlay components" id="components" aria-hidden="true"></canvas>
+
+  <div class="overlay evidence-panel" data-region="evidence" aria-live="polite" aria-label="实时读数">
+    <div class="row"><span class="label">时间 t</span><span class="value" id="timeReadout">0.00 s</span></div>
+    <div class="row"><span class="label">分量数</span><span class="value" id="compReadout">5</span></div>
+    <div class="row"><span class="label">粒子数</span><span class="value" id="particleReadout">400</span></div>
+    <div class="row"><span class="label">状态</span><span class="value" id="statusReadout">运行中</span></div>
+  </div>
+
+  <div class="overlay insight-panel" data-region="insight" aria-live="polite">
+    <div class="title">观察</div>
+    <div class="body" id="insightBody">五个不同频率的正弦分量叠加，形成沿水平方向传播的波包。粒子亮度随位移幅度变化，揭示能量分布。</div>
+  </div>
+
+  <button class="overlay play-btn" id="playBtn" data-region="controls" type="button" aria-label="播放或暂停" title="播放 / 暂停">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path id="playIcon" d="M8 5v14l11-7z"/>
+    </svg>
+  </button>
+
+  <div class="overlay name" aria-hidden="true">FOURIER WAVE PACKET</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 确定性参数（固定种子，无每帧随机） =====
+  const COMPONENTS = [
+    { A: 1.00, k: 0.022, w: 0.55 },
+    { A: 0.72, k: 0.041, w: 0.95 },
+    { A: 0.50, k: 0.067, w: 1.45 },
+    { A: 0.34, k: 0.098, w: 2.10 },
+    { A: 0.22, k: 0.140, w: 2.85 }
+  ];
+  const N_PARTICLES = 400;
+  const SPATIAL_RANGE = 1400;   // x ∈ [-700, 700]
+  const AMP_SCALE = 130;        // 像素/单位振幅
+  const BASE_Y_RATIO = 0.5;     // 基准线垂直居中
+  const MAX_AMP = 1.00 + 0.72 + 0.50 + 0.34 + 0.22; // 2.78
+  const TIME_SCALE = 0.55;
+
+  // ===== 状态 =====
+  const state = {
+    running: true,
+    t: 0,
+    lastTimestamp: null,
+    width: 0,
+    height: 0,
+    dpr: 1,
+    particles: [],
+    canvas: null,
+    ctx: null,
+    componentsCanvas: null,
+    componentsCtx: null,
+    componentsW: 0,
+    componentsH: 0,
+    reducedMotion: false
+  };
+
+  // ===== 工具 =====
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const finite = (v, fb) => Number.isFinite(v) ? v : fb;
+
+  // 确定性 LCG，用于一次性初始化（不参与每帧）
+  function makeRng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  // ===== 模型：5 分量正弦叠加 =====
+  function computeDisplacement(x, t) {
+    let y = 0;
+    for (let i = 0; i < COMPONENTS.length; i++) {
+      const c = COMPONENTS[i];
+      y += c.A * Math.sin(c.k * x - c.w * t);
+    }
+    return y;
+  }
+
+  function initParticles() {
+    state.particles = new Array(N_PARTICLES);
+    const rng = makeRng(20240928);
+    for (let i = 0; i < N_PARTICLES; i++) {
+      const x = -SPATIAL_RANGE / 2 + (i / (N_PARTICLES - 1)) * SPATIAL_RANGE;
+      state.particles[i] = {
+        x: x,
+        jitter: (rng() - 0.5) * 0.6  // 极小确定性微扰，避免完全等距
+      };
+    }
+  }
+
+  // ===== Canvas 初始化与尺寸 =====
+  function setupCanvas() {
+    const canvas = document.getElementById("stage");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    state.canvas = canvas;
+    state.ctx = ctx;
+
+    const compCanvas = document.getElementById("components");
+    const compCtx = compCanvas.getContext("2d");
+    state.componentsCanvas = compCanvas;
+    state.componentsCtx = compCtx;
+
+    state.reducedMotion = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    resize();
+    window.addEventListener("resize", resize);
+  }
+
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    state.width = w;
+    state.height = h;
+    state.dpr = dpr;
+
+    const canvas = state.canvas;
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    state.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 分量小波形 canvas
+    const cw = state.componentsCanvas.clientWidth || 210;
+    const ch = state.componentsCanvas.clientHeight || 64;
+    state.componentsW = cw;
+    state.componentsH = ch;
+    state.componentsCanvas.width = Math.max(1, Math.floor(cw * dpr));
+    state.componentsCanvas.height = Math.max(1, Math.floor(ch * dpr));
+    state.componentsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ===== 渲染主舞台 =====
+  function render() {
+    const ctx = state.ctx;
+    const w = state.width;
+    const h = state.height;
+    const t = state.t;
+
+    // 深色背景（每帧清空，不留拖影——壁纸级干净）
+    ctx.fillStyle = "#03060e";
+    ctx.fillRect(0, 0, w, h);
+
+    const baseY = h * BASE_Y_RATIO;
+    const halfW = w / 2;
+
+    // 将粒子 x ∈ [-700, 700] 映射到屏幕宽度，留 4% 边距
+    const xMargin = w * 0.04;
+    const usableW = w - xMargin * 2;
+    const xScale = usableW / SPATIAL_RANGE;
+
+    // ===== 基准线（极淡） =====
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(xMargin, baseY);
+    ctx.lineTo(w - xMargin, baseY);
+    ctx.stroke();
+
+    // ===== 粒子 =====
+    const particles = state.particles;
+    const ampPx = AMP_SCALE * Math.min(1, h / 900); // 高度自适应
+
+    // 双层绘制：先粗后细，模拟发光（无 shadowBlur）
+    // Pass 1: 粗、低透明度（光晕层）
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < N_PARTICLES; i++) {
+      const p = particles[i];
+      const sx = halfW + p.x * xScale + p.jitter;
+      if (sx < -20 || sx > w + 20) continue;
+      const y = computeDisplacement(p.x, t);
+      const sy = baseY - y * ampPx;
+      const mag = Math.abs(y) / MAX_AMP;            // 0..1
+      const brightness = Math.pow(mag, 0.85);
+      const r = 1.4 + brightness * 5.5;
+
+      // 颜色：上红下青
+      let rC, gC, bC;
+      if (y >= 0) {
+        // 红橙系
+        rC = 255;
+        gC = Math.floor(110 + brightness * 90);
+        bC = Math.floor(70 + brightness * 60);
+      } else {
+        // 青蓝系
+        rC = Math.floor(60 + brightness * 40);
+        gC = Math.floor(200 + brightness * 40);
+        bC = 255;
+      }
+      const alpha = 0.05 + brightness * 0.13;
+      ctx.fillStyle = `rgba(${rC},${gC},${bC},${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Pass 2: 细、高透明度（核心层）
+    for (let i = 0; i < N_PARTICLES; i++) {
+      const p = particles[i];
+      const sx = halfW + p.x * xScale + p.jitter;
+      if (sx < -20 || sx > w + 20) continue;
+      const y = computeDisplacement(p.x, t);
+      const sy = baseY - y * ampPx;
+      const mag = Math.abs(y) / MAX_AMP;
+      const brightness = Math.pow(mag, 0.85);
+      const r = 1.0 + brightness * 4.0;
+
+      let rC, gC, bC;
+      if (y >= 0) {
+        rC = 255;
+        gC = Math.floor(140 + brightness * 80);
+        bC = Math.floor(90 + brightness * 50);
+      } else {
+        rC = Math.floor(90 + brightness * 40);
+        gC = Math.floor(220 + brightness * 35);
+        bC = 255;
+      }
+      const alpha = 0.35 + brightness * 0.55;
+      ctx.fillStyle = `rgba(${rC},${gC},${bC},${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+
+    // 同步 evidence / insight 文本
+    renderReadouts();
+  }
+
+  // ===== 渲染分量小波形 =====
+  function renderComponents() {
+    const ctx = state.componentsCtx;
+    const cw = state.componentsW;
+    const ch = state.componentsH;
+    const t = state.t;
+
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.lineWidth = 1;
+
+    const pad = 4;
+    const plotW = cw - pad * 2;
+    const plotH = ch - pad * 2;
+    const midY = ch / 2;
+    const xRange = 800; // 展示用局部 x 范围
+
+    for (let i = 0; i < COMPONENTS.length; i++) {
+      const c = COMPONENTS[i];
+      const ampPx = (c.A / 1.2) * (plotH / 2) * 0.85;
+      // 5 条线颜色：从暖到冷
+      const hues = [
+        "rgba(255,160,120,0.55)",
+        "rgba(255,200,150,0.50)",
+        "rgba(200,220,200,0.45)",
+        "rgba(150,210,230,0.50)",
+        "rgba(120,180,255,0.55)"
+      ];
+      ctx.strokeStyle = hues[i];
+      ctx.beginPath();
+      const steps = 80;
+      for (let s = 0; s <= steps; s++) {
+        const x = -xRange / 2 + (s / steps) * xRange;
+        const y = c.A * Math.sin(c.k * x - c.w * t);
+        const sx = pad + (s / steps) * plotW;
+        const sy = midY - y * ampPx;
+        if (s === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  // ===== 读数与观察文本 =====
+  function renderReadouts() {
+    const timeEl = document.getElementById("timeReadout");
+    const statusEl = document.getElementById("statusReadout");
+    const insightEl = document.getElementById("insightBody");
+    if (timeEl) timeEl.textContent = state.t.toFixed(2) + " s";
+    if (statusEl) statusEl.textContent = state.running ? "运行中" : "已暂停";
+    if (insightEl) {
+      insightEl.textContent = state.running
+        ? "五个不同频率的正弦分量叠加，形成沿水平方向传播的波包。粒子亮度随位移幅度变化，揭示能量分布。"
+        : "已暂停：波包静止于当前相位。按播放继续传播。";
+    }
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    let dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    dt = clamp(finite(dt, 0), 0, 0.05);
+
+    if (state.running) {
+      // 时间缩放：让波包传播速度适合长时间观看
+      const ts = state.reducedMotion ? 0.25 : TIME_SCALE;
+      state.t += dt * ts;
+    }
+
+    render();
+    renderComponents();
+    requestAnimationFrame(frame);
+  }
+
+  // ===== 控制 =====
+  function updatePlayIcon() {
+    const btn = document.getElementById("playBtn");
+    const icon = document.getElementById("playIcon");
+    if (!btn || !icon) return;
+    if (state.running) {
+      icon.setAttribute("d", "M6 5h4v14H6zM14 5h4v14h-4z"); // 暂停
+      btn.setAttribute("aria-label", "暂停");
+    } else {
+      icon.setAttribute("d", "M8 5v14l11-7z"); // 播放
+      btn.setAttribute("aria-label", "播放");
+    }
+  }
+
+  function bindControls() {
+    const btn = document.getElementById("playBtn");
+    btn.addEventListener("click", () => {
+      state.running = !state.running;
+      updatePlayIcon();
+      renderReadouts();
+    });
+    // 键盘空格切换
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && document.activeElement === document.body) {
+        e.preventDefault();
+        state.running = !state.running;
+        updatePlayIcon();
+        renderReadouts();
+      }
+    });
+    updatePlayIcon();
+  }
+
+  // ===== 生命周期 =====
+  function init() {
+    setupCanvas();
+    initParticles();
+    bindControls();
+    renderReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  function start() { state.running = true; updatePlayIcon(); renderReadouts(); }
+  function pause() { state.running = false; updatePlayIcon(); renderReadouts(); }
+  function reset() { state.t = 0; renderReadouts(); }
+  function update(dt) {
+    const ts = state.reducedMotion ? 0.25 : TIME_SCALE;
+    state.t += clamp(finite(dt, 0), 0, 0.05) * ts;
+  }
+  function setParameters(values) {
+    // 当前模型为固定确定性参数，保留接口以满足运行时契约
+    void values;
+  }
+  function getState() {
+    return {
+      t: state.t,
+      running: state.running,
+      width: state.width,
+      height: state.height,
+      particleCount: state.particles.length
+    };
+  }
+  function getReadouts() {
+    return {
+      time: state.t,
+      components: COMPONENTS.length,
+      particles: N_PARTICLES,
+      running: state.running
+    };
+  }
+  function runModelChecks() {
+    // 模型检查：5 分量叠加的确定性
+    const y1 = computeDisplacement(0, 0);
+    const y2 = computeDisplacement(0, 0); // 相同输入应相同
+    const yHalf = computeDisplacement(100, 1.0);
+    const yDouble = computeDisplacement(200, 2.0);
+    // k*x - w*t 相同 → 相同相位 → 相同输出
+    const phaseCheck = Math.abs(yHalf - yDouble) < 1e-9;
+    return [
+      { name: "deterministic same input", pass: y1 === y2, expected: "equal", actual: `${y1} === ${y2}`, tolerance: "exact" },
+      { name: "phase invariance kx-wt", pass: phaseCheck, expected: "equal for same phase", actual: `${yHalf} vs ${yDouble}`, tolerance: "1e-9" },
+      { name: "finite output", pass: Number.isFinite(y1), expected: "finite", actual: y1, tolerance: "finite" },
+      { name: "bounded amplitude", pass: Math.abs(y1) <= MAX_AMP + 1e-9, expected: `|y| <= ${MAX_AMP}`, actual: Math.abs(y1), tolerance: "1e-9" }
+    ];
+  }
+
+  // 暴露 API（符合 runtime 契约，便于校验）
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

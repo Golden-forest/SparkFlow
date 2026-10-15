@@ -1,19 +1,19 @@
-import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PendulumControlPanel } from './PendulumControlPanel';
 
 describe('PendulumControlPanel', () => {
   const defaultProps = {
     pendulumLength: 2.5,
-    onLengthChange: jest.fn(),
+    onLengthChange: vi.fn(),
     mass: 1.0,
-    onMassChange: jest.fn(),
+    onMassChange: vi.fn(),
     initialAngle: 30,
-    onAngleChange: jest.fn(),
+    onAngleChange: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render all parameter controls', () => {

@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>粒子数字时钟</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --sim-bg: #050810;
+      --sim-surface: #0a0f1c;
+      --sim-surface-soft: #0d1322;
+      --sim-text: #e8eefc;
+      --sim-muted: #6b7a99;
+      --sim-border: #1a2438;
+      --sim-grid: #131a2c;
+      --sim-accent: #4dd9ff;
+      --sim-accent-deep: #2196c7;
+      --sim-accent-soft: rgba(77, 217, 255, 0.12);
+      --sim-positive: #4dd9ff;
+      --sim-warning: #f5a623;
+      --sim-danger: #ff5a6e;
+      --sim-radius-sm: 8px;
+      --sim-radius-md: 12px;
+      --sim-radius-lg: 16px;
+      --sim-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--sim-bg);
+      color: var(--sim-text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    body { display: flex; flex-direction: column; }
+
+    .app {
+      width: 100%; height: 100vh; height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0;
+    }
+
+    /* Header */
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 28px; gap: 24px;
+      border-bottom: 1px solid var(--sim-border);
+      background: linear-gradient(180deg, rgba(10,15,28,0.9), rgba(10,15,28,0.4));
+      backdrop-filter: blur(12px);
+      z-index: 10;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+    .header h1 {
+      font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em;
+      color: var(--sim-text);
+    }
+    .header .time-display {
+      font-size: 1.5rem; font-weight: 200; letter-spacing: 0.08em;
+      color: var(--sim-accent); font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 12px rgba(77, 217, 255, 0.4);
+    }
+    .status {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid var(--sim-border);
+      background: var(--sim-surface-soft);
+      font-size: 0.78rem; font-weight: 600; color: var(--sim-muted);
+      white-space: nowrap;
+    }
+    .status .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--sim-accent);
+      box-shadow: 0 0 8px var(--sim-accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .status.paused .dot { background: var(--sim-warning); box-shadow: 0 0 8px var(--sim-warning); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Stage */
+    .stage {
+      position: relative; min-height: 0; overflow: hidden;
+      background: radial-gradient(ellipse at center, #0a1020 0%, #050810 70%, #02040a 100%);
+    }
+    #scene { display: block; width: 100%; height: 100%; }
+
+    /* Evidence + Insight overlay */
+    .overlay {
+      position: absolute; top: 16px; right: 16px;
+      display: grid; gap: 10px;
+      width: 220px; max-width: 40vw;
+      z-index: 5; pointer-events: none;
+    }
+    .overlay > * { pointer-events: auto; }
+    .evidence {
+      padding: 12px 14px;
+      border: 1px solid var(--sim-border);
+      border-radius: var(--sim-radius-md);
+      background: rgba(10, 15, 28, 0.72);
+      backdrop-filter: blur(10px);
+    }
+    .evidence h3 {
+      margin: 0 0 8px; font-size: 0.68rem; font-weight: 700;
+      color: var(--sim-muted); text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .evidence .row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 3px 0; font-size: 0.8rem;
+    }
+    .evidence .row span { color: var(--sim-muted); }
+    .evidence .row strong {
+      color: var(--sim-accent); font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .insight {
+      padding: 10px 14px;
+      border-left: 3px solid var(--sim-warning);
+      border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+      background: rgba(245, 166, 35, 0.08);
+      color: #f5c877;
+      font-size: 0.78rem; font-weight: 600; line-height: 1.45;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex; align-items: center; justify-content: center;
+      gap: 28px; padding: 14px 28px;
+      border-top: 1px solid var(--sim-border);
+      background: linear-gradient(0deg, rgba(10,15,28,0.95), rgba(10,15,28,0.5));
+      backdrop-filter: blur(12px);
+      flex-wrap: wrap;
+      z-index: 10;
+    }
+    .ctrl-group { display: flex; align-items: center; gap: 10px; }
+    .ctrl-group .label {
+      font-size: 0.72rem; font-weight: 600; color: var(--sim-muted);
+      text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap;
+    }
+    .btn {
+      border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+      padding: 8px 16px; background: var(--sim-surface-soft); color: var(--sim-text);
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s ease; white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--sim-accent-deep); background: rgba(77,217,255,0.08); color: var(--sim-accent); }
+    .btn:active { transform: scale(0.96); }
+    .btn.primary {
+      border-color: var(--sim-accent-deep); color: var(--sim-accent);
+      background: linear-gradient(135deg, rgba(33,150,199,0.25), rgba(77,217,255,0.15));
+      box-shadow: 0 0 16px rgba(77,217,255,0.15);
+    }
+    .btn.primary:hover { background: linear-gradient(135deg, rgba(33,150,199,0.4), rgba(77,217,255,0.25)); }
+    .btn.toggle[aria-pressed="true"] {
+      border-color: var(--sim-accent); color: var(--sim-accent);
+      background: rgba(77,217,255,0.12);
+      box-shadow: inset 0 0 0 1px rgba(77,217,255,0.3);
+    }
+    .color-dots { display: flex; gap: 8px; }
+    .color-dot {
+      width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+      border: 2px solid transparent; transition: all 0.2s ease;
+      position: relative;
+    }
+    .color-dot::after {
+      content: ''; position: absolute; inset: -4px; border-radius: 50%;
+      border: 1px solid transparent; transition: border-color 0.2s ease;
+    }
+    .color-dot.active::after { border-color: var(--sim-text); }
+    .color-dot:hover { transform: scale(1.1); }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none;
+      width: 130px; height: 4px; border-radius: 2px;
+      background: var(--sim-border); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--sim-accent); cursor: pointer;
+      box-shadow: 0 0 10px rgba(77,217,255,0.5);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+    input[type="range"]::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%; border: none;
+      background: var(--sim-accent); cursor: pointer;
+      box-shadow: 0 0 10px rgba(77,217,255,0.5);
+    }
+    .ctrl-group output {
+      font-size: 0.78rem; color: var(--sim-accent); font-variant-numeric: tabular-nums;
+      min-width: 36px; text-align: right;
+    }
+
+    @media (max-width: 760px) {
+      .header { padding: 10px 16px; gap: 12px; }
+      .header h1 { font-size: 0.95rem; }
+      .header .time-display { font-size: 1.15rem; }
+      .status { font-size: 0.68rem; padding: 4px 10px; }
+      .controls { gap: 14px; padding: 10px 12px; }
+      .ctrl-group .label { font-size: 0.62rem; }
+      .btn { padding: 6px 12px; font-size: 0.72rem; }
+      input[type="range"] { width: 90px; }
+      .color-dot { width: 18px; height: 18px; }
+      .overlay { width: 170px; top: 10px; right: 10px; }
+      .evidence { padding: 8px 10px; }
+      .evidence h3 { font-size: 0.6rem; margin-bottom: 4px; }
+      .evidence .row { font-size: 0.7rem; padding: 1px 0; }
+      .insight { font-size: 0.68rem; padding: 6px 10px; }
+    }
+    @media (max-width: 480px) {
+      .controls { gap: 10px; }
+      .ctrl-group { gap: 6px; }
+      .overlay { width: 140px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status .dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="visualization-first" data-model-tier="rule-system">
+    <header class="header" data-region="header">
+      <div class="header-left">
+        <h1>粒子数字时钟</h1>
+        <span class="time-display" id="timeDisplay">00:00:00</span>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">
+        <span class="dot"></span><span id="statusText">运行中</span>
+      </div>
+    </header>
+
+    <section class="stage" data-region="stage" aria-label="粒子时钟舞台">
+      <canvas id="scene" role="img" aria-label="由数千粒子组成的数字时钟，显示当前时间"></canvas>
+
+      <div class="overlay">
+        <section class="evidence" data-region="evidence" aria-label="实时数据">
+          <h3>实时数据</h3>
+          <div class="row"><span>当前时间</span><strong id="evTime">00:00:00</strong></div>
+          <div class="row"><span>粒子数</span><strong id="evCount">0</strong></div>
+          <div class="row"><span>时制</span><strong id="evFormat">24h</strong></div>
+          <div class="row"><span>配色</span><strong id="evTheme">cyan</strong></div>
+        </section>
+        <section class="insight" data-region="insight" aria-live="polite">
+          <span id="insightText">每秒数字切换时，粒子向外飞散后重新聚拢成新数字。</span>
+        </section>
+      </div>
+    </section>
+
+    <section class="controls" data-region="controls" aria-label="控件">
+      <div class="ctrl-group">
+        <button id="playBtn" class="btn primary" type="button">暂停</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="label">时制</span>
+        <button id="format24" class="btn toggle" type="button" aria-pressed="true">24时</button>
+        <button id="format12" class="btn toggle" type="button" aria-pressed="false">12时</button>
+      </div>
+      <div class="ctrl-group">
+        <span class="label">配色</span>
+        <div class="color-dots" id="colorDots">
+          <div class="color-dot active" data-theme="cyan" style="background:#4dd9ff;box-shadow:0 0 10px #4dd9ff" role="button" aria-label="青色" tabindex="0"></div>
+          <div class="color-dot" data-theme="violet" style="background:#a78bfa;box-shadow:0 0 10px #a78bfa" role="button" aria-label="紫色" tabindex="0"></div>
+          <div class="color-dot" data-theme="amber" style="background:#fbbf24;box-shadow:0 0 10px #fbbf24" role="button" aria-label="琥珀色" tabindex="0"></div>
+          <div class="color-dot" data-theme="emerald" style="background:#34d399;box-shadow:0 0 10px #34d399" role="button" aria-label="翠绿色" tabindex="0"></div>
+          <div class="color-dot" data-theme="rose" style="background:#fb7185;box-shadow:0 0 10px #fb7185" role="button" aria-label="玫瑰色" tabindex="0"></div>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <label class="label" for="densityInput">密度</label>
+        <input id="densityInput" type="range" min="0.3" max="1" step="0.05" value="0.7" aria-label="粒子密度">
+        <output id="densityOutput" for="densityInput">70%</output>
+      </div>
+      <div class="ctrl-group">
+        <label class="label" for="speedInput">速度</label>
+        <input id="speedInput" type="range" min="0.3" max="2" step="0.1" value="1" aria-label="飞行速度">
+        <output id="speedOutput" for="speedInput">1.0×</output>
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    // ===== 5x7 数字点阵 =====
+    const DIGITS = {
+      '0': ["01110","10001","10001","10001","10001","10001","01110"],
+      '1': ["00100","01100","00100","00100","00100","00100","01110"],
+      '2': ["01110","10001","00001","00010","00100","01000","11111"],
+      '3': ["01110","10001","00001","00110","00001","10001","01110"],
+      '4': ["00010","00110","01010","10010","11111","00010","00010"],
+      '5': ["11111","10000","11110","00001","00001","10001","01110"],
+      '6': ["00110","01000","10000","11110","10001","10001","01110"],
+      '7': ["11111","00001","00010","00100","01000","01000","01000"],
+      '8': ["01110","10001","10001","01110","10001","10001","01110"],
+      '9': ["01110","10001","10001","01111","00001","00010","01100"],
+      ':': ["00000","00100","00000","00000","00000","00100","00000"]
+    };
+
+    // ===== 配色主题 =====
+    const THEMES = {
+      cyan:    { main: "#4dd9ff", glow: "rgba(77,217,255,0.55)",  trail: "rgba(77,217,255,0.18)" },
+      violet:  { main: "#a78bfa", glow: "rgba(167,139,250,0.55)", trail: "rgba(167,139,250,0.18)" },
+      amber:   { main: "#fbbf24", glow: "rgba(251,191,36,0.55)",  trail: "rgba(251,191,36,0.18)" },
+      emerald: { main: "#34d399", glow: "rgba(52,211,153,0.55)",  trail: "rgba(52,211,153,0.18)" },
+      rose:    { main: "#fb7185", glow: "rgba(251,113,133,0.55)", trail: "rgba(251,113,133,0.18)" }
+    };
+
+    // ===== 参数 schema =====
+    const parameterSchema = [
+      { key: "density", label: "粒子密度", type: "slider", min: 0.3, max: 1, step: 0.05, default: 0.7, unit: "" },
+      { key: "speed",  label: "飞行速度", type: "slider", min: 0.3, max: 2,  step: 0.1,  default: 1,   unit: "×" }
+    ];
+
+    // ===== 状态 =====
+    const state = {
+      running: true,
+      format24: true,
+      theme: "cyan",
+      density: 0.7,
+      speed: 1.0,
+      lastTimestamp: null,
+      particles: [],
+      currentString: "",
+      canvasW: 0,
+      canvasH: 0,
+      dpr: 1
+    };
+
+    const elements = {
+      canvas: document.getElementById("scene"),
+      timeDisplay: document.getElementById("timeDisplay"),
+      status: document.getElementById("status"),
+      statusText: document.getElementById("statusText"),
+      playBtn: document.getElementById("playBtn"),
+      format24: document.getElementById("format24"),
+      format12: document.getElementById("format12"),
+      colorDots: document.getElementById("colorDots"),
+      densityInput: document.getElementById("densityInput"),
+      densityOutput: document.getElementById("densityOutput"),
+      speedInput: document.getElementById("speedInput"),
+      speedOutput: document.getElementById("speedOutput"),
+      evTime: document.getElementById("evTime"),
+      evCount: document.getElementById("evCount"),
+      evFormat: document.getElementById("evFormat"),
+      evTheme: document.getElementById("evTheme"),
+      insightText: document.getElementById("insightText")
+    };
+    const ctx = elements.canvas.getContext("2d");
+
+    // ===== 工具函数 =====
+    function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+    function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+    // ===== Canvas 尺寸 =====
+    function resizeCanvas() {
+      const rect = elements.canvas.parentElement.getBoundingClientRect();
+      state.dpr = window.devicePixelRatio || 1;
+      state.canvasW = rect.width;
+      state.canvasH = rect.height;
+      elements.canvas.width = Math.floor(rect.width * state.dpr);
+      elements.canvas.height = Math.floor(rect.height * state.dpr);
+      elements.canvas.style.width = rect.width + "px";
+      elements.canvas.style.height = rect.height + "px";
+      ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    }
+
+    // ===== 获取目标点阵 =====
+    function getTargetPoints(timeStr) {
+      const charCount = timeStr.length;
+      const charW = 5, charH = 7;
+      const gap = 1;
+      const totalW = charCount * charW + (charCount - 1) * gap;
+
+      const maxW = state.canvasW * 0.82;
+      const maxH = state.canvasH * 0.65;
+      const scaleW = maxW / totalW;
+      const scaleH = maxH / charH;
+      const scale = Math.max(2, Math.min(scaleW, scaleH));
+
+      const cellSize = scale;
+      const renderW = totalW * cellSize;
+      const renderH = charH * cellSize;
+      const offsetX = (state.canvasW - renderW) / 2;
+      const offsetY = (state.canvasH - renderH) / 2;
+
+      const points = [];
+      for (let i = 0; i < charCount; i++) {
+        const ch = timeStr[i];
+        const pattern = DIGITS[ch];
+        if (!pattern) continue;
+        const charOffsetX = offsetX + i * (charW + gap) * cellSize;
+        for (let row = 0; row < charH; row++) {
+          for (let col = 0; col < charW; col++) {
+            if (pattern[row][col] === "1") {
+              points.push({
+                x: charOffsetX + col * cellSize + cellSize / 2,
+                y: offsetY + row * cellSize + cellSize / 2
+              });
+            }
+          }
+        }
+      }
+      return points;
+    }
+
+    // ===== 采样目标点 =====
+    function sampleTargets(points, density) {
+      if (density >= 1) return points.slice();
+      const result = [];
+      for (let i = 0; i < points.length; i++) {
+        if (Math.random() < density) result.push(points[i]);
+      }
+      return result;
+    }
+
+    // ===== 粒子类 =====
+    class Particle {
+      constructor(x, y) {
+        this.x = x; this.y = y;
+        this.tx = x; this.ty = y;
+        this.vx = 0; this.vy = 0;
+        this.size = 1.2 + Math.random() * 1.3;
+        this.phase = Math.random() * Math.PI * 2;
+        this.trail = [];
+      }
+      setTarget(tx, ty) { this.tx = tx; this.ty = ty; }
+      scatter(cx, cy) {
+        const dx = this.x - cx, dy = this.y - cy;
+        const d = Math.sqrt(dx*dx + dy*dy) || 1;
+        const force = 120 + Math.random() * 200;
+        this.vx += (dx / d) * force + (Math.random() - 0.5) * 80;
+        this.vy += (dy / d) * force + (Math.random() - 0.5) * 80;
+      }
+      update(dt, speed) {
+        const k = 0.018 * speed;
+        const damp = Math.pow(0.86, speed);
+        const ax = (this.tx - this.x) * k;
+        const ay = (this.ty - this.y) * k;
+        this.vx = (this.vx + ax) * damp;
+        this.vy = (this.vy + ay) * damp;
+        this.x += this.vx * dt * 60;
+        this.y += this.vy * dt * 60;
+        this.phase += dt * 2;
+
+        const speedSq = this.vx*this.vx + this.vy*this.vy;
+        if (speedSq > 4) {
+          this.trail.push({ x: this.x, y: this.y });
+          if (this.trail.length > 6) this.trail.shift();
+        } else if (this.trail.length > 0) {
+          this.trail.shift();
+        }
+      }
+    }
+
+    // ===== 重新分配粒子目标 =====
+    function reassignTargets() {
+      const targets = sampleTargets(getTargetPoints(state.currentString), state.density);
+      const cx = state.canvasW / 2;
+      const cy = state.canvasH / 2;
+
+      if (state.particles.length === 0) {
+        for (let i = 0; i < targets.length; i++) {
+          const p = new Particle(
+            cx + (Math.random() - 0.5) * state.canvasW,
+            cy + (Math.random() - 0.5) * state.canvasH
+          );
+          p.setTarget(targets[i].x, targets[i].y);
+          state.particles.push(p);
+        }
+      } else {
+        const oldCount = state.particles.length;
+        const newCount = targets.length;
+
+        if (newCount > oldCount) {
+          for (let i = oldCount; i < newCount; i++) {
+            const p = new Particle(
+              cx + (Math.random() - 0.5) * state.canvasW * 0.6,
+              cy + (Math.random() - 0.5) * state.canvasH * 0.6
+            );
+            state.particles.push(p);
+          }
+        } else if (newCount < oldCount) {
+          state.particles.length = newCount;
+        }
+
+        // 贪心最近邻配对
+        const assigned = new Array(newCount).fill(false);
+        for (let i = 0; i < newCount; i++) {
+          let best = -1, bestDist = Infinity;
+          for (let j = 0; j < newCount; j++) {
+            if (assigned[j]) continue;
+            const dx = state.particles[i].x - targets[j].x;
+            const dy = state.particles[i].y - targets[j].y;
+            const d = dx*dx + dy*dy;
+            if (d < bestDist) { bestDist = d; best = j; }
+          }
+          if (best >= 0) {
+            assigned[best] = true;
+            state.particles[i].setTarget(targets[best].x, targets[best].y);
+          }
+        }
+      }
+    }
+
+    // ===== 时间字符串 =====
+    function getTimeString() {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      let s = now.getSeconds();
+      let suffix = "";
+      if (!state.format24) {
+        suffix = h >= 12 ? "PM" : "AM";
+        h = h % 12 || 12;
+      }
+      const pad = (n) => String(n).padStart(2, "0");
+      const base = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      return suffix ? `${base}${suffix}` : base;
+    }
+
+    // ===== 更新 =====
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+
+      const newStr = getTimeString();
+      if (newStr !== state.currentString) {
+        state.currentString = newStr;
+        reassignTargets();
+        // 触发飞散
+        const cx = state.canvasW / 2, cy = state.canvasH / 2;
+        for (const p of state.particles) p.scatter(cx, cy);
+      }
+
+      for (const p of state.particles) p.update(boundedDt, state.speed);
+    }
+
+    // ===== 渲染 =====
+    function render() {
+      const theme = THEMES[state.theme] || THEMES.cyan;
+
+      // 拖尾淡出
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(5, 8, 16, 0.22)";
+      ctx.fillRect(0, 0, state.canvasW, state.canvasH);
+
+      // 发光叠加
+      ctx.globalCompositeOperation = "lighter";
+
+      for (const p of state.particles) {
+        // 拖尾
+        if (p.trail.length > 1) {
+          ctx.strokeStyle = theme.trail;
+          ctx.lineWidth = p.size * 0.8;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(p.trail[0].x, p.trail[0].y);
+          for (let i = 1; i < p.trail.length; i++) {
+            ctx.lineTo(p.trail[i].x, p.trail[i].y);
+          }
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        }
+
+        // 外发光
+        const glowR = p.size * 4;
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+        grad.addColorStop(0, theme.glow);
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 核心
+        ctx.fillStyle = theme.main;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+
+      // 更新顶部时间显示
+      elements.timeDisplay.textContent = state.currentString || getTimeString();
+
+      // 更新 evidence 与 insight
+      elements.evTime.textContent = state.currentString || getTimeString();
+      elements.evCount.textContent = state.particles.length;
+      elements.evFormat.textContent = state.format24 ? "24h" : "12h";
+      elements.evTheme.textContent = state.theme;
+
+      const movingCount = state.particles.filter(p => p.vx*p.vx + p.vy*p.vy > 4).length;
+      if (!state.running) {
+        elements.insightText.textContent = "已暂停：粒子静止于当前数字位置。";
+      } else if (movingCount > state.particles.length * 0.3) {
+        elements.insightText.textContent = "数字切换瞬间：粒子向外飞散，随后重新聚拢。";
+      } else {
+        elements.insightText.textContent = "稳定聚拢：粒子吸附在目标点阵上，等待下一秒切换。";
+      }
+    }
+
+    // ===== 生命周期 =====
+    function init() {
+      resizeCanvas();
+      bindControls();
+      state.currentString = getTimeString();
+      reassignTargets();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.classList.remove("paused");
+      elements.statusText.textContent = "运行中";
+      elements.playBtn.textContent = "暂停";
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.classList.add("paused");
+      elements.statusText.textContent = "已暂停";
+      elements.playBtn.textContent = "播放";
+    }
+
+    function reset() {
+      state.currentString = getTimeString();
+      state.particles = [];
+      reassignTargets();
+    }
+
+    function setParameters(values) {
+      const dDef = parameterSchema[0], sDef = parameterSchema[1];
+      if (values.density !== undefined) {
+        state.density = clamp(finite(Number(values.density), dDef.default), dDef.min, dDef.max);
+        elements.densityInput.value = String(state.density);
+        elements.densityOutput.textContent = Math.round(state.density * 100) + "%";
+        reassignTargets();
+      }
+      if (values.speed !== undefined) {
+        state.speed = clamp(finite(Number(values.speed), sDef.default), sDef.min, sDef.max);
+        elements.speedInput.value = String(state.speed);
+        elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+      }
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        format24: state.format24,
+        theme: state.theme,
+        density: state.density,
+        speed: state.speed,
+        currentString: state.currentString,
+        particleCount: state.particles.length
+      };
+    }
+
+    function getReadouts() {
+      return {
+        time: state.currentString,
+        particleCount: state.particles.length,
+        format: state.format24 ? "24h" : "12h",
+        theme: state.theme
+      };
+    }
+
+    // 模型检查：验证点阵与时间逻辑
+    function runModelChecks() {
+      const checks = [];
+
+      // 1. 数字点阵完整性
+      const digitKeys = Object.keys(DIGITS);
+      let allPatternsValid = true;
+      for (const k of digitKeys) {
+        const p = DIGITS[k];
+        if (p.length !== 7) allPatternsValid = false;
+        for (const row of p) {
+          if (row.length !== 5) allPatternsValid = false;
+          if (!/^[01]+$/.test(row)) allPatternsValid = false;
+        }
+      }
+      checks.push({
+        name: "数字点阵完整性 (0-9, :)",
+        pass: allPatternsValid,
+        expected: "每个字符 7行×5列, 仅含 0/1",
+        actual: allPatternsValid ? "valid" : "invalid"
+      });
+
+      // 2. 时间字符串格式
+      const ts = getTimeString();
+      const re24 = /^\d{2}:\d{2}:\d{2}$/;
+      const re12 = /^\d{2}:\d{2}:\d{2}(AM|PM)$/;
+      checks.push({
+        name: "24时制格式",
+        pass: state.format24 ? re24.test(ts) : true,
+        expected: "HH:MM:SS",
+        actual: ts
+      });
+      checks.push({
+        name: "12时制格式",
+        pass: !state.format24 ? re12.test(ts) : true,
+        expected: "HH:MM:SS(AM|PM)",
+        actual: ts
+      });
+
+      // 3. 12时制小时范围
+      if (!state.format24) {
+        const h = parseInt(ts.substring(0, 2));
+        checks.push({
+          name: "12时制小时范围 1-12",
+          pass: h >= 1 && h <= 12,
+          expected: "1-12",
+          actual: h
+        });
+      }
+
+      // 4. 粒子目标点非空
+      const pts = getTargetPoints(getTimeString());
+      checks.push({
+        name: "目标点阵非空",
+        pass: pts.length > 0,
+        expected: "> 0",
+        actual: pts.length
+      });
+
+      // 5. 粒子位置有限
+      let allFinite = true;
+      for (const p of state.particles) {
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) { allFinite = false; break; }
+      }
+      checks.push({
+        name: "粒子坐标有限",
+        pass: allFinite,
+        expected: "所有粒子 x,y 有限",
+        actual: allFinite ? "finite" : "non-finite detected"
+      });
+
+      // 6. 密度采样
+      const sample = sampleTargets(pts, 0.5);
+      checks.push({
+        name: "密度采样比例合理",
+        pass: sample.length > 0 && sample.length <= pts.length,
+        expected: "0 < sampled <= total",
+        actual: `${sample.length} / ${pts.length}`
+      });
+
+      return checks;
+    }
+
+    // ===== 绑定控件 =====
+    function bindControls() {
+      elements.playBtn.addEventListener("click", () => {
+        if (state.running) pause(); else start();
+      });
+
+      elements.format24.addEventListener("click", () => {
+        state.format24 = true;
+        elements.format24.setAttribute("aria-pressed", "true");
+        elements.format12.setAttribute("aria-pressed", "false");
+        state.currentString = getTimeString();
+        reassignTargets();
+      });
+      elements.format12.addEventListener("click", () => {
+        state.format24 = false;
+        elements.format24.setAttribute("aria-pressed", "false");
+        elements.format12.setAttribute("aria-pressed", "true");
+        state.currentString = getTimeString();
+        reassignTargets();
+      });
+
+      elements.colorDots.addEventListener("click", (e) => {
+        const dot = e.target.closest(".color-dot");
+        if (!dot) return;
+        state.theme = dot.dataset.theme;
+        elements.colorDots.querySelectorAll(".color-dot").forEach(d => d.classList.remove("active"));
+        dot.classList.add("active");
+      });
+      elements.colorDots.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const dot = e.target.closest(".color-dot");
+        if (!dot) return;
+        e.preventDefault();
+        state.theme = dot.dataset.theme;
+        elements.colorDots.querySelectorAll(".color-dot").forEach(d => d.classList.remove("active"));
+        dot.classList.add("active");
+      });
+
+      elements.densityInput.addEventListener("input", () => {
+        setParameters({ density: elements.densityInput.value });
+      });
+      elements.speedInput.addEventListener("input", () => {
+        setParameters({ speed: elements.speedInput.value });
+      });
+
+      let resizeTimer;
+      window.addEventListener("resize", () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          resizeCanvas();
+          reassignTargets();
+        }, 100);
+      });
+    }
+
+    // ===== 主循环 =====
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init, start, pause, reset, update, render,
+      setParameters, getState, getReadouts, runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

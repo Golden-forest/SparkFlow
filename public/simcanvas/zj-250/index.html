@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>蒙特卡洛 π · 随机撒点逼近圆周率</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #04060d;
+  --sim-surface: #0a0e1a;
+  --sim-surface-soft: #0f1422;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7896;
+  --sim-border: #1a2238;
+  --sim-grid: #131a2c;
+  --sim-accent: #5eead4;
+  --sim-accent-deep: #2dd4bf;
+  --sim-accent-soft: #134e4a;
+  --sim-positive: #4ade80;
+  --sim-warning: #fbbf24;
+  --sim-danger: #f87171;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 2px;
+}
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 14px 18px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 18px;
+  min-height: 40px;
+}
+.header h1 {
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--sim-text);
+}
+.header h1 .sep { color: var(--sim-muted); margin: 0 8px; font-weight: 300; }
+.header h1 .sub { color: var(--sim-muted); font-size: 0.7em; font-weight: 400; }
+.status {
+  font-size: 0.8rem;
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status .num { color: var(--sim-text); font-weight: 600; }
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.85fr);
+  gap: 12px;
+  min-height: 0;
+}
+.stage {
+  position: relative;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+#scatter {
+  width: 100%;
+  height: 100%;
+  display: block;
+  min-height: 0;
+}
+.estimate-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 16px 18px;
+  border-top: 1px solid var(--sim-border);
+  background: linear-gradient(180deg, transparent, rgba(94, 234, 212, 0.03));
+}
+.digit {
+  font-size: clamp(1.8rem, 4.2vw, 3.2rem);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-muted);
+  min-width: 0.42em;
+  text-align: center;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.digit.correct {
+  color: var(--sim-positive);
+  text-shadow:
+    0 0 10px rgba(74, 222, 128, 0.55),
+    0 0 22px rgba(74, 222, 128, 0.25);
+}
+.digit.decimal { color: var(--sim-muted); min-width: 0.2em; }
+.side {
+  display: grid;
+  grid-template-rows: minmax(0, 1.2fr) auto auto;
+  gap: 10px;
+  min-height: 0;
+}
+.chart-panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  min-height: 0;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.chart-head h2 {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--sim-text);
+  letter-spacing: 0.03em;
+}
+.chart-head .formula {
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+}
+#converge {
+  width: 100%;
+  height: 100%;
+  display: block;
+  min-height: 0;
+}
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stat {
+  background: var(--sim-surface-soft);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  padding: 10px 12px;
+}
+.stat .label {
+  font-size: 0.68rem;
+  color: var(--sim-muted);
+  margin-bottom: 2px;
+  letter-spacing: 0.02em;
+}
+.stat .value {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+}
+.stat .value.accent { color: var(--sim-accent); }
+.formula-box {
+  background: var(--sim-surface-soft);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  padding: 10px 14px;
+  text-align: center;
+}
+.formula-box .text {
+  font-size: 0.82rem;
+  color: var(--sim-text);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.formula-box .text .op { color: var(--sim-muted); margin: 0 3px; }
+.formula-box .text .approx { color: var(--sim-accent); margin: 0 6px; font-weight: 600; }
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--sim-muted);
+  letter-spacing: 0.02em;
+}
+.control output {
+  color: var(--sim-text);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent);
+}
+button {
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface-soft);
+  color: var(--sim-text);
+  padding: 8px 18px;
+  border-radius: var(--sim-radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  letter-spacing: 0.02em;
+}
+button:hover {
+  background: var(--sim-accent-soft);
+  border-color: var(--sim-accent-deep);
+}
+button:active { transform: scale(0.97); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+  .main { grid-template-columns: 1fr; }
+  .stage { min-height: 320px; }
+  .controls { grid-template-columns: 1fr; gap: 10px; }
+  .side { grid-template-rows: 180px auto auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .digit { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="rule-based">
+  <header class="header" data-region="header">
+    <h1>蒙特卡洛 π<span class="sep">·</span><span class="sub">随机撒点逼近圆周率</span></h1>
+    <div id="status" class="status" role="status" aria-live="polite">总点数 <span class="num" id="totalDisplay">0</span> · 圆内 <span class="num" id="insideDisplay">0</span></div>
+  </header>
+
+  <main class="main">
+    <section class="stage" data-region="stage" aria-label="撒点画布与估计值">
+      <canvas id="scatter" aria-label="正方形内随机撒点画布，内切圆内为暖色发光点，圆外为冷色暗淡点"></canvas>
+      <div class="estimate-row" id="estimateRow"></div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="chart-panel" aria-label="收敛曲线">
+        <div class="chart-head">
+          <h2>收敛曲线</h2>
+          <span class="formula">估计值 vs 点数</span>
+        </div>
+        <canvas id="converge" aria-label="估计值随点数增加逐步收敛到 3.14159265 的曲线"></canvas>
+      </section>
+      <div class="stats">
+        <div class="stat">
+          <div class="label">圆内点数</div>
+          <div class="value accent" id="insideStat">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">总点数</div>
+          <div class="value" id="totalStat">0</div>
+        </div>
+      </div>
+      <div class="formula-box" data-region="insight">
+        <div class="text">4 <span class="op">×</span> 圆内点数 <span class="op">÷</span> 总点数 <span class="approx">≈</span> π</div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="control">
+      <label for="speedInput">撒点速度 <output id="speedOutput">240 点/秒</output></label>
+      <input id="speedInput" type="range" min="20" max="2000" step="10" value="240">
+    </div>
+    <div class="control">
+      <label for="sizeInput">点大小 <output id="sizeOutput">2.0 px</output></label>
+      <input id="sizeInput" type="range" min="1" max="5" step="0.5" value="2">
+    </div>
+    <button id="resetBtn" type="button">重置</button>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // 固定种子的线性同余生成器（LCG），保证可复现
+  function makeRng(seed) {
+    let s = seed >>> 0;
+    return function next() {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  const PI_STR = "3.141592653589793";
+  const PI_DIGITS = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9];
+
+  const state = {
+    running: true,
+    speed: 240,
+    pointSize: 2,
+    rng: makeRng(20240101),
+    total: 0,
+    inside: 0,
+    estimate: 0,
+    samples: [],
+    lastTimestamp: null,
+    scatterCtx: null,
+    convergeCtx: null,
+    scatterCanvas: null,
+    convergeCanvas: null,
+    dpr: 1,
+    layout: { size: 0, cx: 0, cy: 0, r: 0 },
+    convergeLayout: { w: 0, h: 0, padL: 40, padR: 12, padT: 12, padB: 24 },
+    needsRedraw: true
+  };
+
+  const els = {
+    status: document.getElementById("status"),
+    totalDisplay: document.getElementById("totalDisplay"),
+    insideDisplay: document.getElementById("insideDisplay"),
+    estimateRow: document.getElementById("estimateRow"),
+    insideStat: document.getElementById("insideStat"),
+    totalStat: document.getElementById("totalStat"),
+    speedInput: document.getElementById("speedInput"),
+    speedOutput: document.getElementById("speedOutput"),
+    sizeInput: document.getElementById("sizeInput"),
+    sizeOutput: document.getElementById("sizeOutput"),
+    resetBtn: document.getElementById("resetBtn")
+  };
+
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  // 初始化大字号估计值显示
+  function initEstimateDigits() {
+    els.estimateRow.innerHTML = "";
+    for (let i = 0; i < PI_STR.length; i++) {
+      const ch = PI_STR[i];
+      const span = document.createElement("span");
+      span.className = ch === "." ? "digit decimal" : "digit";
+      span.textContent = ch;
+      span.dataset.idx = i;
+      els.estimateRow.appendChild(span);
+    }
+  }
+
+  // 逐位对比 π，对的位数发绿光
+  function updateEstimateDigits() {
+    const estStr = state.estimate.toFixed(PI_STR.length - 2);
+    const digits = els.estimateRow.children;
+    for (let i = 0; i < digits.length; i++) {
+      const ch = digits[i].textContent;
+      if (ch === ".") continue;
+      const ed = parseInt(estStr[i], 10);
+      const pd = PI_DIGITS[i];
+      const match = (ed === pd);
+      digits[i].classList.toggle("correct", match && state.total > 0);
+      if (match && state.total > 0) {
+        digits[i].textContent = String(ed);
+      } else if (state.total > 0) {
+        digits[i].textContent = String(ed);
+      } else {
+        digits[i].textContent = ch;
+      }
+    }
+  }
+
+  // Canvas 尺寸适配（高 DPI）
+  function resizeCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(rect.width));
+    const h = Math.max(1, Math.floor(rect.height));
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h, ctx, dpr };
+  }
+
+  function resizeAll() {
+    const sc = resizeCanvas(state.scatterCanvas);
+    state.scatterCtx = sc.ctx;
+    const cc = resizeCanvas(state.convergeCanvas);
+    state.convergeCtx = cc.ctx;
+
+    // 撒点画布布局：正方形居中，内切圆
+    const side = Math.min(sc.w, sc.h);
+    state.layout.size = side;
+    state.layout.cx = sc.w / 2;
+    state.layout.cy = sc.h / 2;
+    state.layout.r = side / 2;
+
+    state.convergeLayout.w = cc.w;
+    state.convergeLayout.h = cc.h;
+
+    state.needsRedraw = true;
+    redrawAll();
+  }
+
+  // 绘制撒点画布（背景 + 圆 + 所有累积点）
+  function drawScatter() {
+    const ctx = state.scatterCtx;
+    if (!ctx) return;
+    const { size, cx, cy, r } = state.layout;
+    const w = state.scatterCanvas.clientWidth;
+    const h = state.scatterCanvas.clientHeight;
+
+    // 深色背景
+    ctx.fillStyle = "#04060d";
+    ctx.fillRect(0, 0, w, h);
+
+    // 正方形边框
+    ctx.strokeStyle = "rgba(107, 120, 150, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - r, cy - r, 2 * r, 2 * r);
+
+    // 内切圆边框
+    ctx.strokeStyle = "rgba(94, 234, 212, 0.22)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 重绘所有累积点
+    const ps = state.pointSize;
+    const rng = state.rng;
+    // 注意：这里不能重新调用 rng，因为会消耗序列
+    // 我们在撒点时已经记录了每个点的坐标，但为节省内存，这里用"重放"策略
+    // 实际上我们存储了点的坐标数组，直接遍历绘制
+    drawStoredPoints(ctx);
+  }
+
+  // 存储所有撒点坐标，用于重绘
+  // 为控制内存，超过 20 万点时切换为"仅增量绘制"模式
+  const points = [];
+  const MAX_STORED = 200000;
+
+  function drawStoredPoints(ctx) {
+    const { cx, cy, r } = state.layout;
+    const ps = state.pointSize;
+    const innerColor = "rgba(251, 191, 36, 0.85)";   // 暖色琥珀
+    const innerGlow = "rgba(251, 191, 36, 0.18)";
+    const outerColor = "rgba(107, 120, 150, 0.32)";  // 冷色暗淡
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      if (p.inside) {
+        // 双层描边模拟发光（外层大半径低透明度 + 内层实心）
+        ctx.fillStyle = innerGlow;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, ps + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = innerColor;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, ps, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = outerColor;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(0.8, ps - 0.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // 增量绘制单个点（用于运行中避免全量重绘）
+  function drawPointIncremental(ctx, p) {
+    const ps = state.pointSize;
+    if (p.inside) {
+      ctx.fillStyle = "rgba(251, 191, 36, 0.18)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ps + 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(251, 191, 36, 0.85)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, ps, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "rgba(107, 120, 150, 0.32)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(0.8, ps - 0.5), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 绘制收敛曲线
+  function drawConverge() {
+    const ctx = state.convergeCtx;
+    if (!ctx) return;
+    const { w, h, padL, padR, padT, padB } = state.convergeLayout;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // 背景
+    ctx.fillStyle = "#0a0e1a";
+    ctx.fillRect(0, 0, w, h);
+
+    // 网格
+    ctx.strokeStyle = "rgba(19, 26, 44, 0.8)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH / 4) * i;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + plotW, y);
+      ctx.stroke();
+    }
+
+    // Y 轴标签
+    ctx.fillStyle = "#6b7896";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    const yLabels = ["3.30", "3.20", "3.10", "3.00", "2.90"];
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH / 4) * i;
+      ctx.fillText(yLabels[i], padL - 6, y);
+    }
+
+    // π 参考线
+    const piY = padT + plotH * (1 - (Math.PI - 2.9) / 0.4);
+    ctx.strokeStyle = "rgba(94, 234, 212, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, piY);
+    ctx.lineTo(padL + plotW, piY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "rgba(94, 234, 212, 0.7)";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("π = 3.14159", padL + 4, piY - 2);
+
+    // 收敛曲线
+    if (state.samples.length > 1) {
+      const maxN = state.samples[state.samples.length - 1].n;
+      const minN = state.samples[0].n;
+      const range = Math.max(1, maxN - minN);
+
+      // 双层描边模拟发光
+      ctx.strokeStyle = "rgba(94, 234, 212, 0.15)";
+      ctx.lineWidth = 4;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = 0; i < state.samples.length; i++) {
+        const s = state.samples[i];
+        const x = padL + ((s.n - minN) / range) * plotW;
+        const y = padT + plotH * (1 - (clamp(s.est, 2.9, 3.3) - 2.9) / 0.4);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(94, 234, 212, 0.9)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < state.samples.length; i++) {
+        const s = state.samples[i];
+        const x = padL + ((s.n - minN) / range) * plotW;
+        const y = padT + plotH * (1 - (clamp(s.est, 2.9, 3.3) - 2.9) / 0.4);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // 当前点
+      const last = state.samples[state.samples.length - 1];
+      const lx = padL + plotW;
+      const ly = padT + plotH * (1 - (clamp(last.est, 2.9, 3.3) - 2.9) / 0.4);
+      ctx.fillStyle = "rgba(94, 234, 212, 0.2)";
+      ctx.beginPath();
+      ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5eead4";
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // X 轴标签
+    ctx.fillStyle = "#6b7896";
+    ctx.font = "10px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("点数", padL + plotW / 2, h - padB + 8);
+  }
+
+  function redrawAll() {
+    drawScatter();
+    drawConverge();
+  }
+
+  // 撒点：每帧根据速度撒若干点
+  function scatterPoints(count) {
+    const ctx = state.scatterCtx;
+    if (!ctx) return;
+    const { cx, cy, r } = state.layout;
+    const r2 = r * r;
+
+    for (let i = 0; i < count; i++) {
+      const x = state.rng() * 2 * r - r;  // [-r, r)
+      const y = state.rng() * 2 * r - r;
+      const dist2 = x * x + y * y;
+      const inside = dist2 <= r2;
+
+      const px = cx + x;
+      const py = cy + y;
+
+      // 存储（控制内存）
+      if (points.length < MAX_STORED) {
+        points.push({ x: px, y: py, inside });
+      }
+
+      // 增量绘制
+      drawPointIncremental(ctx, { x: px, y: py, inside });
+
+      state.total++;
+      if (inside) state.inside++;
+    }
+
+    // 更新估计值
+    state.estimate = state.total > 0 ? (4 * state.inside) / state.total : 0;
+
+    // 采样收敛曲线（对数间隔）
+    const lastN = state.samples.length > 0 ? state.samples[state.samples.length - 1].n : 0;
+    const step = Math.max(1, Math.floor(state.total * 0.01));
+    if (state.total - lastN >= step || state.samples.length === 0) {
+      state.samples.push({ n: state.total, est: state.estimate });
+      if (state.samples.length > 600) {
+        // 抽稀：保留对数间隔的样本
+        const compressed = [];
+        for (let i = 0; i < state.samples.length; i += 2) {
+          compressed.push(state.samples[i]);
+        }
+        compressed.push(state.samples[state.samples.length - 1]);
+        state.samples = compressed;
+      }
+    }
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    const count = Math.max(1, Math.floor(state.speed * boundedDt));
+    scatterPoints(count);
+  }
+
+  function render() {
+    // 运行中只需重绘收敛曲线和数字；撒点画布增量绘制
+    drawConverge();
+    updateEstimateDigits();
+    els.totalDisplay.textContent = state.total.toLocaleString();
+    els.insideDisplay.textContent = state.inside.toLocaleString();
+    els.insideStat.textContent = state.inside.toLocaleString();
+    els.totalStat.textContent = state.total.toLocaleString();
+  }
+
+  function start() { state.running = true; }
+  function pause() { state.running = false; }
+  function reset() {
+    state.rng = makeRng(20240101);
+    state.total = 0;
+    state.inside = 0;
+    state.estimate = 0;
+    state.samples = [];
+    points.length = 0;
+    state.needsRedraw = true;
+    redrawAll();
+    render();
+  }
+
+  function setParameters(values) {
+    if (values.speed !== undefined) {
+      state.speed = clamp(finite(Number(values.speed), 240), 20, 2000);
+      els.speedInput.value = String(state.speed);
+      els.speedOutput.textContent = `${state.speed} 点/秒`;
+    }
+    if (values.pointSize !== undefined) {
+      state.pointSize = clamp(finite(Number(values.pointSize), 2), 1, 5);
+      els.sizeInput.value = String(state.pointSize);
+      els.sizeOutput.textContent = `${state.pointSize.toFixed(1)} px`;
+      // 点大小改变需要全量重绘
+      state.needsRedraw = true;
+      redrawAll();
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      total: state.total,
+      inside: state.inside,
+      estimate: state.estimate,
+      speed: state.speed,
+      pointSize: state.pointSize
+    };
+  }
+
+  function getReadouts() {
+    return {
+      total: state.total,
+      inside: state.inside,
+      estimate: state.estimate,
+      error: Math.abs(state.estimate - Math.PI)
+    };
+  }
+
+  // 模型检查：验证蒙特卡洛 π 逼近的正确性
+  function runModelChecks() {
+    // 用独立 LCG 模拟验证
+    function simulate(n, seed) {
+      let s = seed >>> 0;
+      let inside = 0;
+      for (let i = 0; i < n; i++) {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        const x = (s / 4294967296) * 2 - 1;
+        s = (s * 1664525 + 1013904223) >>> 0;
+        const y = (s / 4294967296) * 2 - 1;
+        if (x * x + y * y <= 1) inside++;
+      }
+      return (4 * inside) / n;
+    }
+
+    const est1000 = simulate(1000, 12345);
+    const est10000 = simulate(10000, 12345);
+    const est100000 = simulate(100000, 12345);
+
+    return [
+      {
+        name: "大数定律收敛趋势",
+        pass: Math.abs(est100000 - Math.PI) < Math.abs(est1000 - Math.PI),
+        expected: "|est(100000) - π| < |est(1000) - π|",
+        actual: `${Math.abs(est100000 - Math.PI).toFixed(4)} < ${Math.abs(est1000 - Math.PI).toFixed(4)}`,
+        tolerance: "strict"
+      },
+      {
+        name: "十万点估计在合理范围",
+        pass: Math.abs(est100000 - Math.PI) < 0.1,
+        expected: "|est - π| < 0.1",
+        actual: Math.abs(est100000 - Math.PI).toFixed(4),
+        tolerance: 0.1
+      },
+      {
+        name: "估计值在 [2, 4] 区间",
+        pass: est100000 >= 2 && est100000 <= 4,
+        expected: "2 ≤ est ≤ 4",
+        actual: est100000.toFixed(4),
+        tolerance: "range"
+      },
+      {
+        name: "种子可复现性",
+        pass: simulate(1000, 999) === simulate(1000, 999),
+        expected: "相同种子产生相同序列",
+        actual: "两次模拟结果一致",
+        tolerance: "strict"
+      },
+      {
+        name: "圆内比例约 0.7854",
+        pass: Math.abs(simulate(50000, 777) / 4 - Math.PI / 4) < 0.02,
+        expected: "inside/total ≈ π/4 ≈ 0.7854",
+        actual: (simulate(50000, 777) / 4).toFixed(4),
+        tolerance: 0.02
+      }
+    ];
+  }
+
+  function bindControls() {
+    els.speedInput.addEventListener("input", () => {
+      setParameters({ speed: els.speedInput.value });
+    });
+    els.sizeInput.addEventListener("input", () => {
+      setParameters({ pointSize: els.sizeInput.value });
+    });
+    els.resetBtn.addEventListener("click", reset);
+    window.addEventListener("resize", resizeAll);
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    state.scatterCanvas = document.getElementById("scatter");
+    state.convergeCanvas = document.getElementById("converge");
+    initEstimateDigits();
+    bindControls();
+    setParameters({ speed: 240, pointSize: 2 });
+    resizeAll();
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts, runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

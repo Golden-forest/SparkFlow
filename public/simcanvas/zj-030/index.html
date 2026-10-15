@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>地球公转与太阳直射点移动</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #060912;
+  --sim-surface: #0e1422;
+  --sim-surface-soft: #131b2e;
+  --sim-text: #e8eefc;
+  --sim-muted: #8a96b0;
+  --sim-border: #2a3550;
+  --sim-grid: #1a2238;
+  --sim-accent: #f5b942;
+  --sim-accent-deep: #c8901a;
+  --sim-accent-soft: rgba(245, 185, 66, 0.15);
+  --sim-positive: #4ade80;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-sun: #ffd966;
+  --sim-night: #0a1020;
+  --sim-day: #4a90e2;
+  --sim-terminator: #f5b942;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(245, 185, 66, 0.06), transparent 40%),
+    radial-gradient(ellipse at 80% 100%, rgba(74, 144, 226, 0.05), transparent 40%),
+    var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(245, 185, 66, 0.4); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 48px; }
+.header-left h1 { margin: 0 0 4px; font-size: clamp(1.4rem, 2.2vw, 1.9rem); letter-spacing: -0.03em; line-height: 1.1; }
+.header-left p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+.status { border: 1px solid rgba(245,185,66,.25); border-radius: 999px; padding: 8px 16px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 700; white-space: nowrap; font-size: 0.88rem; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: var(--sim-surface); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 420px; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; padding: 0 4px; }
+.panel-head h2 { margin: 0; font-size: 0.95rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.72rem; }
+#scene { width: 100%; height: 100%; min-height: 360px; display: block; border-radius: 14px; background: radial-gradient(ellipse at center, #0a1124 0%, #050810 70%); cursor: grab; }
+#scene:active { cursor: grabbing; }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.readouts { padding: 14px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 12px 14px; border: 1px solid var(--sim-border); border-radius: 12px; background: var(--sim-surface-soft); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.3rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent); }
+.model-note { display: grid; align-content: start; gap: 12px; padding: 14px; overflow-y: auto; }
+.model-note h2 { margin: 0 0 4px; font-size: 0.95rem; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.82rem; }
+.insight { padding: 12px 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 10px 10px 0; background: var(--sim-accent-soft); color: var(--sim-accent) !important; font-weight: 650; font-size: 0.85rem; line-height: 1.5; }
+.terminator-bar { margin-top: 6px; }
+.terminator-bar small { display: block; margin-bottom: 5px; color: var(--sim-muted); font-size: 0.72rem; }
+.bar-track { height: 24px; border-radius: 6px; overflow: hidden; display: flex; border: 1px solid var(--sim-border); }
+.bar-day { background: linear-gradient(90deg, #1a3a6e, #4a90e2); transition: flex-grow 0.3s; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #fff; font-weight: 700; }
+.bar-night { background: linear-gradient(90deg, #0a1020, #1a2238); transition: flex-grow 0.3s; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--sim-muted); font-weight: 700; }
+.controls { padding: 10px 14px; display: grid; grid-template-columns: auto minmax(200px, 1.4fr) minmax(160px, 1fr); gap: 18px; align-items: center; border-radius: 16px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 8px 12px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; transition: transform .14s ease, background .14s ease, border-color .14s ease; font-size: 0.82rem; }
+button:hover { border-color: var(--sim-accent); background: rgba(245,185,66,0.08); }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #1a1208; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 6px 16px rgba(245,185,66,.25); }
+button.active { border-color: var(--sim-accent); background: var(--sim-accent-soft); color: var(--sim-accent); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+.control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.season-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.season-buttons button { padding: 6px 10px; font-size: 0.76rem; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 10px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div class="header-left">
+      <h1>地球公转与太阳直射点移动</h1>
+      <p>演示黄赤交角导致直射点南北移动与昼夜长短变化</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">公转轨道与光照</h2><span>拖动地球改变公转位置</span></div>
+      <canvas id="scene" width="760" height="440" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">太阳居中，地球沿椭圆轨道公转，地轴保持23.5度倾斜，晨昏线分割昼夜半球。</desc>
+      </canvas>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时数据">
+        <div class="readout-grid">
+          <div class="metric"><small>直射点纬度</small><strong id="declinationReadout">0.0°</strong></div>
+          <div class="metric"><small>公转角度</small><strong id="orbitReadout">0°</strong></div>
+          <div class="metric"><small>当前节气</small><strong id="seasonReadout" style="font-size:1rem;">春分</strong></div>
+          <div class="metric"><small>日期</small><strong id="dateReadout" style="font-size:1rem;">3月21日</strong></div>
+        </div>
+        <div class="terminator-bar">
+          <small>北纬40° 昼夜分配</small>
+          <div class="bar-track">
+            <div class="bar-day" id="dayBar" style="flex-grow: 12;">昼 12.0h</div>
+            <div class="bar-night" id="nightBar" style="flex-grow: 12;">夜 12.0h</div>
+          </div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>原理解读</h2></div>
+        <p id="insight" class="insight">地轴倾斜23.5°且方向恒定。地球公转使直射点在南北回归线之间移动，导致昼夜长短随季节变化。</p>
+        <p><strong>教学视图：</strong>轨道为正圆示意，公转速度均匀，地轴倾角固定23.5°。直射点纬度 δ = 23.5° × sin(θ)，θ为公转角度（春分=0°）。</p>
+        <p><strong>晨昏线：</strong>连接所有处于日出/日落时刻的点，始终过地心且垂直于太阳光线。其与纬线交点决定该纬度昼夜分配。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="timeInput">公转时间轴 <output id="timeOutput">春分</output></label>
+      <input id="timeInput" type="range" min="0" max="360" step="1" value="0">
+    </div>
+    <div class="control">
+      <label>跳转节气</label>
+      <div class="season-buttons">
+        <button id="s0" type="button">春分</button>
+        <button id="s90" type="button">夏至</button>
+        <button id="s180" type="button">秋分</button>
+        <button id="s270" type="button">冬至</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const OBLIQUITY = 23.5;
+  const ORBIT_RADIUS = 230;
+  const EARTH_RADIUS = 48;
+  const SUN_RADIUS = 36;
+  const LAT_LINES = [-60, -30, 0, 30, 60];
+  const LON_LINES = 12;
+  const SPHERE_SEGMENTS = 28;
+
+  const parameterSchema = [
+    { key: "orbitAngle", label: "公转角度", type: "slider", min: 0, max: 360, step: 1, default: 0, unit: "°" },
+    { key: "speed", label: "公转速度", type: "slider", min: 0, max: 60, step: 1, default: 12, unit: "°/s" }
+  ];
+
+  const state = {
+    running: false,
+    orbitAngle: 0,
+    speed: 12,
+    lastTimestamp: null,
+    dragging: false,
+    earthScreen: { x: 0, y: 0 },
+  };
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const elements = {
+    status: document.getElementById('status'),
+    declinationReadout: document.getElementById('declinationReadout'),
+    orbitReadout: document.getElementById('orbitReadout'),
+    seasonReadout: document.getElementById('seasonReadout'),
+    dateReadout: document.getElementById('dateReadout'),
+    dayBar: document.getElementById('dayBar'),
+    nightBar: document.getElementById('nightBar'),
+    timeInput: document.getElementById('timeInput'),
+    timeOutput: document.getElementById('timeOutput'),
+    startBtn: document.getElementById('startBtn'),
+    pauseBtn: document.getElementById('pauseBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    insight: document.getElementById('insight'),
+    s0: document.getElementById('s0'),
+    s90: document.getElementById('s90'),
+    s180: document.getElementById('s180'),
+    s270: document.getElementById('s270'),
+  };
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  function getDeclination(orbitAngle) {
+    return OBLIQUITY * Math.sin(orbitAngle * Math.PI / 180);
+  }
+
+  function getSeasonInfo(orbitAngle) {
+    const a = ((orbitAngle % 360) + 360) % 360;
+    if (a < 5 || a >= 355) return { name: '春分', date: '3月21日', angle: 0 };
+    if (a >= 85 && a < 95) return { name: '夏至', date: '6月21日', angle: 90 };
+    if (a >= 175 && a < 185) return { name: '秋分', date: '9月23日', angle: 180 };
+    if (a >= 265 && a < 275) return { name: '冬至', date: '12月22日', angle: 270 };
+    if (a < 90) return { name: '春→夏', date: seasonDate(a), angle: a };
+    if (a < 180) return { name: '夏→秋', date: seasonDate(a), angle: a };
+    if (a < 270) return { name: '秋→冬', date: seasonDate(a), angle: a };
+    return { name: '冬→春', date: seasonDate(a), angle: a };
+  }
+
+  function seasonDate(a) {
+    const dates = ['3月21日','4月5日','4月20日','5月5日','5月21日','6月5日','6月21日','7月7日','7月22日','8月7日','8月23日','9月7日','9月23日','10月8日','10月23日','11月7日','11月22日','12月7日','12月22日','1月5日','1月20日','2月4日','2月19日','3月6日'];
+    const idx = Math.round(a / 15) % 24;
+    return dates[idx];
+  }
+
+  function getDayLength(latDeg, declinationDeg) {
+    const lat = latDeg * Math.PI / 180;
+    const dec = declinationDeg * Math.PI / 180;
+    const cosH = -Math.tan(lat) * Math.tan(dec);
+    if (cosH >= 1) return 0;
+    if (cosH <= -1) return 24;
+    return 24 / Math.PI * Math.acos(cosH);
+  }
+
+  function project(latDeg, lonDeg, axisTilt) {
+    const lat = latDeg * Math.PI / 180;
+    const lon = lonDeg * Math.PI / 180;
+    const x0 = Math.cos(lat) * Math.cos(lon);
+    const y0 = Math.cos(lat) * Math.sin(lon);
+    const z0 = Math.sin(lat);
+
+    const tilt = axisTilt * Math.PI / 180;
+    const x1 = x0;
+    const y1 = y0 * Math.cos(tilt) - z0 * Math.sin(tilt);
+    const z1 = y0 * Math.sin(tilt) + z0 * Math.cos(tilt);
+
+    return { x: x1, y: y1, z: z1 };
+  }
+
+  function render() {
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    drawStars(w, h);
+    drawOrbit(w, h);
+    drawSun(w, h);
+
+    const earthX = w / 2 + ORBIT_RADIUS * Math.cos(state.orbitAngle * Math.PI / 180);
+    const earthY = h / 2 + ORBIT_RADIUS * Math.sin(state.orbitAngle * Math.PI / 180) * 0.25;
+    state.earthScreen = { x: earthX, y: earthY };
+
+    drawSunRays(w, h, earthX, earthY);
+    drawEarth(earthX, earthY);
+    drawDeclinationMarker(earthX, earthY);
+    drawAxisIndicator(earthX, earthY);
+    drawLabels(w, h, earthX, earthY);
+  }
+
+  function drawStars(w, h) {
+    ctx.save();
+    for (let i = 0; i < 80; i++) {
+      const seed = i * 37.7;
+      const x = (Math.sin(seed) * 10000) % 1;
+      const y = (Math.sin(seed * 1.7) * 10000) % 1;
+      const px = Math.abs(x) * w;
+      const py = Math.abs(y) * h;
+      const r = 0.4 + Math.abs(Math.sin(seed * 2.3)) * 0.8;
+      ctx.fillStyle = `rgba(200, 220, 255, ${0.2 + Math.abs(Math.sin(seed * 3.1)) * 0.4})`;
+      ctx.beginPath();
+      ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawOrbit(w, h) {
+    ctx.save();
+    // 加粗公转轨道线
+    ctx.strokeStyle = 'rgba(140, 160, 200, 0.35)';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath();
+    ctx.ellipse(w / 2, h / 2, ORBIT_RADIUS, ORBIT_RADIUS * 0.25, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 标注二分二至日位置点
+    const seasonPoints = [
+      { angle: 0, label: '春分', color: '#4ade80' },
+      { angle: 90, label: '夏至', color: '#f5b942' },
+      { angle: 180, label: '秋分', color: '#fb923c' },
+      { angle: 270, label: '冬至', color: '#60a5fa' }
+    ];
+
+    ctx.font = 'bold 11px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    for (const sp of seasonPoints) {
+      const px = w / 2 + ORBIT_RADIUS * Math.cos(sp.angle * Math.PI / 180);
+      const py = h / 2 + ORBIT_RADIUS * Math.sin(sp.angle * Math.PI / 180) * 0.25;
+
+      // 位置点光晕
+      const glow = ctx.createRadialGradient(px, py, 0, px, py, 8);
+      glow.addColorStop(0, sp.color);
+      glow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = glow;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // 位置点
+      ctx.fillStyle = sp.color;
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 标签
+      const labelOffset = 18;
+      let lx = px, ly = py;
+      if (sp.angle === 0) { lx = px + labelOffset; ly = py; ctx.textAlign = 'left'; }
+      else if (sp.angle === 90) { lx = px; ly = py + labelOffset + 4; ctx.textAlign = 'center'; }
+      else if (sp.angle === 180) { lx = px - labelOffset; ly = py; ctx.textAlign = 'right'; }
+      else { lx = px; ly = py - labelOffset; ctx.textAlign = 'center'; }
+
+      ctx.fillStyle = sp.color;
+      ctx.fillText(sp.label, lx, ly);
+    }
+    ctx.restore();
+  }
+
+  function drawSun(w, h) {
+    const cx = w / 2;
+    const cy = h / 2;
+    ctx.save();
+
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, SUN_RADIUS * 2.5);
+    glow.addColorStop(0, 'rgba(255, 217, 102, 0.5)');
+    glow.addColorStop(0.4, 'rgba(255, 185, 66, 0.2)');
+    glow.addColorStop(1, 'rgba(255, 185, 66, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, SUN_RADIUS * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const sunGrad = ctx.createRadialGradient(cx - 8, cy - 8, 4, cx, cy, SUN_RADIUS);
+    sunGrad.addColorStop(0, '#fff5d0');
+    sunGrad.addColorStop(0.5, '#ffd966');
+    sunGrad.addColorStop(1, '#e8a832');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, SUN_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = 'bold 13px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('太阳', cx, cy + 4);
+    ctx.restore();
+  }
+
+  function drawSunRays(w, h, earthX, earthY) {
+    const sunX = w / 2;
+    const sunY = h / 2;
+    const dx = earthX - sunX;
+    const dy = earthY - sunY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) return;
+    const ux = dx / dist;
+    const uy = dy / dist;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 217, 102, 0.25)';
+    ctx.lineWidth = 1.5;
+    const rayCount = 5;
+    for (let i = 0; i < rayCount; i++) {
+      const offset = (i - (rayCount - 1) / 2) * 14;
+      const px = -uy * offset;
+      const py = ux * offset;
+      ctx.beginPath();
+      ctx.moveTo(sunX + px + ux * SUN_RADIUS, sunY + py + uy * SUN_RADIUS);
+      ctx.lineTo(earthX + px - ux * EARTH_RADIUS, earthY + py - uy * EARTH_RADIUS);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawEarth(cx, cy) {
+    const declination = getDeclination(state.orbitAngle);
+    const sunDir = computeSunDirection(state.orbitAngle);
+
+    const points = [];
+    for (let i = 0; i <= SPHERE_SEGMENTS; i++) {
+      const lat = -90 + (180 * i / SPHERE_SEGMENTS);
+      const row = [];
+      for (let j = 0; j <= SPHERE_SEGMENTS; j++) {
+        const lon = -180 + (360 * j / SPHERE_SEGMENTS);
+        const p = project(lat, lon, OBLIQUITY);
+        const dot = p.x * sunDir.x + p.y * sunDir.y + p.z * sunDir.z;
+        row.push({ lat, lon, p, dot });
+      }
+      points.push(row);
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, EARTH_RADIUS, 0, Math.PI * 2);
+    ctx.clip();
+
+    for (let i = 0; i < SPHERE_SEGMENTS; i++) {
+      for (let j = 0; j < SPHERE_SEGMENTS; j++) {
+        const a = points[i][j];
+        const b = points[i + 1][j];
+        const c = points[i + 1][j + 1];
+        const d = points[i][j + 1];
+        if (a.p.z < -0.01 && b.p.z < -0.01 && c.p.z < -0.01 && d.p.z < -0.01) continue;
+
+        const avgDot = (a.dot + b.dot + c.dot + d.dot) / 4;
+        const isDay = avgDot > 0;
+        const intensity = clamp(Math.abs(avgDot), 0, 1);
+
+        let color;
+        if (isDay) {
+          const r = Math.round(30 + intensity * 60);
+          const g = Math.round(80 + intensity * 100);
+          const b = Math.round(140 + intensity * 80);
+          color = `rgb(${r},${g},${b})`;
+        } else {
+          const r = Math.round(8 + intensity * 6);
+          const g = Math.round(12 + intensity * 8);
+          const b = Math.round(28 + intensity * 12);
+          color = `rgb(${r},${g},${b})`;
+        }
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(cx + a.p.x * EARTH_RADIUS, cy - a.p.y * EARTH_RADIUS);
+        ctx.lineTo(cx + b.p.x * EARTH_RADIUS, cy - b.p.y * EARTH_RADIUS);
+        ctx.lineTo(cx + c.p.x * EARTH_RADIUS, cy - c.p.y * EARTH_RADIUS);
+        ctx.lineTo(cx + d.p.x * EARTH_RADIUS, cy - d.p.y * EARTH_RADIUS);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    drawTerminator(cx, cy, sunDir);
+    drawLatLonGrid(cx, cy);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100, 130, 180, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, EARTH_RADIUS, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function computeSunDirection(orbitAngle) {
+    const ang = orbitAngle * Math.PI / 180;
+    return { x: -Math.cos(ang), y: 0, z: -Math.sin(ang) };
+  }
+
+  function drawTerminator(cx, cy, sunDir) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(245, 185, 66, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i <= 60; i++) {
+      const lat = -90 + (180 * i / 60);
+      let bestLon = 0;
+      let bestDot = -2;
+      for (let j = 0; j <= 120; j++) {
+        const lon = -180 + (360 * j / 120);
+        const p = project(lat, lon, OBLIQUITY);
+        const dot = p.x * sunDir.x + p.y * sunDir.y + p.z * sunDir.z;
+        if (Math.abs(dot) < Math.abs(bestDot)) {
+          bestDot = dot;
+          bestLon = lon;
+        }
+      }
+      const p = project(lat, bestLon, OBLIQUITY);
+      if (p.z > -0.05) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLatLonGrid(cx, cy) {
+    ctx.save();
+
+    // 普通纬线（弱）
+    ctx.strokeStyle = 'rgba(200, 220, 255, 0.15)';
+    ctx.lineWidth = 0.8;
+    for (const lat of LAT_LINES) {
+      ctx.beginPath();
+      let first = true;
+      for (let j = 0; j <= 60; j++) {
+        const lon = -180 + (360 * j / 60);
+        const p = project(lat, lon, OBLIQUITY);
+        if (p.z > -0.02) {
+          const px = cx + p.x * EARTH_RADIUS;
+          const py = cy - p.p ? 0 : p.y * EARTH_RADIUS;
+          const py2 = cy - p.y * EARTH_RADIUS;
+          if (first) { ctx.moveTo(px, py2); first = false; }
+          else ctx.lineTo(px, py2);
+        } else { first = true; }
+      }
+      ctx.stroke();
+    }
+
+    // 经线（弱）
+    for (let i = 0; i < LON_LINES; i++) {
+      const lon = -180 + (360 * i / LON_LINES);
+      ctx.beginPath();
+      let first = true;
+      for (let j = 0; j <= 40; j++) {
+        const lat = -90 + (180 * j / 40);
+        const p = project(lat, lon, OBLIQUITY);
+        if (p.z > -0.02) {
+          const px = cx + p.x * EARTH_RADIUS;
+          const py = cy - p.y * EARTH_RADIUS;
+          if (first) { ctx.moveTo(px, py); first = false; }
+          else ctx.lineTo(px, py);
+        } else { first = true; }
+      }
+      ctx.stroke();
+    }
+
+    // 重要纬线：赤道（加粗高亮）
+    ctx.strokeStyle = 'rgba(245, 185, 66, 0.55)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    let first = true;
+    for (let j = 0; j <= 60; j++) {
+      const lon = -180 + (360 * j / 60);
+      const p = project(0, lon, OBLIQUITY);
+      if (p.z > -0.02) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      } else { first = true; }
+    }
+    ctx.stroke();
+
+    // 重要纬线：北回归线 23.5°N
+    ctx.strokeStyle = 'rgba(255, 180, 80, 0.5)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    first = true;
+    for (let j = 0; j <= 60; j++) {
+      const lon = -180 + (360 * j / 60);
+      const p = project(23.5, lon, OBLIQUITY);
+      if (p.z > -0.02) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      } else { first = true; }
+    }
+    ctx.stroke();
+
+    // 重要纬线：南回归线 23.5°S
+    ctx.strokeStyle = 'rgba(255, 180, 80, 0.5)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    first = true;
+    for (let j = 0; j <= 60; j++) {
+      const lon = -180 + (360 * j / 60);
+      const p = project(-23.5, lon, OBLIQUITY);
+      if (p.z > -0.02) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      } else { first = true; }
+    }
+    ctx.stroke();
+
+    // 重要纬线：北极圈 66.5°N
+    ctx.strokeStyle = 'rgba(147, 197, 253, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    first = true;
+    for (let j = 0; j <= 60; j++) {
+      const lon = -180 + (360 * j / 60);
+      const p = project(66.5, lon, OBLIQUITY);
+      if (p.z > -0.02) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      } else { first = true; }
+    }
+    ctx.stroke();
+
+    // 重要纬线：南极圈 66.5°S
+    ctx.strokeStyle = 'rgba(147, 197, 253, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    first = true;
+    for (let j = 0; j <= 60; j++) {
+      const lon = -180 + (360 * j / 60);
+      const p = project(-66.5, lon, OBLIQUITY);
+      if (p.z > -0.02) {
+        const px = cx + p.x * EARTH_RADIUS;
+        const py = cy - p.y * EARTH_RADIUS;
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else ctx.lineTo(px, py);
+      } else { first = true; }
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawDeclinationMarker(cx, cy) {
+    const declination = getDeclination(state.orbitAngle);
+    const sunDir = computeSunDirection(state.orbitAngle);
+
+    let bestLon = 0;
+    let bestDot = -2;
+    for (let j = 0; j <= 120; j++) {
+      const lon = -180 + (360 * j / 120);
+      const p = project(declination, lon, OBLIQUITY);
+      const dot = p.x * sunDir.x + p.y * sunDir.y + p.z * sunDir.z;
+      if (dot > bestDot) { bestDot = dot; bestLon = lon; }
+    }
+
+    const p = project(declination, bestLon, OBLIQUITY);
+    if (p.z > 0) {
+      const px = cx + p.x * EARTH_RADIUS;
+      const py = cy - p.y * EARTH_RADIUS;
+      ctx.save();
+      // 强化直射点：更大光晕 + 脉冲环
+      const glow = ctx.createRadialGradient(px, py, 0, px, py, 16);
+      glow.addColorStop(0, 'rgba(255, 100, 100, 0.95)');
+      glow.addColorStop(0.5, 'rgba(255, 80, 80, 0.4)');
+      glow.addColorStop(1, 'rgba(255, 80, 80, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(px, py, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 外环
+      ctx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 中心点
+      ctx.fillStyle = '#ff5050';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawAxisIndicator(cx, cy) {
+    const tiltRad = OBLIQUITY * Math.PI / 180;
+    // 加粗并延长地轴至地球外部
+    const axisLen = EARTH_RADIUS + 28;
+    const dx = Math.sin(tiltRad) * axisLen;
+    const dy = -Math.cos(tiltRad) * axisLen;
+
+    ctx.save();
+    // 地轴主线（加粗实线）
+    ctx.strokeStyle = 'rgba(245, 185, 66, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - dx, cy - dy);
+    ctx.lineTo(cx + dx, cy + dy);
+    ctx.stroke();
+
+    // 地轴延长虚线段（延伸至地球外更远，标注北极星方向）
+    const extLen = EARTH_RADIUS + 52;
+    const edx = Math.sin(tiltRad) * extLen;
+    const edy = -Math.cos(tiltRad) * extLen;
+    ctx.strokeStyle = 'rgba(245, 185, 66, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(cx + dx, cy + dy);
+    ctx.lineTo(cx + edx, cy + edy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 北极星方向标注
+    ctx.fillStyle = 'rgba(245, 185, 66, 0.9)';
+    ctx.font = 'bold 10px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('北极星方向', cx + edx, cy + edy - 6);
+
+    // N/S 标注
+    ctx.fillStyle = 'rgba(245, 185, 66, 0.9)';
+    ctx.font = 'bold 11px ui-sans-serif';
+    ctx.fillText('N', cx + dx, cy + dy - 4);
+    ctx.fillText('S', cx - dx, cy - dy + 10);
+    ctx.restore();
+  }
+
+  function drawLabels(w, h, earthX, earthY) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(232, 238, 252, 0.7)';
+    ctx.font = '11px ui-sans-serif, system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('地球', earthX, earthY + EARTH_RADIUS + 16);
+
+    const declination = getDeclination(state.orbitAngle);
+    const sign = declination >= 0 ? 'N' : 'S';
+    ctx.fillStyle = '#ff7070';
+    ctx.font = 'bold 11px ui-sans-serif';
+    ctx.fillText(`直射点 ${Math.abs(declination).toFixed(1)}°${sign}`, earthX, earthY - EARTH_RADIUS - 10);
+    ctx.restore();
+  }
+
+  function updateReadouts() {
+    const declination = getDeclination(state.orbitAngle);
+    const season = getSeasonInfo(state.orbitAngle);
+    const dayLength = getDayLength(40, declination);
+    const nightLength = 24 - dayLength;
+
+    elements.declinationReadout.textContent = `${declination >= 0 ? '+' : ''}${declination.toFixed(1)}°`;
+    elements.orbitReadout.textContent = `${Math.round(state.orbitAngle)}°`;
+    elements.seasonReadout.textContent = season.name;
+    elements.dateReadout.textContent = season.date;
+    elements.timeInput.value = String(Math.round(state.orbitAngle));
+    elements.timeOutput.textContent = season.name;
+
+    const dayGrow = clamp(dayLength, 0, 24);
+    const nightGrow = clamp(nightLength, 0, 24);
+    elements.dayBar.style.flexGrow = String(dayGrow);
+    elements.nightBar.style.flexGrow = String(nightGrow);
+    elements.dayBar.textContent = `昼 ${dayLength.toFixed(1)}h`;
+    elements.nightBar.textContent = `夜 ${nightLength.toFixed(1)}h`;
+
+    updateInsight(declination, season, dayLength);
+  }
+
+  function updateInsight(declination, season, dayLength) {
+    let text;
+    if (Math.abs(declination) < 0.5) {
+      text = '直射点在赤道：全球昼夜平分（各12小时）。晨昏线经过两极，与经线重合。';
+    } else if (declination > 22) {
+      text = '夏至日：直射北回归线（23.5°N）。北半球白昼最长、夜最短，北极圈以内极昼。';
+    } else if (declination < -22) {
+      text = '冬至日：直射南回归线（23.5°S）。北半球白昼最短、夜最长，北极圈以内极夜。';
+    } else if (declination > 0) {
+      text = `直射点北移至${declination.toFixed(1)}°N：北半球昼长夜短，纬度越高白昼越长。`;
+    } else {
+      text = `直射点南移至${Math.abs(declination).toFixed(1)}°S：北半球昼短夜长，纬度越高白昼越短。`;
+    }
+    elements.insight.textContent = text;
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.1);
+    state.orbitAngle = (state.orbitAngle + state.speed * boundedDt) % 360;
+    if (state.orbitAngle < 0) state.orbitAngle += 360;
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    updateReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    elements.status.textContent = '运行中';
+    elements.startBtn.classList.add('active');
+  }
+  function pause() {
+    state.running = false;
+    elements.status.textContent = '已暂停';
+    elements.startBtn.classList.remove('active');
+  }
+  function reset() {
+    pause();
+    state.orbitAngle = 0;
+    state.speed = 12;
+    state.lastTimestamp = null;
+    render();
+    updateReadouts();
+  }
+  function setOrbitAngle(angle) {
+    state.orbitAngle = ((angle % 360) + 360) % 360;
+    render();
+    updateReadouts();
+  }
+
+  function setParameters(values) {
+    const orbitDef = parameterSchema[0];
+    const speedDef = parameterSchema[1];
+    if (values.orbitAngle !== undefined) {
+      state.orbitAngle = clamp(finite(Number(values.orbitAngle), orbitDef.default), orbitDef.min, orbitDef.max);
+    }
+    if (values.speed !== undefined) {
+      state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+    }
+    elements.timeInput.value = String(Math.round(state.orbitAngle));
+    render();
+    updateReadouts();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      orbitAngle: state.orbitAngle,
+      speed: state.speed,
+      declination: getDeclination(state.orbitAngle),
+      season: getSeasonInfo(state.orbitAngle),
+      dayLength40N: getDayLength(40, getDeclination(state.orbitAngle))
+    };
+  }
+
+  function getReadouts() {
+    const declination = getDeclination(state.orbitAngle);
+    const season = getSeasonInfo(state.orbitAngle);
+    const dayLength = getDayLength(40, declination);
+    return {
+      declination: declination,
+      orbitAngle: state.orbitAngle,
+      season: season.name,
+      date: season.date,
+      dayLength40N: dayLength,
+      nightLength40N: 24 - dayLength
+    };
+  }
+
+  function handlePointerDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const dx = x - state.earthScreen.x;
+    const dy = y - state.earthScreen.y;
+    if (Math.sqrt(dx * dx + dy * dy) < EARTH_RADIUS + 20) {
+      state.dragging = true;
+      pause();
+    }
+  }
+  function handlePointerMove(e) {
+    if (!state.dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const dx = x - cx;
+    const dy = (y - cy) / 0.25;
+    let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    if (angle < 0) angle += 360;
+    setOrbitAngle(angle);
+  }
+  function handlePointerUp() { state.dragging = false; }
+
+  function bindControls() {
+    elements.startBtn.addEventListener('click', start);
+    elements.pauseBtn.addEventListener('click', pause);
+    elements.resetBtn.addEventListener('click', reset);
+    elements.timeInput.addEventListener('input', () => {
+      pause();
+      setOrbitAngle(Number(elements.timeInput.value));
+    });
+    elements.s0.addEventListener('click', () => { pause(); setOrbitAngle(0); });
+    elements.s90.addEventListener('click', () => { pause(); setOrbitAngle(90); });
+    elements.s180.addEventListener('click', () => { pause(); setOrbitAngle(180); });
+    elements.s270.addEventListener('click', () => { pause(); setOrbitAngle(270); });
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointerleave', handlePointerUp);
+  }
+
+  function init() {
+    bindControls();
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function runModelChecks() {
+    const checks = [];
+    checks.push({ name: '春分直射点为0', pass: Math.abs(getDeclination(0)) < 0.01, expected: 0, actual: getDeclination(0), tolerance: 0.01 });
+    checks.push({ name: '夏至直射点为23.5N', pass: Math.abs(getDeclination(90) - 23.5) < 0.01, expected: 23.5, actual: getDeclination(90), tolerance: 0.01 });
+    checks.push({ name: '秋分直射点为0', pass: Math.abs(getDeclination(180)) < 0.01, expected: 0, actual: getDeclination(180), tolerance: 0.01 });
+    checks.push({ name: '冬至直射点为23.5S', pass: Math.abs(getDeclination(270) + 23.5) < 0.01, expected: -23.5, actual: getDeclination(270), tolerance: 0.01 });
+    checks.push({ name: '春分北纬40昼长12h', pass: Math.abs(getDayLength(40, 0) - 12) < 0.01, expected: 12, actual: getDayLength(40, 0), tolerance: 0.01 });
+    checks.push({ name: '夏至北纬40昼长>12h', pass: getDayLength(40, 23.5) > 12, expected: '>12', actual: getDayLength(40, 23.5), tolerance: 'trend' });
+    checks.push({ name: '冬至北纬40昼长<12h', pass: getDayLength(40, -23.5) < 12, expected: '<12', actual: getDayLength(40, -23.5), tolerance: 'trend' });
+    checks.push({ name: '北极圈夏至极昼', pass: Math.abs(getDayLength(66.5, 23.5) - 24) < 0.01, expected: 24, actual: getDayLength(66.5, 23.5), tolerance: 0.01 });
+    checks.push({ name: '北极圈冬至极夜', pass: Math.abs(getDayLength(66.5, -23.5)) < 0.01, expected: 0, actual: getDayLength(66.5, -23.5), tolerance: 0.01 });
+    checks.push({ name: '赤道全年昼夜平分', pass: Math.abs(getDayLength(0, 23.5) - 12) < 0.01 && Math.abs(getDayLength(0, -23.5) - 12) < 0.01, expected: 12, actual: `${getDayLength(0, 23.5)}, ${getDayLength(0, -23.5)}`, tolerance: 0.01 });
+    return checks;
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, getState, getReadouts,
+    setOrbitAngle, getDeclination, getDayLength, getSeasonInfo,
+    runModelChecks
+  };
+  init();
+})();
+</script>
+</body>
+</html>

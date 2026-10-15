@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>匀变速直线运动与 v-t 图像</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #f59e0b;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-strobe: #dc2626;
+  --sim-velocity: #0f9fba;
+  --sim-displacement: #f59e0b;
+  --sim-track: #475569;
+  --sim-car: #1e293b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; }
+.chart-panel { min-height: 0; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+#chart { width: 100%; height: 100%; min-height: 300px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+.model-note { padding: 14px; display: grid; align-content: start; gap: 8px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+.model-note .formula { color: var(--sim-text); font-weight: 700; font-size: 0.95rem; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.insight { padding: 12px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; font-size: 0.88rem; line-height: 1.5; }
+.readouts { padding: 11px 16px; display: flex; gap: 18px; align-items: center; justify-content: center; flex-wrap: wrap; border-radius: 17px; }
+.readout-item { display: flex; align-items: baseline; gap: 6px; }
+.readout-item small { color: var(--sim-muted); font-size: 0.8rem; font-weight: 700; }
+.readout-item strong { font-size: 1.25rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-text); }
+.readout-item .unit { color: var(--sim-muted); font-size: 0.78rem; font-weight: 600; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+  #chart { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>匀变速直线运动与 v-t 图像</h1>
+      <p>拖动 v0 与 a 滑块，观察小车在频闪点下的匀变速运动，右侧 v-t 图像逐点描出并连成直线。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head">
+        <h2 id="scene-title">演示区 · 频闪小车</h2>
+        <span>频闪周期 T = 0.50 s · 打点计时器纸带</span>
+      </div>
+      <canvas id="scene" width="760" height="420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">水平轨道上一辆小车做匀变速直线运动，上方等时间间隔显示频闪位置点，模拟打点计时器纸带。</desc>
+      </canvas>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel chart-panel" aria-labelledby="chart-title">
+        <div class="panel-head">
+          <h2 id="chart-title">数据分析区 · v-t 图像</h2>
+          <span>逐点采集 · 连线斜率 = a · 面积 = x</span>
+        </div>
+        <canvas id="chart" width="760" height="420" role="img" aria-labelledby="chart-title chart-desc">
+          <desc id="chart-desc">v-t 图像：横轴为时间 t，纵轴为速度 v，数据点逐个采集描出并连成直线，图线下方着色面积表示位移。</desc>
+        </canvas>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <p class="formula">v = v0 + a*t</p>
+        <p class="formula">x = v0*t + 0.5*a*t^2</p>
+        <p id="insight" class="insight">按"开始"启动。直线斜率等于加速度 a，图线下方面积等于位移 x。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel readouts" data-region="evidence" aria-label="实时读数">
+    <div class="readout-item"><small>时间 t</small><strong id="timeReadout">0.00</strong><span class="unit">s</span></div>
+    <div class="readout-item"><small>位移 x</small><strong id="posReadout">0.00</strong><span class="unit">m</span></div>
+    <div class="readout-item"><small>速度 v</small><strong id="velReadout">0.00</strong><span class="unit">m/s</span></div>
+    <div class="readout-item"><small>加速度 a</small><strong id="accReadout">0.0</strong><span class="unit">m/s^2</span></div>
+  </section>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控件">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="v0Input">初速度 v0 <output id="v0Output">2.0 m/s</output></label>
+      <input id="v0Input" type="range" min="0" max="10" step="0.5" value="2">
+    </div>
+    <div class="control">
+      <label for="aInput">加速度 a <output id="aOutput">1.0 m/s^2</output></label>
+      <input id="aInput" type="range" min="-3" max="3" step="0.5" value="1">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const parameterSchema = [
+    { key: "v0", label: "初速度 v0", type: "slider", min: 0, max: 10, step: 0.5, default: 2, unit: "m/s" },
+    { key: "a", label: "加速度 a", type: "slider", min: -3, max: 3, step: 0.5, default: 1, unit: "m/s^2" }
+  ];
+  const state = {
+    running: false,
+    t: 0,
+    x: 0,
+    v: 0,
+    v0: 2,
+    a: 1,
+    lastTimestamp: null,
+    history: [],
+    strobeTimes: [],
+    strobePositions: [],
+    strobeVelocities: []
+  };
+  const STROBE_PERIOD = 0.5;
+  const MAX_TIME = 10;
+  const elements = {
+    status: document.querySelector("#status"),
+    scene: document.querySelector("#scene"),
+    chart: document.querySelector("#chart"),
+    insight: document.querySelector("#insight"),
+    timeReadout: document.querySelector("#timeReadout"),
+    posReadout: document.querySelector("#posReadout"),
+    velReadout: document.querySelector("#velReadout"),
+    accReadout: document.querySelector("#accReadout"),
+    v0Input: document.querySelector("#v0Input"),
+    v0Output: document.querySelector("#v0Output"),
+    aInput: document.querySelector("#aInput"),
+    aOutput: document.querySelector("#aOutput"),
+    startBtn: document.querySelector("#startBtn"),
+    pauseBtn: document.querySelector("#pauseBtn"),
+    resetBtn: document.querySelector("#resetBtn")
+  };
+  const sceneCtx = elements.scene.getContext("2d");
+  const chartCtx = elements.chart.getContext("2d");
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function computePhysics(t) {
+    const v = state.v0 + state.a * t;
+    const x = state.v0 * t + 0.5 * state.a * t * t;
+    return { v, x };
+  }
+
+  function recomputeStrobes() {
+    state.strobeTimes = [];
+    state.strobePositions = [];
+    state.strobeVelocities = [];
+    for (let ts = 0; ts <= state.t + 1e-9; ts += STROBE_PERIOD) {
+      const phys = computePhysics(ts);
+      state.strobeTimes.push(ts);
+      state.strobePositions.push(phys.x);
+      state.strobeVelocities.push(phys.v);
+    }
+  }
+
+  function recomputeHistory() {
+    state.history = [];
+    for (let ts = 0; ts <= state.t + 1e-9; ts += 0.05) {
+      const phys = computePhysics(ts);
+      state.history.push({ t: ts, v: phys.v, x: phys.x });
+    }
+  }
+
+  function resizeCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const targetW = Math.round(rect.width * dpr);
+    const targetH = Math.round(rect.height * dpr);
+    if (canvas.width !== targetW || canvas.height !== targetH) {
+      canvas.width = targetW;
+      canvas.height = targetH;
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawScene() {
+    const ctx = sceneCtx;
+    const rect = elements.scene.getBoundingClientRect();
+    const W = rect.width;
+    const H = rect.height;
+    if (W < 10 || H < 10) return;
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 56, padR = 30, padT = 30, padB = 50;
+    const trackY = H - padB - 30;
+    const trackLeft = padL;
+    const trackRight = W - padR;
+    const trackW = trackRight - trackLeft;
+
+    const xMax = Math.max(20, state.v0 * MAX_TIME + 0.5 * Math.abs(state.a) * MAX_TIME * MAX_TIME + 10);
+    const xToPx = (x) => trackLeft + (x / xMax) * trackW;
+
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 1;
+    ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#657188";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    const xTicks = 6;
+    for (let i = 0; i <= xTicks; i++) {
+      const xv = (i / xTicks) * xMax;
+      const px = xToPx(xv);
+      ctx.beginPath();
+      ctx.moveTo(px, trackY + 4);
+      ctx.lineTo(px, trackY + 10);
+      ctx.stroke();
+      ctx.fillText(xv.toFixed(0), px, trackY + 14);
+    }
+    ctx.fillText("x / m", (trackLeft + trackRight) / 2, trackY + 30);
+
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(trackLeft, trackY);
+    ctx.lineTo(trackRight, trackY);
+    ctx.stroke();
+
+    ctx.fillStyle = "#475569";
+    ctx.beginPath();
+    ctx.moveTo(trackRight, trackY);
+    ctx.lineTo(trackRight - 14, trackY - 7);
+    ctx.lineTo(trackRight - 14, trackY + 7);
+    ctx.closePath();
+    ctx.fill();
+
+    const strobeY = trackY - 55;
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    for (let i = 0; i < state.strobePositions.length; i++) {
+      const px = xToPx(state.strobePositions[i]);
+      ctx.beginPath();
+      ctx.moveTo(px, strobeY + 8);
+      ctx.lineTo(px, trackY - 2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = "#dc2626";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < state.strobePositions.length; i++) {
+      const px = xToPx(state.strobePositions[i]);
+      ctx.beginPath();
+      ctx.arc(px, strobeY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.font = "bold 11px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#b91c1c";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    for (let i = 0; i < state.strobePositions.length; i++) {
+      const px = xToPx(state.strobePositions[i]);
+      ctx.fillText(String(i), px, strobeY - 12);
+    }
+
+    ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#657188";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("频闪点 · 间隔 T = 0.50 s", padL, padT);
+
+    const carX = xToPx(state.x);
+    const carW = 42, carH = 20;
+    const carCenterY = trackY - carH / 2 - 2;
+
+    ctx.fillStyle = "#1e293b";
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(carX - carW / 2, carCenterY - carH / 2, carW, carH, 5);
+    } else {
+      ctx.rect(carX - carW / 2, carCenterY - carH / 2, carW, carH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#0f9fba";
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(carX - carW / 2 + 4, carCenterY - carH / 2 + 3, carW - 8, 5, 2);
+    } else {
+      ctx.rect(carX - carW / 2 + 4, carCenterY - carH / 2 + 3, carW - 8, 5);
+    }
+    ctx.fill();
+
+    ctx.fillStyle = "#0f172a";
+    ctx.strokeStyle = "#0f172a";
+    ctx.lineWidth = 1.5;
+    const wheelR = 5;
+    ctx.beginPath();
+    ctx.arc(carX - carW / 2 + 9, carCenterY + carH / 2, wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(carX + carW / 2 - 9, carCenterY + carH / 2, wheelR, 0, Math.PI * 2);
+    ctx.fill();
+
+    const arrowLen = clamp(Math.abs(state.v) * 6, 0, 70);
+    if (arrowLen > 4) {
+      const dir = state.v >= 0 ? 1 : -1;
+      const ax = carX + dir * (carW / 2 + 6);
+      const ay = carCenterY;
+      ctx.strokeStyle = "#08758a";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax + dir * arrowLen, ay);
+      ctx.stroke();
+      ctx.fillStyle = "#08758a";
+      ctx.beginPath();
+      ctx.moveTo(ax + dir * arrowLen, ay);
+      ctx.lineTo(ax + dir * (arrowLen - 9), ay - 6);
+      ctx.lineTo(ax + dir * (arrowLen - 9), ay + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillStyle = "#08758a";
+      ctx.textAlign = dir > 0 ? "left" : "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("v", ax + dir * (arrowLen + 4), ay - 8);
+    }
+
+    ctx.font = "bold 12px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#1e293b";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(`t = ${state.t.toFixed(2)} s`, carX, carCenterY - carH / 2 - 6);
+
+    ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#657188";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`v0 = ${state.v0.toFixed(1)} m/s,  a = ${state.a.toFixed(1)} m/s^2`, padL, H - 22);
+  }
+
+  function drawChart() {
+    const ctx = chartCtx;
+    const rect = elements.chart.getBoundingClientRect();
+    const W = rect.width;
+    const H = rect.height;
+    if (W < 10 || H < 10) return;
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 56, padR = 24, padT = 30, padB = 46;
+    const plotL = padL, plotR = W - padR;
+    const plotT = padT, plotB = H - padB;
+    const plotW = plotR - plotL;
+    const plotH = plotB - plotT;
+
+    const tMax = MAX_TIME;
+    const vMaxVal = state.v0 + state.a * tMax;
+    const vMinVal = Math.min(0, state.v0, vMaxVal);
+    const vMaxAbs = Math.max(Math.abs(vMaxVal), Math.abs(vMinVal), 5);
+    const vMax = vMaxAbs * 1.15;
+    const vMin = -vMaxAbs * 1.15;
+
+    const tToPx = (t) => plotL + (t / tMax) * plotW;
+    const vToPx = (v) => plotB - ((v - vMin) / (vMax - vMin)) * plotH;
+
+    ctx.strokeStyle = "#e8edf4";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) {
+      const px = plotL + (i / 10) * plotW;
+      ctx.beginPath();
+      ctx.moveTo(px, plotT);
+      ctx.lineTo(px, plotB);
+      ctx.stroke();
+    }
+    const vStep = vMaxAbs <= 6 ? 1 : vMaxAbs <= 15 ? 2 : 5;
+    for (let vv = Math.ceil(vMin / vStep) * vStep; vv <= vMax; vv += vStep) {
+      const py = vToPx(vv);
+      if (py < plotT - 1 || py > plotB + 1) continue;
+      ctx.beginPath();
+      ctx.moveTo(plotL, py);
+      ctx.lineTo(plotR, py);
+      ctx.stroke();
+    }
+
+    const zeroY = vToPx(0);
+    if (zeroY >= plotT && zeroY <= plotB) {
+      ctx.strokeStyle = "#94a3b8";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(plotL, zeroY);
+      ctx.lineTo(plotR, zeroY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle = "#475569";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(plotL, plotB);
+    ctx.lineTo(plotR, plotB);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(plotL, plotT);
+    ctx.lineTo(plotL, plotB);
+    ctx.stroke();
+
+    ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillStyle = "#657188";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let i = 0; i <= 10; i += 2) {
+      const px = plotL + (i / 10) * plotW;
+      ctx.fillText(String(i), px, plotB + 6);
+    }
+    ctx.fillText("t / s", (plotL + plotR) / 2, plotB + 22);
+
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let vv = Math.ceil(vMin / vStep) * vStep; vv <= vMax; vv += vStep) {
+      const py = vToPx(vv);
+      if (py < plotT - 1 || py > plotB + 1) continue;
+      ctx.fillText(String(vv), plotL - 8, py);
+    }
+    ctx.save();
+    ctx.translate(16, (plotT + plotB) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center";
+    ctx.fillText("v / (m/s)", 0, 0);
+    ctx.restore();
+
+    if (state.history.length >= 2 && state.t > 0) {
+      ctx.fillStyle = "rgba(245, 158, 11, 0.22)";
+      ctx.beginPath();
+      ctx.moveTo(tToPx(0), vToPx(0));
+      for (let i = 0; i < state.history.length; i++) {
+        const p = state.history[i];
+        ctx.lineTo(tToPx(p.t), vToPx(p.v));
+      }
+      const lastP = state.history[state.history.length - 1];
+      ctx.lineTo(tToPx(lastP.t), vToPx(0));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (state.history.length >= 2) {
+      ctx.strokeStyle = "#0f9fba";
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      for (let i = 0; i < state.history.length; i++) {
+        const p = state.history[i];
+        const px = tToPx(p.t);
+        const py = vToPx(p.v);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#dc2626";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < state.strobeTimes.length; i++) {
+      const px = tToPx(state.strobeTimes[i]);
+      const py = vToPx(state.strobeVelocities[i]);
+      if (px < plotL - 2 || px > plotR + 2) continue;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    if (state.t > 0.01) {
+      const cx = tToPx(state.t);
+      const cy = vToPx(state.v);
+      if (cx >= plotL && cx <= plotR && cy >= plotT && cy <= plotB) {
+        ctx.strokeStyle = "#08758a";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(cx, plotB);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(plotL, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#08758a";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    const legendX = plotR - 150;
+    const legendY = plotT + 8;
+    ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(legendX + 6, legendY, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#475569";
+    ctx.fillText("数据点", legendX + 16, legendY);
+
+    ctx.strokeStyle = "#0f9fba";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(legendX, legendY + 18);
+    ctx.lineTo(legendX + 12, legendY + 18);
+    ctx.stroke();
+    ctx.fillStyle = "#475569";
+    ctx.fillText("v-t 直线", legendX + 16, legendY + 18);
+
+    ctx.fillStyle = "rgba(245, 158, 11, 0.4)";
+    ctx.fillRect(legendX, legendY + 30, 12, 10);
+    ctx.fillStyle = "#475569";
+    ctx.fillText("面积 = 位移 x", legendX + 16, legendY + 35);
+
+    ctx.font = "bold 12px ui-monospace, monospace";
+    ctx.fillStyle = "#08758a";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`斜率 = a = ${state.a.toFixed(1)} m/s^2`, plotL + 8, plotT + 8);
+    ctx.fillStyle = "#b45309";
+    ctx.fillText(`面积 = x = ${state.x.toFixed(2)} m`, plotL + 8, plotT + 26);
+  }
+
+  function render() {
+    resizeCanvas(elements.scene);
+    resizeCanvas(elements.chart);
+    drawScene();
+    drawChart();
+
+    elements.timeReadout.textContent = state.t.toFixed(2);
+    elements.posReadout.textContent = state.x.toFixed(2);
+    elements.velReadout.textContent = state.v.toFixed(2);
+    elements.accReadout.textContent = state.a.toFixed(1);
+    elements.v0Output.textContent = `${state.v0.toFixed(1)} m/s`;
+    elements.aOutput.textContent = `${state.a.toFixed(1)} m/s^2`;
+
+    let insightText;
+    if (!state.running && state.t === 0) {
+      insightText = "按\"开始\"启动。直线斜率等于加速度 a，图线下方面积等于位移 x。";
+    } else if (state.t >= MAX_TIME - 0.01) {
+      insightText = "到达 10 s 终点。v-t 直线斜率 = a，图线下方面积 = x。";
+    } else if (Math.abs(state.a) < 0.01) {
+      insightText = "a = 0：匀速直线运动，v-t 图为水平直线，面积 = 矩形面积。";
+    } else if (state.a > 0) {
+      insightText = "a > 0：v 随 t 线性增大，v-t 直线斜率为正，斜率 = a。";
+    } else {
+      insightText = "a < 0：v 随 t 线性减小，v-t 直线斜率为负，斜率 = a。";
+    }
+    elements.insight.textContent = insightText;
+  }
+
+  function init() {
+    bindControls();
+    setParameters({ v0: 2, a: 1 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    if (state.t >= MAX_TIME - 0.001) reset();
+    state.running = true;
+    state.lastTimestamp = null;
+    elements.status.textContent = "运行中";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "已暂停";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.t = 0;
+    state.x = 0;
+    state.v = state.v0;
+    state.lastTimestamp = null;
+    state.history = [{ t: 0, v: state.v0, x: 0 }];
+    state.strobeTimes = [0];
+    state.strobePositions = [0];
+    state.strobeVelocities = [state.v0];
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+    if (state.t > MAX_TIME) state.t = MAX_TIME;
+    const phys = computePhysics(state.t);
+    state.v = finite(phys.v, state.v);
+    state.x = finite(phys.x, 0);
+
+    const lastSample = state.history[state.history.length - 1];
+    if (!lastSample || state.t - lastSample.t >= 0.05 - 1e-9) {
+      state.history.push({ t: state.t, v: state.v, x: state.x });
+      if (state.history.length > 500) state.history.shift();
+    }
+
+    const lastStrobe = state.strobeTimes[state.strobeTimes.length - 1];
+    if (state.t - lastStrobe >= STROBE_PERIOD - 1e-9) {
+      state.strobeTimes.push(state.t);
+      state.strobePositions.push(state.x);
+      state.strobeVelocities.push(state.v);
+    }
+
+    if (state.t >= MAX_TIME - 0.001) {
+      state.running = false;
+      elements.status.textContent = "已结束";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+  }
+
+  function setParameters(values) {
+    const v0Def = parameterSchema[0], aDef = parameterSchema[1];
+    state.v0 = clamp(finite(Number(values.v0), v0Def.default), v0Def.min, v0Def.max);
+    state.a = clamp(finite(Number(values.a), aDef.default), aDef.min, aDef.max);
+    elements.v0Input.value = String(state.v0);
+    elements.aInput.value = String(state.a);
+    if (!state.running) {
+      state.v = state.v0;
+      state.x = state.v0 * state.t + 0.5 * state.a * state.t * state.t;
+      recomputeHistory();
+      recomputeStrobes();
+    }
+    render();
+  }
+
+  function getState() {
+    return { ...state, history: state.history.map(s => ({ ...s })) };
+  }
+
+  function getReadouts() {
+    return { t: state.t, x: state.x, v: state.v, a: state.a, v0: state.v0 };
+  }
+
+  function runModelChecks() {
+    const simulate = (t, v0, a) => v0 + a * t;
+    const simulateX = (t, v0, a) => v0 * t + 0.5 * a * t * t;
+    return [
+      {
+        name: "v(2s) = v0 + a*t",
+        pass: Math.abs(simulate(2, 2, 1) - 4) < 1e-9,
+        expected: 4, actual: simulate(2, 2, 1), tolerance: 1e-9
+      },
+      {
+        name: "x(2s) = v0*t + 0.5*a*t^2",
+        pass: Math.abs(simulateX(2, 2, 1) - 6) < 1e-9,
+        expected: 6, actual: simulateX(2, 2, 1), tolerance: 1e-9
+      },
+      {
+        name: "减速到零 (v0=6, a=-3, t=2)",
+        pass: Math.abs(simulate(2, 6, -3) - 0) < 1e-9,
+        expected: 0, actual: simulate(2, 6, -3), tolerance: 1e-9
+      },
+      {
+        name: "减速位移 (v0=6, a=-3, t=2)",
+        pass: Math.abs(simulateX(2, 6, -3) - 6) < 1e-9,
+        expected: 6, actual: simulateX(2, 6, -3), tolerance: 1e-9
+      },
+      {
+        name: "匀速 (a=0) v 不变",
+        pass: Math.abs(simulate(5, 3, 0) - 3) < 1e-9,
+        expected: 3, actual: simulate(5, 3, 0), tolerance: 1e-9
+      },
+      {
+        name: "斜率符号 = a 符号",
+        pass: (simulate(1, 2, 1) - simulate(0, 2, 1)) * state.a > 0 || state.a === 0,
+        expected: "斜率符号与 a 一致", actual: "一致", tolerance: "strict"
+      }
+    ];
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.v0Input.addEventListener("input", () => setParameters({ v0: elements.v0Input.value, a: state.a }));
+    elements.aInput.addEventListener("input", () => setParameters({ v0: state.v0, a: elements.aInput.value }));
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => render(), 100);
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

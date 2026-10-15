@@ -4,20 +4,36 @@
 Flow per topic: create conversation -> send prompt (returns design gate) ->
 send 采纳 (blocks while animation generates, minutes) -> log result.
 State persisted to state.json so the run is resumable.
+
+Gallery management:
+  batch_gen.py --list              numbered gallery; "× archived" marks hidden items
+  batch_gen.py --remove 34 35      archive: files stay, gallery hides, --pull skips
+  batch_gen.py --restore 34 35     un-archive: item shows again
+  batch_gen.py --delete 34 35      hard delete: files + entries gone for good
+Numbers resolve against featured topics sorted by id and stay stable across
+archive/restore; --delete renumbers (re-run --list afterwards).
 """
 import json
-import shutil
 import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import httpx
+try:
+    import httpx
+except ImportError:  # only needed for API runs; --list/--remove work without it
+    httpx = None
 
 BASE = "http://stu25.space.aiec.wflaiedu.com"
 HERE = Path(__file__).parent
-COOKIE = json.load(open("/Users/hl/.claude/skills/publish-simvideo/secrets.json"))["simcanvas_session"]
+COOKIE_PATH = Path("/Users/hl/.claude/skills/publish-simvideo/secrets.json")
+
+
+def session_cookie() -> str:
+    """Loaded lazily so offline commands (--list/--remove) work without the
+    secrets file or httpx installed."""
+    return json.load(open(COOKIE_PATH))["simcanvas_session"]
 PARALLEL = 3
 GEN_TIMEOUT = 1800  # generation can take many minutes
 STATE = HERE / "state.json"
@@ -39,6 +55,17 @@ def load_state() -> dict:
 
 def save_state(s: dict) -> None:
     STATE.write_text(json.dumps(s, ensure_ascii=False, indent=1))
+
+
+def refresh_manifest() -> None:
+    """Regenerate resource-manifest.json so archive changes show up immediately."""
+    import subprocess
+    try:
+        subprocess.run(["npm", "run", "manifest"], cwd=HERE.parent.parent,
+                       check=True, capture_output=True, timeout=120)
+        log("manifest regenerated")
+    except Exception as e:  # noqa: BLE001
+        log(f"⚠️ manifest not regenerated ({e}); run `npm run manifest` manually")
 
 
 def api(client: httpx.Client, method: str, path: str, json_body=None, timeout=120.0):
@@ -87,7 +114,7 @@ def run_topic(client: httpx.Client, topic: dict) -> dict:
 
 def worker(topic: dict) -> tuple[str, dict]:
     try:
-        with httpx.Client(headers={"Cookie": f"simcanvas_session={COOKIE}"}) as c:
+        with httpx.Client(headers={"Cookie": f"simcanvas_session={session_cookie()}"}) as c:
             return topic["id"], run_topic(c, topic)
     except Exception as e:  # noqa: BLE001
         return topic["id"], {"ok": False, "stage": "exception", "detail": repr(e)[:500]}
@@ -122,7 +149,8 @@ def pull_featured() -> None:
     writes public/simcanvas/<topic-id>/{index.html,meta.json}.
     """
     topics = json.loads((HERE / "topics.json").read_text())
-    featured = {t["id"]: t for t in topics if t.get("featured")}
+    # archived topics stay hidden — a pull must not resurrect them
+    featured = {t["id"]: t for t in topics if t.get("featured") and not t.get("archived")}
     state = load_state()
     conv2topic = {
         entry["conversation_id"]: t
@@ -132,7 +160,7 @@ def pull_featured() -> None:
     out_root = HERE.parent.parent / "public" / "simcanvas"
     out_root.mkdir(parents=True, exist_ok=True)
 
-    with httpx.Client(headers={"Cookie": f"simcanvas_session={COOKIE}"}) as c:
+    with httpx.Client(headers={"Cookie": f"simcanvas_session={session_cookie()}"}) as c:
         gallery = api(c, "GET", "/api/gallery")
         pulled, skipped, done_ids = 0, 0, set()
         for conv in gallery:
@@ -201,7 +229,8 @@ def featured_list() -> list[dict]:
 
 def print_list() -> None:
     for i, t in enumerate(featured_list(), start=1):
-        print(f"{i:3d}. {t['id']}  {t['title']}")
+        mark = "  × archived" if t.get("archived") else ""
+        print(f"{i:3d}. {t['id']}  {t['title']}{mark}")
 
 
 def resolve_ids(args: list[str]) -> list[str]:
@@ -222,21 +251,19 @@ def resolve_ids(args: list[str]) -> list[str]:
     return ids + resolved
 
 
-def remove_topics(ids: list[str]) -> None:
-    """Delete animations everywhere so a later --pull can't resurrect them.
-
-    For each topic id: drop the entry from topics.json (that's what --pull
-    reads to decide what to sync), delete public/simcanvas/<id>/ (gallery
-    files + meta.json), and prune state.json so the topic is fully forgotten.
+def delete_topics(ids: list[str]) -> None:
+    """Hard delete: drop topics.json entries, prune state.json, remove
+    public/simcanvas/<id>/ directories. Permanent (unlike --remove, which only
+    archives). Numbering renumbers after this — re-run --list for fresh numbers.
     """
     topics_file = HERE / "topics.json"
     topics = json.loads(topics_file.read_text())
     remaining = [t for t in topics if t["id"] not in ids]
     removed = [t for t in topics if t["id"] in ids]
     if not removed:
-        log(f"⚠️ nothing removed: no topic ids matched {ids}")
+        log(f"⚠️ nothing deleted: no topic ids matched {ids}")
         return
-    # indent=1 matches the file's existing style (see save_state) so a removal
+    # indent=1 matches the file's existing style (see save_state) so a deletion
     # doesn't show up as a whole-file reformat in git diff.
     topics_file.write_text(json.dumps(remaining, ensure_ascii=False, indent=1))
 
@@ -247,23 +274,71 @@ def remove_topics(ids: list[str]) -> None:
         state["running"] = [r for r in state.get("running", []) if r != tid]
     save_state(state)
 
+    import shutil
     out_root = HERE.parent.parent / "public" / "simcanvas"
     for t in removed:
         target = out_root / t["id"]
         if target.exists():
             shutil.rmtree(target)
-            files = "local files + meta.json"
+            detail = "files removed"
         else:
-            files = "no local files (never pulled)"
-        log(f"🗑️ {t['title']} ({t['id']}): topics.json entry, state.json entry, {files} removed")
-    log(f"remove finish: {len(removed)} removed, {len(remaining)} topics left "
-        f"({sum(1 for t in remaining if t.get('featured'))} still featured)")
+            detail = "no local files"
+        log(f"🗑️ deleted {t['title']} ({t['id']}): {detail}")
+    refresh_manifest()
+    log(f"delete finish: {len(removed)} deleted, {len(remaining)} topics left "
+        f"({sum(1 for t in remaining if t.get('featured'))} featured) — "
+        f"numbering has shifted, re-run --list")
+
+
+def set_archived(ids: list[str], archived: bool) -> None:
+    """Archive/restore instead of deleting: files stay on disk, the gallery
+    (resource-manifest) hides archived items, and a later --pull skips them.
+    --restore brings an item back.
+    """
+    topics_file = HERE / "topics.json"
+    topics = json.loads(topics_file.read_text())
+    hit = [t for t in topics if t["id"] in ids]
+    if not hit:
+        log(f"⚠️ nothing matched: no topic ids matched {ids}")
+        return
+    for t in hit:
+        if archived:
+            t["archived"] = True
+        else:
+            t.pop("archived", None)
+    # indent=1 matches the file's existing style (see save_state) so an edit
+    # doesn't show up as a whole-file reformat in git diff.
+    topics_file.write_text(json.dumps(topics, ensure_ascii=False, indent=1))
+
+    out_root = HERE.parent.parent / "public" / "simcanvas"
+    for t in hit:
+        meta_path = out_root / t["id"] / "meta.json"
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text())
+            if archived:
+                meta["archived"] = True
+            else:
+                meta.pop("archived", None)
+            meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+            detail = "meta.json flagged"
+        else:
+            detail = "no local files (topics.json flag only)"
+        log(f"{'🗄️ archived' if archived else '🔁 restored'} {t['title']} ({t['id']}): {detail}")
+    refresh_manifest()
+    featured = [t for t in topics if t.get("featured")]
+    active = sum(1 for t in featured if not t.get("archived"))
+    log(f"{'archive' if archived else 'restore'} finish: {len(hit)} items — "
+        f"{active} visible / {len(featured) - active} archived")
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--list":
         print_list()
     elif len(sys.argv) > 2 and sys.argv[1] == "--remove":
-        remove_topics(resolve_ids(sys.argv[2:]))
+        set_archived(resolve_ids(sys.argv[2:]), archived=True)
+    elif len(sys.argv) > 2 and sys.argv[1] == "--restore":
+        set_archived(resolve_ids(sys.argv[2:]), archived=False)
+    elif len(sys.argv) > 2 and sys.argv[1] == "--delete":
+        delete_topics(resolve_ids(sys.argv[2:]))
     else:
         main()

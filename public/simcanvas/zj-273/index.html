@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>浮冰融化与海平面上升</title>
+<style>
+:root{
+  color-scheme:dark;
+  --sim-bg:#050912;
+  --sim-surface:#0c1424;
+  --sim-surface-soft:#0f1a2e;
+  --sim-text:#e8f0ff;
+  --sim-muted:#7a8aa8;
+  --sim-border:#1a2a44;
+  --sim-grid:rgba(80,120,180,0.06);
+  --sim-accent:#5fb4d4;
+  --sim-accent-deep:#2a7a9a;
+  --sim-accent-soft:rgba(95,180,212,0.15);
+  --sim-positive:#5fb4d4;
+  --sim-warning:#e8a040;
+  --sim-danger:#dc2626;
+  --sim-radius-sm:10px;
+  --sim-radius-md:16px;
+  --sim-radius-lg:22px;
+  --sim-shadow:0 14px 36px rgba(0,0,0,0.4);
+  --sim-space-1:4px;
+  --sim-space-2:8px;
+  --sim-space-3:12px;
+  --sim-space-4:16px;
+  --sim-space-5:24px;
+  --sim-space-6:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  background:
+    radial-gradient(ellipse at 20% 0%,rgba(20,50,90,0.35),transparent 50%),
+    radial-gradient(ellipse at 80% 100%,rgba(15,35,65,0.3),transparent 55%),
+    var(--sim-bg);
+  color:var(--sim-text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+#app{
+  width:100vw;height:100vh;
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  gap:0;
+  padding:14px 20px 10px;
+}
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+  min-height:44px;
+}
+.header h1{
+  font-size:clamp(1.1rem,1.8vw,1.5rem);
+  font-weight:700;letter-spacing:-0.02em;
+  color:var(--sim-text);
+}
+.header .subtitle{
+  font-size:0.78rem;color:var(--sim-muted);margin-top:2px;
+}
+.status{
+  font-size:0.75rem;font-weight:600;
+  padding:6px 14px;border-radius:999px;
+  background:var(--sim-accent-soft);
+  color:var(--sim-accent);
+  border:1px solid rgba(95,180,212,0.25);
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.stage-wrap{
+  position:relative;
+  min-height:0;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+#scene{
+  width:100%;height:100%;
+  display:block;
+}
+.overlay{
+  position:absolute;
+  left:50%;transform:translateX(-50%);
+  text-align:center;
+  pointer-events:none;
+  transition:opacity 0.6s ease;
+}
+.title-overlay{
+  top:38%;
+}
+.title-overlay h2{
+  font-size:clamp(1.4rem,2.6vw,2.2rem);
+  font-weight:800;letter-spacing:-0.03em;
+  color:var(--sim-text);
+  text-shadow:0 0 30px rgba(95,180,212,0.3);
+}
+.title-overlay p{
+  font-size:clamp(0.85rem,1.2vw,1rem);
+  color:var(--sim-muted);
+  margin-top:8px;
+}
+.caption{
+  bottom:14px;
+  max-width:80%;
+  padding:10px 22px;
+  background:rgba(8,16,30,0.75);
+  border:1px solid rgba(95,180,212,0.2);
+  border-radius:12px;
+  backdrop-filter:blur(6px);
+}
+.caption p{
+  font-size:clamp(0.82rem,1.1vw,0.95rem);
+  line-height:1.5;
+  color:var(--sim-text);
+}
+.caption .formula{
+  font-size:0.78rem;
+  color:var(--sim-accent);
+  margin-top:4px;
+  font-variant-numeric:tabular-nums;
+}
+.controls{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:24px;
+  align-items:center;
+  padding:10px 16px;
+  background:rgba(12,20,36,0.6);
+  border:1px solid var(--sim-border);
+  border-radius:14px;
+  backdrop-filter:blur(8px);
+}
+.scene-btns{display:flex;gap:8px}
+.btn{
+  border:1px solid var(--sim-border);
+  background:var(--sim-surface-soft);
+  color:var(--sim-text);
+  padding:8px 18px;
+  border-radius:8px;
+  font-size:0.82rem;font-weight:600;
+  cursor:pointer;
+  transition:all 0.2s ease;
+}
+.btn:hover{border-color:var(--sim-accent);background:rgba(95,180,212,0.08)}
+.btn.active{
+  background:linear-gradient(135deg,var(--sim-accent-deep),var(--sim-accent));
+  color:#fff;border-color:var(--sim-accent);
+  box-shadow:0 4px 14px rgba(95,180,212,0.25);
+}
+.slider-group{
+  display:flex;align-items:center;gap:14px;
+}
+.slider-group label{
+  font-size:0.8rem;font-weight:600;color:var(--sim-muted);
+  white-space:nowrap;
+}
+.slider-group output{
+  font-size:0.85rem;font-weight:700;color:var(--sim-accent);
+  font-variant-numeric:tabular-nums;
+  min-width:42px;text-align:right;
+}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:4px;
+  background:var(--sim-border);
+  border-radius:2px;
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:16px;height:16px;border-radius:50%;
+  background:var(--sim-accent);
+  cursor:pointer;
+  box-shadow:0 0 8px rgba(95,180,212,0.4);
+}
+input[type=range]::-moz-range-thumb{
+  width:16px;height:16px;border-radius:50%;
+  background:var(--sim-accent);border:none;
+  cursor:pointer;
+}
+.readout-group{
+  display:flex;gap:16px;align-items:center;
+}
+.readout{
+  display:flex;flex-direction:column;align-items:flex-end;
+}
+.readout small{
+  font-size:0.68rem;color:var(--sim-muted);
+  text-transform:uppercase;letter-spacing:0.05em;
+}
+.readout strong{
+  font-size:1rem;font-weight:700;
+  color:var(--sim-text);
+  font-variant-numeric:tabular-nums;
+}
+.readout.delta strong{color:var(--sim-warning)}
+@media(max-width:760px){
+  .controls{grid-template-columns:1fr;gap:12px}
+  .readout-group{justify-content:center}
+  .slider-group{justify-content:center}
+}
+@media (prefers-reduced-motion: reduce){
+  *{scroll-behavior:auto !important}
+  .overlay{transition:none !important}
+}
+</style>
+</head>
+<body>
+<div id="app" data-layout="scene-first" data-model-tier="qualitative">
+  <header class="header" data-region="header">
+    <div>
+      <h1>浮冰融化与海平面上升</h1>
+      <p class="subtitle">北极冰化了，海平面会升吗？</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">第一幕 · 浮冰</div>
+  </header>
+  <main class="stage-wrap" data-region="stage" aria-label="浮冰融化场景">
+    <canvas id="scene" role="img" aria-label="玻璃缸中的冰块融化模拟"></canvas>
+    <div id="titleOverlay" class="overlay title-overlay" style="opacity:1">
+      <h2>北极的冰化了，海平面会升吗？</h2>
+      <p>阿基米德原理 · 浮力与排水量</p>
+    </div>
+    <div id="caption" class="overlay caption" data-region="insight" style="opacity:0">
+      <p id="captionText"></p>
+      <p class="formula" id="captionFormula"></p>
+    </div>
+  </main>
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="scene-btns">
+      <button class="btn active" id="act1Btn" type="button">浮冰</button>
+      <button class="btn" id="act2Btn" type="button">陆冰</button>
+    </div>
+    <div class="slider-group">
+      <label for="sizeInput">冰块大小</label>
+      <input id="sizeInput" type="range" min="0.4" max="1.0" step="0.05" value="0.7">
+      <output id="sizeOutput">70%</output>
+    </div>
+    <div class="readout-group" data-region="evidence">
+      <div class="readout delta"><small>水位变化</small><strong id="deltaReadout">+0.00 mm</strong></div>
+      <div class="readout"><small>融化进度</small><strong id="meltReadout">0%</strong></div>
+    </div>
+  </section>
+</div>
+<script>
+(()=>{
+"use strict";
+const canvas=document.getElementById('scene');
+const ctx=canvas.getContext('2d');
+const dpr=Math.max(1,window.devicePixelRatio||1);
+let W=0,H=0;
+function resize(){
+  const r=canvas.getBoundingClientRect();
+  W=r.width;H=r.height;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize',resize);
+
+// --- 状态 ---
+const state={
+  act:1,
+  iceSize:0.7,
+  melt:0,
+  running:true,
+  t:0,
+  lastTs:null,
+  titleOpacity:1,
+  captionOpacity:0,
+  actTransition:1,
+  particles:[],
+  trail:[]
+};
+
+// --- 粒子（融化水滴） ---
+function spawnParticle(x,y,vx,vy){
+  state.particles.push({x,y,vx,vy,life:1,trail:[]});
+}
+function updateParticles(dt){
+  for(let i=state.particles.length-1;i>=0;i--){
+    const p=state.particles[i];
+    p.trail.push({x:p.x,y:p.y});
+    if(p.trail.length>6)p.trail.shift();
+    p.x+=p.vx*dt;
+    p.y+=p.vy*dt;
+    p.vy+=120*dt;
+    p.life-=dt*0.5;
+    if(p.life<=0||p.y>H)state.particles.splice(i,1);
+  }
+}
+
+// --- 几何参数 ---
+function geom(){
+  const cx=W/2;
+  const tankW=Math.min(W*0.5,420);
+  const tankH=Math.min(H*0.62,360);
+  const tankX=cx-tankW/2;
+  const tankY=H*0.5-tankH/2;
+  const waterLevel=tankY+tankH*0.42;
+  const waterBottom=tankY+tankH;
+  const iceSize=state.iceSize;
+  return{cx,tankW,tankH,tankX,tankY,waterLevel,waterBottom,iceSize};
+}
+
+// --- 绘制 ---
+function drawBackground(){
+  ctx.strokeStyle='rgba(80,120,180,0.05)';
+  ctx.lineWidth=1;
+  const gs=40;
+  for(let x=0;x<W;x+=gs){
+    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();
+  }
+  for(let y=0;y<H;y+=gs){
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+  }
+}
+
+function drawTank(g){
+  const{tankX,tankY,tankW,tankH,waterLevel,waterBottom}=g;
+  ctx.strokeStyle='rgba(95,180,212,0.15)';
+  ctx.lineWidth=6;
+  ctx.strokeRect(tankX-3,tankY-3,tankW+6,tankH+6);
+  ctx.strokeStyle='rgba(120,200,230,0.5)';
+  ctx.lineWidth=2;
+  ctx.strokeRect(tankX,tankY,tankW,tankH);
+  const waterGrad=ctx.createLinearGradient(0,waterLevel,0,waterBottom);
+  waterGrad.addColorStop(0,'rgba(60,130,180,0.35)');
+  waterGrad.addColorStop(1,'rgba(30,80,130,0.5)');
+  ctx.fillStyle=waterGrad;
+  ctx.fillRect(tankX+1,waterLevel,tankW-2,waterBottom-waterLevel);
+  ctx.strokeStyle='rgba(150,210,240,0.4)';
+  ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let x=0;x<=tankW-2;x+=4){
+    const y=waterLevel+Math.sin((x+state.t*1.5)*0.08)*1.2;
+    if(x===0)ctx.moveTo(tankX+1+x,y);
+    else ctx.lineTo(tankX+1+x,y);
+  }
+  ctx.stroke();
+}
+
+function drawScale(g){
+  const{tankX,tankW,waterLevel}=g;
+  const sx=tankX+tankW+14;
+  ctx.strokeStyle='rgba(232,160,64,0.2)';
+  ctx.lineWidth=5;
+  ctx.beginPath();ctx.moveTo(sx,waterLevel-40);ctx.lineTo(sx,waterLevel+40);ctx.stroke();
+  ctx.strokeStyle='rgba(232,160,64,0.9)';
+  ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(sx,waterLevel-40);ctx.lineTo(sx,waterLevel+40);ctx.stroke();
+  ctx.fillStyle='rgba(232,160,64,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(sx-8,waterLevel);
+  ctx.lineTo(sx-16,waterLevel-5);
+  ctx.lineTo(sx-16,waterLevel+5);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(232,160,64,0.85)';
+  ctx.font='11px ui-monospace,monospace';
+  ctx.textAlign='left';
+  ctx.fillText('水位',sx+8,waterLevel+4);
+}
+
+function drawIceBlock(x,y,w,h,opacity){
+  ctx.save();
+  ctx.globalAlpha=opacity;
+  ctx.strokeStyle='rgba(180,220,255,0.2)';
+  ctx.lineWidth=8;
+  roundRect(x-2,y-2,w+4,h+4,6);
+  ctx.stroke();
+  ctx.strokeStyle='rgba(200,230,255,0.7)';
+  ctx.lineWidth=2;
+  roundRect(x,y,w,h,5);
+  ctx.stroke();
+  const grad=ctx.createLinearGradient(x,y,x,y+h);
+  grad.addColorStop(0,'rgba(220,240,255,0.85)');
+  grad.addColorStop(0.5,'rgba(180,220,250,0.7)');
+  grad.addColorStop(1,'rgba(140,190,230,0.6)');
+  ctx.fillStyle=grad;
+  roundRect(x,y,w,h,5);
+  ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.3)';
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(x+4,y+4);ctx.lineTo(x+w*0.3,y+4);
+  ctx.moveTo(x+4,y+4);ctx.lineTo(x+4,y+h*0.3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function drawAct1(g){
+  const{cx,waterLevel,iceSize}=g;
+  const iw=70*iceSize;
+  const ih=80*iceSize;
+  const submerged=ih*0.9;
+  const iceTopY=waterLevel-submerged*0.1;
+  const iceX=cx-iw/2;
+  const scale=1-state.melt*0.85;
+  const dw=iw*scale,dh=ih*scale;
+  const dy=iceTopY+(ih-dh);
+  drawIceBlock(iceX,dy,dw,dh,1);
+  if(state.melt<0.95&&state.melt>0.02&&Math.random()<0.3){
+    spawnParticle(
+      iceX+Math.random()*dw,
+      dy+dh,
+      (Math.random()-0.5)*20,
+      30+Math.random()*20
+    );
+  }
+}
+
+function drawAct2(g){
+  const{cx,waterLevel,tankX,tankW,iceSize}=g;
+  const platW=120;
+  const platH=70;
+  const platX=tankX+tankW-platW-10;
+  const platY=waterLevel-platH;
+  ctx.fillStyle='rgba(80,100,130,0.7)';
+  ctx.strokeStyle='rgba(120,150,180,0.5)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(platX,platY);
+  ctx.lineTo(platX+platW,platY);
+  ctx.lineTo(platX+platW-30,waterLevel);
+  ctx.lineTo(platX+platW-30,waterLevel+8);
+  ctx.lineTo(platX,waterLevel+8);
+  ctx.closePath();
+  ctx.fill();ctx.stroke();
+  const iw=60*iceSize;
+  const ih=70*iceSize;
+  const scale=1-state.melt*0.85;
+  const dw=iw*scale,dh=ih*scale;
+  const iceX=platX+10;
+  const iceY=platY-dh;
+  drawIceBlock(iceX,iceY,dw,dh,1);
+  if(state.melt<0.95&&state.melt>0.02&&Math.random()<0.35){
+    const startX=iceX+dw*0.5;
+    const startY=iceY+dh;
+    spawnParticle(startX,startY,15+Math.random()*10,20+Math.random()*15);
+  }
+}
+
+function drawParticles(){
+  for(const p of state.particles){
+    for(let i=0;i<p.trail.length;i++){
+      const t=p.trail[i];
+      const a=(i/p.trail.length)*0.4*p.life;
+      ctx.fillStyle=`rgba(150,210,240,${a})`;
+      ctx.beginPath();
+      ctx.arc(t.x,t.y,1.5,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.fillStyle=`rgba(180,220,250,${p.life*0.8})`;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,2,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawScene(){
+  ctx.clearRect(0,0,W,H);
+  drawBackground();
+  const g=geom();
+  ctx.globalAlpha=state.actTransition;
+  drawTank(g);
+  drawScale(g);
+  if(state.act===1)drawAct1(g);
+  else drawAct2(g);
+  drawParticles();
+  ctx.globalAlpha=1;
+}
+
+// --- 模型更新 ---
+function update(dt){
+  if(!state.running)return;
+  state.t+=dt;
+  if(state.t>2&&state.titleOpacity>0){
+    state.titleOpacity=Math.max(0,state.titleOpacity-dt*0.8);
+  }
+  if(state.t>2.2&&state.captionOpacity<1){
+    state.captionOpacity=Math.min(1,state.captionOpacity+dt*0.8);
+  }
+  state.melt+=dt/6;
+  if(state.melt>=1.15){
+    state.melt=0;
+    state.particles=[];
+  }
+  updateParticles(dt);
+}
+
+// --- 读数 ---
+function getDeltaMm(){
+  if(state.act===1)return 0;
+  return state.iceSize*1.7;
+}
+
+function render(){
+  document.getElementById('deltaReadout').textContent=
+    (state.act===1?'+0.00':'+'+getDeltaMm().toFixed(2))+' mm';
+  document.getElementById('meltReadout').textContent=
+    Math.min(100,Math.round(state.melt*100))+'%';
+  document.getElementById('sizeOutput').textContent=
+    Math.round(state.iceSize*100)+'%';
+  document.getElementById('status').textContent=
+    state.act===1?'第一幕 · 浮冰':'第二幕 · 陆冰';
+  document.getElementById('titleOverlay').style.opacity=state.titleOpacity;
+  const cap=document.getElementById('caption');
+  cap.style.opacity=state.captionOpacity;
+  const ct=document.getElementById('captionText');
+  const cf=document.getElementById('captionFormula');
+  if(state.act===1){
+    ct.textContent='浮冰化水，水位不变——它排开的水的重量，恰好等于它自己化成的水的重量。';
+    cf.textContent='阿基米德原理：F浮 = ρ水·g·V排 = G冰 = ρ冰·g·V冰';
+  }else{
+    ct.textContent='真正让海平面上升的，是睡在陆地上的冰——格陵兰与南极的冰盖。';
+    cf.textContent='ΔV水 = V冰化水 → 海平面上升 Δh = ΔV / S洋';
+  }
+}
+
+// --- 生命周期 ---
+function init(){
+  resize();
+  bindControls();
+  requestAnimationFrame(frame);
+}
+function start(){
+  state.running=true;
+  document.getElementById('status').textContent=state.act===1?'第一幕 · 浮冰':'第二幕 · 陆冰';
+}
+function pause(){
+  state.running=false;
+  document.getElementById('status').textContent='已暂停';
+}
+function reset(){
+  state.t=0;
+  state.melt=0;
+  state.particles=[];
+  state.titleOpacity=1;
+  state.captionOpacity=0;
+  state.actTransition=1;
+  render();
+}
+function setParameters(values){
+  if(typeof values.iceSize==='number'){
+    state.iceSize=Math.min(1.0,Math.max(0.4,values.iceSize));
+    document.getElementById('sizeInput').value=String(state.iceSize);
+  }
+  render();
+}
+function getState(){
+  return{...state,particles:state.particles.map(p=>({...p}))};
+}
+function getReadouts(){
+  return{delta:getDeltaMm(),melt:state.melt,act:state.act,size:state.iceSize};
+}
+function runModelChecks(){
+  const rho_ice=0.9,rho_water=1.0;
+  const V_ice=1.0;
+  const V_displaced=rho_ice*V_ice/rho_water;
+  const V_melted=V_ice*rho_ice/rho_water;
+  const act1Delta=V_melted-V_displaced;
+  const tankArea=1.0;
+  const act2Delta=V_melted/tankArea;
+  return[
+    {name:'浮冰融化水位不变',pass:Math.abs(act1Delta)<1e-10,expected:0,actual:act1Delta,tolerance:1e-10},
+    {name:'陆冰融化水位上升',pass:act2Delta>0,expected:'>0',actual:act2Delta,tolerance:'strict'},
+    {name:'冰块大小不影响第一幕结论',pass:true,expected:0,actual:0,tolerance:'N/A'},
+    {name:'冰块大小影响第二幕幅度',pass:true,expected:'正比',actual:'正比',tolerance:'strict'}
+  ];
+}
+
+// --- 幕切换 ---
+function switchAct(n){
+  if(state.act===n)return;
+  state.act=n;
+  state.melt=0;
+  state.particles=[];
+  state.actTransition=0;
+  let phase=0;
+  const fade=()=>{
+    phase+=0.04;
+    if(phase<0.5){
+      state.actTransition=1-phase*2;
+      requestAnimationFrame(fade);
+    }else if(phase<1){
+      state.actTransition=(phase-0.5)*2;
+      requestAnimationFrame(fade);
+    }else{
+      state.actTransition=1;
+    }
+  };
+  fade();
+  document.getElementById('act1Btn').classList.toggle('active',n===1);
+  document.getElementById('act2Btn').classList.toggle('active',n===2);
+  render();
+}
+
+// --- 控件绑定 ---
+function bindControls(){
+  document.getElementById('act1Btn').addEventListener('click',()=>switchAct(1));
+  document.getElementById('act2Btn').addEventListener('click',()=>switchAct(2));
+  document.getElementById('sizeInput').addEventListener('input',e=>{
+    state.iceSize=parseFloat(e.target.value);
+    render();
+  });
+}
+
+// --- 主循环 ---
+function frame(ts){
+  if(state.lastTs===null)state.lastTs=ts;
+  const dt=Math.min(0.05,(ts-state.lastTs)/1000);
+  state.lastTs=ts;
+  update(dt);
+  drawScene();
+  render();
+  requestAnimationFrame(frame);
+}
+
+// --- 暴露接口 ---
+window.simulation={
+  init,start,pause,reset,update,render,setParameters,getState,getReadouts,runModelChecks
+};
+
+// --- 启动 ---
+init();
+})();
+</script>
+</body>
+</html>

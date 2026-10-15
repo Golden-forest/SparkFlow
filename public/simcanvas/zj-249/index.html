@@ -1,0 +1,1102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三体混沌：对初始条件的敏感依赖</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0f1626;
+  --sim-text: #e8eef8;
+  --sim-muted: #6b7a96;
+  --sim-border: #1a2238;
+  --sim-grid: #131a2a;
+  --sim-accent: #5dd9ff;
+  --sim-accent-deep: #2a8fb0;
+  --sim-accent-soft: rgba(93, 217, 255, 0.12);
+  --sim-positive: #5dd9ff;
+  --sim-warning: #f0a040;
+  --sim-danger: #ff5d6c;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--sim-accent);
+  outline-offset: 2px;
+}
+.app {
+  width: 100vw; height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--sim-space-2);
+  padding: var(--sim-space-3) var(--sim-space-4) var(--sim-space-3);
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sim-space-4);
+  padding: 0 var(--sim-space-2);
+}
+.header h1 {
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sim-text);
+}
+.header .subtitle {
+  font-size: 0.78rem;
+  color: var(--sim-muted);
+  margin-top: 2px;
+}
+.status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--sim-accent);
+  padding: 4px 12px;
+  border: 1px solid var(--sim-accent-deep);
+  border-radius: 999px;
+  background: var(--sim-accent-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--sim-space-2);
+  min-height: 0;
+}
+.scene-stack {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--sim-space-2);
+  min-height: 0;
+}
+.scene-panel {
+  position: relative;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  overflow: hidden;
+  min-height: 0;
+}
+.scene-panel canvas {
+  display: block;
+  width: 100%; height: 100%;
+}
+.scene-label {
+  position: absolute;
+  top: 10px; left: 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sim-muted);
+  pointer-events: none;
+  z-index: 2;
+}
+.scene-label .dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.scene-label.ref .dot { background: var(--sim-accent); }
+.scene-label.pert .dot { background: var(--sim-warning); }
+.scene-info {
+  position: absolute;
+  top: 10px; right: 14px;
+  font-size: 0.7rem;
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 2;
+  text-align: right;
+}
+.chart-panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+  padding: var(--sim-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sim-space-2);
+  min-height: 0;
+}
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.chart-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sim-text);
+}
+.chart-subtitle {
+  font-size: 0.68rem;
+  color: var(--sim-muted);
+}
+.chart-canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+.chart-canvas-wrap canvas {
+  display: block;
+  width: 100%; height: 100%;
+}
+.chart-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sim-space-2);
+  padding-top: var(--sim-space-2);
+  border-top: 1px solid var(--sim-border);
+}
+.chart-readout .metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chart-readout .metric small {
+  font-size: 0.65rem;
+  color: var(--sim-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.chart-readout .metric strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+}
+.chart-readout .metric strong.diverged {
+  color: var(--sim-danger);
+}
+.insight-panel {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 var(--sim-radius-md) var(--sim-radius-md) 0;
+  padding: var(--sim-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sim-space-2);
+  min-height: 0;
+}
+.insight-panel .insight-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sim-text);
+}
+.insight-panel .insight-body {
+  font-size: 0.78rem;
+  color: var(--sim-muted);
+  line-height: 1.5;
+}
+.insight-panel .insight-body strong {
+  color: var(--sim-warning);
+  font-weight: 700;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sim-space-4);
+  padding: var(--sim-space-2) var(--sim-space-3);
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md);
+}
+.actions {
+  display: flex;
+  gap: var(--sim-space-2);
+}
+button {
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-sm);
+  padding: 8px 14px;
+  color: var(--sim-text);
+  background: var(--sim-surface-soft);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+button:hover {
+  border-color: var(--sim-accent-deep);
+  background: rgba(93, 217, 255, 0.08);
+}
+button:active { transform: scale(0.97); }
+button.primary {
+  border-color: var(--sim-accent);
+  color: var(--sim-accent);
+  background: rgba(93, 217, 255, 0.1);
+}
+button.primary:hover {
+  background: rgba(93, 217, 255, 0.18);
+}
+.divider {
+  width: 1px;
+  height: 28px;
+  background: var(--sim-border);
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.72rem;
+  color: var(--sim-muted);
+  font-weight: 600;
+}
+.control output {
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent-deep);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent-deep);
+}
+@media (max-width: 860px) {
+  .main { grid-template-columns: 1fr; grid-template-rows: 1fr 200px; }
+  .controls { flex-wrap: wrap; }
+  .control { min-width: 120px; flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="comparison" data-model-tier="continuous-ode">
+  <header class="header" data-region="header">
+    <div>
+      <h1>三体混沌：对初始条件的敏感依赖</h1>
+      <div class="subtitle">两组初始条件几乎相同的系统，最终走向完全不同的命运</div>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">运行中</div>
+  </header>
+
+  <main class="main">
+    <div class="scene-stack" data-region="stage">
+      <section class="scene-panel" aria-label="基准系统">
+        <span class="scene-label ref"><span class="dot"></span>基准系统</span>
+        <span class="scene-info" id="refInfo">t=0.0s</span>
+        <canvas id="canvasRef"></canvas>
+      </section>
+      <section class="scene-panel" aria-label="微扰系统">
+        <span class="scene-label pert"><span class="dot"></span>微扰系统</span>
+        <span class="scene-info" id="pertInfo">偏移 0.001</span>
+        <canvas id="canvasPert"></canvas>
+      </section>
+    </div>
+
+    <aside class="chart-panel" data-region="evidence">
+      <div class="chart-header">
+        <span class="chart-title">偏差-时间（对数）</span>
+        <span class="chart-subtitle">ln|Δr| vs t</span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chartCanvas"></canvas>
+      </div>
+      <div class="chart-readout">
+        <div class="metric">
+          <small>当前偏差</small>
+          <strong id="divReadout">0.000</strong>
+        </div>
+        <div class="metric">
+          <small>近似斜率 λ</small>
+          <strong id="lyapReadout">—</strong>
+        </div>
+      </div>
+      <div class="chart-readout" style="border-top:none;padding-top:0;">
+        <div class="metric">
+          <small>模拟时间</small>
+          <strong id="timeReadout">0.0 s</strong>
+        </div>
+        <div class="metric">
+          <small>状态</small>
+          <strong id="phaseReadout">重合</strong>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="insight-panel" data-region="insight" aria-label="观察洞察">
+    <span class="insight-title">观察洞察</span>
+    <div id="insight" class="insight-body">微小的初始偏移在指数放大下导致轨迹完全分离，体现混沌系统对初始条件的敏感依赖。</div>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="divider"></div>
+    <div class="control">
+      <label for="offsetInput">初始偏移 <output id="offsetOutput">0.001</output></label>
+      <input id="offsetInput" type="range" min="0.0001" max="0.05" step="0.0001" value="0.001">
+    </div>
+    <div class="control">
+      <label for="massInput">天体质量 <output id="massOutput">1.0</output></label>
+      <input id="massInput" type="range" min="0.5" max="3" step="0.1" value="1.0">
+    </div>
+    <div class="control">
+      <label for="velInput">初速度 <output id="velOutput">1.00</output></label>
+      <input id="velInput" type="range" min="0.5" max="1.5" step="0.01" value="1.00">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============ 物理常量 ============
+  const G = 1.0;
+  const SOFTENING = 0.5;
+  const SOFTENING_SQ = SOFTENING * SOFTENING;
+  const DT = 0.004;          // 固定物理步长
+  const SUBSTEPS = 3;        // 每帧子步数 → 每帧 0.012 模拟时间
+  const TRAIL_LEN = 500;
+  const CHART_LEN = 600;
+  const DIVERGENCE_THRESHOLD = 5.0;  // 判定"完全发散"的偏差阈值
+
+  // ============ 状态 ============
+  const state = {
+    running: true,
+    t: 0,
+    lastTs: null,
+    offset: 0.001,
+    mass: 1.0,
+    velScale: 1.0,
+    ref: null,
+    pert: null,
+    history: [],
+    lyapSlope: null,
+    phase: "重合"
+  };
+
+  // ============ 初始条件 ============
+  function makeInitial(scale) {
+    const m = state.mass;
+    // 等边三角形，边长 2，质心在原点
+    const r = 2.0 / Math.sqrt(3);
+    const bodies = [
+      { mass: m, x:  r, y:  0, vx: 0, vy: 0, ax: 0, ay: 0, trail: [] },
+      { mass: m, x: -r/2, y:  r * Math.sqrt(3)/2, vx: 0, vy: 0, ax: 0, ay: 0, trail: [] },
+      { mass: m, x: -r/2, y: -r * Math.sqrt(3)/2, vx: 0, vy: 0, ax: 0, ay: 0, trail: [] }
+    ];
+    // 给每个天体一个切向初速度，形成旋转
+    const v0 = 0.95 * scale;
+    bodies[0].vy = -v0;
+    bodies[1].vx =  v0 * Math.sqrt(3)/2;
+    bodies[1].vy =  v0 * 0.5;
+    bodies[2].vx = -v0 * Math.sqrt(3)/2;
+    bodies[2].vy =  v0 * 0.5;
+    return bodies;
+  }
+
+  function applyOffset(bodies, offset) {
+    // 对第一个天体施加微小位置偏移
+    bodies[0].x += offset;
+    bodies[0].y += offset * 0.7;
+  }
+
+  function cloneBodies(bodies) {
+    return bodies.map(b => ({ ...b, trail: [] }));
+  }
+
+  // ============ 物理内核（RK4） ============
+  function computeAccel(bodies) {
+    const n = bodies.length;
+    for (let i = 0; i < n; i++) {
+      bodies[i].ax = 0;
+      bodies[i].ay = 0;
+    }
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = bodies[j].x - bodies[i].x;
+        const dy = bodies[j].y - bodies[i].y;
+        const r2 = dx * dx + dy * dy + SOFTENING_SQ;
+        const r = Math.sqrt(r2);
+        const invR3 = 1 / (r2 * r);
+        const fx = G * dx * invR3;
+        const fy = G * dy * invR3;
+        bodies[i].ax += fx * bodies[j].mass;
+        bodies[i].ay += fy * bodies[j].mass;
+        bodies[j].ax -= fx * bodies[i].mass;
+        bodies[j].ay -= fy * bodies[i].mass;
+      }
+    }
+  }
+
+  function rk4Step(bodies, dt) {
+    const n = bodies.length;
+    // 保存初始状态
+    const init = bodies.map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy }));
+    // k1
+    computeAccel(bodies);
+    const k1 = bodies.map(b => ({ ax: b.ax, ay: b.ay }));
+    // k2
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = init[i].x + 0.5 * dt * init[i].vx;
+      bodies[i].y = init[i].y + 0.5 * dt * init[i].vy;
+      bodies[i].vx = init[i].vx + 0.5 * dt * k1[i].ax;
+      bodies[i].vy = init[i].vy + 0.5 * dt * k1[i].ay;
+    }
+    computeAccel(bodies);
+    const k2 = bodies.map(b => ({ ax: b.ax, ay: b.ay }));
+    // k3
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = init[i].x + 0.5 * dt * (init[i].vx + 0.5 * dt * k1[i].ax);
+      bodies[i].y = init[i].y + 0.5 * dt * (init[i].vy + 0.5 * dt * k1[i].ay);
+      bodies[i].vx = init[i].vx + 0.5 * dt * k2[i].ax;
+      bodies[i].vy = init[i].vy + 0.5 * dt * k2[i].ay;
+    }
+    computeAccel(bodies);
+    const k3 = bodies.map(b => ({ ax: b.ax, ay: b.ay }));
+    // k4
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = init[i].x + dt * (init[i].vx + 0.5 * dt * k2[i].ax);
+      bodies[i].y = init[i].y + dt * (init[i].vy + 0.5 * dt * k2[i].ay);
+      bodies[i].vx = init[i].vx + dt * k3[i].ax;
+      bodies[i].vy = init[i].vy + dt * k3[i].ay;
+    }
+    computeAccel(bodies);
+    const k4 = bodies.map(b => ({ ax: b.ax, ay: b.ay }));
+    // 合并
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = init[i].x + (dt / 6) * (init[i].vx + 2*(init[i].vx + 0.5*dt*k1[i].ax) + 2*(init[i].vx + 0.5*dt*k2[i].ax) + (init[i].vx + dt*k3[i].ax) - 4*init[i].vx);
+      // 简化：直接用标准 RK4 公式
+      const dx = (1/6) * (init[i].vx + 2*(init[i].vx + 0.5*dt*k1[i].ax) + 2*(init[i].vx + 0.5*dt*k2[i].ax) + (init[i].vx + dt*k3[i].ax));
+      const dy = (1/6) * (init[i].vy + 2*(init[i].vy + 0.5*dt*k1[i].ay) + 2*(init[i].vy + 0.5*dt*k2[i].ay) + (init[i].vy + dt*k3[i].ay));
+      const dvx = (1/6) * (k1[i].ax + 2*k2[i].ax + 2*k3[i].ax + k4[i].ax);
+      const dvy = (1/6) * (k1[i].ay + 2*k2[i].ay + 2*k3[i].ay + k4[i].ay);
+      bodies[i].x = init[i].x + dt * dx;
+      bodies[i].y = init[i].y + dt * dy;
+      bodies[i].vx = init[i].vx + dt * dvx;
+      bodies[i].vy = init[i].vy + dt * dvy;
+    }
+  }
+
+  // 更简洁的 RK4 实现
+  function rk4StepClean(bodies, dt) {
+    const n = bodies.length;
+    // 初始状态快照
+    const s0 = bodies.map(b => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy }));
+    
+    // k1: 在 s0 处的导数
+    computeAccel(bodies);
+    const k1 = bodies.map(b => ({ dx: b.vx, dy: b.vy, dvx: b.ax, dvy: b.ay }));
+    
+    // k2: 在 s0 + dt/2*k1 处的导数
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = s0[i].x + 0.5 * dt * k1[i].dx;
+      bodies[i].y = s0[i].y + 0.5 * dt * k1[i].dy;
+      bodies[i].vx = s0[i].vx + 0.5 * dt * k1[i].dvx;
+      bodies[i].vy = s0[i].vy + 0.5 * dt * k1[i].dvy;
+    }
+    computeAccel(bodies);
+    const k2 = bodies.map(b => ({ dx: b.vx, dy: b.vy, dvx: b.ax, dvy: b.ay }));
+    
+    // k3: 在 s0 + dt/2*k2 处的导数
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = s0[i].x + 0.5 * dt * k2[i].dx;
+      bodies[i].y = s0[i].y + 0.5 * dt * k2[i].dy;
+      bodies[i].vx = s0[i].vx + 0.5 * dt * k2[i].dvx;
+      bodies[i].vy = s0[i].vy + 0.5 * dt * k2[i].dvy;
+    }
+    computeAccel(bodies);
+    const k3 = bodies.map(b => ({ dx: b.vx, dy: b.vy, dvx: b.ax, dvy: b.ay }));
+    
+    // k4: 在 s0 + dt*k3 处的导数
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = s0[i].x + dt * k3[i].dx;
+      bodies[i].y = s0[i].y + dt * k3[i].dy;
+      bodies[i].vx = s0[i].vx + dt * k3[i].dvx;
+      bodies[i].vy = s0[i].vy + dt * k3[i].dvy;
+    }
+    computeAccel(bodies);
+    const k4 = bodies.map(b => ({ dx: b.vx, dy: b.vy, dvx: b.ax, dvy: b.ay }));
+    
+    // 合并: s = s0 + (dt/6)*(k1 + 2*k2 + 2*k3 + k4)
+    for (let i = 0; i < n; i++) {
+      bodies[i].x = s0[i].x + (dt / 6) * (k1[i].dx + 2*k2[i].dx + 2*k3[i].dx + k4[i].dx);
+      bodies[i].y = s0[i].y + (dt / 6) * (k1[i].dy + 2*k2[i].dy + 2*k3[i].dy + k4[i].dy);
+      bodies[i].vx = s0[i].vx + (dt / 6) * (k1[i].dvx + 2*k2[i].dvx + 2*k3[i].dvx + k4[i].dvx);
+      bodies[i].vy = s0[i].vy + (dt / 6) * (k1[i].dvy + 2*k2[i].dvy + 2*k3[i].dvy + k4[i].dvy);
+    }
+  }
+
+  // ============ 偏差计算 ============
+  function computeDivergence() {
+    let sum = 0;
+    for (let i = 0; i < 3; i++) {
+      const dx = state.pert[i].x - state.ref[i].x;
+      const dy = state.pert[i].y - state.ref[i].y;
+      sum += dx * dx + dy * dy;
+    }
+    return Math.sqrt(sum / 3);
+  }
+
+  // ============ Canvas 设置 ============
+  const canvasRef = document.getElementById("canvasRef");
+  const canvasPert = document.getElementById("canvasPert");
+  const chartCanvas = document.getElementById("chartCanvas");
+  const ctxRef = canvasRef.getContext("2d");
+  const ctxPert = canvasPert.getContext("2d");
+  const ctxChart = chartCanvas.getContext("2d");
+
+  function resizeCanvas(canvas, ctx) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w: rect.width, h: rect.height };
+  }
+
+  let sceneSize = { w: 100, h: 100 };
+  let chartSize = { w: 100, h: 100 };
+
+  function handleResize() {
+    sceneSize = resizeCanvas(canvasRef, ctxRef);
+    resizeCanvas(canvasPert, ctxPert);
+    chartSize = resizeCanvas(chartCanvas, ctxChart);
+  }
+
+  // ============ 渲染 ============
+  const COLORS_REF = ["#5dd9ff", "#a0e8ff", "#7accff"];
+  const COLORS_PERT = ["#f0a040", "#ffc870", "#e89058"];
+  const TRAIL_FADE = 0.85;
+
+  function drawScene(ctx, bodies, colors, size) {
+    const { w, h } = size;
+    // 背景
+    ctx.fillStyle = "#050810";
+    ctx.fillRect(0, 0, w, h);
+
+    // 计算视图变换：以质心为中心，自适应缩放
+    let cx = 0, cy = 0;
+    for (const b of bodies) { cx += b.x; cy += b.y; }
+    cx /= 3; cy /= 3;
+
+    let maxR = 1;
+    for (const b of bodies) {
+      const dx = b.x - cx, dy = b.y - cy;
+      const r = Math.sqrt(dx*dx + dy*dy);
+      if (r > maxR) maxR = r;
+    }
+    // 也考虑尾迹范围
+    for (const b of bodies) {
+      for (const p of b.trail) {
+        const dx = p.x - cx, dy = p.y - cy;
+        const r = Math.sqrt(dx*dx + dy*dy);
+        if (r > maxR) maxR = r;
+      }
+    }
+    maxR = Math.max(maxR, 2.5);
+
+    const scale = Math.min(w, h) * 0.42 / maxR;
+    const ox = w / 2 - cx * scale;
+    const oy = h / 2 - cy * scale;
+
+    const toScreen = (x, y) => [ox + x * scale, oy + y * scale];
+
+    // 绘制尾迹（渐变透明度）
+    for (let i = 0; i < 3; i++) {
+      const trail = bodies[i].trail;
+      if (trail.length < 2) continue;
+      const color = colors[i];
+      // 分段绘制，越旧越透明
+      for (let j = 1; j < trail.length; j++) {
+        const alpha = (j / trail.length) * 0.7;
+        const [x1, y1] = toScreen(trail[j-1].x, trail[j-1].y);
+        const [x2, y2] = toScreen(trail[j].x, trail[j].y);
+        ctx.strokeStyle = color + Math.floor(alpha * 255).toString(16).padStart(2, "0");
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    // 绘制天体（双层描边模拟发光，禁用 shadowBlur）
+    for (let i = 0; i < 3; i++) {
+      const [x, y] = toScreen(bodies[i].x, bodies[i].y);
+      const color = colors[i];
+      // 外层光晕
+      ctx.fillStyle = color + "20";
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // 中层
+      ctx.fillStyle = color + "50";
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      // 核心
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      // 高亮中心点
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawChart() {
+    const { w, h } = chartSize;
+    ctxChart.fillStyle = "#0a0f1c";
+    ctxChart.fillRect(0, 0, w, h);
+
+    const padL = 40, padR = 12, padT = 12, padB = 24;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // 网格
+    ctxChart.strokeStyle = "#131a2a";
+    ctxChart.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + (plotH / 4) * i;
+      ctxChart.beginPath();
+      ctxChart.moveTo(padL, y);
+      ctxChart.lineTo(padL + plotW, y);
+      ctxChart.stroke();
+    }
+    for (let i = 0; i <= 6; i++) {
+      const x = padL + (plotW / 6) * i;
+      ctxChart.beginPath();
+      ctxChart.moveTo(x, padT);
+      ctxChart.lineTo(x, padT + plotH);
+      ctxChart.stroke();
+    }
+
+    // 坐标轴
+    ctxChart.strokeStyle = "#2a3550";
+    ctxChart.lineWidth = 1.5;
+    ctxChart.beginPath();
+    ctxChart.moveTo(padL, padT);
+    ctxChart.lineTo(padL, padT + plotH);
+    ctxChart.lineTo(padL + plotW, padT + plotH);
+    ctxChart.stroke();
+
+    // Y 轴标签（对数刻度）
+    ctxChart.fillStyle = "#6b7a96";
+    ctxChart.font = "10px ui-sans-serif, system-ui";
+    ctxChart.textAlign = "right";
+    ctxChart.textBaseline = "middle";
+    const yMin = -12, yMax = 3;
+    for (let i = 0; i <= 5; i++) {
+      const val = yMin + (yMax - yMin) * (i / 5);
+      const y = padT + plotH - ((val - yMin) / (yMax - yMin)) * plotH;
+      const label = val >= 0 ? `10^${val.toFixed(0)}` : `10^${val.toFixed(0)}`;
+      ctxChart.fillText(label, padL - 4, y);
+    }
+
+    // X 轴标签
+    ctxChart.textAlign = "center";
+    ctxChart.textBaseline = "top";
+    const maxT = Math.max(10, state.t);
+    for (let i = 0; i <= 6; i++) {
+      const tVal = (maxT / 6) * i;
+      const x = padL + (plotW / 6) * i;
+      ctxChart.fillText(tVal.toFixed(1), x, padT + plotH + 4);
+    }
+
+    // 轴标题
+    ctxChart.fillStyle = "#6b7a96";
+    ctxChart.font = "10px ui-sans-serif, system-ui";
+    ctxChart.textAlign = "left";
+    ctxChart.textBaseline = "top";
+    ctxChart.fillText("ln|Δr|", padL + 4, padT + 2);
+    ctxChart.textAlign = "right";
+    ctxChart.fillText("t (s)", padL + plotW, padT + plotH + 14);
+
+    // 绘制偏差曲线
+    if (state.history.length > 1) {
+      ctxChart.strokeStyle = "#f0a040";
+      ctxChart.lineWidth = 2;
+      ctxChart.beginPath();
+      let started = false;
+      for (let i = 0; i < state.history.length; i++) {
+        const h = state.history[i];
+        if (!isFinite(h.lnDiv)) continue;
+        const x = padL + (h.t / maxT) * plotW;
+        const yVal = Math.max(yMin, Math.min(yMax, h.lnDiv));
+        const y = padT + plotH - ((yVal - yMin) / (yMax - yMin)) * plotH;
+        if (!started) { ctxChart.moveTo(x, y); started = true; }
+        else ctxChart.lineTo(x, y);
+      }
+      ctxChart.stroke();
+
+      // 当前点
+      const last = state.history[state.history.length - 1];
+      if (last && isFinite(last.lnDiv)) {
+        const x = padL + (last.t / maxT) * plotW;
+        const yVal = Math.max(yMin, Math.min(yMax, last.lnDiv));
+        const y = padT + plotH - ((yVal - yMin) / (yMax - yMin)) * plotH;
+        ctxChart.fillStyle = "#f0a040";
+        ctxChart.beginPath();
+        ctxChart.arc(x, y, 3, 0, Math.PI * 2);
+        ctxChart.fill();
+        ctxChart.fillStyle = "#ffffff";
+        ctxChart.beginPath();
+        ctxChart.arc(x, y, 1, 0, Math.PI * 2);
+        ctxChart.fill();
+      }
+    }
+
+    // 拟合直线（如果有）
+    if (state.lyapSlope !== null && state.history.length > 10) {
+      const slope = state.lyapSlope;
+      // 用初始偏差作为截距参考
+      const firstValid = state.history.find(h => isFinite(h.lnDiv));
+      if (firstValid) {
+        const intercept = firstValid.lnDiv - slope * firstValid.t;
+        const t1 = 0;
+        const t2 = maxT;
+        const y1 = intercept + slope * t1;
+        const y2 = intercept + slope * t2;
+        const sy1 = padT + plotH - ((Math.max(yMin, Math.min(yMax, y1)) - yMin) / (yMax - yMin)) * plotH;
+        const sy2 = padT + plotH - ((Math.max(yMin, Math.min(yMax, y2)) - yMin) / (yMax - yMin)) * plotH;
+        ctxChart.strokeStyle = "rgba(240, 160, 64, 0.35)";
+        ctxChart.lineWidth = 1.2;
+        ctxChart.setLineDash([4, 4]);
+        ctxChart.beginPath();
+        ctxChart.moveTo(padL + (t1 / maxT) * plotW, sy1);
+        ctxChart.lineTo(padL + (t2 / maxT) * plotW, sy2);
+        ctxChart.stroke();
+        ctxChart.setLineDash([]);
+      }
+    }
+  }
+
+  // ============ 李雅普诺夫斜率拟合 ============
+  function updateLyapunov() {
+    const valid = state.history.filter(h => isFinite(h.lnDiv) && h.lnDiv > -15);
+    if (valid.length < 20) {
+      state.lyapSlope = null;
+      return;
+    }
+    // 取中间 60% 的数据做线性回归，避免初始瞬态和饱和区
+    const start = Math.floor(valid.length * 0.15);
+    const end = Math.floor(valid.length * 0.75);
+    const seg = valid.slice(start, end);
+    if (seg.length < 10) {
+      state.lyapSlope = null;
+      return;
+    }
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const h of seg) {
+      sx += h.t;
+      sy += h.lnDiv;
+      sxx += h.t * h.t;
+      sxy += h.t * h.lnDiv;
+    }
+    const n = seg.length;
+    const denom = n * sxx - sx * sx;
+    if (Math.abs(denom) < 1e-12) {
+      state.lyapSlope = null;
+      return;
+    }
+    state.lyapSlope = (n * sxy - sx * sy) / denom;
+  }
+
+  // ============ 更新与渲染 ============
+  function update(dt) {
+    if (!state.running) return;
+    const stepDt = DT;
+    for (let s = 0; s < SUBSTEPS; s++) {
+      rk4StepClean(state.ref, stepDt);
+      rk4StepClean(state.pert, stepDt);
+      state.t += stepDt;
+    }
+    // 更新尾迹
+    for (let i = 0; i < 3; i++) {
+      state.ref[i].trail.push({ x: state.ref[i].x, y: state.ref[i].y });
+      state.pert[i].trail.push({ x: state.pert[i].x, y: state.pert[i].y });
+      if (state.ref[i].trail.length > TRAIL_LEN) state.ref[i].trail.shift();
+      if (state.pert[i].trail.length > TRAIL_LEN) state.pert[i].trail.shift();
+    }
+    // 计算偏差
+    const div = computeDivergence();
+    const lnDiv = div > 1e-15 ? Math.log(div) : -15;
+    state.history.push({ t: state.t, div, lnDiv });
+    if (state.history.length > CHART_LEN) state.history.shift();
+
+    // 更新李雅普诺夫斜率
+    if (state.history.length % 10 === 0) {
+      updateLyapunov();
+    }
+
+    // 更新阶段
+    if (div < 0.05) state.phase = "重合";
+    else if (div < 0.5) state.phase = "分离中";
+    else if (div < DIVERGENCE_THRESHOLD) state.phase = "显著发散";
+    else state.phase = "完全发散";
+  }
+
+  function render() {
+    drawScene(ctxRef, state.ref, COLORS_REF, sceneSize);
+    drawScene(ctxPert, state.pert, COLORS_PERT, sceneSize);
+    drawChart();
+
+    // 更新读数
+    const lastDiv = state.history.length > 0 ? state.history[state.history.length - 1].div : 0;
+    document.getElementById("divReadout").textContent = lastDiv.toFixed(4);
+    document.getElementById("lyapReadout").textContent = state.lyapSlope !== null ? state.lyapSlope.toFixed(3) : "—";
+    document.getElementById("timeReadout").textContent = state.t.toFixed(1) + " s";
+    
+    const phaseEl = document.getElementById("phaseReadout");
+    phaseEl.textContent = state.phase;
+    phaseEl.classList.toggle("diverged", state.phase === "完全发散");
+
+    document.getElementById("refInfo").textContent = `t=${state.t.toFixed(1)}s`;
+    document.getElementById("pertInfo").textContent = `偏移 ${state.offset.toFixed(4)}`;
+
+    document.getElementById("status").textContent = state.running ? "运行中" : "已暂停";
+
+    // 更新洞察文本
+    const insightEl = document.getElementById("insight");
+    if (state.phase === "重合") {
+      insightEl.innerHTML = "两系统初始条件几乎相同，轨迹暂时<strong>重合</strong>。微小的偏移正在被系统放大。";
+    } else if (state.phase === "分离中") {
+      insightEl.innerHTML = "微扰开始放大，两系统轨迹出现可见<strong>分离</strong>。偏差随时间指数增长。";
+    } else if (state.phase === "显著发散") {
+      insightEl.innerHTML = "偏差已显著放大，两系统走向<strong>完全不同的命运</strong>。混沌特性显现。";
+    } else {
+      insightEl.innerHTML = "两系统轨迹<strong>完全发散</strong>。初始的微小差异导致了宏观上的巨大分歧。";
+    }
+  }
+
+  // ============ 生命周期 ============
+  function init() {
+    handleResize();
+    bindControls();
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    document.getElementById("startBtn").setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    document.getElementById("startBtn").setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    state.running = false;
+    state.t = 0;
+    state.history = [];
+    state.lyapSlope = null;
+    state.phase = "重合";
+    state.ref = makeInitial(state.velScale);
+    state.pert = makeInitial(state.velScale);
+    applyOffset(state.pert, state.offset);
+    state.running = true;
+    document.getElementById("startBtn").setAttribute("aria-pressed", "true");
+    render();
+  }
+
+  function setParameters(values) {
+    if (values.offset !== undefined) {
+      state.offset = Math.max(0.0001, Math.min(0.05, Number(values.offset) || 0.001));
+      document.getElementById("offsetOutput").textContent = state.offset.toFixed(4);
+      document.getElementById("offsetInput").value = String(state.offset);
+    }
+    if (values.mass !== undefined) {
+      state.mass = Math.max(0.5, Math.min(3, Number(values.mass) || 1.0));
+      document.getElementById("massOutput").textContent = state.mass.toFixed(1);
+      document.getElementById("massInput").value = String(state.mass);
+    }
+    if (values.velScale !== undefined) {
+      state.velScale = Math.max(0.5, Math.min(1.5, Number(values.velScale) || 1.0));
+      document.getElementById("velOutput").textContent = state.velScale.toFixed(2);
+      document.getElementById("velInput").value = String(state.velScale);
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      offset: state.offset,
+      mass: state.mass,
+      velScale: state.velScale,
+      divergence: state.history.length > 0 ? state.history[state.history.length - 1].div : 0,
+      lyapSlope: state.lyapSlope,
+      phase: state.phase
+    };
+  }
+
+  function getReadouts() {
+    return getState();
+  }
+
+  function runModelChecks() {
+    // 检查1: 能量守恒（软化引力下应近似守恒）
+    function totalEnergy(bodies) {
+      let ke = 0, pe = 0;
+      for (const b of bodies) {
+        ke += 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy);
+      }
+      for (let i = 0; i < 3; i++) {
+        for (let j = i + 1; j < 3; j++) {
+          const dx = bodies[j].x - bodies[i].x;
+          const dy = bodies[j].y - bodies[i].y;
+          const r = Math.sqrt(dx * dx + dy * dy + SOFTENING_SQ);
+          pe -= G * bodies[i].mass * bodies[j].mass / r;
+        }
+      }
+      return ke + pe;
+    }
+
+    // 运行 2 秒模拟检查能量漂移
+    const testBodies = makeInitial(1.0);
+    const e0 = totalEnergy(testBodies);
+    for (let i = 0; i < 500; i++) {
+      rk4StepClean(testBodies, 0.004);
+    }
+    const e1 = totalEnergy(testBodies);
+    const energyDrift = Math.abs((e1 - e0) / e0);
+
+    // 检查2: 偏差单调增长（在初始阶段）
+    const ref = makeInitial(1.0);
+    const pert = makeInitial(1.0);
+    applyOffset(pert, 0.001);
+    let divEarly = 0, divLate = 0;
+    for (let i = 0; i < 250; i++) {
+      rk4StepClean(ref, 0.004);
+      rk4StepClean(pert, 0.004);
+    }
+    // 早期偏差
+    let s = 0;
+    for (let k = 0; k < 3; k++) {
+      const dx = pert[k].x - ref[k].x, dy = pert[k].y - ref[k].y;
+      s += dx * dx + dy * dy;
+    }
+    divEarly = Math.sqrt(s / 3);
+    // 继续运行
+    for (let i = 0; i < 250; i++) {
+      rk4StepClean(ref, 0.004);
+      rk4StepClean(pert, 0.004);
+    }
+    s = 0;
+    for (let k = 0; k < 3; k++) {
+      const dx = pert[k].x - ref[k].x, dy = pert[k].y - ref[k].y;
+      s += dx * dx + dy * dy;
+    }
+    divLate = Math.sqrt(s / 3);
+
+    // 检查3: 有限性
+    const allFinite = state.ref.every(b => isFinite(b.x) && isFinite(b.y) && isFinite(b.vx) && isFinite(b.vy)) &&
+                      state.pert.every(b => isFinite(b.x) && isFinite(b.y) && isFinite(b.vx) && isFinite(b.vy));
+
+    // 检查4: 质心守恒（初始质心在原点，应保持）
+    const cx = (state.ref[0].x + state.ref[1].x + state.ref[2].x) / 3;
+    const cy = (state.ref[0].y + state.ref[1].y + state.ref[2].y) / 3;
+    const comDrift = Math.sqrt(cx * cx + cy * cy);
+
+    return [
+      { name: "能量守恒（500步漂移）", pass: energyDrift < 0.05, expected: "< 5%", actual: (energyDrift * 100).toFixed(2) + "%", tolerance: "5%" },
+      { name: "偏差单调增长", pass: divLate > divEarly, expected: "divLate > divEarly", actual: `${divLate.toFixed(4)} > ${divEarly.toFixed(4)}`, tolerance: "strict" },
+      { name: "状态有限性", pass: allFinite, expected: "all finite", actual: allFinite ? "finite" : "non-finite", tolerance: "strict" },
+      { name: "质心守恒", pass: comDrift < 0.5, expected: "< 0.5", actual: comDrift.toFixed(3), tolerance: "0.5" }
+    ];
+  }
+
+  function bindControls() {
+    document.getElementById("startBtn").addEventListener("click", start);
+    document.getElementById("pauseBtn").addEventListener("click", pause);
+    document.getElementById("resetBtn").addEventListener("click", reset);
+    document.getElementById("offsetInput").addEventListener("input", (e) => {
+      setParameters({ offset: e.target.value });
+      reset();
+    });
+    document.getElementById("massInput").addEventListener("input", (e) => {
+      setParameters({ mass: e.target.value });
+      reset();
+    });
+    document.getElementById("velInput").addEventListener("input", (e) => {
+      setParameters({ velScale: e.target.value });
+      reset();
+    });
+    window.addEventListener("resize", handleResize);
+  }
+
+  function frame(ts) {
+    if (state.lastTs === null) state.lastTs = ts;
+    const dt = Math.min(0.05, (ts - state.lastTs) / 1000);
+    state.lastTs = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

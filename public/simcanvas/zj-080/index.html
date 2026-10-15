@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snowflake Growth Simulator</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050912;
+  --sim-surface: #0c1424;
+  --sim-surface-soft: #131d33;
+  --sim-text: #e8f0fc;
+  --sim-muted: #8195b3;
+  --sim-border: #1e2c47;
+  --sim-grid: #16223a;
+  --sim-accent: #6ec5ff;
+  --sim-accent-deep: #2f8fd6;
+  --sim-accent-soft: rgba(110, 197, 255, 0.14);
+  --sim-positive: #6ec5ff;
+  --sim-warning: #f0b860;
+  --sim-danger: #ff6b6b;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-ice: #b8e0ff;
+  --sim-ice-deep: #5a9fd8;
+  --sim-ice-pale: #e8f4ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 18% 8%, rgba(110, 197, 255, 0.10), transparent 32%),
+    radial-gradient(circle at 86% 92%, rgba(47, 143, 214, 0.08), transparent 30%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(110, 197, 255, 0.5); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 50px; }
+.header h1 { margin: 0 0 4px; font-size: clamp(1.5rem, 2.2vw, 1.95rem); letter-spacing: -0.035em; line-height: 1; font-weight: 800; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+.status { border: 1px solid rgba(110, 197, 255, 0.28); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 700; white-space: nowrap; font-size: 0.82rem; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 10px; }
+.panel { min-width: 0; background: var(--sim-surface); border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 0; padding: 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; position: relative; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; padding: 0 4px; }
+.panel-head h2 { margin: 0; font-size: 0.98rem; font-weight: 700; }
+.panel-head span { color: var(--sim-muted); font-size: 0.74rem; }
+#scene { width: 100%; height: 100%; min-height: 320px; display: block; border-radius: 18px; background: radial-gradient(ellipse at center, #0a1428 0%, #050912 70%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 10px; }
+.readouts { padding: 16px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 13px; border: 1px solid rgba(110, 197, 255, 0.14); border-radius: 14px; background: linear-gradient(145deg, #0f1a30, #131d33); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-accent); }
+.model-note { display: grid; align-content: start; gap: 12px; padding: 16px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.84rem; }
+.insight { padding: 13px 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: rgba(240, 184, 96, 0.08); color: var(--sim-warning) !important; font-weight: 650; font-size: 0.86rem; line-height: 1.45; }
+.controls { padding: 12px 16px; display: grid; grid-template-columns: auto minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr) minmax(120px, 0.9fr); gap: 18px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 7px; flex-wrap: wrap; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 700; font-size: 0.82rem; transition: transform .14s ease, background .14s ease, border-color .14s ease; }
+button:hover { border-color: var(--sim-accent-deep); background: #182542; }
+button:active { transform: scale(.96); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 6px 16px rgba(47, 143, 214, 0.3); }
+button.primary:hover { background: linear-gradient(135deg, #3a9ce6, #7dd0ff); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.4); }
+.control { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.control label { display: flex; justify-content: space-between; gap: 8px; font-size: 0.76rem; font-weight: 700; color: var(--sim-muted); }
+.control output { color: var(--sim-accent); font-variant-numeric: tabular-nums; font-weight: 700; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); height: 4px; }
+.gauge { position: absolute; top: 16px; right: 18px; display: flex; gap: 8px; z-index: 5; }
+.gauge-item { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; background: rgba(12, 20, 36, 0.7); border: 1px solid var(--sim-border); border-radius: 10px; backdrop-filter: blur(6px); }
+.gauge-item small { font-size: 0.62rem; color: var(--sim-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.gauge-item strong { font-size: 0.92rem; color: var(--sim-accent); font-variant-numeric: tabular-nums; }
+@media (max-width: 980px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .actions { grid-column: 1 / -1; justify-content: center; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 1 / 1; }
+  .gauge { top: 10px; right: 12px; }
+}
+@media (max-width: 560px) {
+  .controls { grid-template-columns: 1fr; }
+  .gauge { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="rule-based">
+  <header class="header" data-region="header">
+    <div>
+      <h1>Snowflake Growth Simulator</h1>
+      <p>Watch hexagonal symmetry emerge — different conditions grow different crystals.</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">Ready</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">Macro snowflake</h2><span>hexagonal dendritic growth · one of countless possible forms</span></div>
+      <div class="gauge">
+        <div class="gauge-item"><small>Branches</small><strong id="branchCount">0</strong></div>
+        <div class="gauge-item"><small>Radius</small><strong id="radiusReadout">0</strong></div>
+      </div>
+      <svg id="scene" viewBox="0 0 800 800" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">A snowflake growing from a central core with six-fold symmetry, branching outward.</desc>
+        <defs>
+          <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(110,197,255,0.10)"/>
+            <stop offset="60%" stop-color="rgba(47,143,214,0.03)"/>
+            <stop offset="100%" stop-color="rgba(5,9,18,0)"/>
+          </radialGradient>
+          <linearGradient id="iceGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#e8f4ff" stop-opacity="0.95"/>
+            <stop offset="50%" stop-color="#b8e0ff" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#5a9fd8" stop-opacity="0.75"/>
+          </linearGradient>
+          <filter id="iceGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <circle cx="400" cy="400" r="380" fill="url(#bgGlow)"/>
+        <g id="haloLayer"></g>
+        <g id="snowflake" filter="url(#iceGlow)"></g>
+        <circle id="core" cx="400" cy="400" r="5" fill="#e8f4ff" filter="url(#softGlow)"/>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="Live values">
+        <div class="readout-grid">
+          <div class="metric"><small>Branches</small><strong id="branchReadout">0</strong></div>
+          <div class="metric"><small>Max radius</small><strong id="radiusValueReadout">0</strong></div>
+          <div class="metric"><small>Temperature</small><strong id="tempReadout">−15°C</strong></div>
+          <div class="metric"><small>Humidity</small><strong id="humidReadout">100%</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>Model</h2></div>
+        <p id="insight" class="insight">Press Auto Grow. Six arms emerge at 60° intervals; each tip can sprout two side branches, recursively.</p>
+        <p>Teaching view: branch probability rises with humidity and peaks near −15°C. Growth is deterministic per seed — the same seed always yields the same crystal.</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="Simulation controls">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">Auto Grow</button>
+      <button id="pauseBtn" type="button">Pause</button>
+      <button id="speedBtn" type="button" aria-pressed="false">2× Speed</button>
+      <button id="randomBtn" type="button">Randomize</button>
+      <button id="resetBtn" type="button">Regrow</button>
+    </div>
+    <div class="control">
+      <label for="tempInput">Temperature <output id="tempOutput">−15°C</output></label>
+      <input id="tempInput" type="range" min="-30" max="-2" step="1" value="-15">
+    </div>
+    <div class="control">
+      <label for="humidInput">Humidity <output id="humidOutput">100%</output></label>
+      <input id="humidInput" type="range" min="30" max="130" step="5" value="100">
+    </div>
+    <div class="control">
+      <label for="growthInput">Growth speed <output id="growthOutput">1.0×</output></label>
+      <input id="growthInput" type="range" min="0.3" max="3" step="0.1" value="1">
+    </div>
+    <div class="control">
+      <label for="branchInput">Branch probability <output id="branchOutput">0.70</output></label>
+      <input id="branchInput" type="range" min="0" max="1" step="0.05" value="0.7">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const CX = 400, CY = 400;
+  const MAX_DEPTH = 6;
+  const MAX_BRANCHES = 7000;
+
+  const parameterSchema = [
+    { key: "temperature", label: "Temperature", type: "slider", min: -30, max: -2, step: 1, default: -15, unit: "°C" },
+    { key: "humidity", label: "Humidity", type: "slider", min: 30, max: 130, step: 5, default: 100, unit: "%" },
+    { key: "growthSpeed", label: "Growth speed", type: "slider", min: 0.3, max: 3, step: 0.1, default: 1, unit: "×" },
+    { key: "branchProb", label: "Branch probability", type: "slider", min: 0, max: 1, step: 0.05, default: 0.7, unit: "" }
+  ];
+
+  const state = {
+    running: false,
+    speedMultiplier: 1,
+    branches: [],
+    nextBranchIndex: 0,
+    growthAccumulator: 0,
+    maxRadius: 0,
+    branchCount: 0,
+    temperature: -15,
+    humidity: 100,
+    growthSpeed: 1,
+    branchProb: 0.7,
+    rngSeed: 12345,
+    lastTimestamp: null
+  };
+
+  const elements = {
+    status: document.querySelector("#status"),
+    snowflake: document.querySelector("#snowflake"),
+    haloLayer: document.querySelector("#haloLayer"),
+    core: document.querySelector("#core"),
+    branchCount: document.querySelector("#branchCount"),
+    radiusReadout: document.querySelector("#radiusReadout"),
+    branchReadout: document.querySelector("#branchReadout"),
+    radiusValueReadout: document.querySelector("#radiusValueReadout"),
+    tempReadout: document.querySelector("#tempReadout"),
+    humidReadout: document.querySelector("#humidReadout"),
+    insight: document.querySelector("#insight"),
+    tempInput: document.querySelector("#tempInput"), tempOutput: document.querySelector("#tempOutput"),
+    humidInput: document.querySelector("#humidInput"), humidOutput: document.querySelector("#humidOutput"),
+    growthInput: document.querySelector("#growthInput"), growthOutput: document.querySelector("#growthOutput"),
+    branchInput: document.querySelector("#branchInput"), branchOutput: document.querySelector("#branchOutput"),
+    startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"),
+    speedBtn: document.querySelector("#speedBtn"), randomBtn: document.querySelector("#randomBtn"),
+    resetBtn: document.querySelector("#resetBtn")
+  };
+
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let rng = mulberry32(state.rngSeed);
+
+  function computeGrowthParams() {
+    const temp = state.temperature;
+    const humid = state.humidity;
+    const bp = state.branchProb;
+    const tempFactor = clamp(1 - Math.abs(temp + 15) / 25, 0.35, 1);
+    const humidFactor = clamp(humid / 100, 0.3, 1.3);
+    const branchProb = clamp(bp * tempFactor * Math.min(humidFactor, 1.15), 0, 0.97);
+    const branchLen = clamp(28 * (0.5 + humidFactor * 0.55) * (0.7 + (1 - tempFactor) * 0.4), 12, 55);
+    const trunkWidth = clamp(2.8 * humidFactor * (0.6 + tempFactor * 0.5), 1.2, 5.5);
+    const widthDecay = 0.62;
+    return { branchProb, branchLen, trunkWidth, widthDecay, tempFactor, humidFactor };
+  }
+
+  function generateBranches() {
+    state.branches = [];
+    state.nextBranchIndex = 0;
+    state.growthAccumulator = 0;
+    state.maxRadius = 0;
+    state.branchCount = 0;
+    rng = mulberry32(state.rngSeed);
+    const p = computeGrowthParams();
+    for (let arm = 0; arm < 6; arm++) {
+      const angle = arm * 60;
+      const rad = angle * Math.PI / 180;
+      const dx = Math.cos(rad), dy = Math.sin(rad);
+      state.branches.push({
+        x1: CX, y1: CY, x2: CX + dx * p.branchLen, y2: CY + dy * p.branchLen,
+        angle, depth: 0, grown: false, parentWidth: p.trunkWidth
+      });
+    }
+  }
+
+  function growOneBranch() {
+    if (state.nextBranchIndex >= state.branches.length) return false;
+    const p = computeGrowthParams();
+    const parent = state.branches[state.nextBranchIndex];
+    parent.grown = true;
+    state.branchCount++;
+
+    const dist = Math.hypot(parent.x2 - CX, parent.y2 - CY);
+    if (dist > state.maxRadius) state.maxRadius = dist;
+
+    if (parent.depth >= MAX_DEPTH) { state.nextBranchIndex++; return true; }
+
+    const shouldBranch = rng() < p.branchProb;
+    if (!shouldBranch) { state.nextBranchIndex++; return true; }
+
+    const childWidth = parent.parentWidth * p.widthDecay;
+    const childLen = p.branchLen * Math.pow(0.72, parent.depth + 1);
+    const childDepth = parent.depth + 1;
+    const branchAngle = 60;
+    const rad = parent.angle * Math.PI / 180;
+    const pdx = Math.cos(rad), pdy = Math.sin(rad);
+
+    for (const side of [-1, 1]) {
+      if (state.branches.length >= MAX_BRANCHES) break;
+      const childRad = (parent.angle + side * branchAngle) * Math.PI / 180;
+      const cdx = Math.cos(childRad), cdy = Math.sin(childRad);
+      const lenJitter = 0.82 + rng() * 0.36;
+      const childLenActual = childLen * lenJitter;
+      state.branches.push({
+        x1: parent.x2, y1: parent.y2,
+        x2: parent.x2 + cdx * childLenActual,
+        y2: parent.y2 + cdy * childLenActual,
+        angle: parent.angle + side * branchAngle,
+        depth: childDepth, grown: false, parentWidth: childWidth
+      });
+    }
+    state.nextBranchIndex++;
+    return true;
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    const p = computeGrowthParams();
+    const baseRate = 14 * state.growthSpeed * p.humidFactor;
+    state.growthAccumulator += boundedDt * baseRate * state.speedMultiplier;
+    let safety = 0;
+    while (state.growthAccumulator >= 1 && state.nextBranchIndex < state.branches.length && safety < 400) {
+      growOneBranch();
+      state.growthAccumulator -= 1;
+      safety++;
+    }
+    if (state.nextBranchIndex >= state.branches.length) {
+      state.running = false;
+      elements.status.textContent = "Complete";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+  }
+
+  function render() {
+    const visibleCount = state.nextBranchIndex;
+    if (visibleCount === 0) {
+      elements.snowflake.innerHTML = "";
+      elements.haloLayer.innerHTML = "";
+    } else {
+      let html = "";
+      for (let i = 0; i < visibleCount; i++) {
+        const b = state.branches[i];
+        const w = Math.max(0.5, b.parentWidth * Math.pow(0.62, b.depth));
+        const opacity = Math.max(0.45, 0.95 - b.depth * 0.08);
+        html += `<line x1="${b.x1.toFixed(1)}" y1="${b.y1.toFixed(1)}" x2="${b.x2.toFixed(1)}" y2="${b.y2.toFixed(1)}" stroke="url(#iceGrad)" stroke-width="${w.toFixed(2)}" stroke-linecap="round" opacity="${opacity.toFixed(2)}"/>`;
+      }
+      elements.snowflake.innerHTML = html;
+      const tipCount = Math.min(visibleCount, 80);
+      let haloHtml = "";
+      for (let i = visibleCount - tipCount; i < visibleCount; i++) {
+        if (i < 0) continue;
+        const b = state.branches[i];
+        if (b.depth >= 2) {
+          haloHtml += `<circle cx="${b.x2.toFixed(1)}" cy="${b.y2.toFixed(1)}" r="${(1.5 + b.depth * 0.3).toFixed(1)}" fill="#b8e0ff" opacity="0.5" filter="url(#softGlow)"/>`;
+        }
+      }
+      elements.haloLayer.innerHTML = haloHtml;
+    }
+    elements.core.setAttribute("r", state.nextBranchIndex > 0 ? "6" : "5");
+    elements.branchCount.textContent = state.branchCount;
+    elements.radiusReadout.textContent = state.maxRadius.toFixed(0);
+    elements.branchReadout.textContent = state.branchCount;
+    elements.radiusValueReadout.textContent = state.maxRadius.toFixed(0);
+    elements.tempReadout.textContent = `${state.temperature > 0 ? "" : "−"}${Math.abs(state.temperature)}°C`;
+    elements.humidReadout.textContent = `${state.humidity}%`;
+
+    const total = state.branches.length;
+    const progress = total > 0 ? state.nextBranchIndex / total : 0;
+    let insightText;
+    if (!state.running && state.nextBranchIndex === 0) {
+      insightText = "Press Auto Grow. Six arms emerge at 60° intervals; each tip can sprout two side branches, recursively.";
+    } else if (state.running && progress < 0.35) {
+      insightText = "Six primary arms extend from the core — hexagonal symmetry is established immediately.";
+    } else if (state.running && progress < 0.75) {
+      insightText = "Side branches sprout at 60° from each tip, recursively building the dendritic structure.";
+    } else if (state.running) {
+      insightText = "Growth nears completion — the crystal's final form is nearly resolved.";
+    } else {
+      insightText = `Complete: ${state.branchCount} branches formed under these conditions. Try Randomize for a new seed.`;
+    }
+    elements.insight.textContent = insightText;
+  }
+
+  function setParameters(values) {
+    const defs = parameterSchema;
+    state.temperature = clamp(finite(Number(values.temperature), defs[0].default), defs[0].min, defs[0].max);
+    state.humidity = clamp(finite(Number(values.humidity), defs[1].default), defs[1].min, defs[1].max);
+    state.growthSpeed = clamp(finite(Number(values.growthSpeed), defs[2].default), defs[2].min, defs[2].max);
+    state.branchProb = clamp(finite(Number(values.branchProb), defs[3].default), defs[3].min, defs[3].max);
+    elements.tempInput.value = String(state.temperature);
+    elements.humidInput.value = String(state.humidity);
+    elements.growthInput.value = String(state.growthSpeed);
+    elements.branchInput.value = String(state.branchProb);
+    elements.tempOutput.textContent = `${state.temperature > 0 ? "" : "−"}${Math.abs(state.temperature)}°C`;
+    elements.humidOutput.textContent = `${state.humidity}%`;
+    elements.growthOutput.textContent = `${state.growthSpeed.toFixed(1)}×`;
+    elements.branchOutput.textContent = state.branchProb.toFixed(2);
+  }
+
+  function start() {
+    if (state.nextBranchIndex >= state.branches.length) regenerate();
+    state.running = true;
+    elements.status.textContent = "Growing";
+    elements.startBtn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    elements.status.textContent = "Paused";
+    elements.startBtn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    pause();
+    generateBranches();
+    render();
+    elements.status.textContent = "Ready";
+  }
+  function regenerate() {
+    state.rngSeed = Math.floor(Math.random() * 1e9);
+    generateBranches();
+    render();
+  }
+  function toggleSpeed() {
+    state.speedMultiplier = state.speedMultiplier === 1 ? 2 : (state.speedMultiplier === 2 ? 4 : 1);
+    elements.speedBtn.textContent = `${state.speedMultiplier}× Speed`;
+    elements.speedBtn.setAttribute("aria-pressed", state.speedMultiplier > 1 ? "true" : "false");
+  }
+  function randomizeParams() {
+    const t = -Math.floor(2 + Math.random() * 28);
+    const h = 30 + Math.floor(Math.random() * 21) * 5;
+    const g = 0.3 + Math.random() * 2.7;
+    const b = Math.random();
+    setParameters({ temperature: t, humidity: h, growthSpeed: g, branchProb: b });
+    regenerate();
+    start();
+  }
+
+  function getState() {
+    return {
+      running: state.running, speedMultiplier: state.speedMultiplier,
+      branchCount: state.branchCount, maxRadius: state.maxRadius,
+      nextBranchIndex: state.nextBranchIndex, totalGenerated: state.branches.length,
+      temperature: state.temperature, humidity: state.humidity,
+      growthSpeed: state.growthSpeed, branchProb: state.branchProb,
+      rngSeed: state.rngSeed
+    };
+  }
+  function getReadouts() {
+    return {
+      branches: state.branchCount,
+      maxRadius: state.maxRadius,
+      growthProgress: state.branches.length > 0 ? state.nextBranchIndex / state.branches.length : 0,
+      temperature: state.temperature, humidity: state.humidity
+    };
+  }
+
+  function runModelChecks() {
+    const savedSeed = state.rngSeed;
+    const savedParams = { t: state.temperature, h: state.humidity, g: state.growthSpeed, b: state.branchProb };
+    const results = [];
+
+    // 1. Six-fold symmetry: all 6 arms present at depth 0
+    state.rngSeed = 42;
+    setParameters({ temperature: -15, humidity: 100, growthSpeed: 1, branchProb: 0.7 });
+    generateBranches();
+    const armAngles = state.branches.slice(0, 6).map(b => b.angle);
+    const anglesCorrect = armAngles.every((a, i) => Math.abs(a - i * 60) < 0.01);
+    results.push({ name: "six-fold symmetry (6 arms at 60°)", pass: anglesCorrect, expected: "0,60,120,180,240,300", actual: armAngles.join(","), tolerance: "strict" });
+
+    // 2. Determinism: same seed → same structure
+    state.rngSeed = 777;
+    generateBranches();
+    while (state.nextBranchIndex < state.branches.length) growOneBranch();
+    const structA = state.branches.map(b => `${b.x1.toFixed(1)},${b.y1.toFixed(1)},${b.x2.toFixed(1)},${b.y2.toFixed(1)}`).join("|");
+    const countA = state.branches.length;
+    state.rngSeed = 777;
+    generateBranches();
+    while (state.nextBranchIndex < state.branches.length) growOneBranch();
+    const structB = state.branches.map(b => `${b.x1.toFixed(1)},${b.y1.toFixed(1)},${b.x2.toFixed(1)},${b.y2.toFixed(1)}`).join("|");
+    const countB = state.branches.length;
+    results.push({ name: "determinism (same seed → same structure)", pass: structA === structB && countA === countB, expected: `count=${countA}`, actual: `count=${countB}, match=${structA === structB}`, tolerance: "strict" });
+
+    // 3. Branch probability monotonicity: higher prob → more branches
+    const counts = [];
+    for (const bp of [0.1, 0.4, 0.7, 0.95]) {
+      state.rngSeed = 100;
+      setParameters({ temperature: -15, humidity: 100, growthSpeed: 1, branchProb: bp });
+      generateBranches();
+      while (state.nextBranchIndex < state.branches.length) growOneBranch();
+      counts.push(state.branches.length);
+    }
+    const monotonic = counts[0] <= counts[1] && counts[1] <= counts[2] && counts[2] <= counts[3];
+    results.push({ name: "branch probability monotonicity", pass: monotonic, expected: "increasing branch count", actual: `bp=[0.1,0.4,0.7,0.95] → counts=${counts.join(",")}`, tolerance: "strict" });
+
+    // 4. Humidity monotonicity: higher humidity → longer branches
+    state.rngSeed = 200;
+    setParameters({ temperature: -15, humidity: 40, growthSpeed: 1, branchProb: 0.7 });
+    generateBranches();
+    const lowHumidLen = Math.hypot(state.branches[0].x2 - state.branches[0].x1, state.branches[0].y2 - state.branches[0].y1);
+    state.rngSeed = 200;
+    setParameters({ temperature: -15, humidity: 120, growthSpeed: 1, branchProb: 0.7 });
+    generateBranches();
+    const highHumidLen = Math.hypot(state.branches[0].x2 - state.branches[0].x1, state.branches[0].y2 - state.branches[0].y1);
+    results.push({ name: "humidity → branch length", pass: highHumidLen > lowHumidLen, expected: "high humidity > low humidity length", actual: `${highHumidLen.toFixed(1)} > ${lowHumidLen.toFixed(1)}`, tolerance: "strict" });
+
+    // 5. Depth bound: no branch exceeds MAX_DEPTH
+    state.rngSeed = 300;
+    setParameters({ temperature: -15, humidity: 100, growthSpeed: 1, branchProb: 0.95 });
+    generateBranches();
+    while (state.nextBranchIndex < state.branches.length) growOneBranch();
+    const maxDepthFound = Math.max(...state.branches.map(b => b.depth));
+    results.push({ name: "depth bound (≤ MAX_DEPTH)", pass: maxDepthFound <= MAX_DEPTH, expected: `≤ ${MAX_DEPTH}`, actual: maxDepthFound, tolerance: "strict" });
+
+    // 6. Branch count bound
+    results.push({ name: "branch count bound", pass: state.branches.length <= MAX_BRANCHES, expected: `≤ ${MAX_BRANCHES}`, actual: state.branches.length, tolerance: "strict" });
+
+    // 7. All branches within scene bounds
+    let inBounds = true;
+    for (const b of state.branches) {
+      if (b.x1 < 50 || b.x1 > 750 || b.y1 < 50 || b.y1 > 750 || b.x2 < 50 || b.x2 > 750 || b.y2 < 50 || b.y2 > 750) {
+        if (Math.hypot(b.x2 - CX, b.y2 - CY) > 370) { inBounds = false; break; }
+      }
+    }
+    results.push({ name: "branches within scene bounds", pass: inBounds, expected: "all within radius 370", actual: inBounds ? "in bounds" : "out of bounds", tolerance: "strict" });
+
+    // 8. Growth speed affects rate
+    const savedRunning = state.running;
+    state.rngSeed = 400;
+    setParameters({ temperature: -15, humidity: 100, growthSpeed: 1, branchProb: 0.7 });
+    generateBranches();
+    const before = state.nextBranchIndex;
+    state.running = true;
+    update(0.1);
+    const grown1 = state.nextBranchIndex - before;
+    state.rngSeed = 400;
+    setParameters({ temperature: -15, humidity: 100, growthSpeed: 2, branchProb: 0.7 });
+    generateBranches();
+    state.running = true;
+    state.growthAccumulator = 0;
+    const before2 = state.nextBranchIndex;
+    update(0.1);
+    const grown2 = state.nextBranchIndex - before2;
+    state.running = savedRunning;
+    results.push({ name: "growth speed affects rate", pass: grown2 >= grown1, expected: "2× speed grows ≥ 1× speed", actual: `${grown2} ≥ ${grown1}`, tolerance: "strict" });
+
+    // Restore
+    setParameters({ temperature: savedParams.t, humidity: savedParams.h, growthSpeed: savedParams.g, branchProb: savedParams.b });
+    state.rngSeed = savedSeed;
+    generateBranches();
+    render();
+
+    return results;
+  }
+
+  function bindControls() {
+    elements.startBtn.addEventListener("click", start);
+    elements.pauseBtn.addEventListener("click", pause);
+    elements.resetBtn.addEventListener("click", reset);
+    elements.speedBtn.addEventListener("click", toggleSpeed);
+    elements.randomBtn.addEventListener("click", randomizeParams);
+    elements.tempInput.addEventListener("input", () => { setParameters({ temperature: Number(elements.tempInput.value), humidity: state.humidity, growthSpeed: state.growthSpeed, branchProb: state.branchProb }); });
+    elements.humidInput.addEventListener("input", () => { setParameters({ temperature: state.temperature, humidity: Number(elements.humidInput.value), growthSpeed: state.growthSpeed, branchProb: state.branchProb }); });
+    elements.growthInput.addEventListener("input", () => { setParameters({ temperature: state.temperature, humidity: state.humidity, growthSpeed: Number(elements.growthInput.value), branchProb: state.branchProb }); });
+    elements.branchInput.addEventListener("input", () => { setParameters({ temperature: state.temperature, humidity: state.humidity, growthSpeed: state.growthSpeed, branchProb: Number(elements.branchInput.value) }); });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function init() {
+    bindControls();
+    setParameters({ temperature: -15, humidity: 100, growthSpeed: 1, branchProb: 0.7 });
+    generateBranches();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

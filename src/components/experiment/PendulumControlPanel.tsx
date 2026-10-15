@@ -61,22 +61,6 @@ export function PendulumControlPanel({
     setTotalTime(newTime);
   };
 
-  // Input validation handlers with clamping
-  const handleLengthChange = (value: number[]) => {
-    const clampedValue = Math.max(0.5, Math.min(10, value[0]));
-    onLengthChange(clampedValue);
-  };
-
-  const handleMassChange = (value: number[]) => {
-    const clampedValue = Math.max(0.1, Math.min(10, value[0]));
-    onMassChange(clampedValue);
-  };
-
-  const handleAngleChange = (value: number[]) => {
-    const clampedValue = Math.max(5, Math.min(60, value[0]));
-    onAngleChange(clampedValue);
-  };
-
   return (
     <div className="space-y-4">
       {/* Section 1: Parameter Controls */}

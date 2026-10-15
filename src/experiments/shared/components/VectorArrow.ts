@@ -18,7 +18,6 @@ export function createVectorArrow(options: VectorArrowOptions = {}): THREE.Arrow
     color = 0x34d399,
     headLength = 0.18,
     headWidth = 0.1,
-    shaftWidth = 0.06,
     initialLength = 1,
   } = options;
 

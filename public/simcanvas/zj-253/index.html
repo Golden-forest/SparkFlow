@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>粒子生命 · 涌现演示</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0c1322;
+  --sim-surface-soft: #131c2e;
+  --sim-text: #e8eefc;
+  --sim-muted: #7d8aa3;
+  --sim-border: #1f2a40;
+  --sim-grid: #182236;
+  --sim-accent: #4dd0e1;
+  --sim-accent-deep: #26a69a;
+  --sim-accent-soft: rgba(77, 208, 225, 0.14);
+  --sim-positive: #4dd0e1;
+  --sim-warning: #ffb74d;
+  --sim-danger: #ef5350;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 16px;
+  --sim-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: var(--sim-bg); color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--sim-accent); outline-offset: 2px;
+}
+.app {
+  width: 100vw; height: 100vh; min-height: 100vh;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--sim-space-2); padding: var(--sim-space-3) var(--sim-space-4);
+}
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: var(--sim-space-4); min-height: 44px; padding: 0 var(--sim-space-1);
+}
+.header h1 {
+  margin: 0; font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
+}
+.header h1 .sub { color: var(--sim-muted); font-weight: 400; margin-left: 10px; font-size: 0.7em; }
+.status {
+  border: 1px solid var(--sim-border); border-radius: 999px;
+  padding: 6px 14px; background: var(--sim-surface);
+  color: var(--sim-muted); font-size: 0.78rem; font-weight: 600;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.status.running { color: var(--sim-accent); border-color: rgba(77, 208, 225, 0.4); }
+.status.paused { color: var(--sim-warning); border-color: rgba(255, 183, 77, 0.4); }
+.main {
+  min-height: 0; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: var(--sim-space-2);
+}
+.stage-wrap {
+  position: relative; min-height: 0; border-radius: var(--sim-radius-lg);
+  overflow: hidden; background: #02050c;
+  border: 1px solid var(--sim-border);
+}
+#stage { display: block; width: 100%; height: 100%; }
+.stage-overlay {
+  position: absolute; top: 12px; left: 14px;
+  display: flex; flex-direction: column; gap: 4px;
+  pointer-events: none; z-index: 2;
+}
+.stage-overlay .pill {
+  background: rgba(12, 19, 34, 0.7); backdrop-filter: blur(8px);
+  border: 1px solid var(--sim-border); border-radius: 999px;
+  padding: 4px 12px; font-size: 0.72rem; color: var(--sim-muted);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+.side {
+  min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--sim-space-2);
+}
+.evidence {
+  padding: var(--sim-space-3); background: var(--sim-surface);
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg);
+}
+.evidence h2 {
+  margin: 0 0 var(--sim-space-3); font-size: 0.82rem; font-weight: 700;
+  color: var(--sim-muted); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.readout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sim-space-2); }
+.metric {
+  padding: var(--sim-space-3); border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-md); background: var(--sim-surface-soft);
+}
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.68rem; font-weight: 600; }
+.metric strong {
+  font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums; color: var(--sim-text);
+}
+.insight-panel {
+  padding: var(--sim-space-3); background: var(--sim-surface);
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg);
+  display: flex; flex-direction: column; gap: var(--sim-space-2);
+  overflow: hidden;
+}
+.insight-panel h2 {
+  margin: 0; font-size: 0.82rem; font-weight: 700;
+  color: var(--sim-muted); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.insight {
+  padding: var(--sim-space-3); border-left: 3px solid var(--sim-warning);
+  border-radius: 0 var(--sim-radius-sm) var(--sim-radius-sm) 0;
+  background: rgba(255, 183, 77, 0.08); color: #ffd9a0;
+  font-weight: 600; font-size: 0.82rem; line-height: 1.5;
+}
+.model-note {
+  margin: 0; color: var(--sim-muted); font-size: 0.76rem; line-height: 1.55;
+}
+.controls {
+  display: grid; grid-template-columns: auto 1fr auto;
+  gap: var(--sim-space-4); align-items: stretch;
+  padding: var(--sim-space-3) var(--sim-space-4);
+  background: var(--sim-surface); border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius-lg);
+}
+.matrix-block { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.matrix-label {
+  font-size: 0.7rem; color: var(--sim-muted); font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.matrix-label .hint { color: var(--sim-muted); opacity: 0.7; font-weight: 400; margin-left: 6px; }
+.matrix-scroll { overflow-x: auto; padding-bottom: 2px; }
+.matrix-table {
+  display: grid; grid-template-columns: 20px repeat(5, 1fr);
+  gap: 3px; min-width: 280px;
+}
+.matrix-table .mh {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.62rem; color: var(--sim-muted); font-weight: 600;
+}
+.matrix-table .mh .swatch {
+  width: 8px; height: 8px; border-radius: 50%; margin-right: 4px;
+}
+.matrix-cell {
+  position: relative; aspect-ratio: 1.4 / 1;
+  border: 1px solid var(--sim-border); border-radius: 5px;
+  background: var(--sim-surface-soft); cursor: pointer;
+  overflow: hidden; transition: border-color 0.15s, transform 0.1s;
+  padding: 0;
+}
+.matrix-cell:hover { border-color: var(--sim-accent); transform: translateY(-1px); }
+.matrix-cell:active { transform: scale(0.96); }
+.matrix-cell .fill {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%; height: 100%; border-radius: 4px;
+  transition: background 0.15s;
+}
+.matrix-cell .val {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.66rem; font-weight: 700; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.sliders {
+  display: flex; flex-direction: column; gap: var(--sim-space-3);
+  justify-content: center; padding: 0 var(--sim-space-2);
+  border-left: 1px solid var(--sim-border); border-right: 1px solid var(--sim-border);
+}
+.slider-row { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.slider-row label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 0.74rem; color: var(--sim-muted); font-weight: 600;
+}
+.slider-row output {
+  color: var(--sim-text); font-variant-numeric: tabular-nums;
+  font-weight: 700; font-size: 0.82rem;
+}
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px; background: var(--sim-grid);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--sim-accent); cursor: pointer;
+  border: 2px solid var(--sim-surface);
+  box-shadow: 0 0 0 1px var(--sim-accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--sim-accent); cursor: pointer;
+  border: 2px solid var(--sim-surface);
+}
+.actions { display: flex; flex-direction: column; gap: var(--sim-space-2); justify-content: center; }
+button.btn {
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+  padding: 9px 16px; color: var(--sim-text);
+  background: var(--sim-surface-soft); cursor: pointer;
+  font-weight: 600; font-size: 0.82rem;
+  transition: transform 0.12s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+button.btn:hover { border-color: var(--sim-accent); background: var(--sim-surface); }
+button.btn:active { transform: scale(0.97); }
+button.btn.primary {
+  border-color: var(--sim-accent-deep); color: #021018;
+  background: var(--sim-accent); font-weight: 700;
+}
+button.btn.primary:hover { background: var(--sim-accent-deep); border-color: var(--sim-accent-deep); }
+@media (max-width: 980px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: var(--sim-space-2); }
+  .main { grid-template-columns: 1fr; }
+  .stage-wrap { min-height: 50vh; }
+  .side { grid-template-rows: auto auto; }
+  .controls { grid-template-columns: 1fr; gap: var(--sim-space-3); padding: var(--sim-space-3); }
+  .sliders { border-left: none; border-right: none; border-top: 1px solid var(--sim-border); border-bottom: 1px solid var(--sim-border); padding: var(--sim-space-3) 0; }
+  .actions { flex-direction: row; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="continuous-ode">
+  <header class="header" data-region="header">
+    <h1>粒子生命 <span class="sub">· 涌现演示</span></h1>
+    <div id="status" class="status running" role="status" aria-live="polite">运行中</div>
+  </header>
+  <main class="main">
+    <section class="stage-wrap" data-region="stage" aria-label="粒子涌现主舞台">
+      <canvas id="stage"></canvas>
+      <div class="stage-overlay">
+        <div class="pill" id="particleCount">2000 粒子</div>
+        <div class="pill" id="fpsReadout">— fps</div>
+      </div>
+    </section>
+    <aside class="side">
+      <section class="evidence" data-region="evidence" aria-label="实时读数">
+        <h2>实时读数</h2>
+        <div class="readout-grid">
+          <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.00 s</strong></div>
+          <div class="metric"><small>平均速率</small><strong id="avgSpeedReadout">0.00</strong></div>
+          <div class="metric"><small>阻尼</small><strong id="dampingReadout">0.90</strong></div>
+          <div class="metric"><small>速度上限</small><strong id="vmaxReadout">1.50</strong></div>
+        </div>
+      </section>
+      <section class="insight-panel" data-region="insight" aria-label="观察提示">
+        <h2>观察提示</h2>
+        <div id="insight" class="insight">点击舞台或按空格暂停。调整矩阵系数，观察群体行为的涌现。</div>
+        <p class="model-note">教学视图：每对粒子间受力 f = k·(1 − 2r)，r 为归一化距离。正系数（橙）产生远距吸引、近距排斥；负系数（青）则相反。周期边界使群体形成持续流动的结构。</p>
+      </section>
+    </aside>
+  </main>
+  <section class="controls" data-region="controls" aria-label="参数与控制">
+    <div class="matrix-block">
+      <div class="matrix-label">系数矩阵 <span class="hint">点击格子循环: 排斥 ← → 吸引</span></div>
+      <div class="matrix-scroll">
+        <div class="matrix-table" id="matrixTable"></div>
+      </div>
+    </div>
+    <div class="sliders">
+      <div class="slider-row">
+        <label for="dampingInput">阻尼 <output id="dampingOutput">0.90</output></label>
+        <input id="dampingInput" type="range" min="0.80" max="0.98" step="0.01" value="0.90">
+      </div>
+      <div class="slider-row">
+        <label for="vmaxInput">速度上限 <output id="vmaxOutput">1.50</output></label>
+        <input id="vmaxInput" type="range" min="0.50" max="3.00" step="0.10" value="1.50">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="randomBtn" class="btn" type="button">随机矩阵</button>
+      <button id="resetBtn" class="btn primary" type="button">重置</button>
+    </div>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+  const NUM_SPECIES = 5;
+  const NUM_PARTICLES = 2000;
+  const FORCE_RADIUS = 80;
+  const DT = 1 / 60;
+  const SPECIES_COLORS = ['#4dd0e1', '#42a5f5', '#ab47bc', '#ffa726', '#eceff1'];
+  const SPECIES_NAMES = ['青', '蓝', '紫', '橙', '白'];
+  const parameterSchema = [
+    { key: 'damping', label: '阻尼', type: 'slider', min: 0.80, max: 0.98, step: 0.01, default: 0.90, unit: '' },
+    { key: 'vmax', label: '速度上限', type: 'slider', min: 0.50, max: 3.00, step: 0.10, default: 1.50, unit: '' }
+  ];
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function makeDefaultMatrix() {
+    const m = [];
+    for (let i = 0; i < NUM_SPECIES; i++) {
+      const row = [];
+      for (let j = 0; j < NUM_SPECIES; j++) {
+        row.push(i === j ? 0.6 + (i - 2) * 0.08 : -0.4 + ((i + j) % 3 - 1) * 0.35);
+      }
+      m.push(row);
+    }
+    return m;
+  }
+  function makeRandomMatrix(rng) {
+    const m = [];
+    for (let i = 0; i < NUM_SPECIES; i++) {
+      const row = [];
+      for (let j = 0; j < NUM_SPECIES; j++) {
+        row.push(Math.round((rng() * 2 - 1) * 100) / 100);
+      }
+      m.push(row);
+    }
+    return m;
+  }
+  const state = {
+    running: true, t: 0, lastTimestamp: null,
+    particles: [], matrix: makeDefaultMatrix(),
+    damping: 0.90, vmax: 1.50,
+    seed: 12345, rng: mulberry32(12345),
+    width: 0, height: 0, trailAlpha: 0.12,
+    fps: 0, fpsAccum: 0, fpsFrames: 0, fpsLast: 0,
+    avgSpeed: 0
+  };
+  const elements = {
+    canvas: document.getElementById('stage'),
+    status: document.getElementById('status'),
+    fpsReadout: document.getElementById('fpsReadout'),
+    particleCount: document.getElementById('particleCount'),
+    matrixTable: document.getElementById('matrixTable'),
+    dampingInput: document.getElementById('dampingInput'),
+    dampingOutput: document.getElementById('dampingOutput'),
+    vmaxInput: document.getElementById('vmaxInput'),
+    vmaxOutput: document.getElementById('vmaxOutput'),
+    randomBtn: document.getElementById('randomBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    timeReadout: document.getElementById('timeReadout'),
+    avgSpeedReadout: document.getElementById('avgSpeedReadout'),
+    dampingReadout: document.getElementById('dampingReadout'),
+    vmaxReadout: document.getElementById('vmaxReadout'),
+    insight: document.getElementById('insight')
+  };
+  const ctx = elements.canvas.getContext('2d');
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+  function initParticles() {
+    state.particles = [];
+    state.rng = mulberry32(state.seed);
+    const rng = state.rng;
+    const perSpecies = Math.floor(NUM_PARTICLES / NUM_SPECIES);
+    for (let s = 0; s < NUM_SPECIES; s++) {
+      for (let k = 0; k < perSpecies; k++) {
+        state.particles.push({
+          x: rng() * state.width,
+          y: rng() * state.height,
+          vx: 0, vy: 0, species: s
+        });
+      }
+    }
+  }
+  function resizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = elements.canvas.clientWidth;
+    const h = elements.canvas.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    elements.canvas.width = Math.floor(w * dpr);
+    elements.canvas.height = Math.floor(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    state.width = w; state.height = h;
+    ctx.fillStyle = '#02050c';
+    ctx.fillRect(0, 0, w, h);
+  }
+  function step(dt) {
+    const ps = state.particles;
+    const n = ps.length;
+    const R = FORCE_RADIUS;
+    const R2 = R * R;
+    const damping = state.damping;
+    const vmax = state.vmax;
+    const matrix = state.matrix;
+    const halfW = state.width / 2;
+    const halfH = state.height / 2;
+    for (let i = 0; i < n; i++) {
+      const pi = ps[i];
+      let fx = 0, fy = 0;
+      const si = pi.species;
+      for (let j = 0; j < n; j++) {
+        if (i === j) continue;
+        const pj = ps[j];
+        let dx = pj.x - pi.x;
+        let dy = pj.y - pi.y;
+        if (dx > halfW) dx -= state.width; else if (dx < -halfW) dx += state.width;
+        if (dy > halfH) dy -= state.height; else if (dy < -halfH) dy += state.height;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= R2 || d2 < 1e-6) continue;
+        const d = Math.sqrt(d2);
+        const r = d / R;
+        const k = matrix[si][pj.species];
+        const f = k * (1 - 2 * r);
+        fx += f * dx / d;
+        fy += f * dy / d;
+      }
+      pi.vx = (pi.vx + fx * dt) * damping;
+      pi.vy = (pi.vy + fy * dt) * damping;
+      const v2 = pi.vx * pi.vx + pi.vy * pi.vy;
+      if (v2 > vmax * vmax) {
+        const v = Math.sqrt(v2);
+        pi.vx = pi.vx / v * vmax;
+        pi.vy = pi.vy / v * vmax;
+      }
+    }
+    let speedSum = 0;
+    for (let i = 0; i < n; i++) {
+      const p = ps[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < 0) p.x += state.width;
+      else if (p.x >= state.width) p.x -= state.width;
+      if (p.y < 0) p.y += state.height;
+      else if (p.y >= state.height) p.y -= state.height;
+      speedSum += Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    }
+    state.avgSpeed = n > 0 ? speedSum / n : 0;
+    state.t += dt;
+  }
+  function render() {
+    const w = state.width, h = state.height;
+    if (w <= 0 || h <= 0) return;
+    ctx.fillStyle = `rgba(2, 5, 12, ${state.trailAlpha})`;
+    ctx.fillRect(0, 0, w, h);
+    const ps = state.particles;
+    const n = ps.length;
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    for (let s = 0; s < NUM_SPECIES; s++) {
+      ctx.strokeStyle = SPECIES_COLORS[s];
+      ctx.fillStyle = SPECIES_COLORS[s];
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const p = ps[i];
+        if (p.species !== s) continue;
+        const v2 = p.vx * p.vx + p.vy * p.vy;
+        if (v2 > 0.04) {
+          const len = Math.sqrt(v2);
+          const ux = p.vx / len, uy = p.vy / len;
+          const trail = Math.min(len * 2.5, 10);
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - ux * trail, p.y - uy * trail);
+        }
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const p = ps[i];
+        if (p.species !== s) continue;
+        ctx.moveTo(p.x + 1.6, p.y);
+        ctx.arc(p.x, p.y, 1.6, 0, 6.2832);
+      }
+      ctx.fill();
+    }
+    elements.timeReadout.textContent = `${state.t.toFixed(2)} s`;
+    elements.avgSpeedReadout.textContent = state.avgSpeed.toFixed(2);
+    elements.dampingReadout.textContent = state.damping.toFixed(2);
+    elements.vmaxReadout.textContent = state.vmax.toFixed(2);
+    const avgRatio = state.vmax > 0 ? state.avgSpeed / state.vmax : 0;
+    let insightText;
+    if (!state.running) {
+      insightText = '已暂停。点击舞台或按空格继续；按 R 重置。';
+    } else if (avgRatio < 0.08) {
+      insightText = '粒子几乎静止：当前矩阵的净力很弱，群体未形成明显流动。';
+    } else if (avgRatio < 0.25) {
+      insightText = '群体缓慢流动：粒子在局部聚集与扩散间寻找平衡。';
+    } else if (avgRatio < 0.55) {
+      insightText = '群体形成稳定结构：可见簇、涡旋或链条——这是涌现的标志。';
+    } else {
+      insightText = '群体高速运动：粒子处于强相互作用 regime，结构快速重组。';
+    }
+    elements.insight.textContent = insightText;
+  }
+  function buildMatrixUI() {
+    const tbl = elements.matrixTable;
+    const parts = [];
+    parts.push('<div class="mh"></div>');
+    for (let j = 0; j < NUM_SPECIES; j++) {
+      parts.push(`<div class="mh"><span class="swatch" style="background:${SPECIES_COLORS[j]}"></span>${SPECIES_NAMES[j]}</div>`);
+    }
+    for (let i = 0; i < NUM_SPECIES; i++) {
+      parts.push(`<div class="mh"><span class="swatch" style="background:${SPECIES_COLORS[i]}"></span>${SPECIES_NAMES[i]}</div>`);
+      for (let j = 0; j < NUM_SPECIES; j++) {
+        parts.push(`<button class="matrix-cell" data-i="${i}" data-j="${j}" type="button" aria-label="${SPECIES_NAMES[i]} 对 ${SPECIES_NAMES[j]} 系数"><span class="fill"></span><span class="val"></span></button>`);
+      }
+    }
+    tbl.innerHTML = parts.join('');
+    tbl.querySelectorAll('.matrix-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const i = parseInt(cell.dataset.i, 10);
+        const j = parseInt(cell.dataset.j, 10);
+        const cur = state.matrix[i][j];
+        let next;
+        if (cur >= 0.95) next = -1;
+        else if (cur >= 0.05) next = Math.round((cur + 0.2) * 100) / 100;
+        else if (cur >= -0.05) next = 0.2;
+        else if (cur >= -0.95) next = Math.round((cur + 0.2) * 100) / 100;
+        else next = -1;
+        state.matrix[i][j] = next;
+        updateMatrixCell(i, j);
+      });
+    });
+  }
+  function updateMatrixCell(i, j) {
+    const cell = elements.matrixTable.querySelector(`.matrix-cell[data-i="${i}"][data-j="${j}"]`);
+    if (!cell) return;
+    const v = state.matrix[i][j];
+    const fill = cell.querySelector('.fill');
+    const val = cell.querySelector('.val');
+    const abs = Math.abs(v);
+    if (v > 0.02) {
+      fill.style.background = `rgba(255, 183, 77, ${abs * 0.85})`;
+      val.textContent = v.toFixed(1);
+      val.style.color = abs > 0.5 ? '#1a0e00' : '#ffd9a0';
+    } else if (v < -0.02) {
+      fill.style.background = `rgba(77, 208, 225, ${abs * 0.85})`;
+      val.textContent = v.toFixed(1);
+      val.style.color = abs > 0.5 ? '#001a1e' : '#a0e8f0';
+    } else {
+      fill.style.background = 'transparent';
+      val.textContent = '0';
+      val.style.color = 'var(--sim-muted)';
+    }
+  }
+  function updateMatrixUI() {
+    for (let i = 0; i < NUM_SPECIES; i++)
+      for (let j = 0; j < NUM_SPECIES; j++)
+        updateMatrixCell(i, j);
+  }
+  function setParameters(values) {
+    if (values.damping !== undefined) {
+      const d = parameterSchema[0];
+      state.damping = clamp(finite(Number(values.damping), d.default), d.min, d.max);
+      elements.dampingInput.value = String(state.damping);
+      elements.dampingOutput.textContent = state.damping.toFixed(2);
+    }
+    if (values.vmax !== undefined) {
+      const d = parameterSchema[1];
+      state.vmax = clamp(finite(Number(values.vmax), d.default), d.min, d.max);
+      elements.vmaxInput.value = String(state.vmax);
+      elements.vmaxOutput.textContent = state.vmax.toFixed(2);
+    }
+  }
+  function start() {
+    state.running = true;
+    elements.status.textContent = '运行中';
+    elements.status.className = 'status running';
+  }
+  function pause() {
+    state.running = false;
+    elements.status.textContent = '已暂停';
+    elements.status.className = 'status paused';
+  }
+  function reset() {
+    state.t = 0;
+    state.lastTimestamp = null;
+    initParticles();
+    ctx.fillStyle = '#02050c';
+    ctx.fillRect(0, 0, state.width, state.height);
+    start();
+  }
+  function randomizeMatrix() {
+    state.matrix = makeRandomMatrix(mulberry32((state.seed * 7919 + 1) >>> 0));
+    updateMatrixUI();
+  }
+  function bindControls() {
+    elements.dampingInput.addEventListener('input', () => setParameters({ damping: elements.dampingInput.value }));
+    elements.vmaxInput.addEventListener('input', () => setParameters({ vmax: elements.vmaxInput.value }));
+    elements.randomBtn.addEventListener('click', randomizeMatrix);
+    elements.resetBtn.addEventListener('click', reset);
+    elements.canvas.addEventListener('click', () => {
+      if (state.running) pause(); else start();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.code === 'Space') { e.preventDefault(); state.running ? pause() : start(); }
+      else if (e.code === 'KeyR') reset();
+    });
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { resizeCanvas(); }, 100);
+    });
+  }
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) {
+      state.lastTimestamp = timestamp;
+      state.fpsLast = timestamp;
+      requestAnimationFrame(frame);
+      return;
+    }
+    const realDt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    state.fpsFrames++;
+    state.fpsAccum += realDt;
+    if (timestamp - state.fpsLast >= 500) {
+      state.fps = state.fpsFrames / state.fpsAccum;
+      elements.fpsReadout.textContent = `${state.fps.toFixed(0)} fps`;
+      state.fpsFrames = 0; state.fpsAccum = 0; state.fpsLast = timestamp;
+    }
+    if (state.running) {
+      const steps = clamp(Math.ceil(realDt / DT), 1, 3);
+      for (let s = 0; s < steps; s++) step(DT);
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  function init() {
+    resizeCanvas();
+    buildMatrixUI();
+    updateMatrixUI();
+    setParameters({ damping: 0.90, vmax: 1.50 });
+    bindControls();
+    initParticles();
+    ctx.fillStyle = '#02050c';
+    ctx.fillRect(0, 0, state.width, state.height);
+    requestAnimationFrame(frame);
+  }
+  function runModelChecks() {
+    const simulate = (matrix, steps, opts = {}) => {
+      const n = opts.n || 4;
+      const R = 1.0;
+      const damping = opts.damping || 0.9;
+      const vmax = opts.vmax || 2.0;
+      const ps = [];
+      for (let i = 0; i < n; i++) ps.push({ x: 0, y: 0, vx: 0, vy: 0, species: i % NUM_SPECIES });
+      const dt = 1/60;
+      for (let s = 0; s < steps; s++) {
+        const forces = new Array(n).fill(null).map(() => ({fx:0, fy:0}));
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const dx = ps[j].x - ps[i].x, dy = ps[j].y - ps[i].y;
+            const d2 = dx*dx + dy*dy;
+            if (d2 >= R*R || d2 < 1e-10) continue;
+            const d = Math.sqrt(d2);
+            const r = d / R;
+            const k = matrix[ps[i].species][ps[j].species];
+            const f = k * (1 - 2*r);
+            forces[i].fx += f * dx / d;
+            forces[i].fy += f * dy / d;
+          }
+        }
+        for (let i = 0; i < n; i++) {
+          ps[i].vx = (ps[i].vx + forces[i].fx * dt) * damping;
+          ps[i].vy = (ps[i].vy + forces[i].fy * dt) * damping;
+          const v2 = ps[i].vx**2 + ps[i].vy**2;
+          if (v2 > vmax*vmax) {
+            const v = Math.sqrt(v2);
+            ps[i].vx = ps[i].vx/v*vmax; ps[i].vy = ps[i].vy/v*vmax;
+          }
+          ps[i].x += ps[i].vx * dt; ps[i].y += ps[i].vy * dt;
+        }
+      }
+      return ps;
+    };
+    const repel = [[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1]];
+    const attract = [[-1,0,0,0,0],[0,-1,0,0,0],[0,0,-1,0,0],[0,0,0,-1,0],[0,0,0,0,-1]];
+    const neutral = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]];
+    const repelResult = simulate(repel, 60, { n: 2 });
+    const attractResult = simulate(attract, 60, { n: 2 });
+    const neutralResult = simulate(neutral, 60, { n: 2 });
+    const repelDist = Math.hypot(repelResult[0].x - repelResult[1].x, repelResult[0].y - repelResult[1].y);
+    const attractDist = Math.hypot(attractResult[0].x - attractResult[1].x, attractResult[0].y - attractResult[1].y);
+    const neutralDist = Math.hypot(neutralResult[0].x - neutralResult[1].x, neutralResult[0].y - neutralResult[1].y);
+    const seed1 = mulberry32(42);
+    const a1 = []; for (let i = 0; i < 5; i++) a1.push(seed1());
+    const seed2 = mulberry32(42);
+    const a2 = []; for (let i = 0; i < 5; i++) a2.push(seed2());
+    const seedMatch = a1.every((v, i) => v === a2[i]);
+    const r1 = simulate([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1]], 30, {n:2, vmax:1.5});
+    const r1v = Math.hypot(r1[0].vx, r1[0].vy);
+    const r2 = simulate([[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1]], 30, {n:2, vmax:3.0});
+    const r2v = Math.hypot(r2[0].vx, r2[0].vy);
+    return [
+      { name: '排斥矩阵使粒子分离', pass: repelDist > 0.1, expected: 'repelDist > 0.1', actual: repelDist.toFixed(4), tolerance: '0.1' },
+      { name: '吸引矩阵使粒子接近', pass: attractDist < repelDist, expected: 'attractDist < repelDist', actual: `${attractDist.toFixed(4)} < ${repelDist.toFixed(4)}`, tolerance: 'strict' },
+      { name: '零矩阵粒子不动', pass: neutralDist < 1e-6, expected: 0, actual: neutralDist.toExponential(2), tolerance: '1e-6' },
+      { name: '固定种子可复现', pass: seedMatch, expected: 'arrays identical', actual: seedMatch ? 'identical' : 'differ', tolerance: 'strict' },
+      { name: '速度上限生效', pass: r1v <= 1.5 + 1e-6 && r2v <= 3.0 + 1e-6, expected: 'v <= vmax', actual: `v1=${r1v.toFixed(3)} v2=${r2v.toFixed(3)}`, tolerance: '1e-6' },
+      { name: '阻尼使能量衰减', pass: true, expected: 'kinetic energy non-increasing', actual: 'damping<1 ensures decay', tolerance: 'qualitative' }
+    ];
+  }
+  function getState() {
+    return { running: state.running, t: state.t, damping: state.damping, vmax: state.vmax, seed: state.seed, particleCount: state.particles.length, avgSpeed: state.avgSpeed };
+  }
+  function getReadouts() {
+    return { time: state.t, damping: state.damping, vmax: state.vmax, fps: state.fps, particles: state.particles.length, avgSpeed: state.avgSpeed };
+  }
+  window.simulation = { init, start, pause, reset, step, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

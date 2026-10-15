@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { simCanvasCategories, simCanvasTopics } from '@/lib/simcanvas-categories';
+import type { SimCanvasCategory } from '@/lib/simcanvas-categories';
+import { Link, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LanguageSwitcher } from '@/i18n/LanguageSwitcher';
 import { LazyPreview } from '@/components/simulation/LazyPreview';
 import { RatingSection } from '@/components/rating/RatingSection';
+import { requestJson } from '@/platform/request';
+import { decodeResourceManifest } from '@/platform/resource-manifest';
+import { contentOrigin, contentSandbox, contentUrl } from '@/platform/content';
 
 interface ExperimentCard {
     id: string;
@@ -38,12 +43,6 @@ interface ImageResourceCard {
     id: string;
     title: string;
     path: string;
-}
-
-interface ResourceManifest {
-    courseware: Array<{ id: string; title: string; path: string }>;
-    simcanvas: Array<{ id: string; title: string; path: string; category?: string }>;
-    images: Array<{ id: string; title: string; path: string }>;
 }
 
 const HydrogenAtomDiagram = () => (
@@ -719,19 +718,21 @@ const experiments: ExperimentCard[] = [
 const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
     const { t } = useTranslation();
     const [active, setActive] = useState<SimCanvasCard | null>(null);
+    const [category, setCategory] = useState<SimCanvasCategory>('all');
+    // research (paper-lab) items live only in their own tab, never in 全部
+    const galleryCards = cards.filter(card => card.category !== 'research');
+    const visibleCards = category === 'all' ? galleryCards : cards.filter(card => simCanvasTopics(card).includes(category));
     // Gallery numbers, matching `batch_gen.py --list` (both sort by the
     // directory slug — the href's last path segment), so "delete #34" means
-    // the same card here and in the sync script.
+    // the same card here and in the sync script. Research cards carry no number.
     const slugOf = (href: string) => href.replace(/\/+$/, '').split('/').pop() ?? href;
     const numberById = new Map(
-        [...cards].sort((a, b) => {
+        [...galleryCards].sort((a, b) => {
             const [sa, sb] = [slugOf(a.href ?? ''), slugOf(b.href ?? '')];
             return sa < sb ? -1 : sa > sb ? 1 : 0;
         }).map((card, index) => [card.id, index + 1]),
     );
     const dialogRef = useRef<HTMLDivElement>(null);
-    const activeRef = useRef<SimCanvasCard | null>(null);
-    activeRef.current = active;
 
     // Entering the dialog requests true browser fullscreen; any way of leaving
     // fullscreen (ESC, OS gesture) also closes the dialog.
@@ -765,11 +766,31 @@ const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
 
     return (
         <div>
+            <nav aria-label="SimCanvas categories" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
+                {simCanvasCategories.map(item => {
+                    const count = item.id === 'all' ? galleryCards.length : cards.filter(card => simCanvasTopics(card).includes(item.id)).length;
+                    return <button key={item.id} type="button" aria-pressed={category === item.id}
+                        onClick={() => setCategory(item.id)}
+                        style={{ padding: '10px 14px', minHeight: 44, borderRadius: 10, border: '1px solid #39485a', color: category === item.id ? '#fff' : '#bdc9d6', background: category === item.id ? '#19566b' : '#141e2c', cursor: 'pointer' }}>
+                        {item.label} <span style={{ marginLeft: 6, opacity: 0.75 }}>{count}</span>
+                    </button>;
+                })}
+            </nav>
+            <div aria-live="polite" className="sr-only">{visibleCards.length} animations</div>
             <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {cards.map((card) => (
+                {visibleCards.map((card) => (
                     <article
                         key={card.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={card.title}
                         onClick={() => setActive(card)}
+                        onKeyDown={(event) => {
+                            if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                                event.preventDefault();
+                                setActive(card);
+                            }
+                        }}
                         className="group cursor-pointer overflow-hidden rounded-[16px] border border-[#30363D] bg-[#111827]/80 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0.0,0.2,1)] hover:-translate-y-1.5 hover:border-cyan-400/45 hover:shadow-[0_20px_46px_rgba(34,211,238,0.14)]"
                     >
                         <div className="relative">
@@ -791,6 +812,7 @@ const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
                                 </div>
                             </div>
                         </div>
+                        <div style={{ padding: '12px 16px', color: '#d5e3eb', fontSize: 14, fontWeight: 600, lineHeight: 1.5 }}>{card.title}</div>
                     </article>
                 ))}
             </div>
@@ -803,7 +825,7 @@ const SimCanvasGallery = ({ cards }: { cards: SimCanvasCard[] }) => {
                     aria-modal="true"
                     aria-label={active.title}
                 >
-                    <iframe src={active.href ?? '#'} title={active.title} className="h-full w-full border-0" />
+                    <iframe src={active.href ?? '#'} title={active.title} sandbox={contentSandbox(active.href ?? '#', 'allow-scripts allow-forms allow-downloads')} className="h-full w-full border-0" />
                     <button
                         onClick={() => setActive(null)}
                         aria-label={t('home:gallery.close')}
@@ -826,13 +848,14 @@ export default function Home() {
     const [coursewareCards, setCoursewareCards] = useState<CoursewareCard[]>([]);
     const [simCanvasCards, setSimCanvasCards] = useState<SimCanvasCard[]>([]);
     const [imageResources, setImageResources] = useState<ImageResourceCard[]>([]);
+    const [manifestState, setManifestState] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [manifestAttempt, setManifestAttempt] = useState(0);
     // 隐藏盲评区（研究用）：连续 5 次点击 SimCanvas 标签进入，离开该标签即退出
     const [ratingUnlocked, setRatingUnlocked] = useState(false);
     const unlockSeq = useRef(0);
     const lastTabClickAt = useRef(0);
 
-    const handleTabClick = (key: HomeTab) => {
-        const now = Date.now();
+    const handleTabClick = (key: HomeTab, now: number) => {
         if (key === 'simcanvas') {
             const next =
                 activeTab === 'simcanvas' && now - lastTabClickAt.current < 1500 ? unlockSeq.current + 1 : 1;
@@ -852,17 +875,13 @@ export default function Home() {
 
     useEffect(() => {
         let cancelled = false;
+        const controller = new AbortController();
 
         const loadManifest = async () => {
             try {
-                const response = await fetch(`/resource-manifest.json?t=${Date.now()}`, {
-                    cache: 'no-store',
+                const manifest = await requestJson('/resource-manifest.json', decodeResourceManifest, {
+                    cache: 'no-cache', signal: controller.signal,
                 });
-                if (!response.ok) {
-                    throw new Error('Failed to load resource manifest.');
-                }
-
-                const manifest = (await response.json()) as ResourceManifest;
                 if (cancelled) return;
 
                 setCoursewareCards(
@@ -871,7 +890,7 @@ export default function Home() {
                         title: item.title,
                         description: t('home:coursewarePrefix') + item.path,
                         status: 'ready',
-                        href: item.path,
+                        href: contentUrl(item.path),
                     })),
                 );
                 setSimCanvasCards(
@@ -879,21 +898,23 @@ export default function Home() {
                         id: item.id,
                         title: item.title,
                         category: item.category,
-                        href: item.path,
+                        href: contentUrl(item.path),
                     })),
                 );
                 setImageResources(
                     (manifest.images ?? []).map((item) => ({
                         id: item.id,
                         title: item.title,
-                        path: item.path,
+                        path: contentUrl(item.path),
                     })),
                 );
+                setManifestState('ready');
             } catch {
                 if (cancelled) return;
                 setCoursewareCards([]);
                 setSimCanvasCards([]);
                 setImageResources([]);
+                setManifestState('error');
             }
         };
 
@@ -901,8 +922,9 @@ export default function Home() {
 
         return () => {
             cancelled = true;
+            controller.abort();
         };
-    }, []);
+    }, [manifestAttempt, t]);
 
     return (
         <div
@@ -912,22 +934,29 @@ export default function Home() {
                     '"Nunito", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             }}
         >
-            <header className="relative px-6 pb-8 pt-12 sm:px-10 lg:px-20 lg:pb-10 lg:pt-16">
+            <header className="relative px-6 pb-8 pt-6 sm:px-10 sm:pt-12 lg:px-20 lg:pb-10 lg:pt-16">
+                <div className="mb-4 flex items-center justify-end gap-4 sm:absolute sm:right-10 sm:top-12 sm:mb-0 lg:right-20 lg:top-16">
+                    <Link to="/account" className="rounded-lg px-3 py-2 text-sm font-semibold text-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">Account</Link>
+                    <LanguageSwitcher />
+                </div>
                 <h1
                     className="bg-gradient-to-r from-[#22D3EE] via-[#60A5FA] to-[#818CF8] bg-clip-text text-center text-[44px] font-[700] leading-[1.08] text-transparent sm:text-[56px]"
                     style={{ filter: 'drop-shadow(0 10px 24px rgba(96, 165, 250, 0.35))' }}
                 >
                     {t('common:app.title')}
                 </h1>
-                <div className="absolute right-6 top-12 sm:right-10 lg:right-20 lg:top-16">
-                    <LanguageSwitcher />
-                </div>
             </header>
 
             <main className="flex-1 px-6 pb-14 sm:px-10 lg:px-20 lg:pb-16">
                 <div className="mx-auto w-full max-w-[1360px]">
+                {contentOrigin && activeTab !== 'experiments' && (
+                    <p className="mb-6 text-center text-sm text-slate-300">
+                        <a href={contentOrigin} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline underline-offset-4">Open resource access</a>
+                        {' '}to unlock protected resources, then reload this gallery.
+                    </p>
+                )}
                 <section className="flex justify-center" style={{ marginBottom: 80 }}>
-                    <div className="inline-flex rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg">
+                    <div className="grid w-full grid-cols-2 gap-1 rounded-2xl border border-[#30363D] bg-[#111827]/70 p-1.5 shadow-lg sm:inline-flex sm:w-auto">
                         {[
                             { key: 'experiments', labelKey: 'home:tab.experiments' },
                             { key: 'simcanvas', labelKey: 'home:tab.simcanvas' },
@@ -938,7 +967,7 @@ export default function Home() {
                             return (
                                 <button
                                     key={tab.key}
-                                    onClick={() => handleTabClick(tab.key as HomeTab)}
+                                    onClick={(event) => handleTabClick(tab.key as HomeTab, event.timeStamp)}
                                     className={`rounded-xl px-5 py-2.5 text-sm font-semibold transition-all ${
                                         isActive
                                             ? 'bg-gradient-to-r from-cyan-600 to-sky-500 text-white shadow-lg shadow-cyan-900/30'
@@ -952,12 +981,34 @@ export default function Home() {
                     </div>
                 </section>
 
+                {activeTab !== 'experiments' && manifestState !== 'ready' ? (
+                    <div className="mb-6 rounded-xl border border-slate-700 bg-slate-900 p-5" role={manifestState === 'error' ? 'alert' : 'status'}>
+                        {manifestState === 'loading' ? 'Loading resources…' : (
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                <p>Resources could not be loaded. Please try again.</p>
+                                <button className="btn btn-primary" onClick={() => {
+                                    setManifestState('loading');
+                                    setManifestAttempt((attempt) => attempt + 1);
+                                }}>Retry</button>
+                            </div>
+                        )}
+                    </div>
+                ) : null}
+
                 {activeTab === 'experiments' ? (
                     <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
                         {experiments.map((experiment) => (
                             <article
                                 key={experiment.id}
+                                role="link"
+                                tabIndex={0}
+                                aria-label={t(`home:card.${experiment.id}.title`)}
                                 onClick={() => navigate(experiment.route ?? `/experiment/${experiment.id}`)}
+                                onKeyDown={(event) => {
+                                    if (event.target === event.currentTarget && event.key === 'Enter') {
+                                        navigate(experiment.route ?? `/experiment/${experiment.id}`);
+                                    }
+                                }}
                                 className={`group relative min-h-[292px] cursor-pointer overflow-hidden rounded-[20px] border border-[#30363D] bg-gradient-to-br ${experiment.gradient} p-8 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0,0.2,1)] hover:-translate-y-2 hover:border-[#00FF41]/35 hover:bg-[#161B22] hover:shadow-[0_24px_50px_rgba(0,255,65,0.12)]`}
                             >
                                 <div className="absolute inset-2 rounded-[16px] bg-gradient-to-br from-white/[0.04] via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
@@ -1006,11 +1057,11 @@ export default function Home() {
                     </div>
                 ) : null}
 
-                {activeTab === 'simcanvas' ? (
+                {activeTab === 'simcanvas' && (ratingUnlocked || manifestState === 'ready') ? (
                     ratingUnlocked ? <RatingSection /> : <SimCanvasGallery cards={simCanvasCards} />
                 ) : null}
 
-                {activeTab === 'courseware' ? (
+                {activeTab === 'courseware' && manifestState === 'ready' ? (
                     <div className="grid w-full grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
                         {coursewareCards.length === 0 ? (
                             <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 md:col-span-2 xl:col-span-3">
@@ -1051,7 +1102,7 @@ export default function Home() {
                     </div>
                 ) : null}
 
-                {activeTab === 'images' ? (
+                {activeTab === 'images' && manifestState === 'ready' ? (
                     <div className="grid w-full grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
                         {imageResources.length === 0 ? (
                             <article className="relative min-h-[240px] overflow-hidden rounded-[20px] border border-dashed border-[#30363D] bg-slate-900/50 p-8 sm:col-span-2 xl:col-span-3">

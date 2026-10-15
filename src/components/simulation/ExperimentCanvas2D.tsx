@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import type { IExperiment2D } from '@/experiments/base';
 
@@ -18,13 +18,28 @@ interface ExperimentCanvas2DProps {
 export function ExperimentCanvas2D({ experiment }: ExperimentCanvas2DProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const tick = useSimulationStore((s) => s.tick);
+    const readyRef = useRef(false);
+    const [initError, setInitError] = useState<Error | null>(null);
 
     // Initialize experiment
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
-        experiment.init(container);
+        let cancelled = false;
+        readyRef.current = false;
+        void Promise.resolve().then(() => {
+            if (!cancelled) return experiment.init(container);
+        }).then(() => {
+            if (!cancelled) {
+                readyRef.current = true;
+                experiment.onResize?.(container.clientWidth, container.clientHeight);
+            }
+        }).catch(() => {
+            if (!cancelled) setInitError(new Error('The experiment could not be initialized.'));
+        });
         return () => {
+            cancelled = true;
+            readyRef.current = false;
             experiment.dispose();
         };
     }, [experiment]);
@@ -38,7 +53,7 @@ export function ExperimentCanvas2D({ experiment }: ExperimentCanvas2DProps) {
             const now = performance.now();
             const delta = (now - lastTime) / 1000;
             lastTime = now;
-            tick(delta);
+            if (readyRef.current) tick(Math.min(delta, 0.1));
             rafId = requestAnimationFrame(loop);
         };
 
@@ -53,12 +68,13 @@ export function ExperimentCanvas2D({ experiment }: ExperimentCanvas2DProps) {
 
         const observer = new ResizeObserver((entries) => {
             const { width, height } = entries[0].contentRect;
-            experiment.onResize?.(width, height);
+            if (readyRef.current) experiment.onResize?.(width, height);
         });
         observer.observe(container);
         return () => observer.disconnect();
     }, [experiment]);
 
+    if (initError) throw initError;
     return (
         <div
             ref={containerRef}

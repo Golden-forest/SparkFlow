@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>洋流与全球热量输送</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #f59e0b;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-warm: #e8453c;
+  --sim-warm-soft: #fee2e2;
+  --sim-cold: #2563eb;
+  --sim-cold-soft: #dbeafe;
+  --sim-ocean: #1e5f8e;
+  --sim-ocean-deep: #0f3a5c;
+  --sim-land: #6b8e5a;
+  --sim-land-dark: #4a6b3a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(232, 69, 60, 0.08), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.5rem, 2.2vw, 2rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.88rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: radial-gradient(circle at 50% 45%, #0a1f33 0%, #050d1a 70%, #02060d 100%); cursor: grab; }
+#scene:active { cursor: grabbing; }
+.side { min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 12px; }
+.readouts, .legend-panel, .model-note { padding: 17px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.78rem; }
+.metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.metric.warm { border-color: rgba(232,69,60,.25); background: linear-gradient(145deg, #fff5f4, #fee9e7); }
+.metric.warm strong { color: var(--sim-warm); }
+.metric.cold { border-color: rgba(37,99,235,.25); background: linear-gradient(145deg, #f4f8ff, #e3ecfd); }
+.metric.cold strong { color: var(--sim-cold); }
+.legend-panel h3, .model-note h3 { margin: 0 0 12px; font-size: 0.92rem; }
+.legend-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.85rem; }
+.legend-swatch { width: 28px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+.legend-swatch.warm { background: var(--sim-warm); box-shadow: 0 0 6px rgba(232,69,60,.4); }
+.legend-swatch.cold { background: var(--sim-cold); box-shadow: 0 0 6px rgba(37,99,235,.4); }
+.legend-row span { color: var(--sim-muted); }
+.legend-row strong { color: var(--sim-text); }
+.model-note { display: grid; align-content: start; gap: 14px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.85rem; }
+.insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; font-size: 0.88rem; line-height: 1.5; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr); gap: 14px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button.toggle { position: relative; padding-left: 38px; }
+button.toggle::before { content: ''; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--sim-border); background: var(--sim-surface); transition: all .2s ease; }
+button.toggle[aria-pressed="true"]::before { border-color: var(--sim-accent); background: var(--sim-accent); box-shadow: 0 0 0 3px rgba(15,159,186,.18); }
+button.toggle[aria-pressed="true"]::after { content: ''; position: absolute; left: 15px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+.control { display: flex; flex-direction: column; gap: 5px; }
+.control label { display: flex; justify-content: space-between; gap: 12px; font-size: 0.8rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr 1fr; }
+  .actions { grid-column: 1 / -1; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="qualitative">
+  <header class="header" data-region="header">
+    <div>
+      <h1>洋流与全球热量输送</h1>
+      <p>观察暖流与寒流如何把赤道热量向极地输送，维持地球气候平衡</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">地球三维洋流场景</h2><span>拖拽旋转 · 暖流（红）向极地 · 寒流（蓝）回赤道</span></div>
+      <canvas id="scene" width="760" height="420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">三维地球展示主要表层洋流，暖流以红色箭头沿地表从低纬度流向高纬度，寒流以蓝色箭头从高纬度流回低纬度。</desc>
+      </canvas>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="热量输送读数">
+        <div class="readout-grid">
+          <div class="metric warm"><small>暖流热量输送</small><strong id="warmFlux">0.0 PW</strong></div>
+          <div class="metric cold"><small>寒流热量输送</small><strong id="coldFlux">0.0 PW</strong></div>
+          <div class="metric"><small>净极向输送</small><strong id="netFlux">0.0 PW</strong></div>
+          <div class="metric"><small>模拟时间</small><strong id="timeReadout">0.0 s</strong></div>
+        </div>
+      </section>
+      <section class="panel legend-panel">
+        <h3>图例与流向说明</h3>
+        <div class="legend-row"><span class="legend-swatch warm"></span><div><strong>暖流</strong> <span>低纬→高纬，向极地输送热量</span></div></div>
+        <div class="legend-row"><span class="legend-swatch cold"></span><div><strong>寒流</strong> <span>高纬→低纬，带回冷水</span></div></div>
+        <div class="legend-row" style="margin-top:6px;border-top:1px solid var(--sim-border);padding-top:10px;"><span style="font-size:0.78rem;color:var(--sim-muted);">关闭洋流后，赤道将更热、两极更冷</span></div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <h3>模型说明</h3>
+        <p id="insight" class="insight">点击「播放」开始。观察红色暖流如何从赤道向两极输送热量，蓝色寒流如何把冷水带回赤道。</p>
+        <p>教学视图：采用简化的全球主要表层洋流网络（湾流、黑潮、北大西洋暖流、秘鲁寒流等），不展示深层温盐环流。箭头流动方向与速度为教学示意，非实时流速。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">播放</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <button id="warmToggle" class="toggle" type="button" aria-pressed="true">显示暖流</button>
+    </div>
+    <div class="control">
+      <button id="coldToggle" class="toggle" type="button" aria-pressed="true">显示寒流</button>
+    </div>
+    <div class="control">
+      <label for="speedInput">流速 <output id="speedOutput">1.0×</output></label>
+      <input id="speedInput" type="range" min="0.2" max="3" step="0.1" value="1">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ============ 洋流数据（简化教学网络）============
+  // 每条洋流是一系列经纬度路径点，type: warm/cold
+  const CURRENTS = [
+    // 北半球暖流
+    { name: "湾流", type: "warm", points: [
+      { lat: 25, lon: -80 }, { lat: 30, lon: -75 }, { lat: 35, lon: -70 },
+      { lat: 40, lon: -60 }, { lat: 45, lon: -50 }, { lat: 50, lon: -40 },
+      { lat: 55, lon: -30 }, { lat: 58, lon: -20 }, { lat: 60, lon: -10 }, { lat: 62, lon: 0 }
+    ]},
+    { name: "北大西洋暖流", type: "warm", points: [
+      { lat: 60, lon: -10 }, { lat: 63, lon: 0 }, { lat: 65, lon: 10 },
+      { lat: 67, lon: 20 }, { lat: 68, lon: 30 }, { lat: 70, lon: 40 }, { lat: 71, lon: 50 }
+    ]},
+    { name: "黑潮", type: "warm", points: [
+      { lat: 18, lon: 125 }, { lat: 22, lon: 128 }, { lat: 28, lon: 132 },
+      { lat: 33, lon: 138 }, { lat: 38, lon: 142 }, { lat: 42, lon: 148 },
+      { lat: 45, lon: 155 }, { lat: 47, lon: 165 }, { lat: 48, lon: 175 }
+    ]},
+    { name: "北太平洋暖流", type: "warm", points: [
+      { lat: 48, lon: 175 }, { lat: 50, lon: -180 }, { lat: 52, lon: -170 },
+      { lat: 53, lon: -160 }, { lat: 54, lon: -150 }, { lat: 54, lon: -140 }, { lat: 53, lon: -130 }
+    ]},
+    { name: "阿拉斯加暖流", type: "warm", points: [
+      { lat: 53, lon: -130 }, { lat: 55, lon: -135 }, { lat: 58, lon: -140 },
+      { lat: 60, lon: -145 }, { lat: 61, lon: -150 }
+    ]},
+    { name: "巴西暖流", type: "warm", points: [
+      { lat: -10, lon: -35 }, { lat: -15, lon: -38 }, { lat: -22, lon: -40 },
+      { lat: -30, lon: -45 }, { lat: -38, lon: -50 }, { lat: -45, lon: -55 }
+    ]},
+    { name: "莫桑比克-厄加勒斯暖流", type: "warm", points: [
+      { lat: -15, lon: 45 }, { lat: -22, lon: 42 }, { lat: -30, lon: 38 },
+      { lat: -35, lon: 30 }, { lat: -38, lon: 22 }, { lat: -40, lon: 18 }
+    ]},
+    { name: "东澳大利亚暖流", type: "warm", points: [
+      { lat: -15, lon: 155 }, { lat: -22, lon: 152 }, { lat: -30, lon: 153 },
+      { lat: -38, lon: 150 }, { lat: -42, lon: 148 }, { lat: -45, lon: 150 }
+    ]},
+    // 南半球绕极暖流（南极绕极流，偏暖）
+    { name: "南极绕极流", type: "warm", points: [
+      { lat: -50, lon: -60 }, { lat: -52, lon: -30 }, { lat: -53, lon: 0 },
+      { lat: -54, lon: 30 }, { lat: -55, lon: 60 }, { lat: -56, lon: 90 },
+      { lat: -57, lon: 120 }, { lat: -58, lon: 150 }, { lat: -59, lon: 180 },
+      { lat: -60, lon: -150 }, { lat: -61, lon: -120 }, { lat: -60, lon: -90 }
+    ]},
+    // 寒流
+    { name: "拉布拉多寒流", type: "cold", points: [
+      { lat: 70, lon: -55 }, { lat: 65, lon: -55 }, { lat: 60, lon: -55 },
+      { lat: 55, lon: -53 }, { lat: 50, lon: -50 }, { lat: 45, lon: -48 }, { lat: 42, lon: -46 }
+    ]},
+    { name: "东格陵兰寒流", type: "cold", points: [
+      { lat: 78, lon: -10 }, { lat: 75, lon: -15 }, { lat: 72, lon: -18 },
+      { lat: 68, lon: -22 }, { lat: 65, lon: -28 }, { lat: 62, lon: -35 }
+    ]},
+    { name: "加那利寒流", type: "cold", points: [
+      { lat: 42, lon: -20 }, { lat: 38, lon: -18 }, { lat: 33, lon: -16 },
+      { lat: 28, lon: -14 }, { lat: 22, lon: -12 }, { lat: 15, lon: -18 }, { lat: 10, lon: -20 }
+    ]},
+    { name: "加利福尼亚寒流", type: "cold", points: [
+      { lat: 48, lon: -130 }, { lat: 45, lon: -128 }, { lat: 40, lon: -125 },
+      { lat: 35, lon: -122 }, { lat: 30, lon: -120 }, { lat: 25, lon: -115 }, { lat: 20, lon: -110 }
+    ]},
+    { name: "秘鲁寒流", type: "cold", points: [
+      { lat: -45, lon: -75 }, { lat: -40, lon: -73 }, { lat: -35, lon: -72 },
+      { lat: -28, lon: -72 }, { lat: -20, lon: -71 }, { lat: -12, lon: -78 }, { lat: -5, lon: -82 }
+    ]},
+    { name: "本格拉寒流", type: "cold", points: [
+      { lat: -32, lon: 12 }, { lat: -28, lon: 14 }, { lat: -22, lon: 13 },
+      { lat: -16, lon: 12 }, { lat: -10, lon: 12 }, { lat: -5, lon: 11 }
+    ]},
+    { name: "西澳大利亚寒流", type: "cold", points: [
+      { lat: -32, lon: 112 }, { lat: -28, lon: 113 }, { lat: -22, lon: 113 },
+      { lat: -16, lon: 114 }, { lat: -12, lon: 115 }
+    ]},
+    { name: "福克兰寒流", type: "cold", points: [
+      { lat: -55, lon: -60 }, { lat: -50, lon: -58 }, { lat: -45, lon: -56 },
+      { lat: -40, lon: -55 }, { lat: -35, lon: -53 }
+    ]},
+  ];
+
+  // ============ 状态 ============
+  const state = {
+    running: false,
+    t: 0,
+    lastTimestamp: null,
+    showWarm: true,
+    showCold: true,
+    speed: 1.0,
+    rotation: { x: -0.35, y: 0.6 },
+    autoRotate: true,
+    autoRotateSpeed: 0.15,
+    drag: null,
+    particles: [],
+    particleSpawnTimer: 0,
+  };
+
+  // ============ 球面坐标变换 ============
+  function latLonToVec3(lat, lon, radius) {
+    const phi = (90 - lat) * Math.PI / 180;
+    const theta = (lon + 180) * Math.PI / 180;
+    return {
+      x: -radius * Math.sin(phi) * Math.cos(theta),
+      y: radius * Math.cos(phi),
+      z: radius * Math.sin(phi) * Math.sin(theta)
+    };
+  }
+
+  function rotateY(v, angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return { x: v.x * c + v.z * s, y: v.y, z: -v.x * s + v.z * c };
+  }
+  function rotateX(v, angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return { x: v.x, y: v.y * c - v.z * s, z: v.y * s + v.z * c };
+  }
+  function applyRotation(v) {
+    return rotateX(rotateY(v, state.rotation.y), state.rotation.x);
+  }
+
+  // ============ 简化大陆轮廓 ============
+  const CONTINENTS = [
+    // 北美
+    [[71,-156],[72,-130],[70,-95],[60,-75],[50,-58],[45,-65],[40,-75],[30,-82],[25,-80],[30,-95],[25,-100],[30,-115],[40,-120],[50,-125],[58,-135],[60,-150],[71,-156]],
+    // 南美
+    [[12,-72],[10,-60],[5,-52],[-8,-35],[-22,-40],[-35,-55],[-50,-68],[-55,-70],[-50,-75],[-35,-73],[-18,-72],[-5,-81],[5,-78],[12,-72]],
+    // 欧亚大陆
+    [[70,-10],[72,15],[75,40],[72,70],[75,100],[73,130],[70,160],[65,175],[55,160],[50,140],[45,135],[40,125],[35,120],[30,118],[22,108],[15,95],[10,80],[8,75],[20,60],[25,50],[32,35],[40,25],[45,15],[50,5],[55,-5],[60,-8],[70,-10]],
+    // 非洲
+    [[35,-6],[33,10],[30,25],[20,35],[12,43],[5,48],[-5,40],[-15,38],[-25,32],[-34,18],[-34,12],[-30,10],[-20,8],[-5,8],[5,3],[15,-15],[25,-17],[33,-10],[35,-6]],
+    // 澳洲
+    [[-12,131],[-15,145],[-20,148],[-30,150],[-38,145],[-35,138],[-32,128],[-25,115],[-18,122],[-12,131]],
+    // 南极
+    [[-70,-180],[-72,-150],[-70,-120],[-72,-90],[-70,-60],[-72,-30],[-70,0],[-72,30],[-70,60],[-72,90],[-70,120],[-72,150],[-70,180],[-72,-180]],
+    // 格陵兰
+    [[83,-30],[80,-20],[75,-18],[70,-22],[65,-35],[70,-50],[75,-55],[80,-45],[83,-30]],
+  ];
+
+  // ============ Canvas 设置 ============
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  let W = 760, H = 420, CX = 380, CY = 210, R = 150;
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    W = rect.width; H = rect.height;
+    CX = W / 2; CY = H / 2;
+    R = Math.max(80, Math.min(W, H) * 0.38);
+  }
+
+  // ============ 绘制地球 ============
+  function drawEarth() {
+    // 海洋球体（带光照渐变）
+    const lightAngle = state.rotation.y;
+    const lx = CX + Math.cos(lightAngle - 0.5) * R * 0.3;
+    const ly = CY - R * 0.2;
+    const grad = ctx.createRadialGradient(lx, ly, R * 0.1, CX, CY, R * 1.05);
+    grad.addColorStop(0, '#2a7ab8');
+    grad.addColorStop(0.4, '#1e5f8e');
+    grad.addColorStop(0.75, '#134466');
+    grad.addColorStop(1, '#0a2540');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 大陆
+    drawContinents();
+
+    // 经纬度网格（淡）
+    drawGraticule();
+
+    // 大气光晕
+    const atmoGrad = ctx.createRadialGradient(CX, CY, R * 0.95, CX, CY, R * 1.15);
+    atmoGrad.addColorStop(0, 'rgba(100, 180, 230, 0.0)');
+    atmoGrad.addColorStop(0.5, 'rgba(100, 180, 230, 0.15)');
+    atmoGrad.addColorStop(1, 'rgba(100, 180, 230, 0.0)');
+    ctx.fillStyle = atmoGrad;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R * 1.15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawGraticule() {
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 0.5;
+    // 经线
+    for (let lon = -180; lon <= 180; lon += 30) {
+      ctx.beginPath();
+      let started = false;
+      for (let lat = -90; lat <= 90; lat += 5) {
+        const v = applyRotation(latLonToVec3(lat, lon, R));
+        if (v.z > -R * 0.02) {
+          if (!started) { ctx.moveTo(CX + v.x, CY - v.y); started = true; }
+          else ctx.lineTo(CX + v.x, CY - v.y);
+        } else started = false;
+      }
+      ctx.stroke();
+    }
+    // 纬线
+    for (let lat = -60; lat <= 60; lat += 30) {
+      ctx.beginPath();
+      let started = false;
+      for (let lon = -180; lon <= 180; lon += 5) {
+        const v = applyRotation(latLonToVec3(lat, lon, R));
+        if (v.z > -R * 0.02) {
+          if (!started) { ctx.moveTo(CX + v.x, CY - v.y); started = true; }
+          else ctx.lineTo(CX + v.x, CY - v.y);
+        } else started = false;
+      }
+      ctx.stroke();
+    }
+    // 赤道加粗
+    ctx.strokeStyle = 'rgba(255,200,100,0.25)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    let started = false;
+    for (let lon = -180; lon <= 180; lon += 4) {
+      const v = applyRotation(latLonToVec3(0, lon, R));
+      if (v.z > -R * 0.02) {
+        if (!started) { ctx.moveTo(CX + v.x, CY - v.y); started = true; }
+        else ctx.lineTo(CX + v.x, CY - v.y);
+      } else started = false;
+    }
+    ctx.stroke();
+  }
+
+  function drawContinents() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(CX, CY, R - 1, 0, Math.PI * 2);
+    ctx.clip();
+
+    CONTINENTS.forEach(poly => {
+      ctx.beginPath();
+      let started = false;
+      let visible = false;
+      for (let i = 0; i < poly.length; i++) {
+        const [lat, lon] = poly[i];
+        const v = applyRotation(latLonToVec3(lat, lon, R));
+        if (v.z > -R * 0.05) {
+          visible = true;
+          if (!started) { ctx.moveTo(CX + v.x, CY - v.y); started = true; }
+          else ctx.lineTo(CX + v.x, CY - v.y);
+        } else started = false;
+      }
+      if (visible) {
+        ctx.closePath();
+        // 大陆颜色带光照
+        const lightFactor = Math.max(0.4, Math.cos(state.rotation.y - 0.5) * 0.5 + 0.5);
+        const r = Math.floor(107 * lightFactor);
+        const g = Math.floor(142 * lightFactor);
+        const b = Math.floor(90 * lightFactor);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(60,80,50,0.4)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+
+  // ============ 洋流路径绘制 ============
+  function projectPath(points) {
+    // 返回可见的路径段
+    const segs = [];
+    let cur = [];
+    for (let i = 0; i < points.length; i++) {
+      const v = applyRotation(latLonToVec3(points[i].lat, points[i].lon, R * 1.01));
+      if (v.z > -R * 0.03) {
+        cur.push({ x: CX + v.x, y: CY - v.y, z: v.z, lat: points[i].lat, lon: points[i].lon });
+      } else {
+        if (cur.length > 1) segs.push(cur);
+        cur = [];
+      }
+    }
+    if (cur.length > 1) segs.push(cur);
+    return segs;
+  }
+
+  function drawCurrentPath(current) {
+    const segs = projectPath(current.points);
+    const isWarm = current.type === 'warm';
+    const color = isWarm ? '#e8453c' : '#2563eb';
+    const glow = isWarm ? 'rgba(232,69,60,0.5)' : 'rgba(37,99,235,0.5)';
+
+    segs.forEach(seg => {
+      // 发光底层
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(seg[0].x, seg[0].y);
+      for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i].x, seg[i].y);
+      ctx.stroke();
+
+      // 主线
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(seg[0].x, seg[0].y);
+      for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i].x, seg[i].y);
+      ctx.stroke();
+
+      // 方向箭头（静态，沿路径中点）
+      if (seg.length >= 2) {
+        const mid = Math.floor(seg.length / 2);
+        const p1 = seg[Math.max(0, mid - 1)];
+        const p2 = seg[Math.min(seg.length - 1, mid)];
+        drawArrowHead(p1, p2, color);
+      }
+    });
+  }
+
+  function drawArrowHead(p1, p2, color) {
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 3) return;
+    const angle = Math.atan2(dy, dx);
+    const size = 6;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(p2.x, p2.y);
+    ctx.lineTo(p2.x - size * Math.cos(angle - 0.5), p2.y - size * Math.sin(angle - 0.5));
+    ctx.lineTo(p2.x - size * Math.cos(angle + 0.5), p2.y - size * Math.sin(angle + 0.5));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ============ 粒子系统（流动效果）============
+  function spawnParticles() {
+    const allCurrents = [];
+    if (state.showWarm) CURRENTS.filter(c => c.type === 'warm').forEach(c => allCurrents.push(c));
+    if (state.showCold) CURRENTS.filter(c => c.type === 'cold').forEach(c => allCurrents.push(c));
+
+    allCurrents.forEach(current => {
+      // 每条洋流按一定概率生成粒子
+      if (Math.random() < 0.3 * state.speed) {
+        state.particles.push({
+          current: current,
+          segIdx: 0,
+          progress: 0,
+          life: 0,
+          maxLife: 2.5 + Math.random() * 1.5,
+        });
+      }
+    });
+  }
+
+  function updateParticles(dt) {
+    const speed = state.speed * 0.4; // 粒子前进速度
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.progress += speed * dt;
+      p.life += dt;
+      while (p.progress >= 1 && p.segIdx < p.current.points.length - 2) {
+        p.progress -= 1;
+        p.segIdx++;
+      }
+      if (p.segIdx >= p.current.points.length - 2 || p.life > p.maxLife) {
+        state.particles.splice(i, 1);
+      }
+    }
+  }
+
+  function drawParticles() {
+    state.particles.forEach(p => {
+      const pts = p.current.points;
+      if (p.segIdx >= pts.length - 1) return;
+      const p1 = pts[p.segIdx];
+      const p2 = pts[p.segIdx + 1];
+      // 线性插值
+      const lat = p1.lat + (p2.lat - p1.lat) * p.progress;
+      const lon = p1.lon + (p2.lon - p1.lon) * p.progress;
+      const v = applyRotation(latLonToVec3(lat, lon, R * 1.02));
+      if (v.z < -R * 0.03) return; // 背面不画
+
+      const x = CX + v.x, y = CY - v.y;
+      const isWarm = p.current.type === 'warm';
+      const color = isWarm ? '232,69,60' : '37,99,235';
+      const alpha = Math.sin((p.life / p.maxLife) * Math.PI) * 0.9;
+
+      // 粒子光晕
+      const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, 8);
+      glowGrad.addColorStop(0, `rgba(${color},${alpha})`);
+      glowGrad.addColorStop(0.5, `rgba(${color},${alpha * 0.4})`);
+      glowGrad.addColorStop(1, `rgba(${color},0)`);
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 粒子核心
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ============ 主渲染 ============
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 背景星空
+    drawStars();
+
+    // 地球
+    drawEarth();
+
+    // 洋流路径
+    if (state.showWarm) CURRENTS.filter(c => c.type === 'warm').forEach(drawCurrentPath);
+    if (state.showCold) CURRENTS.filter(c => c.type === 'cold').forEach(drawCurrentPath);
+
+    // 流动粒子
+    drawParticles();
+
+    // 边缘描边
+    ctx.strokeStyle = 'rgba(100,180,230,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // 背景星点（固定，不随旋转动）
+  const stars = [];
+  for (let i = 0; i < 80; i++) {
+    stars.push({ x: Math.random(), y: Math.random(), s: Math.random() * 1.2 + 0.3, a: Math.random() * 0.5 + 0.2 });
+  }
+  function drawStars() {
+    stars.forEach(s => {
+      ctx.fillStyle = `rgba(200,220,255,${s.a})`;
+      ctx.beginPath();
+      ctx.arc(s.x * W, s.y * H, s.s, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ============ 模型更新 ============
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = Math.min(Math.max(dt, 0), 0.05);
+    state.t += boundedDt;
+
+    // 自动旋转
+    if (state.autoRotate && !state.drag) {
+      state.rotation.y += state.autoRotateSpeed * boundedDt;
+    }
+
+    // 粒子生成与更新
+    state.particleSpawnTimer += boundedDt;
+    if (state.particleSpawnTimer > 0.15) {
+      spawnParticles();
+      state.particleSpawnTimer = 0;
+    }
+    updateParticles(boundedDt);
+  }
+
+  // ============ 读数计算 ============
+  function getReadouts() {
+    // 教学性读数：基于洋流数量与流速的示意值
+    const warmCount = state.showWarm ? CURRENTS.filter(c => c.type === 'warm').length : 0;
+    const coldCount = state.showCold ? CURRENTS.filter(c => c.type === 'cold').length : 0;
+    const warmFlux = warmCount * 0.15 * state.speed;
+    const coldFlux = coldCount * 0.10 * state.speed;
+    const netFlux = warmFlux - coldFlux * 0.3; // 净极向输送
+    return {
+      warmFlux: warmFlux.toFixed(2),
+      coldFlux: coldFlux.toFixed(2),
+      netFlux: netFlux.toFixed(2),
+      time: state.t.toFixed(1)
+    };
+  }
+
+  function updateReadouts() {
+    const r = getReadouts();
+    document.getElementById('warmFlux').textContent = r.warmFlux + ' PW';
+    document.getElementById('coldFlux').textContent = r.coldFlux + ' PW';
+    document.getElementById('netFlux').textContent = r.netFlux + ' PW';
+    document.getElementById('timeReadout').textContent = r.time + ' s';
+  }
+
+  function updateInsight() {
+    const insight = document.getElementById('insight');
+    if (!state.running && state.t === 0) {
+      insight.textContent = '点击「播放」开始。观察红色暖流如何从赤道向两极输送热量，蓝色寒流如何把冷水带回赤道。';
+    } else if (!state.showWarm && !state.showCold) {
+      insight.textContent = '所有洋流已关闭。此时赤道热量无法向极地输送——赤道将变得更热，两极变得更冷。';
+    } else if (!state.showWarm) {
+      insight.textContent = '暖流关闭：仅剩寒流把冷水推向赤道，极地失去热量来源，将显著变冷。';
+    } else if (!state.showCold) {
+      insight.textContent = '寒流关闭：暖流持续向极地送热，但缺少冷水回流，赤道热量收支失衡。';
+    } else {
+      const r = getReadouts();
+      insight.textContent = `暖流向极地输送 ${r.warmFlux} PW 热量，寒流带回 ${r.coldFlux} PW。净极向输送 ${r.netFlux} PW，维持气候平衡。`;
+    }
+  }
+
+  // ============ 控制绑定 ============
+  function bindControls() {
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const warmToggle = document.getElementById('warmToggle');
+    const coldToggle = document.getElementById('coldToggle');
+    const speedInput = document.getElementById('speedInput');
+    const speedOutput = document.getElementById('speedOutput');
+    const status = document.getElementById('status');
+
+    startBtn.addEventListener('click', () => {
+      state.running = true;
+      status.textContent = '运行中';
+      startBtn.setAttribute('aria-pressed', 'true');
+    });
+    pauseBtn.addEventListener('click', () => {
+      state.running = false;
+      status.textContent = '已暂停';
+      startBtn.setAttribute('aria-pressed', 'false');
+    });
+    resetBtn.addEventListener('click', () => {
+      reset();
+    });
+    warmToggle.addEventListener('click', () => {
+      state.showWarm = !state.showWarm;
+      warmToggle.setAttribute('aria-pressed', String(state.showWarm));
+      if (!state.showWarm) state.particles = state.particles.filter(p => p.current.type !== 'warm');
+      render();
+      updateReadouts();
+      updateInsight();
+    });
+    coldToggle.addEventListener('click', () => {
+      state.showCold = !state.showCold;
+      coldToggle.setAttribute('aria-pressed', String(state.showCold));
+      if (!state.showCold) state.particles = state.particles.filter(p => p.current.type !== 'cold');
+      render();
+      updateReadouts();
+      updateInsight();
+    });
+    speedInput.addEventListener('input', () => {
+      state.speed = parseFloat(speedInput.value);
+      speedOutput.textContent = state.speed.toFixed(1) + '×';
+      updateReadouts();
+      updateInsight();
+    });
+
+    // 拖拽旋转
+    let lastDrag = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      state.drag = { x: e.clientX, y: e.clientY };
+      lastDrag = { x: e.clientX, y: e.clientY };
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!state.drag) return;
+      const dx = e.clientX - lastDrag.x;
+      const dy = e.clientY - lastDrag.y;
+      state.rotation.y += dx * 0.008;
+      state.rotation.x += dy * 0.008;
+      state.rotation.x = Math.max(-1.4, Math.min(1.4, state.rotation.x));
+      lastDrag = { x: e.clientX, y: e.clientY };
+      render();
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      state.drag = null;
+      lastDrag = null;
+    });
+    canvas.addEventListener('pointercancel', () => {
+      state.drag = null;
+      lastDrag = null;
+    });
+  }
+
+  // ============ 主循环 ============
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    updateReadouts();
+    updateInsight();
+    requestAnimationFrame(frame);
+  }
+
+  // ============ 初始化 ============
+  function init() {
+    resizeCanvas();
+    bindControls();
+    render();
+    updateReadouts();
+    updateInsight();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    const status = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    if (status) status.textContent = '运行中';
+    if (startBtn) startBtn.setAttribute('aria-pressed', 'true');
+  }
+
+  function pause() {
+    state.running = false;
+    const status = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    if (status) status.textContent = '已暂停';
+    if (startBtn) startBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  function reset() {
+    state.running = false;
+    state.t = 0;
+    state.particles = [];
+    state.rotation = { x: -0.35, y: 0.6 };
+    state.lastTimestamp = null;
+    const status = document.getElementById('status');
+    const startBtn = document.getElementById('startBtn');
+    if (status) status.textContent = '已暂停';
+    if (startBtn) startBtn.setAttribute('aria-pressed', 'false');
+    render();
+    updateReadouts();
+    updateInsight();
+  }
+
+  function setParameters(values) {
+    if (values.showWarm !== undefined) state.showWarm = !!values.showWarm;
+    if (values.showCold !== undefined) state.showCold = !!values.showCold;
+    if (values.speed !== undefined) {
+      const v = parseFloat(values.speed);
+      if (Number.isFinite(v)) state.speed = Math.min(3, Math.max(0.2, v));
+    }
+    const warmToggle = document.getElementById('warmToggle');
+    const coldToggle = document.getElementById('coldToggle');
+    const speedInput = document.getElementById('speedInput');
+    const speedOutput = document.getElementById('speedOutput');
+    if (warmToggle) warmToggle.setAttribute('aria-pressed', String(state.showWarm));
+    if (coldToggle) coldToggle.setAttribute('aria-pressed', String(state.showCold));
+    if (speedInput) speedInput.value = String(state.speed);
+    if (speedOutput) speedOutput.textContent = state.speed.toFixed(1) + '×';
+    render();
+    updateReadouts();
+    updateInsight();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      showWarm: state.showWarm,
+      showCold: state.showCold,
+      speed: state.speed,
+      rotation: { x: state.rotation.x, y: state.rotation.y },
+      particleCount: state.particles.length
+    };
+  }
+
+  function runModelChecks() {
+    const checks = [];
+    // 检查1：暖流从低纬流向高纬
+    const gulfStream = CURRENTS.find(c => c.name === '湾流');
+    const warmFlowsPoleward = gulfStream.points[0].lat < gulfStream.points[gulfStream.points.length - 1].lat;
+    checks.push({ name: '暖流向极地流动', pass: warmFlowsPoleward, expected: '起点纬度 < 终点纬度', actual: `${gulfStream.points[0].lat} < ${gulfStream.points[gulfStream.points.length - 1].lat}` });
+
+    // 检查2：寒流从高纬流向低纬
+    const peru = CURRENTS.find(c => c.name === '秘鲁寒流');
+    const coldFlowsEquatorward = peru.points[0].lat > peru.points[peru.points.length - 1].lat;
+    checks.push({ name: '寒流向赤道流动', pass: coldFlowsEquatorward, expected: '起点纬度 > 终点纬度', actual: `${peru.points[0].lat} > ${peru.points[peru.points.length - 1].lat}` });
+
+    // 检查3：暖流数量 > 0
+    checks.push({ name: '暖流数据存在', pass: CURRENTS.filter(c => c.type === 'warm').length > 0, expected: '>0', actual: CURRENTS.filter(c => c.type === 'warm').length });
+
+    // 检查4：寒流数量 > 0
+    checks.push({ name: '寒流数据存在', pass: CURRENTS.filter(c => c.type === 'cold').length > 0, expected: '>0', actual: CURRENTS.filter(c => c.type === 'cold').length });
+
+    // 检查5：关闭暖流后暖流读数为0
+    const savedWarm = state.showWarm;
+    state.showWarm = false;
+    const r1 = getReadouts();
+    state.showWarm = savedWarm;
+    checks.push({ name: '关闭暖流后读数为0', pass: parseFloat(r1.warmFlux) === 0, expected: '0.00', actual: r1.warmFlux });
+
+    // 检查6：流速影响读数
+    const savedSpeed = state.speed;
+    state.speed = 2.0;
+    const r2 = getReadouts();
+    state.speed = savedSpeed;
+    const r3 = getReadouts();
+    checks.push({ name: '流速影响热量输送读数', pass: parseFloat(r2.warmFlux) > parseFloat(r3.warmFlux), expected: '高流速 > 低流速', actual: `${r2.warmFlux} > ${r3.warmFlux}` });
+
+    return checks;
+  }
+
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    render();
+  });
+
+  window.simulation = {
+    init,
+    start,
+    pause,
+    reset,
+    update,
+    render,
+    setParameters,
+    getState,
+    getReadouts,
+    runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

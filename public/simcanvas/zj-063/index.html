@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>神经网络前向传播</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(420px, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 420px; padding: 14px; display: grid; grid-template-rows: auto minmax(380px, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 380px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .layer-label { fill: var(--sim-muted); font-size: 13px; font-weight: 700; }
+    .node-label { fill: var(--sim-text); font-size: 11px; font-weight: 700; }
+    .node-value { fill: var(--sim-text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .conn-pos { stroke: var(--sim-accent); stroke-linecap: round; }
+    .conn-neg { stroke: var(--sim-danger); stroke-linecap: round; }
+    .conn-inactive { stroke: #c8d2df; stroke-linecap: round; }
+    .node-inactive { fill: #eef2f7; stroke: #c8d2df; stroke-width: 2; }
+    .node-active { fill: var(--sim-accent-soft); stroke: var(--sim-accent); stroke-width: 3; }
+    .node-output { fill: #fff4d6; stroke: var(--sim-warning); stroke-width: 3; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>神经网络前向传播</h1>
+        <p>调整输入，观察信号如何逐层加权求和与 ReLU 激活，最终汇聚成输出。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已就绪</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">网络结构</h2><span>2 → 3 → 1 全连接网络</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">三层全连接神经网络：输入层 2 个节点，隐藏层 3 个节点，输出层 1 个节点。连线粗细编码权重绝对值，颜色编码正负。</desc>
+          <g id="connections"></g>
+          <g id="nodes"></g>
+          <g id="labels"></g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数值">
+          <div class="readout-grid">
+            <div class="metric"><small>输入 x₁</small><strong id="x1Readout">1.00</strong></div>
+            <div class="metric"><small>输入 x₂</small><strong id="x2Readout">0.50</strong></div>
+            <div class="metric"><small>隐藏层激活</small><strong id="hiddenReadout">[0.65, 0, 0.80]</strong></div>
+            <div class="metric"><small>输出 y</small><strong id="outputReadout">1.03</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">拖动输入滑块观察连线变化，点击"开始"启动逐层前向传播。</p>
+          <p>教学视图：z = W·x + b，激活函数 ReLU(z) = max(0, z)。连线粗细 = |权重|，青色为正权重，红色为负权重。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="stepBtn" type="button">步进</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="x1Input">输入 x₁ <output id="x1Output">1.00</output></label>
+        <input id="x1Input" type="range" min="0" max="1" step="0.05" value="1">
+      </div>
+      <div class="control">
+        <label for="x2Input">输入 x₂ <output id="x2Output">0.50</output></label>
+        <input id="x2Input" type="range" min="0" max="1" step="0.05" value="0.5">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const parameterSchema = [
+      { key: "x1", label: "输入 x₁", type: "slider", min: 0, max: 1, step: 0.05, default: 1, unit: "" },
+      { key: "x2", label: "输入 x₂", type: "slider", min: 0, max: 1, step: 0.05, default: 0.5, unit: "" }
+    ];
+
+    const WEIGHTS = {
+      hidden: [[0.4, -0.3], [0.2, 0.7], [-0.5, 0.6]],
+      output: [[0.5, 0.8, -0.2]]
+    };
+    const BIASES = { hidden: [0.1, -0.5, 0.3], output: [0.05] };
+
+    const LAYER_X = [140, 380, 620];
+    const LAYER_Y = [[150, 270], [90, 210, 330], [210]];
+    const LAYER_NAMES = ["输入层", "隐藏层", "输出层"];
+
+    const state = {
+      running: false,
+      t: 0,
+      x1: 1,
+      x2: 0.5,
+      activatedLayers: [true, false, false],
+      activations: [[1, 0.5], [0, 0, 0], [0]],
+      lastTimestamp: null,
+      animProgress: 0
+    };
+
+    const elements = {
+      status: document.querySelector("#status"),
+      connections: document.querySelector("#connections"),
+      nodes: document.querySelector("#nodes"),
+      labels: document.querySelector("#labels"),
+      insight: document.querySelector("#insight"),
+      x1Readout: document.querySelector("#x1Readout"),
+      x2Readout: document.querySelector("#x2Readout"),
+      hiddenReadout: document.querySelector("#hiddenReadout"),
+      outputReadout: document.querySelector("#outputReadout"),
+      x1Input: document.querySelector("#x1Input"),
+      x1Output: document.querySelector("#x1Output"),
+      x2Input: document.querySelector("#x2Input"),
+      x2Output: document.querySelector("#x2Output"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      stepBtn: document.querySelector("#stepBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    function relu(z) { return Math.max(0, z); }
+
+    function forwardPass(x1, x2) {
+      const inputs = [x1, x2];
+      const hidden = [];
+      for (let i = 0; i < 3; i++) {
+        const z = WEIGHTS.hidden[i][0] * x1 + WEIGHTS.hidden[i][1] * x2 + BIASES.hidden[i];
+        hidden.push(relu(z));
+      }
+      const output = [];
+      for (let i = 0; i < 1; i++) {
+        let z = BIASES.output[i];
+        for (let j = 0; j < 3; j++) z += WEIGHTS.output[i][j] * hidden[j];
+        output.push(relu(z));
+      }
+      return { inputs, hidden, output };
+    }
+
+    function initSVG() {
+      const connParts = [];
+      for (let i = 0; i < 2; i++) {
+        for (let j = 0; j < 3; j++) {
+          const w = WEIGHTS.hidden[j][i];
+          const sw = Math.max(1, Math.abs(w) * 8);
+          const cls = w >= 0 ? "conn-pos" : "conn-neg";
+          connParts.push(`<line class="${cls}" data-from="0-${i}" data-to="1-${j}" x1="${LAYER_X[0]}" y1="${LAYER_Y[0][i]}" x2="${LAYER_X[1]}" y2="${LAYER_Y[1][j]}" stroke-width="${sw}" opacity="0.55"></line>`);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const w = WEIGHTS.output[0][i];
+        const sw = Math.max(1, Math.abs(w) * 8);
+        const cls = w >= 0 ? "conn-pos" : "conn-neg";
+        connParts.push(`<line class="${cls}" data-from="1-${i}" data-to="2-0" x1="${LAYER_X[1]}" y1="${LAYER_Y[1][i]}" x2="${LAYER_X[2]}" y2="${LAYER_Y[2][0]}" stroke-width="${sw}" opacity="0.55"></line>`);
+      }
+      elements.connections.innerHTML = connParts.join("");
+
+      const nodeParts = [];
+      for (let layer = 0; layer < 3; layer++) {
+        for (let i = 0; i < LAYER_Y[layer].length; i++) {
+          nodeParts.push(`<circle class="node-inactive" data-layer="${layer}" data-index="${i}" cx="${LAYER_X[layer]}" cy="${LAYER_Y[layer][i]}" r="26"></circle>`);
+        }
+      }
+      elements.nodes.innerHTML = nodeParts.join("");
+
+      const labelParts = [];
+      for (let layer = 0; layer < 3; layer++) {
+        labelParts.push(`<text class="layer-label" x="${LAYER_X[layer]}" y="385" text-anchor="middle">${LAYER_NAMES[layer]}</text>`);
+        for (let i = 0; i < LAYER_Y[layer].length; i++) {
+          const name = layer === 0 ? `x${i + 1}` : (layer === 1 ? `h${i + 1}` : "y");
+          labelParts.push(`<text class="node-label" x="${LAYER_X[layer]}" y="${LAYER_Y[layer][i] + 4}" text-anchor="middle">${name}</text>`);
+          labelParts.push(`<text class="node-value" data-value-layer="${layer}" data-value-index="${i}" x="${LAYER_X[layer]}" y="${LAYER_Y[layer][i] + 45}" text-anchor="middle">0.00</text>`);
+        }
+      }
+      elements.labels.innerHTML = labelParts.join("");
+    }
+
+    function init() {
+      initSVG();
+      bindControls();
+      setParameters({ x1: 1, x2: 0.5 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (state.activatedLayers[2]) reset();
+      state.running = true;
+      elements.status.textContent = "传播中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.activatedLayers = [true, false, false];
+      state.activations = [[state.x1, state.x2], [0, 0, 0], [0]];
+      state.animProgress = 0;
+      state.lastTimestamp = null;
+      render();
+    }
+
+    function step() {
+      if (!state.activatedLayers[1]) {
+        state.activatedLayers[1] = true;
+        const result = forwardPass(state.x1, state.x2);
+        state.activations[1] = result.hidden;
+      } else if (!state.activatedLayers[2]) {
+        state.activatedLayers[2] = true;
+        const result = forwardPass(state.x1, state.x2);
+        state.activations[2] = result.output;
+      } else {
+        reset();
+      }
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      state.t += boundedDt;
+      state.animProgress += boundedDt;
+
+      if (state.animProgress >= 1.2 && !state.activatedLayers[1]) {
+        state.activatedLayers[1] = true;
+        const result = forwardPass(state.x1, state.x2);
+        state.activations[1] = result.hidden;
+        state.animProgress = 0;
+      } else if (state.animProgress >= 1.2 && state.activatedLayers[1] && !state.activatedLayers[2]) {
+        state.activatedLayers[2] = true;
+        const result = forwardPass(state.x1, state.x2);
+        state.activations[2] = result.output;
+        state.animProgress = 0;
+      } else if (state.activatedLayers[2]) {
+        pause();
+        elements.status.textContent = "传播完成";
+      }
+      render();
+    }
+
+    function render() {
+      const nodeEls = elements.nodes.querySelectorAll("circle");
+      nodeEls.forEach((node) => {
+        const layer = parseInt(node.getAttribute("data-layer"), 10);
+        const idx = parseInt(node.getAttribute("data-index"), 10);
+        const isActive = state.activatedLayers[layer];
+        const isOutput = layer === 2;
+        node.setAttribute("class", isActive ? (isOutput ? "node-output" : "node-active") : "node-inactive");
+      });
+
+      const valueEls = elements.labels.querySelectorAll('[data-value-layer]');
+      valueEls.forEach((el) => {
+        const layer = parseInt(el.getAttribute("data-value-layer"), 10);
+        const idx = parseInt(el.getAttribute("data-value-index"), 10);
+        const val = state.activations[layer][idx];
+        el.textContent = val.toFixed(2);
+      });
+
+      const connEls = elements.connections.querySelectorAll("line");
+      connEls.forEach((conn) => {
+        const from = conn.getAttribute("data-from").split("-");
+        const fromLayer = parseInt(from[0], 10);
+        const active = state.activatedLayers[fromLayer];
+        conn.setAttribute("opacity", active ? "0.85" : "0.25");
+      });
+
+      const result = forwardPass(state.x1, state.x2);
+      elements.x1Readout.textContent = state.x1.toFixed(2);
+      elements.x2Readout.textContent = state.x2.toFixed(2);
+      elements.hiddenReadout.textContent = `[${result.hidden.map(v => v.toFixed(2)).join(", ")}]`;
+      elements.outputReadout.textContent = result.output[0].toFixed(2);
+
+      if (!state.activatedLayers[1] && !state.activatedLayers[2]) {
+        elements.insight.textContent = "输入层已激活。点击\"开始\"或\"步进\"让信号传播到隐藏层。";
+      } else if (state.activatedLayers[1] && !state.activatedLayers[2]) {
+        elements.insight.textContent = "隐藏层已计算：每个神经元对输入加权求和后经 ReLU 激活。继续传播到输出层。";
+      } else if (state.activatedLayers[2]) {
+        elements.insight.textContent = `传播完成。输出 y = ${result.output[0].toFixed(2)}，由隐藏层激活值经最终权重求和得到。`;
+      }
+
+      elements.x1Output.textContent = state.x1.toFixed(2);
+      elements.x2Output.textContent = state.x2.toFixed(2);
+    }
+
+    function setParameters(values) {
+      const x1Def = parameterSchema[0], x2Def = parameterSchema[1];
+      state.x1 = clamp(finite(Number(values.x1), x1Def.default), x1Def.min, x1Def.max);
+      state.x2 = clamp(finite(Number(values.x2), x2Def.default), x2Def.min, x2Def.max);
+      state.activations[0] = [state.x1, state.x2];
+      if (state.activatedLayers[1]) {
+        const result = forwardPass(state.x1, state.x2);
+        state.activations[1] = result.hidden;
+        if (state.activatedLayers[2]) state.activations[2] = result.output;
+      }
+      elements.x1Input.value = String(state.x1);
+      elements.x2Input.value = String(state.x2);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        x1: state.x1,
+        x2: state.x2,
+        activatedLayers: [...state.activatedLayers],
+        activations: state.activations.map(layer => [...layer])
+      };
+    }
+
+    function getReadouts() {
+      const result = forwardPass(state.x1, state.x2);
+      return {
+        x1: state.x1,
+        x2: state.x2,
+        hidden: result.hidden,
+        output: result.output[0],
+        activatedLayers: [...state.activatedLayers]
+      };
+    }
+
+    function runModelChecks() {
+      const r1 = forwardPass(1, 0.5);
+      const z1Expected = [0.4 * 1 + (-0.3) * 0.5 + 0.1, 0.2 * 1 + 0.7 * 0.5 + (-0.5), (-0.5) * 1 + 0.6 * 0.5 + 0.3];
+      const a1Expected = z1Expected.map(relu);
+      const z2Expected = [0.5 * a1Expected[0] + 0.8 * a1Expected[1] + (-0.2) * a1Expected[2] + 0.05];
+      const a2Expected = z2Expected.map(relu);
+
+      const r2 = forwardPass(0, 0);
+      const r3 = forwardPass(1, 1);
+
+      return [
+        { name: "隐藏层 z 值", pass: Math.abs(r1.hidden[0] - a1Expected[0]) < 1e-9 && Math.abs(r1.hidden[2] - a1Expected[2]) < 1e-9, expected: a1Expected, actual: r1.hidden, tolerance: 1e-9 },
+        { name: "输出值", pass: Math.abs(r1.output[0] - a2Expected[0]) < 1e-9, expected: a2Expected[0], actual: r1.output[0], tolerance: 1e-9 },
+        { name: "零输入边界", pass: r2.hidden.every(v => v === 0) && r2.output[0] === 0, expected: 0, actual: r2.output[0], tolerance: 0 },
+        { name: "全一输入", pass: Number.isFinite(r3.output[0]), expected: "finite", actual: r3.output[0], tolerance: "finite" },
+        { name: "ReLU 截断", pass: r1.hidden[1] === 0, expected: 0, actual: r1.hidden[1], tolerance: 0 }
+      ];
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.stepBtn.addEventListener("click", step);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.x1Input.addEventListener("input", () => setParameters({ x1: elements.x1Input.value, x2: state.x2 }));
+      elements.x2Input.addEventListener("input", () => setParameters({ x1: state.x1, x2: elements.x2Input.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      step: step,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  })();
+  </script>
+</body>
+</html>

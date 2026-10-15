@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transformer 工作过程 · 神经网络可视化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #0a0e1a;
+      --sim-surface: #131a2e;
+      --sim-surface-soft: #1a2238;
+      --sim-text: #e8eefc;
+      --sim-muted: #8b95b0;
+      --sim-border: #2a3450;
+      --sim-grid: #1e2640;
+      --sim-accent: #22d3ee;
+      --sim-accent-deep: #0891b2;
+      --sim-accent-soft: #0e2a38;
+      --sim-positive: #22d3ee;
+      --sim-warning: #f59e0b;
+      --sim-danger: #ef4444;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(0, 0, 0, 0.45);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-token: #fbbf24;
+      --sim-embed: #34d399;
+      --sim-attn: #22d3ee;
+      --sim-ffn: #a78bfa;
+      --sim-output: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.10), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(167, 139, 250, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(34, 211, 238, 0.45); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; background: linear-gradient(135deg, #22d3ee, #a78bfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(34,211,238,.28); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(19, 26, 46, .88); border: 1px solid rgba(42, 52, 80, .55); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; color: var(--sim-text); }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(34,211,238,.15); border-radius: 18px; background: radial-gradient(ellipse at 50% 40%, #0f1830 0%, #070b18 70%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(34,211,238,.14); border-radius: 15px; background: linear-gradient(145deg, rgba(26,34,56,.7), rgba(15,24,48,.7)); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--sim-text); }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-accent); border-radius: 0 12px 12px 0; background: rgba(14, 42, 56, .55); color: var(--sim-accent) !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #3a4670; background: #1f2944; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #06141a; background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep)); box-shadow: 0 8px 18px rgba(34,211,238,.25); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; color: var(--sim-text); }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    input[type="text"] { width: 100%; padding: 8px 10px; border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); background: var(--sim-surface-soft); color: var(--sim-text); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #3a4670; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 11px; }
+    .layer-label { fill: var(--sim-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
+    .stage-label { fill: var(--sim-text); font-size: 12px; font-weight: 700; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--sim-muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>Transformer 工作过程</h1>
+        <p>输入一句 Prompt，观察 Token 粒子逐层穿透神经网络，经 Attention 建立上下文关联后预测下一个 Token。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">Paused</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head">
+          <h2 id="scene-title">神经网络数据流</h2>
+          <span>Token → Embedding → Multi-Head Attention → FFN → 输出</span>
+        </div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">Transformer 神经网络示意图：输入文本经 Token 化、Embedding 后穿过两层 Attention+FFN，最终在输出层逐个生成 Token。</desc>
+          <defs>
+            <radialGradient id="tokenGlow"><stop offset="0" stop-color="rgba(251,191,36,0.9)"/><stop offset="0.6" stop-color="rgba(251,191,36,0.3)"/><stop offset="1" stop-color="rgba(251,191,36,0)"/></radialGradient>
+            <radialGradient id="embedGlow"><stop offset="0" stop-color="rgba(52,211,153,0.9)"/><stop offset="0.6" stop-color="rgba(52,211,153,0.3)"/><stop offset="1" stop-color="rgba(52,211,153,0)"/></radialGradient>
+            <radialGradient id="attnGlow"><stop offset="0" stop-color="rgba(34,211,238,0.9)"/><stop offset="0.6" stop-color="rgba(34,211,238,0.3)"/><stop offset="1" stop-color="rgba(34,211,238,0)"/></radialGradient>
+            <radialGradient id="ffnGlow"><stop offset="0" stop-color="rgba(167,139,250,0.9)"/><stop offset="0.6" stop-color="rgba(167,139,250,0.3)"/><stop offset="1" stop-color="rgba(167,139,250,0)"/></radialGradient>
+            <radialGradient id="outputGlow"><stop offset="0" stop-color="rgba(251,113,133,0.9)"/><stop offset="0.6" stop-color="rgba(251,113,133,0.3)"/><stop offset="1" stop-color="rgba(251,113,133,0)"/></radialGradient>
+          </defs>
+          <g id="grid"></g>
+          <g id="layerBg"></g>
+          <g id="attentionLines"></g>
+          <g id="particles"></g>
+          <g id="nodes"></g>
+          <g id="labels"></g>
+        </svg>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span>Token</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#34d399"></span>Embedding</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#22d3ee"></span>Attention</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>FFN</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#fb7185"></span>输出</div>
+        </div>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="Live values">
+          <div class="readout-grid">
+            <div class="metric"><small>当前阶段</small><strong id="phaseReadout">空闲</strong></div>
+            <div class="metric"><small>已生成 Token</small><strong id="generatedReadout">0</strong></div>
+            <div class="metric"><small>处理 Token</small><strong id="tokenReadout">—</strong></div>
+            <div class="metric"><small>层数</small><strong id="layerReadout">2</strong></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>概念说明</h2></div>
+          <p id="insight" class="insight">输入一句 Prompt，按下开始，观察 Token 粒子逐层穿透 Transformer 网络。</p>
+          <p>教学视图：Attention 连线强度为概念性可视化编码，映射"关联强度"而非真实权重数值。模型逐层 refining 语义表示，最终基于上下文预测下一个 Token。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="Simulation controls">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">Start</button>
+        <button id="pauseBtn" type="button">Pause</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+      <div class="control">
+        <label for="promptInput">输入 Prompt</label>
+        <input id="promptInput" type="text" value="The sky is" placeholder="输入一句英文 Prompt">
+      </div>
+      <div class="control">
+        <label for="speedInput">动画速度 <output id="speedOutput">1.0×</output></label>
+        <input id="speedInput" type="range" min="0.3" max="3" step="0.1" value="1">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "prompt", label: "输入 Prompt", type: "text", default: "The sky is" },
+      { key: "speed", label: "动画速度", type: "slider", min: 0.3, max: 3, step: 0.1, default: 1, unit: "×" }
+    ];
+    const VOCAB = ["blue","the","a","today","clear","beautiful","sky","is","sun","cloud","bright","dark","green","red","color","day","night","warm","cold","big","small","high","low","of","and","to","in","for","on","with","at","by","from","up","about","into","over","after","be","have","do","say","get","make","go","know","take","see","come","think","look","want","give","use","find","tell","ask","work","seem","feel","try","leave","call","good","new","first","last","long","great","little","own","other","old","right","big","small","high","low","large","next","early","young","important","few","public","bad","same","able","to","of","in","for","on","with","at","by","from","up","about","into","over","after","be","have","do","say","get","make","go","know","take","see","come","think","look","want","give","use","find","tell","ask","work","seem","feel","try","leave","call"];
+    const state = {
+      running: false,
+      t: 0,
+      phase: "idle",
+      phaseProgress: 0,
+      phaseTokenIdx: 0,
+      prompt: "The sky is",
+      speed: 1,
+      lastTimestamp: null,
+      tokens: [],
+      generated: [],
+      particles: [],
+      attentionLines: [],
+      currentToken: null,
+      predictedToken: null
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      grid: document.querySelector("#grid"),
+      layerBg: document.querySelector("#layerBg"),
+      attentionLines: document.querySelector("#attentionLines"),
+      particles: document.querySelector("#particles"),
+      nodes: document.querySelector("#nodes"),
+      labels: document.querySelector("#labels"),
+      insight: document.querySelector("#insight"),
+      phaseReadout: document.querySelector("#phaseReadout"),
+      generatedReadout: document.querySelector("#generatedReadout"),
+      tokenReadout: document.querySelector("#tokenReadout"),
+      layerReadout: document.querySelector("#layerReadout"),
+      promptInput: document.querySelector("#promptInput"),
+      speedInput: document.querySelector("#speedInput"),
+      speedOutput: document.querySelector("#speedOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    // Stage layout: 6 columns x 4 rows
+    const COLS = [
+      { x: 80, label: "Input" },
+      { x: 200, label: "Token" },
+      { x: 320, label: "Embed" },
+      { x: 460, label: "Layer 1" },
+      { x: 600, label: "Layer 2" },
+      { x: 720, label: "Output" }
+    ];
+    const ROW_Y = [110, 200, 290];
+    const LAYERS = [
+      { colIdx: 3, type: "attn+ffn", label: "Attn + FFN" },
+      { colIdx: 4, type: "attn+ffn", label: "Attn + FFN" }
+    ];
+
+    function initGrid() {
+      const lines = [];
+      for (let i = 0; i <= 10; i += 1) {
+        const x = 20 + i * 72;
+        const y = 20 + i * 38;
+        lines.push('<line class="grid-line" x1="' + x + '" y1="20" x2="' + x + '" y2="400"></line>');
+        lines.push('<line class="grid-line" x1="20" y1="' + y + '" x2="740" y2="' + y + '"></line>');
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+
+    function initLayerBg() {
+      let html = "";
+      // Layer column backgrounds
+      for (let i = 0; i < COLS.length; i++) {
+        const col = COLS[i];
+        html += '<rect x="' + (col.x - 45) + '" y="55" width="90" height="320" rx="12" fill="rgba(30,38,64,0.4)" stroke="rgba(42,52,80,0.5)" stroke-width="1"/>';
+        html += '<text class="layer-label" x="' + col.x + '" y="48" text-anchor="middle">' + col.label + '</text>';
+      }
+      // Layer 1 & 2 internal sub-blocks (Attn top, FFN bottom)
+      for (let i = 0; i < LAYERS.length; i++) {
+        const layer = LAYERS[i];
+        const x = COLS[layer.colIdx].x;
+        html += '<rect x="' + (x - 38) + '" y="85" width="76" height="90" rx="8" fill="rgba(34,211,238,0.06)" stroke="rgba(34,211,238,0.25)" stroke-width="1"/>';
+        html += '<text class="layer-label" x="' + x + '" y="100" text-anchor="middle" fill="#22d3ee">Attn</text>';
+        html += '<rect x="' + (x - 38) + '" y="215" width="76" height="90" rx="8" fill="rgba(167,139,250,0.06)" stroke="rgba(167,139,250,0.25)" stroke-width="1"/>';
+        html += '<text class="layer-label" x="' + x + '" y="230" text-anchor="middle" fill="#a78bfa">FFN</text>';
+      }
+      elements.layerBg.innerHTML = html;
+    }
+
+    function tokenize(text) {
+      const cleaned = text.trim().replace(/[^\w\s]/g, "").toLowerCase();
+      const words = cleaned.split(/\s+/).filter(function(w) { return w.length > 0; });
+      return words.slice(0, 3);
+    }
+
+    function predictNext(context) {
+      if (context.length === 0) return "the";
+      const last = context[context.length - 1];
+      const map = {
+        "the": ["sky","sun","moon","color","day"],
+        "sky": ["is","was","blue","clear"],
+        "is": ["blue","the","a","today"],
+        "sun": ["is","rises","shines"],
+        "blue": ["sky","today","color"],
+        "a": ["beautiful","clear","big"],
+        "beautiful": ["day","sky","morning"]
+      };
+      const opts = map[last] || ["the","a","is","of","and"];
+      return opts[Math.floor(Math.random() * opts.length)];
+    }
+
+    function init() {
+      initGrid();
+      initLayerBg();
+      bindControls();
+      setParameters({ prompt: "The sky is", speed: 1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      if (state.phase === "idle" || state.phase === "done") {
+        beginRun();
+      }
+      state.running = true;
+      elements.status.textContent = "Running";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "Paused";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.phase = "idle";
+      state.phaseProgress = 0;
+      state.phaseTokenIdx = 0;
+      state.tokens = tokenize(state.prompt);
+      state.generated = [];
+      state.particles = [];
+      state.attentionLines = [];
+      state.currentToken = null;
+      state.predictedToken = null;
+      state.lastTimestamp = null;
+      render();
+    }
+
+    function beginRun() {
+      state.tokens = tokenize(state.prompt);
+      state.generated = [];
+      state.phase = "tokenize";
+      state.phaseProgress = 0;
+      state.phaseTokenIdx = 0;
+      state.particles = [];
+      state.attentionLines = [];
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      const effDt = boundedDt * state.speed;
+      state.t += boundedDt;
+      state.phaseProgress += effDt;
+
+      switch (state.phase) {
+        case "tokenize": updateTokenize(effDt); break;
+        case "embed": updateEmbed(effDt); break;
+        case "layer1": updateLayer(effDt, 0); break;
+        case "layer2": updateLayer(effDt, 1); break;
+        case "predict": updatePredict(effDt); break;
+        case "idle": break;
+        case "done": break;
+      }
+      updateParticles(effDt);
+    }
+
+    function updateTokenize(dt) {
+      const tokenDur = 0.35;
+      const totalDur = state.tokens.length * tokenDur;
+      if (state.phaseProgress >= totalDur) {
+        state.phase = "embed";
+        state.phaseProgress = 0;
+        state.phaseTokenIdx = 0;
+        return;
+      }
+      const idx = Math.floor(state.phaseProgress / tokenDur);
+      if (idx !== state.phaseTokenIdx) {
+        state.phaseTokenIdx = idx;
+      }
+      state.currentToken = state.tokens[Math.min(idx, state.tokens.length - 1)];
+    }
+
+    function updateEmbed(dt) {
+      const dur = 1.2;
+      if (state.phaseProgress >= dur) {
+        state.phase = "layer1";
+        state.phaseProgress = 0;
+        state.phaseTokenIdx = 0;
+        state.attentionLines = [];
+        return;
+      }
+      state.currentToken = state.tokens[state.phaseTokenIdx];
+      // Spawn attention lines progressively during embed
+      if (state.attentionLines.length === 0 && state.phaseProgress > 0.2) {
+        spawnAttentionLines(0);
+      }
+    }
+
+    function updateLayer(dt, layerIdx) {
+      const dur = 1.8;
+      if (state.phaseProgress >= dur) {
+        state.attentionLines = [];
+        if (layerIdx === 0) {
+          state.phase = "layer2";
+          state.phaseProgress = 0;
+          state.phaseTokenIdx = 0;
+        } else {
+          state.phase = "predict";
+          state.phaseProgress = 0;
+          state.phaseTokenIdx = 0;
+        }
+        return;
+      }
+      state.currentToken = state.tokens[state.phaseTokenIdx];
+      // Spawn attention lines at start of layer
+      if (state.attentionLines.length === 0 && state.phaseProgress > 0.1) {
+        spawnAttentionLines(layerIdx);
+      }
+    }
+
+    function updatePredict(dt) {
+      const dur = 1.0;
+      if (state.phaseProgress >= dur) {
+        const predicted = predictNext(state.tokens.concat(state.generated));
+        state.generated.push(predicted);
+        state.tokens.push(predicted);
+        if (state.tokens.length > 3) state.tokens.shift();
+        if (state.generated.length >= 5) {
+          state.phase = "done";
+          state.running = false;
+          elements.status.textContent = "Done";
+          elements.startBtn.setAttribute("aria-pressed", "false");
+        } else {
+          state.phase = "tokenize";
+          state.phaseProgress = 0;
+          state.phaseTokenIdx = 0;
+          state.attentionLines = [];
+        }
+        return;
+      }
+      if (state.phaseProgress > 0.5 && !state.predictedToken) {
+        state.predictedToken = predictNext(state.tokens.concat(state.generated));
+      }
+    }
+
+    function spawnAttentionLines(layerIdx) {
+      state.attentionLines = [];
+      const layer = LAYERS[layerIdx];
+      const x = COLS[layer.colIdx].x;
+      const n = state.tokens.length;
+      if (n < 2) return;
+      // Generate attention lines between token rows (conceptual, not real weights)
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (i === j) continue;
+          // Random-ish strength based on token indices (deterministic per run)
+          const strength = 0.3 + 0.7 * Math.abs(Math.sin(i * 2.3 + j * 1.7 + layerIdx));
+          if (strength > 0.5) {
+            state.attentionLines.push({
+              from: i,
+              to: j,
+              strength: strength,
+              layer: layerIdx,
+              x: x
+            });
+          }
+        }
+      }
+    }
+
+    function updateParticles(dt) {
+      // Spawn particles based on phase
+      const spawnRate = 8;
+      state.particleSpawnAcc = (state.particleSpawnAcc || 0) + dt * spawnRate;
+      while (state.particleSpawnAcc >= 1) {
+        state.particleSpawnAcc -= 1;
+        spawnParticle();
+      }
+      // Update existing particles
+      const next = [];
+      for (let i = 0; i < state.particles.length; i++) {
+        const p = state.particles[i];
+        p.progress += dt * p.speed;
+        if (p.progress < 1.0) {
+          next.push(p);
+        }
+      }
+      state.particles = next;
+    }
+
+    function spawnParticle() {
+      if (state.phase === "idle" || state.phase === "done") return;
+      if (state.tokens.length === 0) return;
+      const tokenIdx = Math.floor(Math.random() * state.tokens.length);
+      const token = state.tokens[tokenIdx];
+      let path = [];
+      let color = "#fbbf24";
+      let glowId = "tokenGlow";
+      switch (state.phase) {
+        case "tokenize":
+          path = [{ x: 80, y: ROW_Y[tokenIdx] }, { x: 200, y: ROW_Y[tokenIdx] }];
+          color = "#fbbf24"; glowId = "tokenGlow";
+          break;
+        case "embed":
+          path = [{ x: 200, y: ROW_Y[tokenIdx] }, { x: 320, y: ROW_Y[tokenIdx] }];
+          color = "#34d399"; glowId = "embedGlow";
+          break;
+        case "layer1":
+          path = [{ x: 320, y: ROW_Y[tokenIdx] }, { x: 460, y: ROW_Y[tokenIdx] }];
+          color = "#22d3ee"; glowId = "attnGlow";
+          break;
+        case "layer2":
+          path = [{ x: 460, y: ROW_Y[tokenIdx] }, { x: 600, y: ROW_Y[tokenIdx] }];
+          color = "#22d3ee"; glowId = "attnGlow";
+          break;
+        case "predict":
+          path = [{ x: 600, y: ROW_Y[tokenIdx] }, { x: 720, y: ROW_Y[tokenIdx] }];
+          color = "#fb7185"; glowId = "outputGlow";
+          break;
+      }
+      if (path.length < 2) return;
+      state.particles.push({
+        path: path,
+        progress: 0,
+        speed: 0.8 + Math.random() * 0.6,
+        color: color,
+        glowId: glowId,
+        tokenIdx: tokenIdx,
+        token: token
+      });
+    }
+
+    function render() {
+      renderNodes();
+      renderAttentionLines();
+      renderParticles();
+      renderLabels();
+      const phaseLabels = {
+        idle: "空闲", tokenize: "Token 化", embed: "Embedding",
+        layer1: "Layer 1 (Attn+FFN)", layer2: "Layer 2 (Attn+FFN)",
+        predict: "预测下一 Token", done: "完成"
+      };
+      elements.phaseReadout.textContent = phaseLabels[state.phase] || state.phase;
+      elements.generatedReadout.textContent = String(state.generated.length);
+      elements.tokenReadout.textContent = state.currentToken || "—";
+      elements.layerReadout.textContent = "2";
+      elements.speedOutput.textContent = state.speed.toFixed(1) + "×";
+      elements.insight.textContent = getInsightText();
+    }
+
+    function getInsightText() {
+      switch (state.phase) {
+        case "idle": return "输入一句 Prompt，按下开始，观察 Token 粒子逐层穿透 Transformer 网络。";
+        case "tokenize": return "文本被拆成 Token 粒子。每个 Token 是模型处理的最小语义单元。";
+        case "embed": return "Token 被映射为高维向量（Embedding），让模型能计算语义相似度。";
+        case "layer1": return "Self-Attention：每个 Token 与其他 Token 建立关联，FFN 对关联后的表示做非线性变换。";
+        case "layer2": return "第二层进一步 refining 语义表示，多层堆叠让模型捕捉更复杂的上下文依赖。";
+        case "predict": return "基于上下文表示，模型在词表中计算下一个 Token 的概率分布并采样。";
+        case "done": return "已生成 5 个 Token。可重置后输入新 Prompt 重新运行。";
+        default: return "";
+      }
+    }
+
+    function renderNodes() {
+      let html = "";
+      const n = Math.max(state.tokens.length, 1);
+      // Token nodes (col 1)
+      for (let i = 0; i < n; i++) {
+        const x = 200, y = ROW_Y[i % 3];
+        const active = (state.phase === "tokenize" && i === state.phaseTokenIdx) || state.phase !== "idle";
+        html += '<circle cx="' + x + '" cy="' + y + '" r="16" fill="url(#tokenGlow)" opacity="' + (active ? 0.9 : 0.4) + '"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="8" fill="#fbbf24" stroke="#fde68a" stroke-width="1.5"/>';
+        if (i < state.tokens.length) {
+          html += '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" fill="#0a0e1a" font-size="9" font-weight="800">' + escapeHtml(state.tokens[i].slice(0,4)) + '</text>';
+        }
+      }
+      // Embedding nodes (col 2)
+      for (let i = 0; i < n; i++) {
+        const x = 320, y = ROW_Y[i % 3];
+        const active = state.phase === "embed" || state.phase === "layer1" || state.phase === "layer2" || state.phase === "predict";
+        html += '<circle cx="' + x + '" cy="' + y + '" r="14" fill="url(#embedGlow)" opacity="' + (active ? 0.8 : 0.3) + '"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="7" fill="#34d399" stroke="#a7f3d0" stroke-width="1.5"/>';
+      }
+      // Layer 1 nodes (col 3)
+      for (let i = 0; i < n; i++) {
+        const x = 460, y = ROW_Y[i % 3];
+        const active = state.phase === "layer1" || state.phase === "layer2" || state.phase === "predict";
+        html += '<circle cx="' + x + '" cy="' + y + '" r="14" fill="url(#attnGlow)" opacity="' + (active ? 0.8 : 0.3) + '"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="7" fill="#22d3ee" stroke="#a5f3fc" stroke-width="1.5"/>';
+      }
+      // Layer 2 nodes (col 4)
+      for (let i = 0; i < n; i++) {
+        const x = 600, y = ROW_Y[i % 3];
+        const active = state.phase === "layer2" || state.phase === "predict";
+        html += '<circle cx="' + x + '" cy="' + y + '" r="14" fill="url(#attnGlow)" opacity="' + (active ? 0.8 : 0.3) + '"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="7" fill="#22d3ee" stroke="#a5f3fc" stroke-width="1.5"/>';
+      }
+      // Output nodes (col 5)
+      for (let i = 0; i < n; i++) {
+        const x = 720, y = ROW_Y[i % 3];
+        const active = state.phase === "predict";
+        html += '<circle cx="' + x + '" cy="' + y + '" r="14" fill="url(#outputGlow)" opacity="' + (active ? 0.8 : 0.3) + '"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="7" fill="#fb7185" stroke="#fda4af" stroke-width="1.5"/>';
+      }
+      elements.nodes.innerHTML = html;
+    }
+
+    function renderAttentionLines() {
+      let html = "";
+      for (let i = 0; i < state.attentionLines.length; i++) {
+        const line = state.attentionLines[i];
+        const fromY = ROW_Y[line.from % 3];
+        const toY = ROW_Y[line.to % 3];
+        const x = line.x;
+        const opacity = line.strength * 0.6;
+        const width = 0.8 + line.strength * 2.5;
+        // Curved path
+        const cx = x + (line.to > line.from ? 15 : -15);
+        html += '<path d="M ' + x + ' ' + fromY + ' Q ' + cx + ' ' + (fromY + toY) / 2 + ' ' + x + ' ' + toY + '" fill="none" stroke="#22d3ee" stroke-width="' + width + '" opacity="' + opacity + '" stroke-linecap="round"/>';
+      }
+      elements.attentionLines.innerHTML = html;
+    }
+
+    function renderParticles() {
+      let html = "";
+      for (let i = 0; i < state.particles.length; i++) {
+        const p = state.particles[i];
+        const segs = p.path.length - 1;
+        const totalProg = p.progress * segs;
+        const segIdx = Math.min(Math.floor(totalProg), segs - 1);
+        const segT = totalProg - segIdx;
+        const a = p.path[segIdx];
+        const b = p.path[segIdx + 1];
+        const x = a.x + (b.x - a.x) * segT;
+        const y = a.y + (b.y - a.y) * segT;
+        html += '<circle cx="' + x + '" cy="' + y + '" r="10" fill="url(#' + p.glowId + ')" opacity="0.7"/>';
+        html += '<circle cx="' + x + '" cy="' + y + '" r="4" fill="' + p.color + '"/>';
+      }
+      elements.particles.innerHTML = html;
+    }
+
+    function renderLabels() {
+      let html = "";
+      // Input text
+      html += '<text class="stage-label" x="80" y="380" text-anchor="middle" fill="#8b95b0">Input: ' + escapeHtml(state.prompt.slice(0, 18)) + '</text>';
+      // Generated output
+      html += '<text class="stage-label" x="720" y="380" text-anchor="middle" fill="#fb7185">Out: ' + escapeHtml(state.generated.join(" ").slice(0, 18)) + '</text>';
+      // Predicted token during predict phase
+      if (state.phase === "predict" && state.predictedToken) {
+        html += '<text class="stage-label" x="720" y="40" text-anchor="middle" fill="#fb7185">→ ' + escapeHtml(state.predictedToken) + '</text>';
+      }
+      elements.labels.innerHTML = html;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function setParameters(values) {
+      const promptDef = parameterSchema[0];
+      const speedDef = parameterSchema[1];
+      if (values.prompt !== undefined) {
+        state.prompt = String(values.prompt) || promptDef.default;
+      }
+      state.speed = clamp(finite(Number(values.speed), speedDef.default), speedDef.min, speedDef.max);
+      elements.promptInput.value = state.prompt;
+      elements.speedInput.value = String(state.speed);
+      render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        phase: state.phase,
+        phaseProgress: state.phaseProgress,
+        phaseTokenIdx: state.phaseTokenIdx,
+        prompt: state.prompt,
+        speed: state.speed,
+        tokens: state.tokens.slice(),
+        generated: state.generated.slice(),
+        particleCount: state.particles.length,
+        attentionLineCount: state.attentionLines.length
+      };
+    }
+
+    function getReadouts() {
+      return {
+        phase: state.phase,
+        generated: state.generated.length,
+        currentToken: state.currentToken,
+        layers: 2,
+        speed: state.speed,
+        time: state.t
+      };
+    }
+
+    function runModelChecks() {
+      const checks = [];
+      // 1. Tokenization produces expected tokens
+      const t1 = tokenize("The sky is");
+      checks.push({
+        name: "Tokenization: 'The sky is' → [the, sky, is]",
+        pass: t1.length === 3 && t1[0] === "the" && t1[1] === "sky" && t2 === "is",
+        expected: ["the","sky","is"],
+        actual: t1,
+        tolerance: "exact"
+      });
+      // 2. Tokenization handles empty/punctuation
+      const t2 = tokenize("Hello, world!!!");
+      checks.push({
+        name: "Tokenization strips punctuation",
+        pass: t2.length === 2 && t2[0] === "hello" && t2[1] === "world",
+        expected: ["hello","world"],
+        actual: t2,
+        tolerance: "exact"
+      });
+      // 3. Tokenization caps at 3 tokens
+      const t3 = tokenize("one two three four five");
+      checks.push({
+        name: "Tokenization caps at 3 tokens",
+        pass: t3.length === 3,
+        expected: 3,
+        actual: t3.length,
+        tolerance: "exact"
+      });
+      // 4. Prediction returns a string
+      const pred = predictNext(["the","sky","is"]);
+      checks.push({
+        name: "Prediction returns a string",
+        pass: typeof pred === "string" && pred.length > 0,
+        expected: "string",
+        actual: typeof pred,
+        tolerance: "type"
+      });
+      // 5. Prediction is deterministic for known context
+      const pred1 = predictNext(["the","sky","is"]);
+      const pred2 = predictNext(["the","sky","is"]);
+      checks.push({
+        name: "Prediction deterministic for 'the sky is'",
+        pass: pred1 === pred2,
+        expected: pred1,
+        actual: pred2,
+        tolerance: "exact"
+      });
+      // 6. Phase transitions form valid sequence
+      const validPhases = ["idle","tokenize","embed","layer1","layer2","predict","done"];
+      checks.push({
+        name: "Phase is always a valid value",
+        pass: validPhases.indexOf(state.phase) >= 0,
+        expected: "one of " + validPhases.join(","),
+        actual: state.phase,
+        tolerance: "set"
+      });
+      // 7. Generated tokens are non-empty strings
+      let genValid = true;
+      for (let i = 0; i < state.generated.length; i++) {
+        if (typeof state.generated[i] !== "string" || state.generated[i].length === 0) {
+          genValid = false; break;
+        }
+      }
+      checks.push({
+        name: "Generated tokens are non-empty strings",
+        pass: genValid,
+        expected: "all non-empty strings",
+        actual: state.generated,
+        tolerance: "type"
+      });
+      // 8. State values are finite
+      checks.push({
+        name: "State values are finite",
+        pass: Number.isFinite(state.t) && Number.isFinite(state.speed) && Number.isFinite(state.phaseProgress),
+        expected: "finite",
+        actual: { t: state.t, speed: state.speed, phaseProgress: state.phaseProgress },
+        tolerance: "finite"
+      });
+      return checks;
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.promptInput.addEventListener("input", function() {
+        setParameters({ prompt: elements.promptInput.value, speed: state.speed });
+      });
+      elements.speedInput.addEventListener("input", function() {
+        setParameters({ prompt: state.prompt, speed: elements.speedInput.value });
+      });
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+
+    init();
+  })();
+  </script>
+</body>
+</html>

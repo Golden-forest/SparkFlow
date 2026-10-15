@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场线画廊 · Field Line Gallery</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0d1422;
+  --sim-text: #e8eefc;
+  --sim-muted: #5a6680;
+  --sim-border: rgba(120, 140, 180, 0.12);
+  --sim-grid: rgba(60, 80, 120, 0.08);
+  --sim-accent: #4dd0e1;
+  --sim-accent-deep: #00838f;
+  --sim-accent-soft: rgba(77, 208, 225, 0.15);
+  --sim-positive: #4dd0e1;
+  --sim-warning: #ffb74d;
+  --sim-danger: #ef5350;
+  --sim-radius-sm: 8px;
+  --sim-radius-md: 12px;
+  --sim-radius-lg: 18px;
+  --sim-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body { cursor: default; }
+#stage {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; background: #03050b;
+}
+.corner-text {
+  position: fixed; z-index: 10;
+  font-size: 12px; font-weight: 300;
+  color: rgba(200, 215, 240, 0.28);
+  letter-spacing: 0.02em; line-height: 1.5;
+  pointer-events: none; user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.formula-bl { bottom: 18px; left: 22px; }
+.formula-bl .label { font-size: 10px; opacity: 0.5; display: block; margin-bottom: 2px; letter-spacing: 0.15em; text-transform: uppercase; }
+.formula-br { bottom: 18px; right: 22px; text-align: right; }
+.formula-br .label { font-size: 10px; opacity: 0.5; display: block; margin-bottom: 2px; letter-spacing: 0.15em; text-transform: uppercase; }
+.scene-name {
+  position: fixed; top: 22px; left: 50%; transform: translateX(-50%);
+  z-index: 10; font-size: 13px; font-weight: 400;
+  color: rgba(200, 215, 240, 0.35);
+  letter-spacing: 0.25em; text-transform: uppercase;
+  pointer-events: none; user-select: none;
+  transition: opacity 0.8s ease;
+}
+.ctrl-btn {
+  position: fixed; z-index: 20;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 140, 180, 0.18);
+  background: rgba(10, 15, 28, 0.45);
+  color: rgba(200, 215, 240, 0.5);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.ctrl-btn:hover {
+  border-color: rgba(77, 208, 225, 0.4);
+  color: rgba(77, 208, 225, 0.85);
+  background: rgba(10, 15, 28, 0.7);
+}
+.ctrl-btn:active { transform: scale(0.92); }
+.ctrl-btn:focus-visible { outline: 2px solid rgba(77, 208, 225, 0.4); outline-offset: 3px; }
+#playBtn { bottom: 20px; right: 22px; }
+#equipBtn { bottom: 20px; right: 62px; }
+#equipBtn.active {
+  border-color: rgba(180, 140, 220, 0.5);
+  color: rgba(200, 170, 240, 0.9);
+  background: rgba(30, 20, 45, 0.6);
+}
+#equipBtn .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px dashed currentColor;
+  transition: all 0.25s ease;
+}
+#equipBtn.active .dot { background: rgba(180, 140, 220, 0.3); }
+#playBtn svg { width: 11px; height: 11px; fill: currentColor; }
+@media (max-width: 600px) {
+  .corner-text { font-size: 10px; }
+  .formula-bl { bottom: 12px; left: 14px; }
+  .formula-br { bottom: 12px; right: 14px; }
+  .scene-name { font-size: 11px; top: 14px; }
+  #playBtn { bottom: 14px; right: 14px; width: 26px; height: 26px; }
+  #equipBtn { bottom: 14px; right: 48px; width: 26px; height: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-name { transition: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="stage" data-region="stage"></canvas>
+
+<div class="scene-name" id="sceneName" data-region="header">条形磁铁 · Bar Magnet</div>
+
+<div class="corner-text formula-bl" data-region="insight">
+  <span class="label">Magnetic</span>
+  B = 3(m·r̂)r̂ − m / r³
+</div>
+<div class="corner-text formula-br" data-region="evidence">
+  <span class="label">Electric</span>
+  E = kq / r²
+</div>
+
+<section class="controls" data-region="controls" aria-label="Simulation controls">
+  <button id="playBtn" class="ctrl-btn" type="button" aria-label="播放或暂停" title="播放 / 暂停">
+    <svg viewBox="0 0 12 12" aria-hidden="true"><path id="playIcon" d="M3 2 L3 10 L9 6 Z"/></svg>
+  </button>
+  <button id="equipBtn" class="ctrl-btn" type="button" aria-label="切换等势面" aria-pressed="false" title="等势面">
+    <span class="dot" aria-hidden="true"></span>
+  </button>
+</section>
+
+<script>
+(() => {
+"use strict";
+
+// ============================================================
+// 场线画廊 · Field Line Gallery
+// 全 Canvas 2D 手写透视投影，六个电磁场场景循环
+// ============================================================
+
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d', { alpha: false });
+const sceneNameEl = document.getElementById('sceneName');
+const playBtn = document.getElementById('playBtn');
+const playIcon = document.getElementById('playIcon');
+const equipBtn = document.getElementById('equipBtn');
+
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============================================================
+// 透视投影：手写，屏幕坐标 = 中心 + x·f/(z+f)
+// ============================================================
+const FOCAL = 900;
+
+function project(p) {
+  const z = p.z + FOCAL;
+  if (z < 1) return null;
+  const s = FOCAL / z;
+  return {
+    x: W * 0.5 + p.x * s,
+    y: H * 0.5 - p.y * s,
+    s: s
+  };
+}
+
+function projectArr(pts) {
+  const out = new Array(pts.length);
+  for (let i = 0; i < pts.length; i++) {
+    const z = pts[i].z + FOCAL;
+    out[i] = z > 1 ? { x: W*0.5 + pts[i].x*(FOCAL/z), y: H*0.5 - pts[i].y*(FOCAL/z), s: FOCAL/z } : null;
+  }
+  return out;
+}
+
+// 绕 Y 轴旋转
+function rotY(p, a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return { x: p.x*c + p.z*s, y: p.y, z: -p.x*s + p.z*c };
+}
+
+// ============================================================
+// 物理场计算
+// ============================================================
+
+// 磁偶极子场 B = (3(m·r̂)r̂ - m) / r³
+function dipoleField(p, mx, my, mz) {
+  const rx = p.x - mx, ry = p.y - my, rz = p.z - mz;
+  const r2 = rx*rx + ry*ry + rz*rz;
+  if (r2 < 0.01) return { x: 0, y: 1, z: 0 };
+  const r = Math.sqrt(r2);
+  const r3 = r2 * r;
+  const r5 = r2 * r3;
+  // m 沿 +y 方向（从 S 到 N）
+  const mdotr = ry;
+  const Bx = (3 * mdotr * rx / r5);
+  const By = (3 * mdotr * ry / r5 - 1 / r3);
+  const Bz = (3 * mdotr * rz / r5);
+  return { x: Bx, y: By, z: Bz };
+}
+
+// 点电荷电场 E = kq·r̂ / r²
+function eField(p, charges) {
+  let Ex = 0, Ey = 0, Ez = 0;
+  for (let i = 0; i < charges.length; i++) {
+    const c = charges[i];
+    const rx = p.x - c.x, ry = p.y - c.y, rz = p.z - c.z;
+    const r2 = rx*rx + ry*ry + rz*rz;
+    if (r2 < 0.04) continue;
+    const r = Math.sqrt(r2);
+    const f = c.q / (r2 * r);
+    Ex += f * rx; Ey += f * ry; Ez += f * rz;
+  }
+  return { x: Ex, y: Ey, z: Ez };
+}
+
+function norm3(v) {
+  const l = Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+  if (l < 1e-12) return { x: 0, y: 0, z: 0 };
+  return { x: v.x/l, y: v.y/l, z: v.z/l };
+}
+
+// ============================================================
+// 场线积分生成
+// ============================================================
+
+// 磁感线：从 N 极附近出发，沿场方向积分，直到回到 S 极附近或超步数
+function integrateMagneticLine(start, magnetPos, maxSteps, stepSize) {
+  const pts = [start];
+  let p = { ...start };
+  const closeR2 = 0.15; // 接近 S 极的判定半径²
+  for (let i = 0; i < maxSteps; i++) {
+    // RK4
+    const k1 = norm3(dipoleField(p, magnetPos.x, magnetPos.y, magnetPos.z));
+    const p2 = { x: p.x + k1.x*stepSize*0.5, y: p.y + k1.y*stepSize*0.5, z: p.z + k1.z*stepSize*0.5 };
+    const k2 = norm3(dipoleField(p2, magnetPos.x, magnetPos.y, magnetPos.z));
+    const p3 = { x: p.x + k2.x*stepSize*0.5, y: p.y + k2.y*stepSize*0.5, z: p.z + k2.z*stepSize*0.5 };
+    const k3 = norm3(dipoleField(p3, magnetPos.x, magnetPos.y, magnetPos.z));
+    const p4 = { x: p.x + k3.x*stepSize, y: p.y + k3.y*stepSize, z: p.z + k3.z*stepSize };
+    const k4 = norm3(dipoleField(p4, magnetPos.x, magnetPos.y, magnetPos.z));
+    p = {
+      x: p.x + stepSize * (k1.x + 2*k2.x + 2*k3.x + k4.x) / 6,
+      y: p.y + stepSize * (k1.y + 2*k2.y + 2*k3.y + k4.y) / 6,
+      z: p.z + stepSize * (k1.z + 2*k2.z + 2*k3.z + k4.z) / 6
+    };
+    pts.push({ ...p });
+    // 检查是否回到 S 极（y < magnetPos.y 即在磁体下半部分且接近）
+    const dx = p.x - magnetPos.x, dy = p.y - magnetPos.y, dz = p.z - magnetPos.z;
+    const dist2 = dx*dx + dy*dy + dz*dz;
+    if (i > 20 && dist2 < closeR2 && p.y < magnetPos.y) {
+      // 闭合
+      pts.push({ ...start });
+      return { pts, closed: true };
+    }
+    // 防止跑太远
+    if (Math.abs(p.x) > 8 || Math.abs(p.y) > 8 || Math.abs(p.z) > 8) break;
+  }
+  return { pts, closed: false };
+}
+
+// 电场线：从正电荷表面出发，沿场方向积分
+function integrateElectricLine(start, charges, maxSteps, stepSize) {
+  const pts = [start];
+  let p = { ...start };
+  for (let i = 0; i < maxSteps; i++) {
+    const E = eField(p, charges);
+    const dir = norm3(E);
+    if (dir.x === 0 && dir.y === 0 && dir.z === 0) break;
+    // RK4 简化为 RK2
+    const p2 = { x: p.x + dir.x*stepSize*0.5, y: p.y + dir.y*stepSize*0.5, z: p.z + dir.z*stepSize*0.5 };
+    const E2 = eField(p2, charges);
+    const dir2 = norm3(E2);
+    p = {
+      x: p.x + dir2.x * stepSize,
+      y: p.y + dir2.y * stepSize,
+      z: p.z + dir2.z * stepSize
+    };
+    pts.push({ ...p });
+    // 检查是否到达负电荷
+    for (let ci = 0; ci < charges.length; ci++) {
+      const c = charges[ci];
+      if (c.q < 0) {
+        const dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z;
+        if (dx*dx + dy*dy + dz*dz < 0.08) {
+          pts.push({ x: c.x, y: c.y, z: c.z });
+          return { pts, terminated: true };
+        }
+      }
+    }
+    // 跑太远则终止
+    if (Math.abs(p.x) > 10 || Math.abs(p.y) > 10 || Math.abs(p.z) > 10) break;
+  }
+  return { pts, terminated: false };
+}
+
+// ============================================================
+// 场景定义
+// ============================================================
+
+const SCENE_DURATION = 10; // 每场景秒数
+const TRANSITION = 1; // 淡出淡入秒数
+const FLOW_SPEED = 0.8; // 流动速度
+
+let showEquip = false;
+let isPlaying = true;
+let globalTime = 0;
+let lastTs = null;
+
+// 场景元数据
+const SCENES = [
+  { name: '条形磁铁 · Bar Magnet', short: 'Bar Magnet' },
+  { name: '马蹄形磁铁 · Horseshoe Magnet', short: 'Horseshoe' },
+  { name: '平行板电容器 · Capacitor', short: 'Capacitor' },
+  { name: '等量异种电荷 · Dipole', short: 'Dipole' },
+  { name: '等量同种电荷 · Like Charges', short: 'Like Charges' },
+  { name: '不等量异种电荷 · 2q & -q', short: '2q & -q' }
+];
+
+// 预生成的场线数据
+let sceneData = [];
+
+// ---- 场景 1: 条形磁铁 ----
+function buildBarMagnet() {
+  const magnet = { x: 0, y: 0, z: 0 };
+  const lines = [];
+  const N = 12;
+  // 从 N 极附近（y > 0 顶端）均匀取出发点
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2;
+    for (let ring = 0; ring < 2; ring++) {
+      const r = 0.18 + ring * 0.08;
+      const start = {
+        x: r * Math.cos(angle) * 0.6,
+        y: 0.55 + r * 0.3,
+        z: r * Math.sin(angle) * 0.6
+      };
+      const result = integrateMagneticLine(start, magnet, 4000, 0.015);
+      if (result.pts.length > 10) {
+        lines.push({ pts: result.pts, closed: result.closed, type: 'magnetic' });
+      }
+    }
+  }
+  return {
+    type: 'barMagnet',
+    magnet,
+    magnetLength: 1.0,
+    magnetRadius: 0.18,
+    lines,
+    cameraBase: { distance: 3.2, height: 0.3 }
+  };
+}
+
+// ---- 场景 2: 马蹄形磁铁 ----
+function buildHorseshoe() {
+  // 用两个偶极子模拟 U 形磁铁两极
+  const poleN = { x: -0.7, y: 0.5, z: 0 }; // N 极在左上
+  const poleS = { x: 0.7, y: 0.5, z: 0 };  // S 极在右上
+  const lines = [];
+  const N = 14;
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2;
+    const r = 0.15;
+    const start = {
+      x: poleN.x + r * Math.cos(angle) * 0.5,
+      y: poleN.y + 0.2 + r * Math.sin(angle) * 0.3,
+      z: r * Math.sin(angle) * 0.8
+    };
+    // 用双偶极子场积分
+    const pts = [start];
+    let p = { ...start };
+    const stepSize = 0.012;
+    for (let step = 0; step < 3000; step++) {
+      const B1 = dipoleField(p, poleN.x, poleN.y, poleN.z);
+      const B2 = dipoleField(p, poleS.x, poleS.y, poleS.z);
+      const B = { x: B1.x + B2.x, y: B1.y + B2.y, z: B1.z + B2.z };
+      const dir = norm3(B);
+      if (dir.x === 0 && dir.y === 0 && dir.z === 0) break;
+      // RK2
+      const p2 = { x: p.x + dir.x*stepSize*0.5, y: p.y + dir.y*stepSize*0.5, z: p.z + dir.z*stepSize*0.5 };
+      const B1b = dipoleField(p2, poleN.x, poleN.y, poleN.z);
+      const B2b = dipoleField(p2, poleS.x, poleS.y, poleS.z);
+      const Bb = { x: B1b.x + B2b.x, y: B1b.y + B2b.y, z: B1b.z + B2b.z };
+      const dir2 = norm3(Bb);
+      p = { x: p.x + dir2.x*stepSize, y: p.y + dir2.y*stepSize, z: p.z + dir2.z*stepSize };
+      pts.push({ ...p });
+      // 回到 S 极附近
+      const dx = p.x - poleS.x, dy = p.y - poleS.y, dz = p.z - poleS.z;
+      if (step > 15 && dx*dx + dy*dy + dz*dz < 0.1) {
+        pts.push({ x: poleS.x, y: poleS.y, z: poleS.z });
+        break;
+      }
+      if (Math.abs(p.x) > 6 || Math.abs(p.y) > 6 || Math.abs(p.z) > 6) break;
+    }
+    if (pts.length > 10) lines.push({ pts, type: 'magnetic' });
+  }
+  return {
+    type: 'horseshoe',
+    poleN, poleS,
+    lines,
+    cameraBase: { distance: 3.5, height: 0.2 }
+  };
+}
+
+// ---- 场景 3: 平行板电容器 ----
+function buildCapacitor() {
+  const lines = [];
+  const plateX = 0.6;
+  const plateH = 1.6;
+  const N = 16;
+  // 板间匀强场线
+  for (let i = 0; i < N; i++) {
+    const t = (i / (N - 1) - 0.5) * 2; // -1 到 1
+    const y = t * plateH * 0.45;
+    const pts = [];
+    const steps = 60;
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps;
+      // 边缘外凸
+      const edgeFactor = 1 - Math.abs(y) / (plateH * 0.5);
+      const bulge = edgeFactor < 0.3 ? (0.3 - edgeFactor) * 0.3 : 0;
+      const x = -plateX + u * 2 * plateX + bulge * Math.sin(u * Math.PI) * (y > 0 ? 1 : -1) * 0.15;
+      pts.push({ x, y: y + bulge * Math.sin(u * Math.PI) * 0.1 * (y > 0 ? -0.5 : 0.5), z: 0 });
+    }
+    // 简化：直接用直线 + 轻微边缘弯曲
+    const cleanPts = [];
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps;
+      const yEdge = y;
+      // 边缘外凸：靠近板边缘的线向外弯
+      const distFromCenter = Math.abs(y) / (plateH * 0.5);
+      const edgeBulge = distFromCenter > 0.7 ? (distFromCenter - 0.7) * 1.5 : 0;
+      const xMid = -plateX + u * 2 * plateX;
+      // 在板外延伸时外凸
+      let xOff = 0;
+      if (u < 0.1) xOff = -edgeBulge * (0.1 - u) * 2;
+      else if (u > 0.9) xOff = edgeBulge * (u - 0.9) * 2;
+      cleanPts.push({ x: xMid + xOff, y: yEdge, z: 0 });
+    }
+    lines.push({ pts: cleanPts, type: 'electric' });
+  }
+  // 板外边缘场线（弯曲连接）
+  for (let i = 0; i < 4; i++) {
+    const y = plateH * 0.5 + i * 0.15;
+    const pts = [];
+    const steps = 40;
+    for (let s = 0; s <= steps; s++) {
+      const u = s / steps;
+      const ang = u * Math.PI;
+      const x = -plateX + 0.3 + (plateX + 0.3) * (1 - Math.cos(ang)) * 0.5 + (plateX + 0.3) * 0.5;
+      // 简化弧线
+      const cx = 0;
+      const r = plateX + 0.3 + i * 0.15;
+      const a = Math.PI * u;
+      pts.push({ x: cx + r * Math.cos(a), y: y * Math.sin(a), z: 0 });
+    }
+    // 对称下半
+    lines.push({ pts, type: 'electric' });
+    const pts2 = pts.map(p => ({ x: p.x, y: -p.y, z: 0 }));
+    lines.push({ pts: pts2, type: 'electric' });
+  }
+  return {
+    type: 'capacitor',
+    plateX, plateH,
+    lines,
+    cameraBase: { distance: 3.0, height: 0.1 }
+  };
+}
+
+// ---- 场景 4: 等量异种点电荷 ----
+function buildDipoleCharges() {
+  const charges = [
+    { x: -0.6, y: 0, z: 0, q: 1 },
+    { x: 0.6, y: 0, z: 0, q: -1 }
+  ];
+  const lines = [];
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const theta = (i / N) * Math.PI * 2;
+    const phi = Math.PI * (0.5 - 0.5) + (i % 3) * 0.3; // 略微分散
+    const start = {
+      x: charges[0].x + 0.12 * Math.sin(theta),
+      y: charges[0].y + 0.12 * Math.cos(theta),
+      z: 0
+    };
+    const result = integrateElectricLine(start, charges, 2000, 0.012);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  // 加一些 z 方向分散的线
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const start = {
+      x: charges[0].x + 0.12 * Math.cos(ang) * 0.5,
+      y: charges[0].y + 0.12 * Math.sin(ang) * 0.5,
+      z: 0.12 * Math.sin(ang)
+    };
+    const result = integrateElectricLine(start, charges, 2000, 0.012);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  return {
+    type: 'dipoleCharges',
+    charges,
+    lines,
+    cameraBase: { distance: 3.0, height: 0.2 }
+  };
+}
+
+// ---- 场景 5: 等量同种点电荷 ----
+function buildLikeCharges() {
+  const charges = [
+    { x: -0.6, y: 0, z: 0, q: 1 },
+    { x: 0.6, y: 0, z: 0, q: 1 }
+  ];
+  const lines = [];
+  const N = 14;
+  for (let i = 0; i < N; i++) {
+    const theta = (i / N) * Math.PI * 2;
+    const start = {
+      x: charges[0].x + 0.12 * Math.cos(theta),
+      y: charges[0].y + 0.12 * Math.sin(theta),
+      z: 0
+    };
+    const result = integrateElectricLine(start, charges, 1500, 0.015);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  for (let i = 0; i < N; i++) {
+    const theta = (i / N) * Math.PI * 2;
+    const start = {
+      x: charges[1].x + 0.12 * Math.cos(theta),
+      y: charges[1].y + 0.12 * Math.sin(theta),
+      z: 0
+    };
+    const result = integrateElectricLine(start, charges, 1500, 0.015);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  return {
+    type: 'likeCharges',
+    charges,
+    lines,
+    cameraBase: { distance: 3.2, height: 0.2 }
+  };
+}
+
+// ---- 场景 6: 不等量异种点电荷 ----
+function buildUnequalCharges() {
+  const charges = [
+    { x: -0.7, y: 0, z: 0, q: 2 },
+    { x: 0.5, y: 0, z: 0, q: -1 }
+  ];
+  const lines = [];
+  // +2q 发射更多线
+  const N = 22;
+  for (let i = 0; i < N; i++) {
+    const theta = (i / N) * Math.PI * 2;
+    const start = {
+      x: charges[0].x + 0.12 * Math.cos(theta),
+      y: charges[0].y + 0.12 * Math.sin(theta),
+      z: 0
+    };
+    const result = integrateElectricLine(start, charges, 2000, 0.012);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  // z 方向分散
+  for (let i = 0; i < 10; i++) {
+    const ang = (i / 10) * Math.PI * 2;
+    const start = {
+      x: charges[0].x + 0.12 * Math.cos(ang) * 0.6,
+      y: charges[0].y + 0.12 * Math.sin(ang) * 0.6,
+      z: 0.12 * Math.sin(ang)
+    };
+    const result = integrateElectricLine(start, charges, 2000, 0.012);
+    if (result.pts.length > 5) lines.push({ pts: result.pts, type: 'electric' });
+  }
+  return {
+    type: 'unequalCharges',
+    charges,
+    lines,
+    cameraBase: { distance: 3.3, height: 0.2 }
+  };
+}
+
+// 预生成所有场景
+function buildAllScenes() {
+  sceneData = [
+    buildBarMagnet(),
+    buildHorseshoe(),
+    buildCapacitor(),
+    buildDipoleCharges(),
+    buildLikeCharges(),
+    buildUnequalCharges()
+  ];
+}
+
+// ============================================================
+// 等势面生成
+// ============================================================
+
+function buildEquipotentials(scene) {
+  const equip = [];
+  if (scene.type === 'dipoleCharges' || scene.type === 'likeCharges' || scene.type === 'unequalCharges') {
+    // 点电荷情形：等势面是包围电荷的圆弧族（2D 截面）
+    // 用正交关系：在过两电荷的连线上取点，画过该点垂直于场的圆弧
+    // 简化：画若干以单电荷为中心的圆（近似）
+    const charges = scene.charges;
+    for (let ci = 0; ci < charges.length; ci++) {
+      const c = charges[ci];
+      const sign = c.q > 0 ? 1 : -1;
+      for (let r = 0.3; r < 1.8; r += 0.35) {
+        const pts = [];
+        const steps = 60;
+        for (let s = 0; s <= steps; s++) {
+          const a = (s / steps) * Math.PI * 2;
+          pts.push({
+            x: c.x + r * Math.cos(a),
+            y: c.y + r * Math.sin(a) * 0.8,
+            z: 0
+          });
+        }
+        equip.push({ pts, opacity: 0.15 + 0.1 * (1 - r / 1.8) });
+      }
+    }
+  } else if (scene.type === 'capacitor') {
+    // 平行板情形：与板平行的等距直线
+    for (let i = -3; i <= 3; i++) {
+      if (i === 0) continue;
+      const x = i * 0.25;
+      const pts = [];
+      const steps = 40;
+      for (let s = 0; s <= steps; s++) {
+        const u = s / steps;
+        pts.push({ x, y: -0.8 + u * 1.6, z: 0 });
+      }
+      equip.push({ pts, opacity: 0.2 });
+    }
+  } else if (scene.type === 'barMagnet') {
+    // 磁偶极的等势面（磁标势等值面）近似为环绕磁体的椭圆
+    for (let r = 0.4; r < 1.6; r += 0.4) {
+      const pts = [];
+      const steps = 60;
+      for (let s = 0; s <= steps; s++) {
+        const a = (s / steps) * Math.PI * 2;
+        pts.push({
+          x: r * Math.cos(a) * 0.7,
+          y: r * Math.sin(a),
+          z: 0
+        });
+      }
+      equip.push({ pts, opacity: 0.15 });
+    }
+  } else if (scene.type === 'horseshoe') {
+    for (let r = 0.4; r < 1.4; r += 0.4) {
+      const pts = [];
+      const steps = 60;
+      for (let s = 0; s <= steps; s++) {
+        const a = (s / steps) * Math.PI * 2;
+        pts.push({
+          x: r * Math.cos(a) * 0.8,
+          y: 0.5 + r * Math.sin(a) * 0.6,
+          z: 0
+        });
+      }
+      equip.push({ pts, opacity: 0.15 });
+    }
+  }
+  return equip;
+}
+
+// ============================================================
+// 渲染
+// ============================================================
+
+function getCameraAngle(sceneIdx, time) {
+  // 每场景内极缓慢摆动 ±15 度
+  const cycle = SCENE_DURATION + TRANSITION;
+  const localT = (time % cycle);
+  const sway = Math.sin(localT / cycle * Math.PI * 2) * 0.26; // ±15度 ≈ 0.26 rad
+  const zoom = 1 + Math.sin(localT / cycle * Math.PI * 2 + 1) * 0.08;
+  return { angle: sway, zoom };
+}
+
+function getScenePhase(time) {
+  const totalCycle = (SCENE_DURATION + TRANSITION) * SCENES.length;
+  const t = time % totalCycle;
+  const idx = Math.floor(t / (SCENE_DURATION + TRANSITION));
+  const localT = t - idx * (SCENE_DURATION + TRANSITION);
+  let alpha = 1;
+  if (localT < TRANSITION) {
+    alpha = localT / TRANSITION;
+  } else if (localT > SCENE_DURATION) {
+    alpha = 1 - (localT - SCENE_DURATION) / TRANSITION;
+  }
+  return { idx, localT, alpha: Math.max(0, Math.min(1, alpha)) };
+}
+
+// 绘制场线（带流动效果）
+function drawFieldLine(pts3d, projected, color, baseAlpha, flowPhase, isMagnetic, isInside) {
+  if (pts3d.length < 2) return;
+  
+  // 计算每段累积弧长
+  const segLen = new Array(projected.length - 1);
+  const cumLen = [0];
+  for (let i = 0; i < projected.length - 1; i++) {
+    if (!projected[i] || !projected[i+1]) {
+      segLen[i] = 0;
+      cumLen.push(cumLen[i]);
+      continue;
+    }
+    const dx = projected[i+1].x - projected[i].x;
+    const dy = projected[i+1].y - projected[i].y;
+    const l = Math.sqrt(dx*dx + dy*dy);
+    segLen[i] = l;
+    cumLen.push(cumLen[i] + l);
+  }
+  const totalLen = cumLen[cumLen.length - 1];
+  if (totalLen < 2) return;
+  
+  // 双层绘制：粗线低透明度 + 细线高透明度
+  // 第一层：粗线光晕
+  ctx.lineWidth = isInside ? 1.5 : 3.5;
+  ctx.strokeStyle = color.replace('ALPHA', (baseAlpha * 0.18).toFixed(3));
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < projected.length; i++) {
+    if (!projected[i]) { started = false; continue; }
+    if (!started) {
+      ctx.moveTo(projected[i].x, projected[i].y);
+      started = true;
+    } else {
+      ctx.lineTo(projected[i].x, projected[i].y);
+    }
+  }
+  ctx.stroke();
+  
+  // 第二层：细线主体
+  ctx.lineWidth = isInside ? 0.8 : 1.6;
+  ctx.strokeStyle = color.replace('ALPHA', (baseAlpha * (isInside ? 0.35 : 0.85)).toFixed(3));
+  ctx.beginPath();
+  started = false;
+  for (let i = 0; i < projected.length; i++) {
+    if (!projected[i]) { started = false; continue; }
+    if (!started) {
+      ctx.moveTo(projected[i].x, projected[i].y);
+      started = true;
+    } else {
+      ctx.lineTo(projected[i].x, projected[i].y);
+    }
+  }
+  ctx.stroke();
+  
+  // 流动亮划
+  if (!isInside) {
+    const dashLen = 14;
+    const gapLen = 28;
+    const period = dashLen + gapLen;
+    const offset = (flowPhase * FLOW_SPEED * 60) % period;
+    
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = color.replace('ALPHA', (baseAlpha * 0.95).toFixed(3));
+    
+    // 沿曲线绘制流动段
+    for (let startLen = -offset; startLen < totalLen; startLen += period) {
+      const segStart = Math.max(0, startLen);
+      const segEnd = Math.min(totalLen, startLen + dashLen);
+      if (segEnd <= segStart) continue;
+      
+      // 找到 segStart 和 segEnd 对应的索引
+      let iStart = 0, iEnd = projected.length - 1;
+      for (let i = 0; i < cumLen.length; i++) {
+        if (cumLen[i] >= segStart) { iStart = i; break; }
+      }
+      for (let i = iStart; i < cumLen.length; i++) {
+        if (cumLen[i] >= segEnd) { iEnd = i; break; }
+      }
+      
+      ctx.beginPath();
+      let first = true;
+      for (let i = iStart; i <= iEnd && i < projected.length; i++) {
+        if (!projected[i]) { first = true; continue; }
+        if (first) {
+          ctx.moveTo(projected[i].x, projected[i].y);
+          first = false;
+        } else {
+          ctx.lineTo(projected[i].x, projected[i].y);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+// 绘制等势面
+function drawEquipotentials(equip, projected, alpha) {
+  for (let i = 0; i < equip.length; i++) {
+    const e = equip[i];
+    const pts = e.pts;
+    if (pts.length < 2) continue;
+    const proj = projectArr(pts);
+    
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 5]);
+    ctx.strokeStyle = `rgba(180, 140, 220, ${(e.opacity * alpha * 0.7).toFixed(3)})`;
+    ctx.beginPath();
+    let first = true;
+    for (let j = 0; j < proj.length; j++) {
+      if (!proj[j]) { first = true; continue; }
+      if (first) {
+        ctx.moveTo(proj[j].x, proj[j].y);
+        first = false;
+      } else {
+        ctx.lineTo(proj[j].x, proj[j].y);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+// 绘制条形磁铁本体
+function drawBarMagnetBody(scene, camAngle, alpha) {
+  const m = scene.magnet;
+  const len = scene.magnetLength;
+  const rad = scene.magnetRadius;
+  
+  // 磁体是一个圆柱体，沿 y 轴
+  // 画前端面和侧面
+  const topY = m.y + len * 0.5;
+  const botY = m.y - len * 0.5;
+  
+  // 顶部圆（N 极）
+  const topPts = [];
+  const steps = 24;
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    topPts.push({ x: m.x + rad * Math.cos(a), y: topY, z: m.z + rad * Math.sin(a) });
+  }
+  const topProj = projectArr(topPts.map(p => rotY(p, camAngle)));
+  
+  // 底部圆（S 极）
+  const botPts = topPts.map(p => ({ ...p, y: botY }));
+  const botProj = projectArr(botPts.map(p => rotY(p, camAngle)));
+  
+  // 侧面（画两条侧线 + 半透明填充）
+  ctx.beginPath();
+  // 左右侧线
+  const sideL = [];
+  const sideR = [];
+  for (let i = 0; i <= steps; i++) {
+    const a = (i / steps) * Math.PI * 2;
+    if (Math.cos(a) > 0) {
+      sideL.push({ x: m.x + rad * Math.cos(a), y: topY - (i / steps) * len, z: m.z + rad * Math.sin(a) });
+    }
+  }
+  
+  // 简化：画磁体为半透明圆柱
+  ctx.fillStyle = `rgba(40, 50, 70, ${0.5 * alpha})`;
+  ctx.beginPath();
+  let first = true;
+  for (let i = 0; i < topProj.length; i++) {
+    if (!topProj[i]) continue;
+    if (first) { ctx.moveTo(topProj[i].x, topProj[i].y); first = false; }
+    else ctx.lineTo(topProj[i].x, topProj[i].y);
+  }
+  for (let i = botProj.length - 1; i >= 0; i--) {
+    if (!botProj[i]) continue;
+    ctx.lineTo(botProj[i].x, botProj[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  // N 极端面（红色）
+  ctx.fillStyle = `rgba(239, 83, 80, ${0.7 * alpha})`;
+  ctx.beginPath();
+  let f2 = true;
+  for (let i = 0; i < topProj.length; i++) {
+    if (!topProj[i]) continue;
+    if (f2) { ctx.moveTo(topProj[i].x, topProj[i].y); f2 = false; }
+    else ctx.lineTo(topProj[i].x, topProj[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  // S 极端面（蓝色）
+  ctx.fillStyle = `rgba(66, 165, 245, ${0.7 * alpha})`;
+  ctx.beginPath();
+  let f3 = true;
+  for (let i = 0; i < botProj.length; i++) {
+    if (!botProj[i]) continue;
+    if (f3) { ctx.moveTo(botProj[i].x, botProj[i].y); f3 = false; }
+    else ctx.lineTo(botProj[i].x, botProj[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  // N S 字母
+  const nCenter = project(rotY({ x: m.x, y: topY, z: m.z + rad * 0.1 }, camAngle));
+  const sCenter = project(rotY({ x: m.x, y: botY, z: m.z + rad * 0.1 }, camAngle));
+  if (nCenter) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * alpha})`;
+    ctx.font = `${Math.max(12, 14 * nCenter.s)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('N', nCenter.x, nCenter.y);
+  }
+  if (sCenter) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * alpha})`;
+    ctx.font = `${Math.max(12, 14 * sCenter.s)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('S', sCenter.x, sCenter.y);
+  }
+}
+
+// 绘制马蹄形磁铁本体
+function drawHorseshoeBody(scene, camAngle, alpha) {
+  const n = scene.poleN;
+  const s = scene.poleS;
+  const rad = 0.18;
+  
+  // 两个圆柱体端面
+  for (const pole of [n, s]) {
+    const isN = pole === n;
+    const topY = pole.y + 0.3;
+    const botY = pole.y - 0.3;
+    
+    const topPts = [];
+    const steps = 16;
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      topPts.push({ x: pole.x + rad * Math.cos(a), y: topY, z: rad * Math.sin(a) });
+    }
+    const topProj = projectArr(topPts.map(p => rotY(p, camAngle)));
+    
+    ctx.fillStyle = isN ? `rgba(239, 83, 80, ${0.7 * alpha})` : `rgba(66, 165, 245, ${0.7 * alpha})`;
+    ctx.beginPath();
+    let first = true;
+    for (let i = 0; i < topProj.length; i++) {
+      if (!topProj[i]) continue;
+      if (first) { ctx.moveTo(topProj[i].x, topProj[i].y); first = false; }
+      else ctx.lineTo(topProj[i].x, topProj[i].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    
+    // 字母
+    const center = project(rotY({ x: pole.x, y: topY, z: rad * 0.1 }, camAngle));
+    if (center) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * alpha})`;
+      ctx.font = `${Math.max(11, 12 * center.s)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(isN ? 'N' : 'S', center.x, center.y);
+    }
+  }
+}
+
+// 绘制电容器板
+function drawCapacitorBody(scene, camAngle, alpha) {
+  const px = scene.plateX;
+  const ph = scene.plateH;
+  
+  // 左板（正，暖色）
+  const leftPts = [
+    { x: -px - 0.05, y: -ph/2, z: -0.3 },
+    { x: -px - 0.05, y: ph/2, z: -0.3 },
+    { x: -px - 0.05, y: ph/2, z: 0.3 },
+    { x: -px - 0.05, y: -ph/2, z: 0.3 }
+  ];
+  const leftProj = projectArr(leftPts.map(p => rotY(p, camAngle)));
+  
+  ctx.fillStyle = `rgba(255, 167, 38, ${0.25 * alpha})`;
+  ctx.strokeStyle = `rgba(255, 183, 77, ${0.7 * alpha})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < leftProj.length; i++) {
+    if (!leftProj[i]) continue;
+    if (i === 0) ctx.moveTo(leftProj[i].x, leftProj[i].y);
+    else ctx.lineTo(leftProj[i].x, leftProj[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // 右板（负，冷色）
+  const rightPts = [
+    { x: px + 0.05, y: -ph/2, z: -0.3 },
+    { x: px + 0.05, y: ph/2, z: -0.3 },
+    { x: px + 0.05, y: ph/2, z: 0.3 },
+    { x: px + 0.05, y: -ph/2, z: 0.3 }
+  ];
+  const rightProj = projectArr(rightPts.map(p => rotY(p, camAngle)));
+  
+  ctx.fillStyle = `rgba(66, 165, 245, ${0.25 * alpha})`;
+  ctx.strokeStyle = `rgba(100, 181, 246, ${0.7 * alpha})`;
+  ctx.beginPath();
+  for (let i = 0; i < rightProj.length; i++) {
+    if (!rightProj[i]) continue;
+    if (i === 0) ctx.moveTo(rightProj[i].x, rightProj[i].y);
+    else ctx.lineTo(rightProj[i].x, rightProj[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // +/- 符号
+  const leftSign = project(rotY({ x: -px - 0.05, y: 0, z: 0.31 }, camAngle));
+  const rightSign = project(rotY({ x: px + 0.05, y: 0, z: 0.31 }, camAngle));
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * alpha})`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (leftSign) {
+    ctx.font = `${Math.max(14, 16 * leftSign.s)}px sans-serif`;
+    ctx.fillText('+', leftSign.x, leftSign.y);
+  }
+  if (rightSign) {
+    ctx.font = `${Math.max(14, 16 * rightSign.s)}px sans-serif`;
+    ctx.fillText('−', rightSign.x, rightSign.y);
+  }
+}
+
+// 绘制点电荷
+function drawChargeBody(scene, camAngle, alpha) {
+  for (const c of scene.charges) {
+    const isPos = c.q > 0;
+    const r = 0.12 + Math.abs(c.q) * 0.03;
+    
+    // 画一个发光圆
+    const center = project(rotY({ x: c.x, y: c.y, z: c.z }, camAngle));
+    if (!center) continue;
+    
+    const screenR = r * center.s * FOCAL / FOCAL;
+    
+    // 径向渐变发光
+    const grad = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, screenR * 3);
+    if (isPos) {
+      grad.addColorStop(0, `rgba(255, 200, 100, ${0.9 * alpha})`);
+      grad.addColorStop(0.3, `rgba(255, 167, 38, ${0.5 * alpha})`);
+      grad.addColorStop(1, `rgba(255, 167, 38, 0)`);
+    } else {
+      grad.addColorStop(0, `rgba(150, 200, 255, ${0.9 * alpha})`);
+      grad.addColorStop(0.3, `rgba(66, 165, 245, ${0.5 * alpha})`);
+      grad.addColorStop(1, `rgba(66, 165, 245, 0)`);
+    }
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, screenR * 3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 核心
+    ctx.fillStyle = isPos ? `rgba(255, 220, 150, ${0.95 * alpha})` : `rgba(180, 220, 255, ${0.95 * alpha})`;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, screenR, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 符号
+    ctx.fillStyle = `rgba(40, 30, 10, ${0.9 * alpha})`;
+    ctx.font = `bold ${Math.max(10, 11 * center.s)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isPos ? '+' : '−', center.x, center.y);
+  }
+}
+
+// 主渲染函数
+function render(time) {
+  // 清屏
+  ctx.fillStyle = '#03050b';
+  ctx.fillRect(0, 0, W, H);
+  
+  // 背景径向渐变
+  const bgGrad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  bgGrad.addColorStop(0, 'rgba(15, 25, 45, 0.6)');
+  bgGrad.addColorStop(1, 'rgba(3, 5, 11, 0)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+  
+  const phase = getScenePhase(time);
+  const scene = sceneData[phase.idx];
+  if (!scene) return;
+  
+  const cam = getCameraAngle(phase.idx, time);
+  const camAngle = cam.angle;
+  const zoom = cam.zoom;
+  
+  // 调整透视距离
+  const baseFocal = FOCAL;
+  // 用 zoom 缩放（通过调整 focal 实现）
+  // 但为了简单，我们直接缩放坐标
+  const scaleZoom = 1 / zoom;
+  
+  // 旋转 + 缩放所有场线点
+  const alpha = phase.alpha;
+  
+  // 绘制磁体/电容器/电荷本体（在场景类型中判断）
+  if (scene.type === 'barMagnet') {
+    drawBarMagnetBody(scene, camAngle, alpha);
+  } else if (scene.type === 'horseshoe') {
+    drawHorseshoeBody(scene, camAngle, alpha);
+  } else if (scene.type === 'capacitor') {
+    drawCapacitorBody(scene, camAngle, alpha);
+  } else {
+    drawChargeBody(scene, camAngle, alpha);
+  }
+  
+  // 绘制场线
+  const flowPhase = time;
+  const isMagnetic = scene.type === 'barMagnet' || scene.type === 'horseshoe';
+  const lineColor = isMagnetic 
+    ? 'rgba(77, 208, 225, ALPHA)'  // 青色
+    : 'rgba(255, 183, 77, ALPHA)'; // 暖金色
+  
+  for (let i = 0; i < scene.lines.length; i++) {
+    const line = scene.lines[i];
+    const pts = line.pts;
+    // 旋转 + 缩放
+    const transformed = pts.map(p => {
+      const rp = rotY(p, camAngle);
+      return { x: rp.x * scaleZoom, y: rp.y * scaleZoom, z: rp.z * scaleZoom };
+    });
+    const projected = projectArr(transformed);
+    
+    // 判断是否在磁体内部（条形磁铁场景）
+    let isInside = false;
+    if (scene.type === 'barMagnet') {
+      // 简化判断：如果点在磁体圆柱内
+      // 这里不细分，整体画外部线
+    }
+    
+    // 深度渐变：根据平均 z 调整透明度
+    let avgZ = 0;
+    let count = 0;
+    for (const p of transformed) {
+      avgZ += p.z;
+      count++;
+    }
+    avgZ /= count;
+    const depthAlpha = 0.5 + 0.5 * (1 - (avgZ + 3) / 6);
+    
+    drawFieldLine(pts, projected, lineColor, alpha * depthAlpha, flowPhase, isMagnetic, isInside);
+  }
+  
+  // 等势面
+  if (showEquip) {
+    const equip = buildEquipotentials(scene);
+    drawEquipotentials(equip, null, alpha);
+  }
+  
+  // 更新场景名
+  if (sceneNameEl.textContent !== SCENES[phase.idx].name) {
+    sceneNameEl.textContent = SCENES[phase.idx].name;
+  }
+  sceneNameEl.style.opacity = alpha * 0.6;
+}
+
+// ============================================================
+// 动画循环
+// ============================================================
+
+function frame(ts) {
+  if (lastTs === null) lastTs = ts;
+  const dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+  
+  update(dt);
+  render(globalTime);
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// 控件
+// ============================================================
+
+playBtn.addEventListener('click', () => {
+  if (isPlaying) {
+    pause();
+  } else {
+    start();
+  }
+});
+
+equipBtn.addEventListener('click', () => {
+  showEquip = !showEquip;
+  equipBtn.classList.toggle('active', showEquip);
+  equipBtn.setAttribute('aria-pressed', showEquip ? 'true' : 'false');
+});
+
+// 键盘
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    playBtn.click();
+  } else if (e.code === 'KeyE') {
+    equipBtn.click();
+  }
+});
+
+// ============================================================
+// Runtime contract (SimCanvas hooks)
+// ============================================================
+
+function init() {
+  resize();
+  buildAllScenes();
+  bindControls();
+  reset();
+  requestAnimationFrame(frame);
+}
+
+function start() {
+  isPlaying = true;
+  playIcon.setAttribute('d', 'M3 2 L3 10 L9 6 Z');
+  playBtn.setAttribute('aria-label', '暂停');
+}
+
+function pause() {
+  isPlaying = false;
+  playIcon.setAttribute('d', 'M3 2 L5 2 L5 10 L3 10 Z M7 2 L9 2 L9 10 L7 10 Z');
+  playBtn.setAttribute('aria-label', '播放');
+}
+
+function reset() {
+  pause();
+  globalTime = 0;
+  lastTs = null;
+  showEquip = false;
+  equipBtn.classList.remove('active');
+  equipBtn.setAttribute('aria-pressed', 'false');
+  render(globalTime);
+}
+
+function update(dt) {
+  if (!isPlaying) return;
+  const boundedDt = Math.min(Math.max(dt, 0), 0.05);
+  globalTime += boundedDt;
+}
+
+function setParameters(values) {
+  if (values && typeof values.showEquip === 'boolean') {
+    showEquip = values.showEquip;
+    equipBtn.classList.toggle('active', showEquip);
+    equipBtn.setAttribute('aria-pressed', showEquip ? 'true' : 'false');
+  }
+}
+
+function getState() {
+  return {
+    time: globalTime,
+    playing: isPlaying,
+    showEquip: showEquip
+  };
+}
+
+function getReadouts() {
+  const cycleLen = SCENE_DURATION + TRANSITION;
+  const totalCycle = cycleLen * SCENES.length;
+  const t = globalTime % totalCycle;
+  const idx = Math.floor(t / cycleLen);
+  return {
+    scene: SCENES[idx] ? SCENES[idx].short : '',
+    time: globalTime.toFixed(2),
+    playing: isPlaying,
+    showEquip: showEquip
+  };
+}
+
+function bindControls() {
+  // Listeners already attached above; kept for contract completeness.
+}
+
+function runModelChecks() {
+  const checks = [];
+  
+  // 1. 偶极场在轴线上方向正确
+  const p1 = { x: 0, y: 1, z: 0 };
+  const B1 = dipoleField(p1, 0, 0, 0);
+  checks.push({
+    name: '偶极场轴上方向（应沿+y）',
+    pass: B1.y > 0,
+    expected: 'B.y > 0',
+    actual: `B.y = ${B1.y.toFixed(4)}`,
+    tolerance: 'sign'
+  });
+  
+  // 2. 偶极场赤道面方向反向
+  const p2 = { x: 1, y: 0, z: 0 };
+  const B2 = dipoleField(p2, 0, 0, 0);
+  checks.push({
+    name: '偶极场赤道方向（应沿-y）',
+    pass: B2.y < 0,
+    expected: 'B.y < 0',
+    actual: `B.y = ${B2.y.toFixed(4)}`,
+    tolerance: 'sign'
+  });
+  
+  // 3. 点电荷场距离平方反比
+  const E_near = eField({ x: 0.2, y: 0, z: 0 }, [{ x: 0, y: 0, z: 0, q: 1 }]);
+  const E_far = eField({ x: 0.4, y: 0, z: 0 }, [{ x: 0, y: 0, z: 0, q: 1 }]);
+  const ratio = Math.abs(E_near.x) / Math.abs(E_far.x);
+  checks.push({
+    name: '库仑场距离平方反比（近/远 ≈ 4）',
+    pass: Math.abs(ratio - 4) < 0.1,
+    expected: '≈ 4',
+    actual: ratio.toFixed(4),
+    tolerance: 0.1
+  });
+  
+  // 4. 场线数量合理
+  checks.push({
+    name: '条形磁铁场线已生成',
+    pass: sceneData[0].lines.length > 5,
+    expected: '> 5',
+    actual: sceneData[0].lines.length,
+    tolerance: 'count'
+  });
+  
+  // 5. 场线闭合或终止
+  let anyClosed = false;
+  for (const l of sceneData[0].lines) {
+    if (l.closed) { anyClosed = true; break; }
+  }
+  checks.push({
+    name: '磁感线闭合性',
+    pass: anyClosed,
+    expected: '至少一条闭合',
+    actual: anyClosed ? '闭合' : '未闭合',
+    tolerance: 'boolean'
+  });
+  
+  return checks;
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+
+buildAllScenes();
+requestAnimationFrame(frame);
+
+// 暴露 API（用于验证）
+window.simulation = {
+  init,
+  start,
+  pause,
+  reset,
+  update,
+  render,
+  setParameters,
+  getState,
+  getReadouts,
+  runModelChecks
+};
+
+})();
+</script>
+</body>
+</html>

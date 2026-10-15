@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { contentSandbox } from '@/platform/content';
 
 /** Lazy live preview: mounts a fixed desktop-sized iframe only while the card
  * is near the viewport (unmounts when scrolled away, so off-screen animations
@@ -43,6 +44,7 @@ export const LazyPreview = ({ src, paused }: { src: string; paused: boolean }) =
             {visible && !paused ? (
                 <iframe
                     src={previewSrc}
+                    sandbox={contentSandbox(src)}
                     title=""
                     aria-hidden="true"
                     tabIndex={-1}

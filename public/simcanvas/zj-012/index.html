@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>动量守恒定律验证 · 一维碰撞演示</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #f59e0b;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      --sim-ball-a: #0f9fba;
+      --sim-ball-a-deep: #08758a;
+      --sim-ball-b: #f59e0b;
+      --sim-ball-b-deep: #b45309;
+      --sim-track: #e2e8f0;
+      --sim-track-edge: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+        radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+        var(--sim-bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+    .app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+    .header h1 { margin: 0 0 5px; font-size: clamp(1.6rem, 2.4vw, 2.1rem); letter-spacing: -0.035em; line-height: 1; }
+    .header p { margin: 0; color: var(--sim-muted); font-size: 0.9rem; }
+    .status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .panel-head h2 { margin: 0; font-size: 1rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+    #scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+    .side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+    .readouts, .model-note { padding: 17px; }
+    .readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+    .metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); }
+    .metric strong { font-size: 1.45rem; letter-spacing: -.02em; font-variant-umeric: tabular-nums; }
+    .metric .delta { font-size: 0.7rem; color: var(--sim-muted); margin-top: 4px; }
+    .metric .delta.zero { color: var(--sim-positive); font-weight: 700; }
+    .metric .delta.nonzero { color: var(--sim-danger); font-weight: 700; }
+    .model-note { display: grid; align-content: start; gap: 14px; }
+    .model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.88rem; }
+    .insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; }
+    .controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(180px, 1fr) minmax(180px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+    .actions { display: flex; gap: 8px; }
+    button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+    button:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button:active { transform: scale(.97); }
+    button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+    button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+    .control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.8rem; font-weight: 700; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .grid-line { stroke: var(--sim-grid); stroke-width: 1; }
+    .axis { stroke: #9aa7ba; stroke-width: 1.5; }
+    .axis-label { fill: var(--sim-muted); font-size: 12px; }
+    .ball-label { font-size: 13px; font-weight: 800; fill: white; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+    .vel-arrow { stroke-width: 3; stroke-linecap: round; fill: none; }
+    .vel-arrow-a { stroke: var(--sim-ball-a-deep); }
+    .vel-arrow-b { stroke: var(--sim-ball-b-deep); }
+    .vel-label { font-size: 11px; font-weight: 700; }
+    .vel-label-a { fill: var(--sim-ball-a-deep); }
+    .vel-label-b { fill: var(--sim-ball-b-deep); }
+    .track-line { stroke: var(--sim-track-edge); stroke-width: 2; }
+    .track-fill { fill: var(--sim-track); }
+    .collision-flash { fill: rgba(245, 158, 11, 0.35); }
+    @media (max-width: 860px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+      .main, .app[data-layout] .main { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="analytic">
+    <header class="header" data-region="header">
+      <div>
+        <h1>动量守恒定律验证 · 一维碰撞演示</h1>
+        <p>调节两球质量与初速度，观察碰撞前后总动量是否保持不变。</p>
+      </div>
+      <div id="status" class="status" role="status" aria-live="polite">已暂停</div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">一维碰撞轨道</h2><span>蓝球 A · 橙球 B · 水平方向</span></div>
+        <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">两个小球在水平轨道上运动并发生一维碰撞，箭头显示瞬时速度方向与大小。</desc>
+          <defs>
+            <radialGradient id="ballAGrad" cx="35%" cy="32%">
+              <stop offset="0%" stop-color="#5fd4e4"/>
+              <stop offset="55%" stop-color="#0f9fba"/>
+              <stop offset="100%" stop-color="#08758a"/>
+            </radialGradient>
+            <radialGradient id="ballBGrad" cx="35%" cy="32%">
+              <stop offset="0%" stop-color="#fcd34d"/>
+              <stop offset="55%" stop-color="#f59e0b"/>
+              <stop offset="100%" stop-color="#b45309"/>
+            </radialGradient>
+          </defs>
+          <g id="grid"></g>
+          <line class="track-line" x1="40" y1="300" x2="720" y2="300"/>
+          <rect class="track-fill" x="40" y="300" width="680" height="6" rx="3"/>
+          <line class="axis" x1="40" y1="306" x2="40" y2="316"/>
+          <line class="axis" x1="720" y1="306" x2="720" y2="316"/>
+          <text class="axis-label" x="40" y="330" text-anchor="middle">0 m</text>
+          <text class="axis-label" x="720" y="330" text-anchor="middle">10 m</text>
+          <circle id="collisionFlash" class="collision-flash" cx="380" cy="270" r="0" opacity="0"/>
+          <g id="ballA">
+            <circle cx="120" cy="270" r="28" fill="url(#ballAGrad)" stroke="white" stroke-width="3"/>
+            <text class="ball-label" x="120" y="270">A</text>
+          </g>
+          <g id="ballB">
+            <circle cx="560" cy="270" r="28" fill="url(#ballBGrad)" stroke="white" stroke-width="3"/>
+            <text class="ball-label" x="560" y="270">B</text>
+          </g>
+          <g id="velArrowA">
+            <line class="vel-arrow vel-arrow-a" x1="120" y1="230" x2="120" y2="230"/>
+            <polygon class="vel-arrow-a" points="120,230 120,230 120,230"/>
+            <text class="vel-label vel-label-a" x="120" y="215" text-anchor="middle">v=0</text>
+          </g>
+          <g id="velArrowB">
+            <line class="vel-arrow vel-arrow-b" x1="560" y1="230" x2="560" y2="230"/>
+            <polygon class="vel-arrow-b" points="560,230 560,230 560,230"/>
+            <text class="vel-label vel-label-b" x="560" y="215" text-anchor="middle">v=0</text>
+          </g>
+        </svg>
+      </section>
+
+      <aside class="side" data-region="evidence">
+        <section class="panel readouts" aria-label="实时数据">
+          <div class="readout-grid">
+            <div class="metric"><small>球 A 速度</small><strong id="vAReadout">0.00 m/s</strong></div>
+            <div class="metric"><small>球 B 速度</small><strong id="vBReadout">0.00 m/s</strong></div>
+            <div class="metric"><small>总动量 p</small><strong id="pTotalReadout">0.00 kg·m/s</strong><div class="delta zero" id="pDelta">Δp = 0.00</div></div>
+            <div class="metric"><small>总动能 Ek</small><strong id="ekReadout">0.00 J</strong><div class="delta" id="ekDelta"></div></div>
+          </div>
+        </section>
+        <section class="panel model-note" data-region="insight">
+          <div class="panel-head"><h2>模型说明</h2></div>
+          <p id="insight" class="insight">按"开始"启动。碰撞前后总动量保持不变——这就是动量守恒。</p>
+          <p>教学视图：一维弹性碰撞，恢复系数 e=1。动量 p=mv 守恒，动能 Ek 守恒。橙色箭头长度正比于速度大小。</p>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="模拟控制">
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button">开始</button>
+        <button id="pauseBtn" type="button">暂停</button>
+        <button id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="control">
+        <label for="massAInput">球 A 质量 <output id="massAOutput">1.0 kg</output></label>
+        <input id="massAInput" type="range" min="0.5" max="5" step="0.5" value="1">
+      </div>
+      <div class="control">
+        <label for="massBInput">球 B 质量 <output id="massBOutput">2.0 kg</output></label>
+        <input id="massBInput" type="range" min="0.5" max="5" step="0.5" value="2">
+      </div>
+      <div class="control">
+        <label for="vAInput">球 A 初速度 <output id="vAOutput">3.0 m/s</output></label>
+        <input id="vAInput" type="range" min="0" max="6" step="0.5" value="3">
+      </div>
+      <div class="control">
+        <label for="vBInput">球 B 初速度 <output id="vBOutput">-1.0 m/s</output></label>
+        <input id="vBInput" type="range" min="-6" max="0" step="0.5" value="-1">
+      </div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+    const parameterSchema = [
+      { key: "massA", label: "球 A 质量", type: "slider", min: 0.5, max: 5, step: 0.5, default: 1, unit: "kg" },
+      { key: "massB", label: "球 B 质量", type: "slider", min: 0.5, max: 5, step: 0.5, default: 2, unit: "kg" },
+      { key: "vA0", label: "球 A 初速度", type: "slider", min: 0, max: 6, step: 0.5, default: 3, unit: "m/s" },
+      { key: "vB0", label: "球 B 初速度", type: "slider", min: -6, max: 0, step: 0.5, default: -1, unit: "m/s" }
+    ];
+    const state = {
+      running: false,
+      t: 0,
+      xA: 2.0,
+      xB: 8.0,
+      vA: 3.0,
+      vB: -1.0,
+      massA: 1.0,
+      massB: 2.0,
+      vA0: 3.0,
+      vB0: -1.0,
+      collided: false,
+      collisionFlashT: 0,
+      lastTimestamp: null,
+      pBefore: 0,
+      ekBefore: 0
+    };
+    const elements = {
+      status: document.querySelector("#status"),
+      ballA: document.querySelector("#ballA"),
+      ballB: document.querySelector("#ballB"),
+      velArrowA: document.querySelector("#velArrowA"),
+      velArrowB: document.querySelector("#velArrowB"),
+      collisionFlash: document.querySelector("#collisionFlash"),
+      insight: document.querySelector("#insight"),
+      grid: document.querySelector("#grid"),
+      vAReadout: document.querySelector("#vAReadout"),
+      vBReadout: document.querySelector("#vBReadout"),
+      pTotalReadout: document.querySelector("#pTotalReadout"),
+      ekReadout: document.querySelector("#ekReadout"),
+      pDelta: document.querySelector("#pDelta"),
+      ekDelta: document.querySelector("#ekDelta"),
+      massAInput: document.querySelector("#massAInput"),
+      massAOutput: document.querySelector("#massAOutput"),
+      massBInput: document.querySelector("#massBInput"),
+      massBOutput: document.querySelector("#massBOutput"),
+      vAInput: document.querySelector("#vAInput"),
+      vAOutput: document.querySelector("#vAOutput"),
+      vBInput: document.querySelector("#vBInput"),
+      vBOutput: document.querySelector("#vBOutput"),
+      startBtn: document.querySelector("#startBtn"),
+      pauseBtn: document.querySelector("#pauseBtn"),
+      resetBtn: document.querySelector("#resetBtn")
+    };
+
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+    const SCENE_LEFT = 40;
+    const SCENE_RIGHT = 720;
+    const SCENE_WIDTH_M = 10;
+    const BALL_Y = 270;
+    const ARROW_Y = 230;
+    const ARROW_SCALE = 18;
+
+    function mToPx(m) { return SCENE_LEFT + (m / SCENE_WIDTH_M) * (SCENE_RIGHT - SCENE_LEFT); }
+    function ballRadius(mass) { return 16 + Math.sqrt(mass) * 6; }
+
+    function initGrid() {
+      const lines = [];
+      for (let i = 0; i <= 10; i += 1) {
+        const x = SCENE_LEFT + i * ((SCENE_RIGHT - SCENE_LEFT) / 10);
+        lines.push(`<line class="grid-line" x1="${x}" y1="60" x2="${x}" y2="310"></line>`);
+      }
+      for (let j = 0; j <= 4; j += 1) {
+        const y = 60 + j * 62.5;
+        lines.push(`<line class="grid-line" x1="${SCENE_LEFT}" y1="${y}" x2="${SCENE_RIGHT}" y2="${y}"></line>`);
+      }
+      elements.grid.innerHTML = lines.join("");
+    }
+
+    function init() {
+      initGrid();
+      bindControls();
+      setParameters({ massA: 1, massB: 2, vA0: 3, vB0: -1 });
+      reset();
+      requestAnimationFrame(frame);
+    }
+
+    function start() {
+      state.running = true;
+      elements.status.textContent = "运行中";
+      elements.startBtn.setAttribute("aria-pressed", "true");
+    }
+
+    function pause() {
+      state.running = false;
+      elements.status.textContent = "已暂停";
+      elements.startBtn.setAttribute("aria-pressed", "false");
+    }
+
+    function reset() {
+      pause();
+      state.t = 0;
+      state.xA = 2.0;
+      state.xB = 8.0;
+      state.vA = state.vA0;
+      state.vB = state.vB0;
+      state.collided = false;
+      state.collisionFlashT = 0;
+      state.pBefore = state.massA * state.vA0 + state.massB * state.vB0;
+      state.ekBefore = 0.5 * state.massA * state.vA0 * state.vA0 + 0.5 * state.massB * state.vB0 * state.vB0;
+      render();
+    }
+
+    function update(dt) {
+      if (!state.running) return;
+      const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+      if (state.collisionFlashT > 0) {
+        state.collisionFlashT = Math.max(0, state.collisionFlashT - boundedDt);
+      }
+      const rA = ballRadius(state.massA);
+      const rB = ballRadius(state.massB);
+      const rA_m = (rA / (SCENE_RIGHT - SCENE_LEFT)) * SCENE_WIDTH_M;
+      const rB_m = (rB / (SCENE_RIGHT - SCENE_LEFT)) * SCENE_WIDTH_M;
+      const newXa = state.xA + state.vA * boundedDt;
+      const newXb = state.xB + state.vB * boundedDt;
+      const prevDist = state.xB - state.xA;
+      const newDist = newXb - newXa;
+      if (!state.collided && prevDist > (rA_m + rB_m) && newDist <= (rA_m + rB_m) && (state.vA - state.vB) > 0) {
+        const m1 = state.massA, m2 = state.massB;
+        const u1 = state.vA, u2 = state.vB;
+        const v1 = ((m1 - m2) * u1 + 2 * m2 * u2) / (m1 + m2);
+        const v2 = ((m2 - m1) * u2 + 2 * m1 * u1) / (m1 + m2);
+        state.vA = v1;
+        state.vB = v2;
+        state.collided = true;
+        state.collisionFlashT = 0.4;
+        const overlap = (rA_m + rB_m) - newDist;
+        const totalM = m1 + m2;
+        state.xA = newXa - overlap * (m2 / totalM);
+        state.xB = newXb + overlap * (m1 / totalM);
+      } else {
+        state.xA = newXa;
+        state.xB = newXb;
+      }
+      state.xA = clamp(state.xA, 0, SCENE_WIDTH_M);
+      state.xB = clamp(state.xB, 0, SCENE_WIDTH_M);
+      state.t += boundedDt;
+    }
+
+    function render() {
+      const rA = ballRadius(state.massA);
+      const rB = ballRadius(state.massB);
+      const pxA = mToPx(state.xA);
+      const pxB = mToPx(state.xB);
+      elements.ballA.querySelector("circle").setAttribute("cx", pxA);
+      elements.ballA.querySelector("circle").setAttribute("r", rA);
+      elements.ballA.querySelector("text").setAttribute("x", pxA);
+      elements.ballA.querySelector("text").setAttribute("y", BALL_Y);
+      elements.ballB.querySelector("circle").setAttribute("cx", pxB);
+      elements.ballB.querySelector("circle").setAttribute("r", rB);
+      elements.ballB.querySelector("text").setAttribute("x", pxB);
+      elements.ballB.querySelector("text").setAttribute("y", BALL_Y);
+      drawVelocityArrow(elements.velArrowA, pxA, state.vA, "vel-arrow-a", "vel-label-a", "A");
+      drawVelocityArrow(elements.velArrowB, pxB, state.vB, "vel-arrow-b", "vel-label-b", "B");
+      if (state.collisionFlashT > 0) {
+        const flashX = (pxA + pxB) / 2;
+        const flashR = 20 + (1 - state.collisionFlashT / 0.4) * 30;
+        elements.collisionFlash.setAttribute("cx", flashX);
+        elements.collisionFlash.setAttribute("cy", BALL_Y);
+        elements.collisionFlash.setAttribute("r", flashR);
+        elements.collisionFlash.setAttribute("opacity", state.collisionFlashT / 0.4 * 0.6);
+      } else {
+        elements.collisionFlash.setAttribute("opacity", 0);
+      }
+      const pTotal = state.massA * state.vA + state.massB * state.vB;
+      const ekTotal = 0.5 * state.massA * state.vA * state.vA + 0.5 * state.massB * state.vB * state.vB;
+      elements.vAReadout.textContent = `${state.vA.toFixed(2)} m/s`;
+      elements.vBReadout.textContent = `${state.vB.toFixed(2)} m/s`;
+      elements.pTotalReadout.textContent = `${pTotal.toFixed(2)} kg·m/s`;
+      elements.ekReadout.textContent = `${ekTotal.toFixed(2)} J`;
+      const dP = Math.abs(pTotal - state.pBefore);
+      elements.pDelta.textContent = `Δp = ${dP.toFixed(3)}`;
+      elements.pDelta.className = dP < 0.01 ? "delta zero" : "delta nonzero";
+      const dEk = ekTotal - state.ekBefore;
+      if (Math.abs(dEk) < 0.01) {
+        elements.ekDelta.textContent = "动能守恒 ✓";
+        elements.ekDelta.className = "delta zero";
+      } else {
+        elements.ekDelta.textContent = `ΔEk = ${dEk.toFixed(2)} J`;
+        elements.ekDelta.className = "delta nonzero";
+      }
+      let msg;
+      if (!state.running && state.t === 0) {
+        msg = "按\"开始\"启动。碰撞前后总动量保持不变——这就是动量守恒。";
+      } else if (!state.collided) {
+        msg = "碰撞前：两球相互接近。注意当前总动量值。";
+      } else {
+        msg = "碰撞后：速度已改变，但总动量与碰撞前完全相同。";
+      }
+      elements.insight.textContent = msg;
+      elements.massAOutput.textContent = `${state.massA.toFixed(1)} kg`;
+      elements.massBOutput.textContent = `${state.massB.toFixed(1)} kg`;
+      elements.vAOutput.textContent = `${state.vA0.toFixed(1)} m/s`;
+      elements.vBOutput.textContent = `${state.vB0.toFixed(1)} m/s`;
+    }
+
+    function drawVelocityArrow(group, cx, v, lineClass, labelClass, label) {
+      const line = group.querySelector("line");
+      const poly = group.querySelector("polygon");
+      const text = group.querySelector("text");
+      const len = Math.abs(v) * ARROW_SCALE;
+      if (Math.abs(v) < 0.05) {
+        line.setAttribute("x1", cx);
+        line.setAttribute("y1", ARROW_Y);
+        line.setAttribute("x2", cx);
+        line.setAttribute("y2", ARROW_Y);
+        poly.setAttribute("points", `${cx},${ARROW_Y} ${cx},${ARROW_Y} ${cx},${ARROW_Y}`);
+        text.textContent = `${label}: v=0`;
+        text.setAttribute("x", cx);
+        text.setAttribute("y", ARROW_Y - 8);
+        return;
+      }
+      const dir = v > 0 ? 1 : -1;
+      const x1 = cx;
+      const x2 = cx + dir * len;
+      line.setAttribute("x1", x1);
+      line.setAttribute("y1", ARROW_Y);
+      line.setAttribute("x2", x2);
+      line.setAttribute("y2", ARROW_Y);
+      const ah = 7;
+      const p1 = `${x2},${ARROW_Y}`;
+      const p2 = `${x2 - dir * ah},${ARROW_Y - ah * 0.6}`;
+      const p3 = `${x2 - dir * ah},${ARROW_Y + ah * 0.6}`;
+      poly.setAttribute("points", `${p1} ${p2} ${p3}`);
+      text.textContent = `${label}: v=${v.toFixed(1)}`;
+      text.setAttribute("x", cx + dir * (len / 2));
+      text.setAttribute("y", ARROW_Y - 10);
+    }
+
+    function setParameters(values) {
+      const defs = {
+        massA: parameterSchema[0],
+        massB: parameterSchema[1],
+        vA0: parameterSchema[2],
+        vB0: parameterSchema[3]
+      };
+      state.massA = clamp(finite(Number(values.massA), defs.massA.default), defs.massA.min, defs.massA.max);
+      state.massB = clamp(finite(Number(values.massB), defs.massB.default), defs.massB.min, defs.massB.max);
+      state.vA0 = clamp(finite(Number(values.vA0), defs.vA0.default), defs.vA0.min, defs.vA0.max);
+      state.vB0 = clamp(finite(Number(values.vB0), defs.vB0.default), defs.vB0.min, defs.vB0.max);
+      elements.massAInput.value = String(state.massA);
+      elements.massBInput.value = String(state.massB);
+      elements.vAInput.value = String(state.vA0);
+      elements.vBInput.value = String(state.vB0);
+      if (!state.running) reset();
+      else render();
+    }
+
+    function getState() {
+      return {
+        running: state.running,
+        t: state.t,
+        xA: state.xA,
+        xB: state.xB,
+        vA: state.vA,
+        vB: state.vB,
+        massA: state.massA,
+        massB: state.massB,
+        collided: state.collided,
+        pBefore: state.pBefore,
+        ekBefore: state.ekBefore
+      };
+    }
+
+    function getReadouts() {
+      const p = state.massA * state.vA + state.massB * state.vB;
+      const ek = 0.5 * state.massA * state.vA * state.vA + 0.5 * state.massB * state.vB * state.vB;
+      return {
+        vA: state.vA,
+        vB: state.vB,
+        pTotal: p,
+        ekTotal: ek,
+        pBefore: state.pBefore,
+        ekBefore: state.ekBefore,
+        dP: Math.abs(p - state.pBefore),
+        dEk: ek - state.ekBefore
+      };
+    }
+
+    function runModelChecks() {
+      const collide = (m1, m2, u1, u2) => {
+        const v1 = ((m1 - m2) * u1 + 2 * m2 * u2) / (m1 + m2);
+        const v2 = ((m2 - m1) * u2 + 2 * m1 * u1) / (m1 + m2);
+        return { v1, v2 };
+      };
+      const checks = [];
+      const c1 = collide(1, 1, 2, 0);
+      checks.push({
+        name: "等质量正面碰撞：速度交换",
+        pass: Math.abs(c1.v1 - 0) < 1e-9 && Math.abs(c1.v2 - 2) < 1e-9,
+        expected: "v1=0, v2=2",
+        actual: `v1=${c1.v1}, v2=${c1.v2}`,
+        tolerance: 1e-9
+      });
+      const c2 = collide(2, 1, 3, 0);
+      const pBefore2 = 2 * 3 + 1 * 0;
+      const pAfter2 = 2 * c2.v1 + 1 * c2.v2;
+      const ekBefore2 = 0.5 * 2 * 9 + 0;
+      const ekAfter2 = 0.5 * 2 * c2.v1 * c2.v1 + 0.5 * 1 * c2.v2 * c2.v2;
+      checks.push({
+        name: "动量守恒 (m1=2, m2=1)",
+        pass: Math.abs(pBefore2 - pAfter2) < 1e-9,
+        expected: pBefore2,
+        actual: pAfter2,
+        tolerance: 1e-9
+      });
+      checks.push({
+        name: "动能守恒 (m1=2, m2=1)",
+        pass: Math.abs(ekBefore2 - ekAfter2) < 1e-9,
+        expected: ekBefore2,
+        actual: ekAfter2,
+        tolerance: 1e-9
+      });
+      const c3 = collide(1, 2, 3, -1);
+      const pB3 = 1 * 3 + 2 * (-1);
+      const pA3 = 1 * c3.v1 + 2 * c3.v2;
+      checks.push({
+        name: "动量守恒 (相向运动)",
+        pass: Math.abs(pB3 - pA3) < 1e-9,
+        expected: pB3,
+        actual: pA3,
+        tolerance: 1e-9
+      });
+      const c4 = collide(3, 1, 2, 0);
+      const pB4 = 3 * 2;
+      const pA4 = 3 * c4.v1 + 1 * c4.v2;
+      checks.push({
+        name: "动量守恒 (m1=3, m2=1)",
+        pass: Math.abs(pB4 - pA4) < 1e-9,
+        expected: pB4,
+        actual: pA4,
+        tolerance: 1e-9
+      });
+      const c5 = collide(1, 5, 4, -2);
+      const pB5 = 1 * 4 + 5 * (-2);
+      const pA5 = 1 * c5.v1 + 5 * c5.v2;
+      checks.push({
+        name: "动量守恒 (m1=1, m2=5, 相向)",
+        pass: Math.abs(pB5 - pA5) < 1e-9,
+        expected: pB5,
+        actual: pA5,
+        tolerance: 1e-9
+      });
+      return checks;
+    }
+
+    function bindControls() {
+      elements.startBtn.addEventListener("click", start);
+      elements.pauseBtn.addEventListener("click", pause);
+      elements.resetBtn.addEventListener("click", reset);
+      elements.massAInput.addEventListener("input", () => setParameters({ massA: elements.massAInput.value, massB: state.massB, vA0: state.vA0, vB0: state.vB0 }));
+      elements.massBInput.addEventListener("input", () => setParameters({ massA: state.massA, massB: elements.massBInput.value, vA0: state.vA0, vB0: state.vB0 }));
+      elements.vAInput.addEventListener("input", () => setParameters({ massA: state.massA, massB: state.massB, vA0: elements.vAInput.value, vB0: state.vB0 }));
+      elements.vBInput.addEventListener("input", () => setParameters({ massA: state.massA, massB: state.massB, vA0: state.vA0, vB0: elements.vBInput.value }));
+    }
+
+    function frame(timestamp) {
+      if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+      const dt = (timestamp - state.lastTimestamp) / 1000;
+      state.lastTimestamp = timestamp;
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = {
+      init: init,
+      start: start,
+      pause: pause,
+      reset: reset,
+      update: update,
+      render: render,
+      setParameters: setParameters,
+      getState: getState,
+      getReadouts: getReadouts,
+      runModelChecks: runModelChecks
+    };
+    init();
+  })();
+  </script>
+</body>
+</html>

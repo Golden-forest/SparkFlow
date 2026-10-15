@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>卡门涡街 · 粒子流场</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #6b7a99;
+  --sim-border: #1a2238;
+  --sim-grid: #131a2c;
+  --sim-accent: #22d3ee;
+  --sim-accent-deep: #0891b2;
+  --sim-accent-soft: #0c2a3a;
+  --sim-positive: #22d3ee;
+  --sim-warning: #f59e0b;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.app {
+  position: relative;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 30% 50%, #0a1220 0%, #050810 70%);
+}
+[data-region="stage"] {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+#scene {
+  display: block;
+  width: 100%; height: 100%;
+}
+[data-region="header"] {
+  position: absolute;
+  left: var(--sim-space-5);
+  bottom: var(--sim-space-5);
+  z-index: 10;
+  pointer-events: none;
+}
+[data-region="header"] p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(232, 238, 252, 0.45);
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+[data-region="evidence"],
+[data-region="insight"] {
+  display: none;
+}
+[data-region="controls"] {
+  position: absolute;
+  right: var(--sim-space-5);
+  bottom: var(--sim-space-5);
+  z-index: 10;
+}
+#playPauseBtn {
+  width: 32px; height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  background: rgba(10, 15, 28, 0.5);
+  color: rgba(232, 238, 252, 0.7);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+#playPauseBtn:hover {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(34, 211, 238, 0.4);
+  color: var(--sim-accent);
+}
+#playPauseBtn:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.5);
+  outline-offset: 2px;
+}
+#playPauseBtn svg {
+  width: 12px; height: 12px;
+  fill: currentColor;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="qualitative">
+  <header data-region="header">
+    <p>涡街 —— 交替脱落的反向涡对</p>
+  </header>
+  <section data-region="stage" aria-label="卡门涡街粒子流场">
+    <canvas id="scene" role="img" aria-label="粒子流场可视化：来流绕过圆柱，在尾流中形成交替脱落的反向旋转涡对"></canvas>
+  </section>
+  <aside data-region="evidence" aria-label="读数"></aside>
+  <aside data-region="insight" aria-label="观察"></aside>
+  <section data-region="controls" aria-label="控制">
+    <button id="playPauseBtn" type="button" aria-label="暂停" aria-pressed="false">
+      <svg viewBox="0 0 12 12" aria-hidden="true">
+        <rect x="2" y="1.5" width="2.5" height="9" rx="0.5"/>
+        <rect x="7.5" y="1.5" width="2.5" height="9" rx="0.5"/>
+      </svg>
+    </button>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const parameterSchema = [
+    { key: "flowSpeed", label: "来流速度", type: "slider", min: 0.5, max: 3, step: 0.1, default: 1.4, unit: "" },
+    { key: "shedPeriod", label: "脱落周期", type: "slider", min: 0.3, max: 1.5, step: 0.05, default: 0.7, unit: "s" },
+    { key: "vortexStrength", label: "涡强度", type: "slider", min: 0.5, max: 3, step: 0.1, default: 1.6, unit: "" }
+  ];
+
+  const state = {
+    running: true,
+    t: 0,
+    lastTimestamp: null,
+    flowSpeed: 1.4,
+    shedPeriod: 0.7,
+    vortexStrength: 1.6,
+    particles: [],
+    vortices: [],
+    nextShedTime: 0,
+    shedSide: 1,
+    cylinderX: 0,
+    cylinderY: 0,
+    cylinderR: 0,
+    width: 0,
+    height: 0,
+    dpr: 1,
+    seed: 42
+  };
+
+  const elements = {
+    scene: document.querySelector("#scene"),
+    playPauseBtn: document.querySelector("#playPauseBtn")
+  };
+  const ctx = elements.scene.getContext("2d");
+
+  function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+  function finite(value, fallback) { return Number.isFinite(value) ? value : fallback; }
+
+  function seededRandom() {
+    state.seed = (state.seed * 9301 + 49297) % 233280;
+    return state.seed / 233280;
+  }
+
+  function resize() {
+    state.dpr = window.devicePixelRatio || 1;
+    state.width = window.innerWidth;
+    state.height = window.innerHeight;
+    elements.scene.width = Math.max(1, Math.floor(state.width * state.dpr));
+    elements.scene.height = Math.max(1, Math.floor(state.height * state.dpr));
+    elements.scene.style.width = state.width + "px";
+    elements.scene.style.height = state.height + "px";
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    state.cylinderX = state.width * 0.28;
+    state.cylinderY = state.height * 0.5;
+    state.cylinderR = Math.max(20, Math.min(state.width, state.height) * 0.045);
+  }
+
+  function spawnParticle(fromLeft) {
+    const r = seededRandom();
+    const x = fromLeft ? -10 - r * 30 : seededRandom() * state.width;
+    const y = seededRandom() * state.height;
+    state.particles.push({ x, y, px: x, py: y, life: 0, maxLife: 3 + seededRandom() * 4 });
+  }
+
+  function shedVortex() {
+    const sign = state.shedSide;
+    state.vortices.push({
+      x: state.cylinderX + state.cylinderR * 1.4,
+      y: state.cylinderY + sign * state.cylinderR * 0.55,
+      sign: sign,
+      strength: state.vortexStrength,
+      age: 0,
+      birthTime: state.t
+    });
+    state.shedSide = -state.shedSide;
+    state.nextShedTime = state.t + state.shedPeriod;
+  }
+
+  function velocityField(x, y) {
+    let vx = state.flowSpeed;
+    let vy = 0;
+    const cx = state.cylinderX;
+    const cy = state.cylinderY;
+    const r = state.cylinderR;
+    const dx = x - cx;
+    const dy = y - cy;
+    const dist2 = dx * dx + dy * dy;
+    const dist = Math.sqrt(dist2);
+
+    if (dist < r * 1.02) {
+      return { vx: 0, vy: 0, speed: 0 };
+    }
+
+    if (dist < r * 4) {
+      const theta = Math.atan2(dy, dx);
+      const rRatio = r / dist;
+      const potential = rRatio * rRatio;
+      const u_r = state.flowSpeed * Math.cos(theta) * (1 - potential);
+      const u_t = -state.flowSpeed * Math.sin(theta) * (1 + potential);
+      vx = u_r * Math.cos(theta) - u_t * Math.sin(theta);
+      vy = u_r * Math.sin(theta) + u_t * Math.cos(theta);
+    }
+
+    for (let i = 0; i < state.vortices.length; i++) {
+      const v = state.vortices[i];
+      const ddx = x - v.x;
+      const ddy = y - v.y;
+      const dd2 = ddx * ddx + ddy * ddy;
+      const dd = Math.sqrt(dd2);
+      const core = state.cylinderR * 0.4;
+      const denom = Math.max(dd, core * 0.5);
+      const decay = Math.exp(-(v.x - state.cylinderX) / (state.width * 0.5));
+      const gamma = v.strength * v.sign * decay * 60;
+      const mag = gamma / (2 * Math.PI * denom);
+      vx += -ddy * mag;
+      vy += ddx * mag;
+    }
+
+    return { vx, vy, speed: Math.sqrt(vx * vx + vy * vy) };
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+
+    while (state.t >= state.nextShedTime) {
+      shedVortex();
+    }
+
+    for (let i = state.vortices.length - 1; i >= 0; i--) {
+      const v = state.vortices[i];
+      v.age += boundedDt;
+      v.x += state.flowSpeed * 30 * boundedDt;
+      if (v.x > state.width + 100 || v.age > 12) {
+        state.vortices.splice(i, 1);
+      }
+    }
+
+    const targetCount = 1500;
+    while (state.particles.length < targetCount) {
+      spawnParticle(true);
+    }
+
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+      const p = state.particles[i];
+      p.px = p.x;
+      p.py = p.y;
+      const vel = velocityField(p.x, p.y);
+      p.x += vel.vx * 30 * boundedDt;
+      p.y += vel.vy * 30 * boundedDt;
+      p.life += boundedDt;
+
+      const dx = p.x - state.cylinderX;
+      const dy = p.y - state.cylinderY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < state.cylinderR * 1.05) {
+        const angle = Math.atan2(dy, dx);
+        p.x = state.cylinderX + Math.cos(angle) * state.cylinderR * 1.06;
+        p.y = state.cylinderY + Math.sin(angle) * state.cylinderR * 1.06;
+        p.px = p.x;
+        p.py = p.y;
+      }
+
+      if (p.x > state.width + 20 || p.x < -50 || p.y < -50 || p.y > state.height + 50 || p.life > p.maxLife) {
+        state.particles.splice(i, 1);
+      }
+    }
+  }
+
+  function speedToColor(speed) {
+    const s = clamp(speed / (state.flowSpeed * 2.2), 0, 1);
+    const r = Math.round(20 + s * 40);
+    const g = Math.round(80 + s * 175);
+    const b = Math.round(180 + s * 75);
+    const a = 0.35 + s * 0.55;
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function render() {
+    ctx.fillStyle = "rgba(5, 8, 16, 0.18)";
+    ctx.fillRect(0, 0, state.width, state.height);
+
+    const grad = ctx.createRadialGradient(
+      state.cylinderX, state.cylinderY, 0,
+      state.cylinderX, state.cylinderY, state.cylinderR * 1.6
+    );
+    grad.addColorStop(0, "rgba(40, 50, 70, 0.95)");
+    grad.addColorStop(0.7, "rgba(20, 28, 42, 0.7)");
+    grad.addColorStop(1, "rgba(10, 15, 28, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(state.cylinderX, state.cylinderY, state.cylinderR * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#070b18";
+    ctx.beginPath();
+    ctx.arc(state.cylinderX, state.cylinderY, state.cylinderR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(34, 211, 238, 0.25)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(state.cylinderX, state.cylinderY, state.cylinderR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineCap = "round";
+    for (let i = 0; i < state.particles.length; i++) {
+      const p = state.particles[i];
+      const vel = velocityField(p.x, p.y);
+      ctx.strokeStyle = speedToColor(vel.speed);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+  }
+
+  function init() {
+    resize();
+    window.addEventListener("resize", resize);
+    bindControls();
+    setParameters({ flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+    state.nextShedTime = state.shedPeriod;
+    for (let i = 0; i < 800; i++) spawnParticle(false);
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    elements.playPauseBtn.setAttribute("aria-label", "暂停");
+    elements.playPauseBtn.setAttribute("aria-pressed", "false");
+    elements.playPauseBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.5" height="9" rx="0.5"/><rect x="7.5" y="1.5" width="2.5" height="9" rx="0.5"/></svg>';
+  }
+
+  function pause() {
+    state.running = false;
+    elements.playPauseBtn.setAttribute("aria-label", "播放");
+    elements.playPauseBtn.setAttribute("aria-pressed", "true");
+    elements.playPauseBtn.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 L10 6 L3 10.5 Z"/></svg>';
+  }
+
+  function reset() {
+    state.t = 0;
+    state.particles = [];
+    state.vortices = [];
+    state.nextShedTime = state.shedPeriod;
+    state.shedSide = 1;
+    state.seed = 42;
+    state.lastTimestamp = null;
+    for (let i = 0; i < 800; i++) spawnParticle(false);
+    render();
+  }
+
+  function setParameters(values) {
+    const flowDef = parameterSchema[0];
+    const shedDef = parameterSchema[1];
+    const strengthDef = parameterSchema[2];
+    state.flowSpeed = clamp(finite(Number(values.flowSpeed), flowDef.default), flowDef.min, flowDef.max);
+    state.shedPeriod = clamp(finite(Number(values.shedPeriod), shedDef.default), shedDef.min, shedDef.max);
+    state.vortexStrength = clamp(finite(Number(values.vortexStrength), strengthDef.default), strengthDef.min, strengthDef.max);
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      t: state.t,
+      flowSpeed: state.flowSpeed,
+      shedPeriod: state.shedPeriod,
+      vortexStrength: state.vortexStrength,
+      particleCount: state.particles.length,
+      vortexCount: state.vortices.length
+    };
+  }
+
+  function getReadouts() {
+    return {
+      time: state.t,
+      particleCount: state.particles.length,
+      vortexCount: state.vortices.length,
+      flowSpeed: state.flowSpeed
+    };
+  }
+
+  function runModelChecks() {
+    const simulate = (duration, params) => {
+      const saved = { ...state };
+      Object.assign(state, params);
+      state.t = 0;
+      state.particles = [];
+      state.vortices = [];
+      state.nextShedTime = state.shedPeriod;
+      state.shedSide = 1;
+      const dt = 1 / 60;
+      for (let i = 0; i < Math.floor(duration / dt); i++) {
+        update(dt);
+      }
+      const result = {
+        t: state.t,
+        particleCount: state.particles.length,
+        vortexCount: state.vortices.length,
+        vortices: state.vortices.map(v => ({ x: v.x, sign: v.sign, age: v.age }))
+      };
+      Object.assign(state, saved);
+      return result;
+    };
+
+    const finiteCheck = (() => {
+      state.seed = 42;
+      const r = simulate(2, { flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+      return Number.isFinite(r.t) && Number.isFinite(r.particleCount) && Number.isFinite(r.vortexCount);
+    })();
+
+    const upstreamCheck = (() => {
+      const vel = velocityField(state.cylinderX - 100, state.cylinderY);
+      return Math.abs(vel.vx - state.flowSpeed) < 0.01 && Math.abs(vel.vy) < 0.01;
+    })();
+
+    const symmetryCheck = (() => {
+      state.vortices = [{
+        x: state.cylinderX + 100,
+        y: state.cylinderY,
+        sign: 1,
+        strength: 1.6,
+        age: 0,
+        birthTime: 0
+      }];
+      const above = velocityField(state.cylinderX + 100, state.cylinderY - 50);
+      const below = velocityField(state.cylinderX + 100, state.cylinderY + 50);
+      state.vortices = [];
+      return Math.abs(above.vy + below.vy) < 0.01;
+    })();
+
+    const monotonicCheck = (() => {
+      const r = simulate(3, { flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+      if (r.vortices.length < 2) return false;
+      for (let i = 1; i < r.vortices.length; i++) {
+        if (r.vortices[i].x <= r.vortices[i - 1].x) return false;
+      }
+      return true;
+    })();
+
+    const decayCheck = (() => {
+      state.vortices = [
+        { x: state.cylinderX + 50, y: state.cylinderY, sign: 1, strength: 1.6, age: 0, birthTime: 0 },
+        { x: state.cylinderX + 300, y: state.cylinderY, sign: 1, strength: 1.6, age: 0, birthTime: 0 }
+      ];
+      const near = velocityField(state.cylinderX + 50, state.cylinderY - 30);
+      const far = velocityField(state.cylinderX + 300, state.cylinderY - 30);
+      state.vortices = [];
+      return Math.abs(far.vy) < Math.abs(near.vy) && Math.abs(far.vy) > 0;
+    })();
+
+    const stagnationCheck = (() => {
+      state.vortices = [];
+      const front = velocityField(state.cylinderX - state.cylinderR * 1.05, state.cylinderY);
+      return Math.abs(front.vx) < state.flowSpeed * 0.3;
+    })();
+
+    const recycleCheck = (() => {
+      const r = simulate(5, { flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+      return r.particleCount > 0 && r.vortexCount > 0;
+    })();
+
+    const determinismCheck = (() => {
+      state.seed = 42;
+      const r1 = simulate(2, { flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+      state.seed = 42;
+      const r2 = simulate(2, { flowSpeed: 1.4, shedPeriod: 0.7, vortexStrength: 1.6 });
+      return r1.particleCount === r2.particleCount && r1.vortexCount === r2.vortexCount;
+    })();
+
+    return [
+      { name: "有限性", pass: finiteCheck, expected: "所有状态有限", actual: finiteCheck ? "有限" : "非有限", tolerance: "finite" },
+      { name: "来流基准", pass: upstreamCheck, expected: `vx=${state.flowSpeed}, vy=0`, actual: upstreamCheck ? "匹配" : "不匹配", tolerance: 0.01 },
+      { name: "涡诱导方向对称性", pass: symmetryCheck, expected: "上下对称", actual: symmetryCheck ? "对称" : "不对称", tolerance: 0.01 },
+      { name: "涡心右移单调性", pass: monotonicCheck, expected: "x 单调递增", actual: monotonicCheck ? "单调" : "非单调", tolerance: "strict" },
+      { name: "强度衰减", pass: decayCheck, expected: "远涡弱于近涡", actual: decayCheck ? "衰减" : "未衰减", tolerance: "strict" },
+      { name: "驻点对称性", pass: stagnationCheck, expected: "前方减速", actual: stagnationCheck ? "减速" : "未减速", tolerance: "strict" },
+      { name: "粒子重生闭环", pass: recycleCheck, expected: "持续运行", actual: recycleCheck ? "闭环" : "中断", tolerance: "strict" },
+      { name: "确定性可复现", pass: determinismCheck, expected: "两次相同", actual: determinismCheck ? "一致" : "不一致", tolerance: "strict" }
+    ];
+  }
+
+  function bindControls() {
+    elements.playPauseBtn.addEventListener("click", () => {
+      if (state.running) pause();
+      else start();
+    });
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init: init,
+    start: start,
+    pause: pause,
+    reset: reset,
+    update: update,
+    render: render,
+    setParameters: setParameters,
+    getState: getState,
+    getReadouts: getReadouts,
+    runModelChecks: runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

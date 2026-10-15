@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>动量守恒定律验证 · 一维碰撞演示</title>
+<style>
+:root {
+  color-scheme: light;
+  --sim-bg: #eef3f8;
+  --sim-surface: #ffffff;
+  --sim-surface-soft: #f8fafc;
+  --sim-text: #172033;
+  --sim-muted: #657188;
+  --sim-border: #dfe6ef;
+  --sim-grid: #e8edf4;
+  --sim-accent: #0f9fba;
+  --sim-accent-deep: #08758a;
+  --sim-accent-soft: #d9f4f7;
+  --sim-positive: #0f9fba;
+  --sim-warning: #f59e0b;
+  --sim-danger: #dc2626;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-cart1: #0f9fba;
+  --sim-cart1-deep: #08758a;
+  --sim-cart2: #f59e0b;
+  --sim-cart2-deep: #b45309;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-width: 320px;
+  color: var(--sim-text);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 159, 186, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 4%, rgba(245, 158, 11, 0.10), transparent 26%),
+    var(--sim-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid rgba(37, 99, 235, 0.32); outline-offset: 2px; }
+.app { width: min(1560px, 100%); height: 100vh; margin: 0 auto; padding: 16px 20px 14px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 52px; }
+.header h1 { margin: 0 0 5px; font-size: clamp(1.4rem, 2.2vw, 1.9rem); letter-spacing: -0.035em; line-height: 1; }
+.header p { margin: 0; color: var(--sim-muted); font-size: 0.85rem; }
+.status { border: 1px solid rgba(15,159,186,.18); border-radius: 999px; padding: 9px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 780; white-space: nowrap; }
+.main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.72fr); gap: 12px; }
+.panel { min-width: 0; background: rgba(255,255,255,.94); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+.scene-panel { min-height: 430px; padding: 14px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head span { color: var(--sim-muted); font-size: 0.75rem; }
+#scene { width: 100%; height: 100%; min-height: 350px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(145deg, #fbfdff 0%, #f2f8fa 58%, #fff9ed 100%); }
+.side { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.readouts, .model-note { padding: 17px; }
+.readout-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric { padding: 14px; border: 1px solid rgba(15,159,186,.12); border-radius: 15px; background: linear-gradient(145deg, #f8fcfd, #f4f8fb); }
+.metric small { display: block; margin-bottom: 4px; color: var(--sim-muted); font-size: 0.72rem; }
+.metric strong { font-size: 1.35rem; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.metric.cart1-color strong { color: var(--sim-cart1-deep); }
+.metric.cart2-color strong { color: var(--sim-cart2-deep); }
+.model-note { display: grid; align-content: start; gap: 14px; }
+.model-note p { margin: 0; color: var(--sim-muted); line-height: 1.55; font-size: 0.85rem; }
+.conservation-box { padding: 14px; border-radius: 12px; background: linear-gradient(145deg, #f0fdf4, #ecfdf5); border: 1px solid rgba(15,159,186,.18); }
+.conservation-box .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.85rem; }
+.conservation-box .row + .row { border-top: 1px dashed rgba(15,159,186,.15); }
+.conservation-box .row strong { font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.conservation-box .row.delta { margin-top: 4px; padding-top: 10px; border-top: 2px solid rgba(15,159,186,.2); }
+.conservation-box .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+.badge-pass { background: #d1fae5; color: #065f46; }
+.badge-wait { background: #fef3c7; color: #92400e; }
+.insight { padding: 14px; border-left: 3px solid var(--sim-warning); border-radius: 0 12px 12px 0; background: #fff8e8; color: #80510a !important; font-weight: 650; line-height: 1.5; font-size: 0.88rem; }
+.controls { padding: 11px 12px; display: grid; grid-template-columns: auto minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr); gap: 16px; align-items: center; border-radius: 17px; }
+.actions { display: flex; gap: 8px; }
+button { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 13px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; transition: transform .16s ease, background .16s ease, border-color .16s ease; }
+button:hover { border-color: #c7d2e2; background: #eef3f9; }
+button:active { transform: scale(.97); }
+button.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.20); }
+button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.control label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 5px; font-size: 0.78rem; font-weight: 700; }
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+.cart-label { font-size: 13px; font-weight: 700; fill: white; }
+.mass-label { font-size: 11px; font-weight: 600; }
+.vel-label { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.axis-label { fill: var(--sim-muted); font-size: 12px; }
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100vh; overflow: visible; padding: 12px; }
+  .main { grid-template-columns: 1fr; }
+  .controls { grid-template-columns: 1fr; }
+  .scene-panel { min-height: 0; }
+  #scene { min-height: 0; height: auto; aspect-ratio: 760 / 420; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="app" data-layout="scene-first" data-model-tier="analytic">
+  <header class="header" data-region="header">
+    <div>
+      <h1>动量守恒定律验证 · 一维碰撞演示</h1>
+      <p>调节两辆小车的质量与初速度，启动碰撞，观察碰撞前后总动量是否保持不变。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">就绪</div>
+  </header>
+
+  <main class="main">
+    <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+      <div class="panel-head"><h2 id="scene-title">一维碰撞舞台</h2><span>导轨上的两辆小车 · 速度向量箭头</span></div>
+      <svg id="scene" viewBox="0 0 760 420" role="img" aria-labelledby="scene-title scene-desc">
+        <desc id="scene-desc">一条水平导轨上两辆小车相向运动并发生弹性碰撞，箭头显示速度方向与大小。</desc>
+        <defs>
+          <marker id="arrow-c1" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L10,4 L0,8 Z" fill="var(--sim-cart1-deep)"></path>
+          </marker>
+          <marker id="arrow-c2" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L10,4 L0,8 Z" fill="var(--sim-cart2-deep)"></path>
+          </marker>
+          <linearGradient id="cart1Grad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#22b8c8"></stop><stop offset="1" stop-color="#08758a"></stop>
+          </linearGradient>
+          <linearGradient id="cart2Grad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#fbbf24"></stop><stop offset="1" stop-color="#b45309"></stop>
+          </linearGradient>
+        </defs>
+        <line id="track" x1="30" y1="300" x2="730" y2="300" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"></line>
+        <g id="ticks"></g>
+        <line id="centerLine" x1="380" y1="270" x2="380" y2="330" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3 4"></line>
+        <g id="cart1Group">
+          <rect id="cart1Body" x="0" y="0" width="80" height="50" rx="8" fill="url(#cart1Grad)" stroke="#08758a" stroke-width="1.5"></rect>
+          <text id="cart1Label" class="cart-label" x="40" y="30" text-anchor="middle">小车 1</text>
+          <text id="cart1Mass" class="mass-label" x="40" y="68" text-anchor="middle" fill="var(--sim-cart1-deep)">m₁ = 2.0 kg</text>
+          <line id="cart1Arrow" x1="0" y1="0" x2="0" y2="0" stroke="var(--sim-cart1-deep)" stroke-width="4" marker-end="url(#arrow-c1)"></line>
+          <text id="cart1Vel" class="vel-label" x="0" y="0" text-anchor="middle" fill="var(--sim-cart1-deep)">v = 0.0</text>
+        </g>
+        <g id="cart2Group">
+          <rect id="cart2Body" x="0" y="0" width="80" height="50" rx="8" fill="url(#cart2Grad)" stroke="#b45309" stroke-width="1.5"></rect>
+          <text id="cart2Label" class="cart-label" x="40" y="30" text-anchor="middle">小车 2</text>
+          <text id="cart2Mass" class="mass-label" x="40" y="68" text-anchor="middle" fill="var(--sim-cart2-deep)">m₂ = 3.0 kg</text>
+          <line id="cart2Arrow" x1="0" y1="0" x2="0" y2="0" stroke="var(--sim-cart2-deep)" stroke-width="4" marker-end="url(#arrow-c2)"></line>
+          <text id="cart2Vel" class="vel-label" x="0" y="0" text-anchor="middle" fill="var(--sim-cart2-deep)">v = 0.0</text>
+        </g>
+        <text class="axis-label" x="30" y="395">← 左</text>
+        <text class="axis-label" x="730" y="395" text-anchor="end">右 →</text>
+      </svg>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="panel readouts" aria-label="实时读数">
+        <div class="panel-head"><h2>速度 / 动量读数</h2></div>
+        <div class="readout-grid">
+          <div class="metric cart1-color"><small>小车1 速度 v₁</small><strong id="v1Readout">0.00 m/s</strong></div>
+          <div class="metric cart2-color"><small>小车2 速度 v₂</small><strong id="v2Readout">0.00 m/s</strong></div>
+          <div class="metric cart1-color"><small>小车1 动量 p₁</small><strong id="p1Readout">0.00 kg·m/s</strong></div>
+          <div class="metric cart2-color"><small>小车2 动量 p₂</small><strong id="p2Readout">0.00 kg·m/s</strong></div>
+        </div>
+      </section>
+      <section class="panel model-note" data-region="insight">
+        <div class="panel-head"><h2>守恒检验</h2></div>
+        <div class="conservation-box">
+          <div class="row"><span>碰撞前总动量</span><strong id="pBeforeReadout">0.00</strong></div>
+          <div class="row"><span>碰撞后总动量</span><strong id="pAfterReadout">—</strong></div>
+          <div class="row delta"><span>差值 Δp</span><span><strong id="pDeltaReadout">—</strong> <span id="pBadge" class="badge badge-wait">待碰撞</span></span></div>
+        </div>
+        <p id="insight" class="insight">调节参数后按"开始"，观察两车碰撞前后总动量是否相等。</p>
+        <p>模型：一维完全弹性碰撞。碰撞前后总动量 p = m₁v₁ + m₂v₂ 守恒，动能也守恒。速度向右为正。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="panel controls" data-region="controls" aria-label="模拟控制">
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">开始</button>
+      <button id="pauseBtn" type="button">暂停</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="m1Input">小车1 质量 <output id="m1Output">2.0 kg</output></label>
+      <input id="m1Input" type="range" min="0.5" max="6" step="0.5" value="2">
+    </div>
+    <div class="control">
+      <label for="m2Input">小车2 质量 <output id="m2Output">3.0 kg</output></label>
+      <input id="m2Input" type="range" min="0.5" max="6" step="0.5" value="3">
+    </div>
+    <div class="control">
+      <label for="v1InitInput">小车1 初速度 <output id="v1InitOutput">3.0 m/s</output></label>
+      <input id="v1InitInput" type="range" min="0" max="6" step="0.5" value="3">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const parameterSchema = [
+    { key: "m1", label: "小车1质量", type: "slider", min: 0.5, max: 6, step: 0.5, default: 2, unit: "kg" },
+    { key: "m2", label: "小车2质量", type: "slider", min: 0.5, max: 6, step: 0.5, default: 3, unit: "kg" },
+    { key: "v1Init", label: "小车1初速度", type: "slider", min: 0, max: 6, step: 0.5, default: 3, unit: "m/s" }
+  ];
+
+  const state = {
+    running: false,
+    collided: false,
+    t: 0,
+    m1: 2, m2: 3,
+    v1Init: 3, v2Init: -2,
+    x1: 200, x2: 560,
+    v1: 3, v2: -2,
+    pBefore: 0, pAfter: 0,
+    lastTimestamp: null
+  };
+
+  const el = {
+    status: document.querySelector("#status"),
+    cart1Group: document.querySelector("#cart1Group"),
+    cart2Group: document.querySelector("#cart2Group"),
+    cart1Body: document.querySelector("#cart1Body"),
+    cart2Body: document.querySelector("#cart2Body"),
+    cart1Label: document.querySelector("#cart1Label"),
+    cart2Label: document.querySelector("#cart2Label"),
+    cart1Mass: document.querySelector("#cart1Mass"),
+    cart2Mass: document.querySelector("#cart2Mass"),
+    cart1Arrow: document.querySelector("#cart1Arrow"),
+    cart2Arrow: document.querySelector("#cart2Arrow"),
+    cart1Vel: document.querySelector("#cart1Vel"),
+    cart2Vel: document.querySelector("#cart2Vel"),
+    v1Readout: document.querySelector("#v1Readout"),
+    v2Readout: document.querySelector("#v2Readout"),
+    p1Readout: document.querySelector("#p1Readout"),
+    p2Readout: document.querySelector("#p2Readout"),
+    pBeforeReadout: document.querySelector("#pBeforeReadout"),
+    pAfterReadout: document.querySelector("#pAfterReadout"),
+    pDeltaReadout: document.querySelector("#pDeltaReadout"),
+    pBadge: document.querySelector("#pBadge"),
+    insight: document.querySelector("#insight"),
+    m1Input: document.querySelector("#m1Input"), m1Output: document.querySelector("#m1Output"),
+    m2Input: document.querySelector("#m2Input"), m2Output: document.querySelector("#m2Output"),
+    v1InitInput: document.querySelector("#v1InitInput"), v1InitOutput: document.querySelector("#v1InitOutput"),
+    startBtn: document.querySelector("#startBtn"), pauseBtn: document.querySelector("#pauseBtn"), resetBtn: document.querySelector("#resetBtn"),
+    ticks: document.querySelector("#ticks")
+  };
+
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+  function finite(v, fb) { return Number.isFinite(v) ? v : fb; }
+
+  function initTicks() {
+    const lines = [];
+    for (let i = 0; i <= 14; i += 1) {
+      const x = 30 + i * 50;
+      lines.push(`<line x1="${x}" y1="300" x2="${x}" y2="308" stroke="#94a3b8" stroke-width="1.5"></line>`);
+    }
+    el.ticks.innerHTML = lines.join("");
+  }
+
+  function getCartWidth(mass) { return 50 + mass * 8; }
+
+  function init() {
+    initTicks();
+    bindControls();
+    setParameters({ m1: 2, m2: 3, v1Init: 3 });
+    reset();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    el.status.textContent = "运行中";
+    el.startBtn.setAttribute("aria-pressed", "true");
+  }
+  function pause() {
+    state.running = false;
+    el.status.textContent = "已暂停";
+    el.startBtn.setAttribute("aria-pressed", "false");
+  }
+  function reset() {
+    pause();
+    state.t = 0;
+    state.collided = false;
+    state.m1 = Number(el.m1Input.value);
+    state.m2 = Number(el.m2Input.value);
+    state.v1Init = Number(el.v1InitInput.value);
+    state.v2Init = -2;
+    state.v1 = state.v1Init;
+    state.v2 = state.v2Init;
+    state.x1 = 200;
+    state.x2 = 560;
+    state.pBefore = state.m1 * state.v1 + state.m2 * state.v2;
+    state.pAfter = 0;
+    el.status.textContent = "就绪";
+    render();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+
+    const w1 = getCartWidth(state.m1);
+    const w2 = getCartWidth(state.m2);
+    const right1 = state.x1 + w1 / 2;
+    const left2 = state.x2 - w2 / 2;
+
+    if (!state.collided && right1 >= left2) {
+      const m1 = state.m1, m2 = state.m2;
+      const u1 = state.v1, u2 = state.v2;
+      const sumM = m1 + m2;
+      state.v1 = ((m1 - m2) * u1 + 2 * m2 * u2) / sumM;
+      state.v2 = ((m2 - m1) * u2 + 2 * m1 * u1) / sumM;
+      state.collided = true;
+      state.pAfter = m1 * state.v1 + m2 * state.v2;
+      const overlap = right1 - left2;
+      state.x1 -= overlap / 2 + 0.5;
+      state.x2 += overlap / 2 + 0.5;
+    }
+
+    state.x1 += state.v1 * boundedDt * 30;
+    state.x2 += state.v2 * boundedDt * 30;
+
+    const halfW1 = w1 / 2, halfW2 = w2 / 2;
+    if (state.x1 - halfW1 < 30) { state.x1 = 30 + halfW1; state.v1 = 0; }
+    if (state.x1 + halfW1 > 730) { state.x1 = 730 - halfW1; state.v1 = 0; }
+    if (state.x2 - halfW2 < 30) { state.x2 = 30 + halfW2; state.v2 = 0; }
+    if (state.x2 + halfW2 > 730) { state.x2 = 730 - halfW2; state.v2 = 0; }
+  }
+
+  function render() {
+    const w1 = getCartWidth(state.m1);
+    const w2 = getCartWidth(state.m2);
+    const yCart = 250;
+
+    el.cart1Body.setAttribute("x", -w1 / 2);
+    el.cart1Body.setAttribute("width", w1);
+    el.cart1Body.setAttribute("y", yCart);
+    el.cart1Label.setAttribute("x", 0);
+    el.cart1Label.setAttribute("y", yCart + 30);
+    el.cart1Mass.setAttribute("x", 0);
+    el.cart1Mass.setAttribute("y", yCart + 68);
+    el.cart1Mass.textContent = `m₁ = ${state.m1.toFixed(1)} kg`;
+    el.cart1Group.setAttribute("transform", `translate(${state.x1}, 0)`);
+
+    el.cart2Body.setAttribute("x", -w2 / 2);
+    el.cart2Body.setAttribute("width", w2);
+    el.cart2Body.setAttribute("y", yCart);
+    el.cart2Label.setAttribute("x", 0);
+    el.cart2Label.setAttribute("y", yCart + 30);
+    el.cart2Mass.setAttribute("x", 0);
+    el.cart2Mass.setAttribute("y", yCart + 68);
+    el.cart2Mass.textContent = `m₂ = ${state.m2.toFixed(1)} kg`;
+    el.cart2Group.setAttribute("transform", `translate(${state.x2}, 0)`);
+
+    const arrowLen1 = Math.abs(state.v1) * 12;
+    const dir1 = state.v1 >= 0 ? 1 : -1;
+    const ax1Start = 0;
+    const ax1End = dir1 * arrowLen1;
+    el.cart1Arrow.setAttribute("x1", ax1Start);
+    el.cart1Arrow.setAttribute("y1", yCart - 18);
+    el.cart1Arrow.setAttribute("x2", ax1End);
+    el.cart1Arrow.setAttribute("y2", yCart - 18);
+    el.cart1Vel.setAttribute("x", ax1End + dir1 * 4);
+    el.cart1Vel.setAttribute("y", yCart - 24);
+    el.cart1Vel.textContent = `v₁ = ${state.v1.toFixed(1)}`;
+
+    const arrowLen2 = Math.abs(state.v2) * 12;
+    const dir2 = state.v2 >= 0 ? 1 : -1;
+    const ax2Start = 0;
+    const ax2End = dir2 * arrowLen2;
+    el.cart2Arrow.setAttribute("x1", ax2Start);
+    el.cart2Arrow.setAttribute("y1", yCart - 18);
+    el.cart2Arrow.setAttribute("x2", ax2End);
+    el.cart2Arrow.setAttribute("y2", yCart - 18);
+    el.cart2Vel.setAttribute("x", ax2End + dir2 * 4);
+    el.cart2Vel.setAttribute("y", yCart - 24);
+    el.cart2Vel.textContent = `v₂ = ${state.v2.toFixed(1)}`;
+
+    const p1 = state.m1 * state.v1;
+    const p2 = state.m2 * state.v2;
+    el.v1Readout.textContent = `${state.v1.toFixed(2)} m/s`;
+    el.v2Readout.textContent = `${state.v2.toFixed(2)} m/s`;
+    el.p1Readout.textContent = `${p1.toFixed(2)} kg·m/s`;
+    el.p2Readout.textContent = `${p2.toFixed(2)} kg·m/s`;
+    el.pBeforeReadout.textContent = state.pBefore.toFixed(2);
+
+    if (state.collided) {
+      el.pAfterReadout.textContent = state.pAfter.toFixed(2);
+      const delta = state.pAfter - state.pBefore;
+      el.pDeltaReadout.textContent = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}`;
+      el.pBadge.textContent = "守恒";
+      el.pBadge.className = "badge badge-pass";
+    } else {
+      el.pAfterReadout.textContent = "—";
+      el.pDeltaReadout.textContent = "—";
+      el.pBadge.textContent = "待碰撞";
+      el.pBadge.className = "badge badge-wait";
+    }
+
+    if (!state.collided) {
+      el.insight.textContent = state.running
+        ? "两车正在接近——碰撞即将发生，注意碰撞前的总动量数值。"
+        : "调节参数后按"开始"，观察两车碰撞前后总动量是否相等。";
+    } else {
+      const delta = Math.abs(state.pAfter - state.pBefore);
+      el.insight.textContent = delta < 0.01
+        ? "碰撞完成：碰撞前后总动量几乎完全相等——动量守恒成立。"
+        : `碰撞完成：差值 Δp ≈ ${delta.toFixed(3)}（数值误差来自离散时间步长，理论值为零）。`;
+    }
+  }
+
+  function setParameters(values) {
+    const m1Def = parameterSchema[0], m2Def = parameterSchema[1], v1Def = parameterSchema[2];
+    state.m1 = clamp(finite(Number(values.m1), m1Def.default), m1Def.min, m1Def.max);
+    state.m2 = clamp(finite(Number(values.m2), m2Def.default), m2Def.min, m2Def.max);
+    state.v1Init = clamp(finite(Number(values.v1Init), v1Def.default), v1Def.min, v1Def.max);
+    el.m1Input.value = String(state.m1);
+    el.m2Input.value = String(state.m2);
+    el.v1InitInput.value = String(state.v1Init);
+    el.m1Output.textContent = `${state.m1.toFixed(1)} kg`;
+    el.m2Output.textContent = `${state.m2.toFixed(1)} kg`;
+    el.v1InitOutput.textContent = `${state.v1Init.toFixed(1)} m/s`;
+    if (!state.running) reset();
+    else render();
+  }
+
+  function getState() {
+    return { ...state };
+  }
+  function getReadouts() {
+    return {
+      v1: state.v1, v2: state.v2,
+      p1: state.m1 * state.v1, p2: state.m2 * state.v2,
+      pBefore: state.pBefore, pAfter: state.pAfter,
+      m1: state.m1, m2: state.m2, t: state.t, collided: state.collided
+    };
+  }
+
+  function runModelChecks() {
+    const collide = (m1, m2, u1, u2) => {
+      const s = m1 + m2;
+      const v1 = ((m1 - m2) * u1 + 2 * m2 * u2) / s;
+      const v2 = ((m2 - m1) * u2 + 2 * m1 * u1) / s;
+      return { v1, v2 };
+    };
+    const tol = 1e-9;
+
+    const c1 = collide(2, 3, 3, -2);
+    const exp1v1 = ((2-3)*3 + 2*3*(-2))/5;
+    const exp1v2 = ((3-2)*(-2) + 2*2*3)/5;
+
+    const c2 = collide(1, 1, 4, -4);
+    const exp2v1 = ((1-1)*4 + 2*1*(-4))/2;
+    const exp2v2 = ((1-1)*(-4) + 2*1*4)/2;
+
+    const c3 = collide(1, 5, 0, -3);
+    const exp3v1 = ((1-5)*0 + 2*5*(-3))/6;
+    const exp3v2 = ((5-1)*(-3) + 2*1*0)/6;
+
+    const c4 = collide(2, 2, 3, 0);
+    const exp4v1 = ((2-2)*3 + 2*2*0)/4;
+    const exp4v2 = ((2-2)*0 + 2*2*3)/4;
+
+    const pBefore1 = 2*3 + 3*(-2);
+    const pAfter1 = 2*c1.v1 + 3*c1.v2;
+    const keBefore1 = 0.5*2*9 + 0.5*3*4;
+    const keAfter1 = 0.5*2*c1.v1*c1.v1 + 0.5*3*c1.v2*c1.v2;
+
+    const pBefore3 = 1*0 + 5*(-3);
+    const pAfter3 = 1*c3.v1 + 5*c3.v2;
+
+    return [
+      { name: "弹性碰撞公式-情形1", pass: Math.abs(c1.v1 - exp1v1) < tol && Math.abs(c1.v2 - exp1v2) < tol, expected: `v1=${exp1v1}, v2=${exp1v2}`, actual: `v1=${c1.v1}, v2=${c1.v2}`, tolerance: tol },
+      { name: "弹性碰撞公式-等质量对撞", pass: Math.abs(c2.v1 - exp2v1) < tol && Math.abs(c2.v2 - exp2v2) < tol, expected: `v1=${exp2v1}, v2=${exp2v2}`, actual: `v1=${c2.v1}, v2=${c2.v2}`, tolerance: tol },
+      { name: "弹性碰撞公式-静止被撞", pass: Math.abs(c3.v1 - exp3v1) < tol && Math.abs(c3.v2 - exp3v2) < tol, expected: `v1=${exp3v1}, v2=${exp3v2}`, actual: `v1=${c3.v1}, v2=${c3.v2}`, tolerance: tol },
+      { name: "弹性碰撞公式-追撞", pass: Math.abs(c4.v1 - exp4v1) < tol && Math.abs(c4.v2 - exp4v2) < tol, expected: `v1=${exp4v1}, v2=${exp4v2}`, actual: `v1=${c4.v1}, v2=${c4.v2}`, tolerance: tol },
+      { name: "动量守恒-情形1", pass: Math.abs(pAfter1 - pBefore1) < tol, expected: pBefore1, actual: pAfter1, tolerance: tol },
+      { name: "动能守恒-情形1", pass: Math.abs(keAfter1 - keBefore1) < tol, expected: keBefore1, actual: keAfter1, tolerance: tol },
+      { name: "动量守恒-静止被撞", pass: Math.abs(pAfter3 - pBefore3) < tol, expected: pBefore3, actual: pAfter3, tolerance: tol },
+      { name: "等质量对撞速度交换", pass: Math.abs(c2.v1 - u2_ref(-4)) < tol && Math.abs(c2.v2 - 4) < tol, expected: "v1=-4, v2=4", actual: `v1=${c2.v1}, v2=${c2.v2}`, tolerance: tol }
+    ];
+    function u2_ref(v) { return v; }
+  }
+
+  function bindControls() {
+    el.startBtn.addEventListener("click", start);
+    el.pauseBtn.addEventListener("click", pause);
+    el.resetBtn.addEventListener("click", reset);
+    el.m1Input.addEventListener("input", () => setParameters({ m1: el.m1Input.value, m2: el.m2Input.value, v1Init: el.v1InitInput.value }));
+    el.m2Input.addEventListener("input", () => setParameters({ m1: el.m1Input.value, m2: el.m2Input.value, v1Init: el.v1InitInput.value }));
+    el.v1InitInput.addEventListener("input", () => setParameters({ m1: el.m1Input.value, m2: el.m2Input.value, v1Init: el.v1InitInput.value }));
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

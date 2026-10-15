@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>密堆积 · 等径球体堆叠</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: #0a0f1c;
+  --sim-surface-soft: #0e1424;
+  --sim-text: #e8eefc;
+  --sim-muted: #7a8aa8;
+  --sim-border: #1a2238;
+  --sim-grid: #131c2e;
+  --sim-accent: #5cc8d8;
+  --sim-accent-deep: #2a8a9c;
+  --sim-accent-soft: #0e2a33;
+  --sim-positive: #5cc8d8;
+  --sim-warning: #d4a04c;
+  --sim-danger: #e85a5a;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+  --sim-fcc: #6db4d8;
+  --sim-sc: #d4a04c;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  min-width: 320px;
+  color: var(--sim-text);
+  background: var(--sim-bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid rgba(92, 200, 216, 0.6);
+  outline-offset: 2px;
+}
+.app {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--sim-border);
+  background: linear-gradient(to bottom, rgba(10, 15, 28, 0.96), rgba(10, 15, 28, 0.7));
+}
+.header-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.header h1 {
+  margin: 0;
+  font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-weight: 700;
+}
+.header p {
+  margin: 0;
+  color: var(--sim-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+.status {
+  border: 1px solid rgba(92, 200, 216, 0.25);
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 55%, rgba(40, 70, 110, 0.22), transparent 70%),
+    var(--sim-bg);
+}
+#scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 24px;
+  pointer-events: none;
+  z-index: 2;
+}
+.hud-left, .hud-right {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hud-right { align-items: flex-end; }
+.hud-title {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sim-muted);
+  font-weight: 600;
+}
+.hud-mode {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sim-text);
+}
+.hud-mode .sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sim-muted);
+  margin-left: 10px;
+  letter-spacing: 0.04em;
+}
+.hud-fill {
+  font-size: 12px;
+  color: var(--sim-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hud-fill strong {
+  color: var(--sim-text);
+  font-size: 20px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+.hud-phase {
+  font-size: 11px;
+  color: var(--sim-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.evidence {
+  position: absolute;
+  bottom: 18px;
+  left: 24px;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.metric {
+  padding: 10px 14px;
+  border: 1px solid var(--sim-border);
+  border-radius: 12px;
+  background: rgba(10, 15, 28, 0.72);
+  backdrop-filter: blur(6px);
+  min-width: 92px;
+}
+.metric small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sim-muted);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.metric strong {
+  font-size: 1.15rem;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.insight {
+  position: absolute;
+  bottom: 18px;
+  right: 24px;
+  z-index: 2;
+  max-width: 280px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--sim-warning);
+  border-radius: 0 12px 12px 0;
+  background: rgba(10, 15, 28, 0.78);
+  backdrop-filter: blur(6px);
+  color: var(--sim-text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-weight: 500;
+  pointer-events: none;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 14px 24px 18px;
+  background: linear-gradient(to top, rgba(5, 8, 16, 0.96), rgba(5, 8, 16, 0.7));
+  border-top: 1px solid var(--sim-border);
+  flex-wrap: wrap;
+}
+.mode-toggle {
+  display: inline-flex;
+  background: var(--sim-surface-soft);
+  border: 1px solid var(--sim-border);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 0;
+}
+.mode-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--sim-muted);
+  padding: 9px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  transition: color 0.2s, background 0.2s;
+}
+.mode-toggle button.active {
+  color: var(--sim-bg);
+  background: var(--sim-accent);
+}
+.mode-toggle button.active[data-mode="sc"] {
+  background: var(--sim-sc);
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+}
+.control label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--sim-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.control output {
+  color: var(--sim-text);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--sim-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--sim-accent);
+  cursor: pointer;
+  border: 2px solid var(--sim-bg);
+  box-shadow: 0 0 0 1px var(--sim-accent);
+}
+.actions { display: flex; gap: 8px; }
+.actions button {
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface-soft);
+  color: var(--sim-text);
+  padding: 9px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.actions button:hover { background: var(--sim-surface); border-color: var(--sim-accent-deep); }
+.actions button.primary {
+  background: var(--sim-accent);
+  color: var(--sim-bg);
+  border-color: var(--sim-accent);
+}
+.actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+@media (max-width: 720px) {
+  .controls { gap: 14px; padding: 12px 14px 16px; }
+  .control { min-width: 110px; }
+  .hud { padding: 12px 14px; }
+  .hud-mode { font-size: 18px; }
+  .hud-fill strong { font-size: 16px; }
+  .evidence { left: 14px; bottom: 12px; gap: 8px; }
+  .metric { padding: 8px 10px; min-width: 78px; }
+  .metric strong { font-size: 1rem; }
+  .insight { right: 14px; bottom: 12px; max-width: 200px; font-size: 0.75rem; padding: 10px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="qualitative">
+  <header class="header" data-region="header">
+    <div class="header-left">
+      <h1>密堆积 · 等径球体堆叠</h1>
+      <p>逐层堆叠等径球体，剖开后对比面心立方与简单立方的内部排列与填充率。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">准备就绪</div>
+  </header>
+
+  <section class="stage" data-region="stage" aria-label="密堆积主舞台">
+    <div class="hud">
+      <div class="hud-left">
+        <div class="hud-title">密堆积 · 等径球体</div>
+        <div class="hud-mode" id="modeLabel">面心立方<span class="sub" id="modeSub">FCC · ABCABC</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="hud-fill">填充率 <strong id="fillReadout">74%</strong></div>
+        <div class="hud-phase" id="phaseLabel">准备就绪</div>
+      </div>
+    </div>
+    <canvas id="scene"></canvas>
+
+    <aside class="evidence" data-region="evidence" aria-label="实时数据">
+      <div class="metric"><small>层数</small><strong id="layersReadout">4</strong></div>
+      <div class="metric"><small>球心间距</small><strong id="spacingReadout">2.00r</strong></div>
+      <div class="metric"><small>层类型</small><strong id="layerTypeReadout">ABCA</strong></div>
+    </aside>
+
+    <aside class="insight" data-region="insight" aria-label="观察提示">
+      <span id="insightText">按"播放"开始。球体将逐层落入凹陷，堆叠完成后自动剖开，露出内部排列。</span>
+    </aside>
+  </section>
+
+  <section class="controls" data-region="controls" aria-label="控件">
+    <div class="mode-toggle" role="tablist">
+      <button data-mode="fcc" class="active" role="tab" aria-selected="true">面心立方</button>
+      <button data-mode="sc" role="tab" aria-selected="false">简单立方</button>
+    </div>
+    <div class="control">
+      <label for="layersInput">层数 <output id="layersOutput">4</output></label>
+      <input id="layersInput" type="range" min="3" max="5" step="1" value="4">
+    </div>
+    <div class="control">
+      <label for="speedInput">速度 <output id="speedOutput">1.0×</output></label>
+      <input id="speedInput" type="range" min="0.4" max="2.5" step="0.1" value="1.0">
+    </div>
+    <div class="actions">
+      <button id="startBtn" class="primary" type="button">播放</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+  </section>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const parameterSchema = [
+    { key: "layers", label: "层数", type: "slider", min: 3, max: 5, step: 1, default: 4, unit: "" },
+    { key: "speed", label: "速度", type: "slider", min: 0.4, max: 2.5, step: 0.1, default: 1.0, unit: "×" }
+  ];
+
+  // 面心立方 (FCC) ABCABC 堆积：每层球心位于下层三个球形成的凹陷中
+  // A 层: 简单六方阵列; B 层: 在 A 的凹陷上方; C 层: 在另一组凹陷上方
+  // 球心 z = layer * sqrt(2/3) * r  (理想密堆积层间距)
+  const FCC = {
+    name: "面心立方",
+    sub: "FCC · ABCABC",
+    fillRate: 0.7405,
+    color: "#6db4d8",
+    colorDeep: "#2a5a78",
+    layerSpacing: Math.sqrt(2 / 3), // 以 r 为单位
+    buildLayers: function(layers, r) {
+      const result = [];
+      const dx = 2 * r;
+      const dy = dx * Math.sqrt(3) / 2;
+      const dz = this.layerSpacing * r * 2; // 球心间距 = layerSpacing * 2r
+      for (let L = 0; L < layers; L++) {
+        const layerType = L % 3; // 0=A, 1=B, 2=C
+        const z = L * dz;
+        const balls = [];
+        for (let row = -2; row <= 2; row++) {
+          for (let col = -2; col <= 2; col++) {
+            const baseX = col * dx + row * dx / 2;
+            const baseY = row * dy;
+            let x = baseX, y = baseY;
+            if (layerType === 1) { // B: A 的一个凹陷
+              x = baseX + dx / 2;
+              y = baseY + dy / 3;
+            } else if (layerType === 2) { // C: A 的另一个凹陷
+              x = baseX + dx / 2;
+              y = baseY + 2 * dy / 3;
+            }
+            balls.push({ x, y, z, layer: L, layerType });
+          }
+        }
+        result.push({ balls, z, layerType, index: L });
+      }
+      return result;
+    }
+  };
+
+  // 简单立方 (SC): 球心位于立方体顶点，上下层正对齐
+  const SC = {
+    name: "简单立方",
+    sub: "SC · 简单立方",
+    fillRate: 0.5236,
+    color: "#d4a04c",
+    colorDeep: "#6e4e1e",
+    layerSpacing: 1.0, // 球心 z 间距 = 2r
+    buildLayers: function(layers, r) {
+      const result = [];
+      const d = 2 * r;
+      for (let L = 0; L < layers; L++) {
+        const z = L * d;
+        const balls = [];
+        for (let row = -2; row <= 2; row++) {
+          for (let col = -2; col <= 2; col++) {
+            balls.push({ x: col * d, y: row * d, z, layer: L, layerType: 0 });
+          }
+        }
+        result.push({ balls, z, layerType: 0, index: L });
+      }
+      return result;
+    }
+  };
+
+  const MODES = { fcc: FCC, sc: SC };
+
+  const state = {
+    running: false,
+    mode: "fcc",
+    layers: 4,
+    speed: 1.0,
+    phase: "idle", // idle | dropping | settling | cutting | cut
+    phaseTime: 0,
+    layerProgress: [], // 每层 0..1
+    cutProgress: 0,
+    lastTimestamp: null,
+    allBalls: [],
+    cutBalls: [],
+    r: 1,
+    camera: { rotY: 0.6, rotX: -0.45, dist: 18 }
+  };
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const els = {
+    status: document.getElementById("status"),
+    modeLabel: document.getElementById("modeLabel"),
+    modeSub: document.getElementById("modeSub"),
+    fillReadout: document.getElementById("fillReadout"),
+    phaseLabel: document.getElementById("phaseLabel"),
+    layersReadout: document.getElementById("layersReadout"),
+    spacingReadout: document.getElementById("spacingReadout"),
+    layerTypeReadout: document.getElementById("layerTypeReadout"),
+    insightText: document.getElementById("insightText"),
+    layersInput: document.getElementById("layersInput"),
+    layersOutput: document.getElementById("layersOutput"),
+    speedInput: document.getElementById("speedInput"),
+    speedOutput: document.getElementById("speedOutput"),
+    startBtn: document.getElementById("startBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    modeButtons: document.querySelectorAll(".mode-toggle button")
+  };
+
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function rebuildLayers() {
+    const mode = MODES[state.mode];
+    state.allBalls = mode.buildLayers(state.layers, state.r);
+    state.layerProgress = new Array(state.layers).fill(0);
+    state.cutBalls = computeCutBalls();
+  }
+
+  function computeCutBalls() {
+    // 剖面：保留 x >= 0 的球（舞台右半部分）
+    const result = [];
+    for (const layer of state.allBalls) {
+      const balls = layer.balls.filter(b => b.x >= -0.01);
+      result.push({ ...layer, balls });
+    }
+    return result;
+  }
+
+  function project(p) {
+    const cy = Math.cos(state.camera.rotY), sy = Math.sin(state.camera.rotY);
+    const cx = Math.cos(state.camera.rotX), sx = Math.sin(state.camera.rotX);
+    // Y 轴旋转
+    let x = p.x * cy + p.z * sy;
+    let z = -p.x * sy + p.z * cy;
+    let y = p.y;
+    // X 轴旋转
+    let y2 = y * cx - z * sx;
+    let z2 = y * sx + z * cx;
+    y = y2; z = z2;
+    // 透视
+    const d = state.camera.dist;
+    const f = d / (d + z);
+    return { x: x * f, y: y * f, z: z, scale: f };
+  }
+
+  function shade(baseColor, depth, light) {
+    // depth 0..1 (越大越暗), light 0..1 (越大越亮)
+    const c = parseInt(baseColor.slice(1), 16);
+    const r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+    const t = clamp(light, 0, 1);
+    const dr = lerp(r * 0.35, r, t) * (1 - depth * 0.3);
+    const dg = lerp(g * 0.35, g, t) * (1 - depth * 0.3);
+    const db = lerp(b * 0.35, b, t) * (1 - depth * 0.3);
+    return `rgb(${Math.round(dr)},${Math.round(dg)},${Math.round(db)})`;
+  }
+
+  function drawSphere(sx, sy, r, color, alpha) {
+    if (r < 0.5) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // 球体径向渐变
+    const grad = ctx.createRadialGradient(
+      sx - r * 0.35, sy - r * 0.35, r * 0.1,
+      sx, sy, r
+    );
+    const c = parseInt(color.slice(1), 16);
+    const cr = (c >> 16) & 0xff, cg = (c >> 8) & 0xff, cb = c & 0xff;
+    grad.addColorStop(0, `rgb(${Math.min(255, cr + 80)},${Math.min(255, cg + 80)},${Math.min(255, cb + 80)})`);
+    grad.addColorStop(0.5, color);
+    grad.addColorStop(1, `rgb(${Math.floor(cr * 0.3)},${Math.floor(cg * 0.3)},${Math.floor(cb * 0.3)})`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // 高光
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.beginPath();
+    ctx.arc(sx - r * 0.35, sy - r * 0.35, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFloor() {
+    // 底面网格
+    const r = state.r;
+    const ext = 5 * 2 * r;
+    ctx.save();
+    ctx.strokeStyle = "rgba(90, 120, 160, 0.12)";
+    ctx.lineWidth = 1;
+    const step = 2 * r;
+    for (let i = -5; i <= 5; i++) {
+      const a = project({ x: i * step, y: 0, z: -ext });
+      const b = project({ x: i * step, y: 0, z: ext });
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      const c = project({ x: -ext, y: 0, z: i * step });
+      const d = project({ x: ext, y: 0, z: i * step });
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(d.x, d.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawCutPlane() {
+    // 剖面切平面（y-z 平面，x=0）
+    const r = state.r;
+    const ext = 5 * 2 * r;
+    const h = state.layers * 2 * r * 1.1;
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = "#5cc8d8";
+    const p1 = project({ x: 0, y: 0, z: -ext });
+    const p2 = project({ x: 0, y: 0, z: ext });
+    const p3 = project({ x: 0, y: h, z: ext });
+    const p4 = project({ x: 0, y: h, z: -ext });
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.lineTo(p3.x, p3.y);
+    ctx.lineTo(p4.x, p4.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function render() {
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width, H = rect.height;
+    if (W < 2 || H < 2) return;
+    ctx.clearRect(0, 0, W, H);
+
+    // 相机居中
+    const cx = W / 2, cy = H / 2 + 30;
+    const scale = Math.min(W, H) * 0.045;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    drawFloor();
+
+    const mode = MODES[state.mode];
+    const isCut = state.phase === "cut" || state.phase === "cutting";
+    const layers = isCut ? state.cutBalls : state.allBalls;
+
+    // 收集所有可见球，按深度排序
+    const visible = [];
+    for (let li = 0; li < layers.length; li++) {
+      const layer = layers[li];
+      const lp = state.layerProgress[li] || 0;
+      if (lp <= 0 && state.phase === "dropping") continue;
+
+      for (const ball of layer.balls) {
+        // 计算当前球位置
+        let bx = ball.x, by = ball.y, bz = ball.z;
+        let alpha = 1;
+
+        if (state.phase === "dropping" || state.phase === "settling") {
+          if (lp < 1) {
+            // 下落动画：从上方落下
+            const dropHeight = 8 * state.r;
+            const t = easeOut(clamp(lp, 0, 1));
+            bz = ball.z + dropHeight * (1 - t);
+            alpha = clamp(lp * 2, 0, 1); // 前半段淡入
+          }
+        }
+
+        const p = project({ x: bx, y: by, z: bz });
+        visible.push({
+          sx: p.x * scale,
+          sy: -p.y * scale, // canvas y 向下
+          sr: state.r * p.scale * scale * 0.92,
+          z: p.z,
+          color: mode.color,
+          alpha
+        });
+      }
+    }
+
+    // 按深度从远到近排序
+    visible.sort((a, b) => b.z - a.z);
+
+    for (const v of visible) {
+      drawSphere(v.sx, v.sy, v.sr, v.color, v.alpha);
+    }
+
+    if (isCut) {
+      drawCutPlane();
+    }
+
+    ctx.restore();
+
+    // 剖面阶段绘制填充率标注
+    if (isCut) {
+      drawCutAnnotation(W, H, mode);
+    }
+  }
+
+  function drawCutAnnotation(W, H, mode) {
+    ctx.save();
+    ctx.font = "600 13px ui-sans-serif, system-ui";
+    ctx.fillStyle = "rgba(232, 238, 252, 0.5)";
+    ctx.textAlign = "center";
+    const pct = (mode.fillRate * 100).toFixed(1);
+    ctx.fillText(`剖面视图 · 内部排列可见`, W / 2, H - 100);
+    ctx.restore();
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+    const speed = state.speed;
+    state.phaseTime += dt * speed;
+
+    if (state.phase === "dropping") {
+      // 每层下落耗时
+      const layerDuration = 0.9 / speed;
+      const stagger = 0.35 / speed;
+      let allDone = true;
+      for (let i = 0; i < state.layers; i++) {
+        const start = i * stagger;
+        const local = (state.phaseTime - start) / layerDuration;
+        state.layerProgress[i] = clamp(local, 0, 1);
+        if (state.layerProgress[i] < 1) allDone = false;
+      }
+      if (allDone) {
+        state.phase = "settling";
+        state.phaseTime = 0;
+      }
+    } else if (state.phase === "settling") {
+      // 短暂停顿
+      if (state.phaseTime > 0.6 / speed) {
+        state.phase = "cutting";
+        state.phaseTime = 0;
+        state.cutProgress = 0;
+      }
+    } else if (state.phase === "cutting") {
+      // 剖面动画
+      const cutDuration = 1.2 / speed;
+      state.cutProgress = clamp(state.phaseTime / cutDuration, 0, 1);
+      if (state.cutProgress >= 1) {
+        state.phase = "cut";
+        state.running = false;
+        els.startBtn.textContent = "重播";
+        els.startBtn.disabled = false;
+        els.phaseLabel.textContent = "剖面完成";
+        els.status.textContent = "剖面完成";
+      }
+    }
+
+    updateHud();
+  }
+
+  function updateHud() {
+    const mode = MODES[state.mode];
+    els.modeLabel.firstChild.textContent = mode.name;
+    els.modeSub.textContent = mode.sub;
+    els.fillReadout.textContent = `${(mode.fillRate * 100).toFixed(1)}%`;
+
+    const phaseText = {
+      idle: "准备就绪",
+      dropping: "逐层堆叠中",
+      settling: "堆叠完成",
+      cutting: "剖面剖开中",
+      cut: "剖面完成"
+    };
+    const phaseStatus = {
+      idle: "准备就绪",
+      dropping: "运行中",
+      settling: "堆叠完成",
+      cutting: "剖开中",
+      cut: "剖面完成"
+    };
+    els.phaseLabel.textContent = phaseText[state.phase] || "";
+    els.status.textContent = phaseStatus[state.phase] || "";
+
+    // 更新 evidence
+    els.layersReadout.textContent = state.layers;
+    const spacing = state.mode === "fcc" ? (2 * Math.sqrt(2/3)).toFixed(2) : "2.00";
+    els.spacingReadout.textContent = `${spacing}r`;
+    const types = ["A", "B", "C"];
+    let layerTypeStr = "";
+    for (let i = 0; i < state.layers; i++) {
+      layerTypeStr += types[state.allBalls[i].layerType];
+    }
+    els.layerTypeReadout.textContent = layerTypeStr;
+
+    // 更新 insight
+    if (state.phase === "idle") {
+      els.insightText.textContent = "按\"播放\"开始。球体将逐层落入凹陷，堆叠完成后自动剖开，露出内部排列。";
+    } else if (state.phase === "dropping") {
+      els.insightText.textContent = "逐层堆叠中：每层球心落入下层三个球形成的凹陷，实现最密堆积。";
+    } else if (state.phase === "settling") {
+      els.insightText.textContent = "堆叠完成。即将剖开模型，观察内部球心排列。";
+    } else if (state.phase === "cutting") {
+      els.insightText.textContent = "剖面剖开中：移除左半部分，保留右半部分以暴露内部结构。";
+    } else if (state.phase === "cut") {
+      if (state.mode === "fcc") {
+        els.insightText.textContent = "FCC 剖面：ABCABC 交替堆叠，球心间距为 √(2/3)·2r，填充率达 74.05%。";
+      } else {
+        els.insightText.textContent = "SC 剖面：各层正对齐，球心间距为 2r，填充率仅 52.36%，存在大量空隙。";
+      }
+    }
+  }
+
+  function start() {
+    if (state.phase === "cut" || state.phase === "idle") {
+      // 从头开始
+      state.phase = "dropping";
+      state.phaseTime = 0;
+      state.layerProgress = new Array(state.layers).fill(0);
+      state.cutProgress = 0;
+    }
+    state.running = true;
+    els.startBtn.textContent = "播放中";
+    els.startBtn.disabled = true;
+    els.status.textContent = "运行中";
+  }
+
+  function pause() {
+    state.running = false;
+    els.startBtn.textContent = state.phase === "cut" ? "重播" : "继续";
+    els.startBtn.disabled = false;
+    els.status.textContent = "已暂停";
+  }
+
+  function reset() {
+    state.running = false;
+    state.phase = "idle";
+    state.phaseTime = 0;
+    state.layerProgress = new Array(state.layers).fill(0);
+    state.cutProgress = 0;
+    els.startBtn.textContent = "播放";
+    els.startBtn.disabled = false;
+    els.status.textContent = "准备就绪";
+    rebuildLayers();
+    updateHud();
+    render();
+  }
+
+  function setMode(mode) {
+    if (!MODES[mode]) return;
+    state.mode = mode;
+    els.modeButtons.forEach(b => {
+      const active = b.dataset.mode === mode;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    reset();
+  }
+
+  function setParameters(values) {
+    const layersDef = parameterSchema[0], speedDef = parameterSchema[1];
+    if (values.layers !== undefined) {
+      state.layers = clamp(Math.round(Number(values.layers)), layersDef.min, layersDef.max);
+      els.layersInput.value = String(state.layers);
+      els.layersOutput.textContent = state.layers;
+    }
+    if (values.speed !== undefined) {
+      state.speed = clamp(Number(values.speed), speedDef.min, speedDef.max);
+      els.speedInput.value = String(state.speed);
+      els.speedOutput.textContent = `${state.speed.toFixed(1)}×`;
+    }
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      mode: state.mode,
+      layers: state.layers,
+      speed: state.speed,
+      phase: state.phase,
+      phaseTime: state.phaseTime,
+      layerProgress: [...state.layerProgress],
+      cutProgress: state.cutProgress
+    };
+  }
+
+  function getReadouts() {
+    const mode = MODES[state.mode];
+    return {
+      fillRate: mode.fillRate,
+      mode: mode.name,
+      layers: state.layers,
+      phase: state.phase
+    };
+  }
+
+  function runModelChecks() {
+    const checks = [];
+    // 填充率常量
+    checks.push({
+      name: "FCC 填充率 = 0.7405",
+      pass: Math.abs(FCC.fillRate - Math.PI / (3 * Math.sqrt(2))) < 1e-6,
+      expected: Math.PI / (3 * Math.sqrt(2)),
+      actual: FCC.fillRate
+    });
+    checks.push({
+      name: "SC 填充率 = 0.5236",
+      pass: Math.abs(SC.fillRate - Math.PI / 6) < 1e-6,
+      expected: Math.PI / 6,
+      actual: SC.fillRate
+    });
+    // FCC 层间距 = sqrt(2/3) * 2r
+    const expectedSpacing = Math.sqrt(2 / 3);
+    checks.push({
+      name: "FCC 层间距 = sqrt(2/3)",
+      pass: Math.abs(FCC.layerSpacing - expectedSpacing) < 1e-6,
+      expected: expectedSpacing,
+      actual: FCC.layerSpacing
+    });
+    // SC 层间距 = 2r
+    checks.push({
+      name: "SC 层间距 = 1.0 (以 2r 为单位)",
+      pass: SC.layerSpacing === 1.0,
+      expected: 1.0,
+      actual: SC.layerSpacing
+    });
+    // ABC 重复周期
+    const fccLayers = FCC.buildLayers(4, 1);
+    const types = fccLayers.map(l => l.layerType);
+    checks.push({
+      name: "FCC 4 层 ABCA 周期",
+      pass: types[0] === 0 && types[1] === 1 && types[2] === 2 && types[3] === 0,
+      expected: [0, 1, 2, 0],
+      actual: types
+    });
+    // SC 所有层同类型
+    const scLayers = SC.buildLayers(3, 1);
+    const scTypes = scLayers.map(l => l.layerType);
+    checks.push({
+      name: "SC 所有层类型相同",
+      pass: scTypes.every(t => t === 0),
+      expected: [0, 0, 0],
+      actual: scTypes
+    });
+    // 球数检查
+    const fccBalls = fccLayers.reduce((s, l) => s + l.balls.length, 0);
+    const scBalls = scLayers.reduce((s, l) => s + l.balls.length, 0);
+    checks.push({
+      name: "FCC 4 层球数 > 0",
+      pass: fccBalls > 0,
+      expected: "> 0",
+      actual: fccBalls
+    });
+    checks.push({
+      name: "SC 3 层球数 > 0",
+      pass: scBalls > 0,
+      expected: "> 0",
+      actual: scBalls
+    });
+    return checks;
+  }
+
+  function bindControls() {
+    els.startBtn.addEventListener("click", () => {
+      if (state.running) {
+        pause();
+      } else {
+        start();
+      }
+    });
+    els.resetBtn.addEventListener("click", reset);
+    els.modeButtons.forEach(b => {
+      b.addEventListener("click", () => setMode(b.dataset.mode));
+    });
+    els.layersInput.addEventListener("input", () => {
+      setParameters({ layers: els.layersInput.value });
+      reset();
+    });
+    els.speedInput.addEventListener("input", () => {
+      setParameters({ speed: els.speedInput.value });
+    });
+    window.addEventListener("resize", () => {
+      resize();
+      render();
+    });
+  }
+
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ layers: 4, speed: 1.0 });
+    rebuildLayers();
+    updateHud();
+    requestAnimationFrame(frame);
+  }
+
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = Math.min(0.05, (timestamp - state.lastTimestamp) / 1000);
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = {
+    init, start, pause, reset, update, render,
+    setParameters, setMode, getState, getReadouts, runModelChecks
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

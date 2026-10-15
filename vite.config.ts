@@ -1,11 +1,12 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import fs from 'node:fs'
 import path from 'path'
 import { generateResourceManifest } from './scripts/resource-manifest'
+import { accountBuildOrigins, CONTENT_DIRECTORIES, isolateAccountBuild } from './scripts/account-build'
 
-function resourceManifestPlugin(): Plugin {
+function resourceManifestPlugin(contentOrigin?: string, accountAPI?: string): Plugin {
   const projectRoot = __dirname
   const watchRoots = [
     path.resolve(projectRoot, 'public/images'),
@@ -39,6 +40,24 @@ function resourceManifestPlugin(): Plugin {
     configureServer(server) {
       regenerate()
       watchRoots.forEach((watchRoot) => server.watcher.add(watchRoot))
+
+      if (contentOrigin) {
+        const resourceURL = new URL(contentOrigin)
+        const developmentHost = typeof server.config.server.host === 'string' ? server.config.server.host : 'localhost'
+        if (accountAPI && resourceURL.hostname === developmentHost) {
+          throw new Error('Account development resources require a different hostname from the app.')
+        }
+        server.middlewares.use((req, res, next) => {
+          const requested = new URL(req.url ?? '/', 'http://development.invalid')
+          if (CONTENT_DIRECTORIES.some(directory => requested.pathname.startsWith(`/${directory}/`))) {
+            res.statusCode = 302
+            res.setHeader('Location', new URL(`${requested.pathname}${requested.search}`, contentOrigin).href)
+            res.end()
+            return
+          }
+          next()
+        })
+      }
 
       // Serve static HTML from public subdirectories (courseware / simcanvas) before SPA fallback
       const serveSubdirectoryIndex = (mountPath: string, rootDir: string) => {
@@ -77,11 +96,36 @@ function resourceManifestPlugin(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [resourceManifestPlugin(), react(), tailwindcss()],
+export default defineConfig(({ command, mode }) => {
+  const env = { ...loadEnv(mode, __dirname, ''), ...process.env }
+  const origins = command === 'build' ? accountBuildOrigins(env) : null
+  const contentOrigin = env.VITE_CONTENT_BASE_URL?.trim()
+  if (command === 'serve' && env.VITE_ACCOUNT_API_URL?.trim() && !contentOrigin) {
+    throw new Error('Account-enabled development requires a separate VITE_CONTENT_BASE_URL.')
+  }
+  if (contentOrigin) {
+    const resourceURL = new URL(contentOrigin)
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(resourceURL.hostname)
+    if (resourceURL.username || resourceURL.password || resourceURL.search || resourceURL.hash || resourceURL.pathname !== '/'
+      || resourceURL.hostname.includes('*') || (resourceURL.protocol !== 'https:' && !(command === 'serve' && resourceURL.protocol === 'http:' && local))) {
+      throw new Error('VITE_CONTENT_BASE_URL must be an explicit resource origin.')
+    }
+    if (env.VITE_ACCOUNT_API_URL?.trim() && new URL(env.VITE_ACCOUNT_API_URL).hostname === resourceURL.hostname) {
+      throw new Error('Account resources require a separate hostname from the API; ports do not isolate cookies.')
+    }
+  }
+  const isolation: Plugin = {
+    name: 'account-origin-isolation',
+    closeBundle() {
+      if (origins) isolateAccountBuild(path.resolve(__dirname, 'dist'), origins)
+    },
+  }
+  return {
+  plugins: [resourceManifestPlugin(contentOrigin, env.VITE_ACCOUNT_API_URL), react(), tailwindcss(), isolation],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
+  }
 })

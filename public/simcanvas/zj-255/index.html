@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(location.search.indexOf("preview=1")!==-1)Object.defineProperty(window,"devicePixelRatio",{get:function(){return 1}})</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>概率为零，不等于不可能</title>
+<style>
+:root {
+  color-scheme: dark;
+  --sim-bg: #050810;
+  --sim-surface: rgba(18, 26, 44, 0.55);
+  --sim-surface-soft: rgba(28, 38, 60, 0.5);
+  --sim-text: #e8eefc;
+  --sim-muted: #8a98b8;
+  --sim-border: rgba(120, 150, 200, 0.18);
+  --sim-grid: rgba(120, 150, 200, 0.06);
+  --sim-accent: #f5c542;
+  --sim-accent-deep: #c89020;
+  --sim-accent-soft: rgba(245, 197, 66, 0.14);
+  --sim-positive: #4ade80;
+  --sim-warning: #ef4444;
+  --sim-danger: #ef4444;
+  --sim-radius-sm: 10px;
+  --sim-radius-md: 16px;
+  --sim-radius-lg: 22px;
+  --sim-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --sim-space-1: 4px;
+  --sim-space-2: 8px;
+  --sim-space-3: 12px;
+  --sim-space-4: 16px;
+  --sim-space-5: 24px;
+  --sim-space-6: 32px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--sim-bg);
+  color: var(--sim-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.app {
+  width: 100vw; height: 100vh; height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--sim-space-3);
+  padding: var(--sim-space-4) var(--sim-space-5) var(--sim-space-3);
+}
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: var(--sim-space-4); min-height: 48px;
+  opacity: 0; animation: fadeIn 0.9s ease 0.15s forwards;
+}
+.header h1 {
+  margin: 0; font-size: clamp(1.4rem, 2.2vw, 1.95rem);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+}
+.header p {
+  margin: 4px 0 0; color: var(--sim-muted); font-size: 0.85rem;
+}
+.status {
+  border: 1px solid var(--sim-border);
+  border-radius: 999px; padding: 8px 16px;
+  background: var(--sim-surface-soft); color: var(--sim-text);
+  font-weight: 700; font-size: 0.82rem; white-space: nowrap;
+}
+.main {
+  min-height: 0; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: var(--sim-space-3);
+}
+.scene-panel {
+  position: relative; min-height: 0;
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-lg);
+  overflow: hidden; background: var(--sim-surface);
+}
+#scene { display: block; width: 100%; height: 100%; }
+.scene-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: var(--sim-space-4) var(--sim-space-5);
+}
+.overlay-top, .overlay-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sim-space-4); }
+.scene-label {
+  font-size: 0.72rem; color: var(--sim-muted);
+  letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;
+}
+.scene-tag {
+  font-size: 0.78rem; color: var(--sim-accent);
+  font-weight: 700; letter-spacing: 0.04em;
+}
+.side {
+  min-height: 0; display: grid;
+  grid-template-rows: auto minmax(0, 1fr); gap: var(--sim-space-3);
+}
+.readouts {
+  padding: var(--sim-space-4); display: grid; gap: var(--sim-space-3);
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-md);
+  background: var(--sim-surface);
+}
+.readout-row {
+  display: grid; grid-template-columns: auto 1fr; gap: var(--sim-space-3);
+  align-items: center; padding-bottom: var(--sim-space-3);
+  border-bottom: 1px solid var(--sim-border);
+}
+.readout-row:last-child { border-bottom: none; padding-bottom: 0; }
+.row-label { font-size: 0.78rem; color: var(--sim-muted); line-height: 1.4; }
+.row-value { font-size: 1.6rem; font-weight: 800; text-align: right; letter-spacing: -0.02em; }
+.row-value.accent { color: var(--sim-accent); }
+.row-value.danger { color: var(--sim-danger); }
+.row-sub { font-size: 0.72rem; color: var(--sim-muted); text-align: right; margin-top: 2px; }
+.insight-panel {
+  padding: var(--sim-space-4); display: grid; align-content: start; gap: var(--sim-space-3);
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-md);
+  background: var(--sim-surface); overflow: hidden;
+}
+.insight-panel h2 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.insight-text {
+  margin: 0; color: var(--sim-text); line-height: 1.6; font-size: 0.85rem;
+  opacity: 0; transition: opacity 0.5s ease;
+}
+.insight-text.visible { opacity: 1; }
+.controls {
+  padding: var(--sim-space-3) var(--sim-space-4);
+  display: grid; grid-template-columns: auto minmax(160px, 1fr) minmax(160px, 1fr);
+  gap: var(--sim-space-4); align-items: center;
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-md);
+  background: var(--sim-surface);
+}
+.actions { display: flex; gap: var(--sim-space-2); }
+button {
+  border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm);
+  padding: 9px 16px; color: var(--sim-text); background: var(--sim-surface-soft);
+  cursor: pointer; font-weight: 700; font-size: 0.85rem;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+button:hover { border-color: rgba(120, 150, 200, 0.4); background: rgba(40, 50, 75, 0.6); }
+button:active { transform: scale(0.96); }
+button.primary {
+  border-color: var(--sim-accent-deep); color: #1a1408;
+  background: linear-gradient(135deg, var(--sim-accent), var(--sim-accent-deep));
+}
+button.primary:hover { background: linear-gradient(135deg, #ffd966, #d4a030); }
+button.toggle-on {
+  border-color: var(--sim-accent); color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+}
+.control label {
+  display: flex; justify-content: space-between; gap: var(--sim-space-3);
+  margin-bottom: 6px; font-size: 0.78rem; font-weight: 700;
+}
+.control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 860px) {
+  .app { padding: var(--sim-space-3); }
+  .main { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 1fr) auto; }
+  .controls { grid-template-columns: 1fr; gap: var(--sim-space-3); }
+  .actions { justify-content: center; }
+  .header p { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .header { animation: none; opacity: 1; }
+  .insight-text { transition: none; opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div class="app" data-layout="visualization-first" data-model-tier="qualitative">
+  <header class="header" data-region="header">
+    <div>
+      <h1>概率为零，不等于不可能</h1>
+      <p>在连续的世界里，恰好命中一个预设点概率为零——但每颗光珠都必然停在某个精确点上。</p>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite">等待落珠</div>
+  </header>
+
+  <main class="main">
+    <section class="scene-panel" data-region="stage" aria-label="数轴主舞台">
+      <canvas id="scene"></canvas>
+      <div class="scene-overlay">
+        <div class="overlay-top">
+          <span class="scene-label">连续区间 [0, 1]</span>
+          <span class="scene-tag" id="sceneTag">点击下方按钮释放光珠</span>
+        </div>
+        <div class="overlay-bottom">
+          <span class="scene-label">红点为预设命中目标</span>
+          <span class="scene-label" id="bottomLabel">已落珠 0 颗</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side" data-region="evidence">
+      <section class="readouts" aria-label="读数对比">
+        <div class="readout-row">
+          <div class="row-label">命中预设红点的概率</div>
+          <div>
+            <div class="row-value danger" id="probReadout">P = 0</div>
+            <div class="row-sub" id="hitSub">已命中 0 次</div>
+          </div>
+        </div>
+        <div class="readout-row">
+          <div class="row-label">每颗光珠必停于某点</div>
+          <div>
+            <div class="row-value accent" id="landedReadout">0</div>
+            <div class="row-sub" id="lastSub">尚未释放</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="insight-panel" data-region="insight">
+        <h2>观察</h2>
+        <p id="insightText" class="insight-text">点击「落下一颗」开始。每颗光珠都精确停在某个点上，但几乎永远命不中预设的红点。</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="controls" data-region="controls" aria-label="控件">
+    <div class="actions">
+      <button id="dropOneBtn" class="primary" type="button">落下一颗</button>
+      <button id="autoBtn" type="button" aria-pressed="false">连续落珠</button>
+      <button id="resetBtn" type="button">重置</button>
+    </div>
+    <div class="control">
+      <label for="targetInput">预设红点位置 <output id="targetOutput">0.500</output></label>
+      <input id="targetInput" type="range" min="0" max="1" step="0.001" value="0.5">
+    </div>
+    <div class="control">
+      <label for="speedInput">落珠速度 <output id="speedOutput">1.0×</output></label>
+      <input id="speedInput" type="range" min="0.3" max="2.5" step="0.1" value="1">
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ===== 伪随机数生成器（固定种子，可复现） =====
+  function mulberry32(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ===== 参数 schema =====
+  const parameterSchema = [
+    { key: "target", label: "预设红点位置", type: "slider", min: 0, max: 1, step: 0.001, default: 0.5, unit: "" },
+    { key: "speed", label: "落珠速度", type: "slider", min: 0.3, max: 2.5, step: 0.1, default: 1, unit: "×" }
+  ];
+
+  // ===== 状态 =====
+  const state = {
+    running: false,
+    autoMode: false,
+    t: 0,
+    target: 0.5,
+    speed: 1,
+    seed: 20240924,
+    rng: mulberry32(20240924),
+    drops: [],
+    landedCount: 0,
+    hitCount: 0,
+    lastLandedPos: null,
+    lastTimestamp: null,
+    autoTimer: 0,
+    introStart: 0,
+    introDone: false,
+    reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  };
+
+  // ===== Canvas 设置 =====
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  let W = 800, H = 400, DPR = 1;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(320, rect.width);
+    H = Math.max(240, rect.height);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  // ===== 工具函数 =====
+  function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+  function finite(v, fallback) { return Number.isFinite(v) ? v : fallback; }
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // ===== 数轴几何 =====
+  function axisY() { return H * 0.72; }
+  function axisLeft() { return W * 0.08; }
+  function axisRight() { return W * 0.92; }
+  function axisWidth() { return axisRight() - axisLeft(); }
+  function posToX(p) { return axisLeft() + p * axisWidth(); }
+  function dropStartY() { return H * 0.08; }
+
+  // ===== 生命周期 =====
+  function init() {
+    resize();
+    bindControls();
+    setParameters({ target: 0.5, speed: 1 });
+    reset();
+    state.introStart = performance.now();
+    requestAnimationFrame(frame);
+  }
+
+  function start() {
+    state.running = true;
+    document.getElementById("status").textContent = "运行中";
+    document.getElementById("dropOneBtn").setAttribute("aria-pressed", "true");
+  }
+
+  function pause() {
+    state.running = false;
+    document.getElementById("status").textContent = "已暂停";
+    document.getElementById("dropOneBtn").setAttribute("aria-pressed", "false");
+  }
+
+  function reset() {
+    pause();
+    state.autoMode = false;
+    document.getElementById("autoBtn").setAttribute("aria-pressed", "false");
+    document.getElementById("autoBtn").textContent = "连续落珠";
+    state.t = 0;
+    state.drops = [];
+    state.landedCount = 0;
+    state.hitCount = 0;
+    state.lastLandedPos = null;
+    state.lastTimestamp = null;
+    state.autoTimer = 0;
+    state.seed = 20240924;
+    state.rng = mulberry32(state.seed);
+    state.introStart = performance.now();
+    state.introDone = state.reducedMotion;
+    render();
+  }
+
+  function dropOne() {
+    if (state.drops.length >= 200) return;
+    const pos = state.rng();
+    const drop = {
+      pos: pos,
+      startY: dropStartY(),
+      endY: axisY(),
+      startTime: state.t,
+      duration: 0.85 / Math.max(0.3, state.speed),
+      landed: false,
+      landTime: 0,
+      trail: []
+    };
+    state.drops.push(drop);
+    if (!state.running) start();
+  }
+
+  function update(dt) {
+    if (!state.introDone) {
+      const elapsed = (performance.now() - state.introStart) / 1000;
+      if (elapsed >= 2 || state.reducedMotion) state.introDone = true;
+    }
+    if (!state.running) return;
+    const boundedDt = clamp(finite(dt, 0), 0, 0.05);
+    state.t += boundedDt;
+
+    for (const drop of state.drops) {
+      const elapsed = state.t - drop.startTime;
+      if (elapsed >= drop.duration && !drop.landed) {
+        drop.landed = true;
+        drop.landTime = state.t;
+        state.landedCount++;
+        state.lastLandedPos = drop.pos;
+        // 命中判定：浮点严格相等
+        if (drop.pos === state.target) state.hitCount++;
+      }
+      // 拖尾
+      if (!drop.landed) {
+        const progress = clamp(elapsed / drop.duration, 0, 1);
+        const eased = easeInOutCubic(progress);
+        const cy = drop.startY + (drop.endY - drop.startY) * eased;
+        drop.trail.push({ x: posToX(drop.pos), y: cy });
+        if (drop.trail.length > 8) drop.trail.shift();
+      } else if (drop.trail.length > 0) {
+        drop.trail.shift();
+      }
+    }
+
+    // 自动模式
+    if (state.autoMode) {
+      state.autoTimer += boundedDt;
+      if (state.autoTimer >= 0.55 / Math.max(0.3, state.speed) && state.drops.length < 200) {
+        state.autoTimer = 0;
+        dropOne();
+      }
+    }
+
+    // 清理过旧的已落珠（保留最近 120 颗的标记）
+    if (state.drops.length > 120) {
+      const landed = state.drops.filter(d => d.landed);
+      const flying = state.drops.filter(d => !d.landed);
+      state.drops = flying.concat(landed.slice(-120));
+    }
+  }
+
+  // ===== 渲染 =====
+  function render() {
+    // 背景：多层径向渐变
+    const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.4, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.8);
+    bgGrad.addColorStop(0, "#0c1530");
+    bgGrad.addColorStop(0.5, "#06091a");
+    bgGrad.addColorStop(1, "#000000");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    const bgGrad2 = ctx.createRadialGradient(W * 0.2, H * 0.15, 0, W * 0.2, H * 0.15, W * 0.5);
+    bgGrad2.addColorStop(0, "rgba(40, 60, 110, 0.35)");
+    bgGrad2.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = bgGrad2;
+    ctx.fillRect(0, 0, W, H);
+
+    const bgGrad3 = ctx.createRadialGradient(W * 0.85, H * 0.85, 0, W * 0.85, H * 0.85, W * 0.45);
+    bgGrad3.addColorStop(0, "rgba(70, 40, 100, 0.22)");
+    bgGrad3.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = bgGrad3;
+    ctx.fillRect(0, 0, W, H);
+
+    // 细网格（不透明度 6%）
+    ctx.strokeStyle = "rgba(120, 150, 200, 0.06)";
+    ctx.lineWidth = 1;
+    const gridSize = 40;
+    for (let x = 0; x < W; x += gridSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gridSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // 数轴
+    const ay = axisY();
+    const al = axisLeft();
+    const ar = axisRight();
+
+    // 数轴辉光（外层粗半透明描边）
+    ctx.strokeStyle = "rgba(120, 150, 200, 0.22)";
+    ctx.lineWidth = 10;
+    ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(al, ay); ctx.lineTo(ar, ay); ctx.stroke();
+
+    // 数轴主线
+    ctx.strokeStyle = "rgba(200, 220, 255, 0.75)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(al, ay); ctx.lineTo(ar, ay); ctx.stroke();
+
+    // 刻度
+    ctx.fillStyle = "rgba(200, 220, 255, 0.85)";
+    ctx.font = "600 13px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let i = 0; i <= 10; i++) {
+      const p = i / 10;
+      const x = posToX(p);
+      ctx.strokeStyle = "rgba(200, 220, 255, 0.55)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, ay - 6); ctx.lineTo(x, ay + 6); ctx.stroke();
+      if (i % 5 === 0) {
+        ctx.fillText(p.toFixed(1), x, ay + 12);
+      }
+    }
+
+    // 预设红点
+    const tx = posToX(state.target);
+    // 外层辉光
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.35)";
+    ctx.lineWidth = 14;
+    ctx.beginPath(); ctx.arc(tx, ay, 9, 0, Math.PI * 2); ctx.stroke();
+    // 中层
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(tx, ay, 9, 0, Math.PI * 2); ctx.stroke();
+    // 实心
+    ctx.fillStyle = "#ef4444";
+    ctx.beginPath(); ctx.arc(tx, ay, 5, 0, Math.PI * 2); ctx.fill();
+    // 标签
+    ctx.fillStyle = "rgba(239, 68, 68, 0.9)";
+    ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("预设 " + state.target.toFixed(3), tx, ay - 16);
+
+    // 已落珠标记
+    for (const drop of state.drops) {
+      if (!drop.landed) continue;
+      const x = posToX(drop.pos);
+      // 外层辉光
+      ctx.strokeStyle = "rgba(245, 197, 66, 0.18)";
+      ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.arc(x, ay, 4, 0, Math.PI * 2); ctx.stroke();
+      // 实心点
+      ctx.fillStyle = "rgba(245, 197, 66, 0.85)";
+      ctx.beginPath(); ctx.arc(x, ay, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 飞行中的光珠
+    for (const drop of state.drops) {
+      if (drop.landed) continue;
+      const elapsed = state.t - drop.startTime;
+      const progress = clamp(elapsed / drop.duration, 0, 1);
+      const eased = easeInOutCubic(progress);
+      const x = posToX(drop.pos);
+      const y = drop.startY + (drop.endY - drop.startY) * eased;
+
+      // 拖尾
+      for (let i = 0; i < drop.trail.length; i++) {
+        const tp = drop.trail[i];
+        const alpha = (i / drop.trail.length) * 0.5;
+        ctx.fillStyle = "rgba(245, 197, 66, " + alpha.toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, 2 + (i / drop.trail.length) * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 光珠外层辉光
+      ctx.strokeStyle = "rgba(245, 197, 66, 0.3)";
+      ctx.lineWidth = 10;
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+      // 中层
+      ctx.strokeStyle = "rgba(245, 197, 66, 0.55)";
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.stroke();
+      // 实心
+      ctx.fillStyle = "#f5c542";
+      ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
+      // 高光
+      ctx.fillStyle = "rgba(255, 245, 200, 0.7)";
+      ctx.beginPath(); ctx.arc(x - 1.5, y - 1.5, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 开场标题（前 2 秒）
+    if (!state.introDone) {
+      const elapsed = (performance.now() - state.introStart) / 1000;
+      const fade = elapsed < 1.5 ? 1 : Math.max(0, 1 - (elapsed - 1.5) / 0.5);
+      ctx.fillStyle = "rgba(232, 238, 252, " + (fade * 0.95).toFixed(3) + ")";
+      ctx.font = "800 " + Math.floor(Math.min(W, H) * 0.06) + "px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("概率为零，不等于不可能", W / 2, H * 0.35);
+      ctx.font = "400 " + Math.floor(Math.min(W, H) * 0.025) + "px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillStyle = "rgba(138, 152, 184, " + (fade * 0.8).toFixed(3) + ")";
+      ctx.fillText("在连续的世界里，恰好是最奢侈的事", W / 2, H * 0.35 + Math.floor(Math.min(W, H) * 0.05));
+    }
+
+    // 更新读数
+    document.getElementById("probReadout").textContent = "P = 0";
+    document.getElementById("hitSub").textContent = "已命中 " + state.hitCount + " 次";
+    document.getElementById("landedReadout").textContent = state.landedCount;
+    document.getElementById("lastSub").textContent = state.lastLandedPos !== null
+      ? "最近落点 " + state.lastLandedPos.toFixed(4)
+      : "尚未释放";
+    document.getElementById("bottomLabel").textContent = "已落珠 " + state.landedCount + " 颗";
+    document.getElementById("targetOutput").textContent = state.target.toFixed(3);
+    document.getElementById("speedOutput").textContent = state.speed.toFixed(1) + "×";
+
+    // 洞察文字
+    const insight = document.getElementById("insightText");
+    let text = "点击「落下一颗」开始。每颗光珠都精确停在某个点上，但几乎永远命不中预设的红点。";
+    if (state.landedCount > 0 && state.landedCount < 20) {
+      text = "已落下 " + state.landedCount + " 颗。每颗都停在一个精确点上——但命不中预设红点。";
+    } else if (state.landedCount >= 20 && state.landedCount < 60) {
+      text = "已落下 " + state.landedCount + " 颗，命中 " + state.hitCount + " 次。单点长度为零，概率为零，但每颗都必然停在某个点上。";
+    } else if (state.landedCount >= 60) {
+      text = "已落下 " + state.landedCount + " 颗。概率为零 ≠ 不可能——这就是连续世界的奢侈。";
+    }
+    if (insight.textContent !== text) {
+      insight.classList.remove("visible");
+      setTimeout(() => {
+        insight.textContent = text;
+        insight.classList.add("visible");
+      }, 250);
+    }
+
+    // 场景标签
+    const sceneTag = document.getElementById("sceneTag");
+    if (state.autoMode) sceneTag.textContent = "连续落珠中";
+    else if (state.landedCount === 0) sceneTag.textContent = "点击下方按钮释放光珠";
+    else sceneTag.textContent = "已落下 " + state.landedCount + " 颗光珠";
+  }
+
+  // ===== 参数 =====
+  function setParameters(values) {
+    const tDef = parameterSchema[0], sDef = parameterSchema[1];
+    state.target = clamp(finite(Number(values.target), tDef.default), tDef.min, tDef.max);
+    state.speed = clamp(finite(Number(values.speed), sDef.default), sDef.min, sDef.max);
+    document.getElementById("targetInput").value = String(state.target);
+    document.getElementById("speedInput").value = String(state.speed);
+    render();
+  }
+
+  function getState() {
+    return {
+      running: state.running,
+      autoMode: state.autoMode,
+      t: state.t,
+      target: state.target,
+      speed: state.speed,
+      landedCount: state.landedCount,
+      hitCount: state.hitCount,
+      lastLandedPos: state.lastLandedPos,
+      drops: state.drops.map(d => ({ ...d, trail: [...d.trail] }))
+    };
+  }
+
+  function getReadouts() {
+    return {
+      probability: 0,
+      landedCount: state.landedCount,
+      hitCount: state.hitCount,
+      lastLandedPos: state.lastLandedPos,
+      target: state.target
+    };
+  }
+
+  // ===== 模型检查 =====
+  function runModelChecks() {
+    // 验证伪随机数生成器的均匀性
+    const rng1 = mulberry32(12345);
+    const samples = 10000;
+    let sum = 0, inRange = 0;
+    for (let i = 0; i < samples; i++) {
+      const v = rng1();
+      sum += v;
+      if (v >= 0 && v < 1) inRange++;
+    }
+    const mean = sum / samples;
+    const uniformPass = Math.abs(mean - 0.5) < 0.02 && inRange === samples;
+
+    // 验证固定种子可复现
+    const rng2a = mulberry32(999);
+    const seq1 = [rng2a(), rng2a(), rng2a(), rng2a(), rng2a()];
+    const rng2b = mulberry32(999);
+    const seq2 = [rng2b(), rng2b(), rng2b(), rng2b(), rng2b()];
+    const reproducible = seq1.every((v, i) => v === seq2[i]);
+
+    // 验证命中判定：浮点严格相等几乎永不发生
+    const rng3 = mulberry32(42);
+    let strictHits = 0;
+    for (let i = 0; i < 10000; i++) {
+      if (rng3() === 0.5) strictHits++;
+    }
+    const strictEqPass = strictHits === 0;
+
+    // 验证缓动函数单调递增
+    let monotonic = true;
+    let prev = 0;
+    for (let i = 0; i <= 100; i++) {
+      const v = easeInOutCubic(i / 100);
+      if (v < prev - 1e-9) { monotonic = false; break; }
+      prev = v;
+    }
+    // 验证端点
+    const easeEndpoints = easeInOutCubic(0) === 0 && Math.abs(easeInOutCubic(1) - 1) < 1e-9;
+
+    return [
+      { name: "PRNG 均匀性", pass: uniformPass, expected: "mean ≈ 0.5, 全部在 [0,1)", actual: "mean=" + mean.toFixed(4) + ", inRange=" + inRange + "/" + samples, tolerance: 0.02 },
+      { name: "PRNG 可复现性", pass: reproducible, expected: "相同种子产生相同序列", actual: reproducible ? "可复现" : "不可复现", tolerance: "strict" },
+      { name: "浮点严格相等命中", pass: strictEqPass, expected: "10000 次随机中 0 次严格等于 0.5", actual: strictHits + " 次命中", tolerance: "strict" },
+      { name: "缓动函数单调递增", pass: monotonic, expected: "单调递增", actual: monotonic ? "通过" : "失败", tolerance: "strict" },
+      { name: "缓动函数端点", pass: easeEndpoints, expected: "f(0)=0, f(1)=1", actual: "f(0)=" + easeInOutCubic(0) + ", f(1)=" + easeInOutCubic(1).toFixed(6), tolerance: 1e-9 }
+    ];
+  }
+
+  // ===== 控件绑定 =====
+  function bindControls() {
+    document.getElementById("dropOneBtn").addEventListener("click", () => {
+      if (state.autoMode) {
+        state.autoMode = false;
+        document.getElementById("autoBtn").setAttribute("aria-pressed", "false");
+        document.getElementById("autoBtn").textContent = "连续落珠";
+      }
+      dropOne();
+    });
+    document.getElementById("autoBtn").addEventListener("click", () => {
+      state.autoMode = !state.autoMode;
+      document.getElementById("autoBtn").setAttribute("aria-pressed", state.autoMode ? "true" : "false");
+      document.getElementById("autoBtn").textContent = state.autoMode ? "停止连续" : "连续落珠";
+      if (state.autoMode && !state.running) start();
+    });
+    document.getElementById("resetBtn").addEventListener("click", reset);
+    document.getElementById("targetInput").addEventListener("input", () => {
+      setParameters({ target: document.getElementById("targetInput").value, speed: state.speed });
+    });
+    document.getElementById("speedInput").addEventListener("input", () => {
+      setParameters({ target: state.target, speed: document.getElementById("speedInput").value });
+    });
+    window.addEventListener("resize", () => { resize(); render(); });
+  }
+
+  // ===== 主循环 =====
+  function frame(timestamp) {
+    if (state.lastTimestamp === null) state.lastTimestamp = timestamp;
+    const dt = (timestamp - state.lastTimestamp) / 1000;
+    state.lastTimestamp = timestamp;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+  init();
+})();
+</script>
+</body>
+</html>

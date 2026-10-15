@@ -73,7 +73,6 @@ export interface PhysicsObjectProps {
 export function PhysicsObject({
   type,
   size,
-  mass = 1,
   position = new THREE.Vector3(0, 0, 0),
   velocity = new THREE.Vector3(0, 0, 0),
   acceleration = new THREE.Vector3(0, 0, 0),
@@ -130,12 +129,14 @@ export function PhysicsObject({
     switch (type) {
       case 'sphere':
         return new THREE.SphereGeometry(size as number, 32, 32);
-      case 'box':
+      case 'box': {
         const [w, h, d] = size as [number, number, number];
         return new THREE.BoxGeometry(w, h, d);
-      case 'plane':
+      }
+      case 'plane': {
         const [pw, ph] = size as [number, number];
         return new THREE.PlaneGeometry(pw, ph);
+      }
       default:
         return new THREE.SphereGeometry(1, 32, 32);
     }

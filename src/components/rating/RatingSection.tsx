@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LazyPreview } from '@/components/simulation/LazyPreview';
+import { browserStorage } from '@/platform/browser-storage';
+import { requestJson } from '@/platform/request';
+import { contentSandbox, contentUrl } from '@/platform/content';
+import { DIMS, decodeRatingStore, decodeRatingManifest, type Dim, type RatingRecord, type RatingStore as Store, type RatingManifest as Manifest } from './rating-data';
 
 /**
  * 研究盲评区（隐藏入口：首页 SimCanvas 标签 5 连击）。
@@ -8,16 +12,6 @@ import { LazyPreview } from '@/components/simulation/LazyPreview';
  * 任务背景 + 每评分者顺序），评分写 localStorage，导出文件回收，无后端。
  */
 
-interface Manifest {
-    version: number;
-    rateable: Array<{ id: string; bg: string }>;
-    orders: Record<string, string[]>;
-    browse: Array<{ id: string; bg: string }>;
-    cal: Array<{ n: number; file: string; label: string; symptom: string; goal: string }>;
-}
-
-type Dim = 'd3' | 'd4' | 'd7' | 'd8' | 'd9' | 'd10';
-const DIMS: Dim[] = ['d3', 'd4', 'd7', 'd8', 'd9', 'd10'];
 const FREE_TEXT_DIMS: Dim[] = ['d4', 'd7'];
 
 type RaterId = 'teacher1' | 'teacher2' | 'author' | 'guest';
@@ -28,21 +22,16 @@ const RATERS: Array<{ id: RaterId; labelKey: string }> = [
     { id: 'guest', labelKey: 'identity.guest' },
 ];
 
-interface RatingRecord {
-    dims: Partial<Record<Dim, number>>;
-    d4Text?: string;
-    d7Text?: string;
-    note?: string;
-    seconds: number;
-    savedAt?: string;
-    sessionDate?: string;
-}
-
-/** rater -> artifactId -> record */
-type Store = Record<string, Record<string, RatingRecord>>;
-
 const LS_RATER = 'sparkflow.rating.rater';
 const LS_STORE = 'sparkflow.rating.v1';
+
+function loadSavedRatings(): { store: Store; invalid: boolean } {
+    try {
+        return { store: decodeRatingStore(JSON.parse(browserStorage.get(LS_STORE) ?? '{}')), invalid: false };
+    } catch {
+        return { store: {}, invalid: true };
+    }
+}
 
 interface ScorePatch {
     dims?: Partial<Record<Dim, number>>;
@@ -123,7 +112,7 @@ const FullscreenDialog = ({
 
     return (
         <div ref={dialogRef} className="fixed inset-0 z-50 bg-black" role="dialog" aria-modal="true" aria-label={label}>
-            <iframe src={src} title={label} className="h-full w-full border-0" />
+            <iframe src={src} title={label} sandbox={contentSandbox(src)} className="h-full w-full border-0" />
             <button
                 type="button"
                 onClick={onClose}
@@ -224,7 +213,7 @@ const RateCard = ({ id, index, bg, record, disabled, paused, onOpen, onScore, on
     return (
         <article className="overflow-hidden rounded-[16px] border border-[#30363D] bg-[#111827]/80 transition-all duration-[400ms] ease-[cubic-bezier(0.4,0.0,0.2,1)] hover:border-cyan-400/45">
             <div className="group relative cursor-pointer" onClick={() => onOpen(id)}>
-                <LazyPreview src={`/rating/artifacts/${id}.html`} paused={paused} />
+                <LazyPreview src={contentUrl(`/rating/artifacts/${id}.html`)} paused={paused} />
                 <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-cyan-300/40 bg-black/60 px-2 py-0.5 font-mono text-xs font-semibold text-cyan-200">
                     {index}
                 </div>
@@ -299,7 +288,7 @@ const RateCard = ({ id, index, bg, record, disabled, paused, onOpen, onScore, on
 const BrowseCard = ({ id, bg, paused, onOpen }: { id: string; bg: string; paused: boolean; onOpen: (id: string) => void }) => (
     <article className="overflow-hidden rounded-[16px] border border-[#30363D] bg-[#111827]/80 transition-all duration-[400ms] hover:border-cyan-400/45">
         <div className="group relative cursor-pointer" onClick={() => onOpen(id)}>
-            <LazyPreview src={`/rating/browse/${id}.html`} paused={paused} />
+            <LazyPreview src={contentUrl(`/rating/browse/${id}.html`)} paused={paused} />
             <PlayOverlay />
         </div>
         <p className="p-4 text-xs leading-relaxed text-slate-400">{bg}</p>
@@ -318,8 +307,8 @@ const CalCard = ({
     const { t } = useTranslation('rating');
     return (
         <article className="overflow-hidden rounded-[16px] border border-[#30363D] bg-[#111827]/80 transition-all duration-[400ms] hover:border-cyan-400/45">
-            <div className="group relative cursor-pointer" onClick={() => onOpen(item.file, item.label)}>
-                <LazyPreview src={`/rating/${item.file}`} paused={paused} />
+            <div className="group relative cursor-pointer" onClick={() => onOpen(contentUrl(`/rating/${item.file}`), item.label)}>
+                <LazyPreview src={contentUrl(`/rating/${item.file}`)} paused={paused} />
                 <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border border-amber-300/40 bg-black/60 px-2 py-0.5 font-mono text-xs font-semibold text-amber-200">
                     {item.n}
                 </div>
@@ -345,16 +334,13 @@ export const RatingSection = () => {
     const [manifest, setManifest] = useState<Manifest | null>(null);
     const [loadError, setLoadError] = useState(false);
     const [rater, setRater] = useState<RaterId | ''>(() => {
-        const saved = localStorage.getItem(LS_RATER);
+        const saved = browserStorage.get(LS_RATER);
         return RATERS.some((r) => r.id === saved) ? (saved as RaterId) : '';
     });
-    const [store, setStore] = useState<Store>(() => {
-        try {
-            return JSON.parse(localStorage.getItem(LS_STORE) ?? '{}') as Store;
-        } catch {
-            return {};
-        }
-    });
+    const [savedRatings] = useState(loadSavedRatings);
+    const [store, setStore] = useState<Store>(savedRatings.store);
+    const storeRef = useRef(savedRatings.store);
+    const [storageWarning, setStorageWarning] = useState(savedRatings.invalid);
     const [view, setView] = useState<'cal' | 'rate' | 'browse'>('cal');
     const [active, setActive] = useState<{ src: string; label: string; id?: string } | null>(null);
     const [pendingText, setPendingText] = useState<{ id: string; dim: Dim; score: number } | null>(null);
@@ -362,21 +348,15 @@ export const RatingSection = () => {
     const openSince = useRef(0);
 
     useEffect(() => {
-        let cancelled = false;
-        fetch(`/rating/manifest.json?t=${Date.now()}`, { cache: 'no-store' })
-            .then((response) => {
-                if (!response.ok) throw new Error('manifest');
-                return response.json() as Promise<Manifest>;
-            })
+        const controller = new AbortController();
+        requestJson(contentUrl('/rating/manifest.json'), decodeRatingManifest, { cache: 'no-store', credentials: 'include', signal: controller.signal })
             .then((data) => {
-                if (!cancelled) setManifest(data);
+                if (!controller.signal.aborted) setManifest(data);
             })
             .catch(() => {
-                if (!cancelled) setLoadError(true);
+                if (!controller.signal.aborted) setLoadError(true);
             });
-        return () => {
-            cancelled = true;
-        };
+        return () => controller.abort();
     }, []);
 
     useEffect(() => {
@@ -391,29 +371,30 @@ export const RatingSection = () => {
 
     const updateRecord = (id: string, patch: ScorePatch) => {
         if (locked) return;
-        setStore((prev) => {
-            const raterRecords = { ...(prev[rater] ?? {}) };
-            const base: RatingRecord = raterRecords[id] ?? { dims: {}, seconds: 0 };
-            const { addSeconds = 0, dims, ...rest } = patch;
-            const next: RatingRecord = {
-                ...base,
-                ...rest,
-                // dims 在函数式更新内深合并：同步快速连点时不允许后一次覆盖前一次
-                ...(dims ? { dims: { ...base.dims, ...dims } } : {}),
-                seconds: (base.seconds ?? 0) + addSeconds,
-                ...(Object.keys(rest).length > 0 || dims
-                    ? { savedAt: new Date().toISOString(), sessionDate: new Date().toISOString().slice(0, 10) }
-                    : {}),
-            };
-            raterRecords[id] = next;
-            const nextStore = { ...prev, [rater]: raterRecords };
-            localStorage.setItem(LS_STORE, JSON.stringify(nextStore));
-            return nextStore;
-        });
+        const prev = storeRef.current;
+        const raterRecords = { ...(prev[rater] ?? {}) };
+        const base: RatingRecord = raterRecords[id] ?? { dims: {}, seconds: 0 };
+        const { addSeconds = 0, dims, ...rest } = patch;
+        const next: RatingRecord = {
+            ...base,
+            ...rest,
+            // Merge against the latest record so rapid scores preserve every dimension.
+            ...(dims ? { dims: { ...base.dims, ...dims } } : {}),
+            seconds: (base.seconds ?? 0) + addSeconds,
+            ...(Object.keys(rest).length > 0 || dims
+                ? { savedAt: new Date().toISOString(), sessionDate: new Date().toISOString().slice(0, 10) }
+                : {}),
+        };
+        raterRecords[id] = next;
+        const nextStore = { ...prev, [rater]: raterRecords };
+        storeRef.current = nextStore;
+        setStore(nextStore);
+        // Keep corrupt original data untouched; new ratings can still be exported.
+        setStorageWarning(savedRatings.invalid || !browserStorage.set(LS_STORE, JSON.stringify(nextStore)));
     };
 
     const chooseRater = (id: RaterId) => {
-        localStorage.setItem(LS_RATER, id);
+        if (!browserStorage.set(LS_RATER, id)) setStorageWarning(true);
         setRater(id);
         setView(id === 'guest' ? 'browse' : 'cal');
     };
@@ -562,6 +543,11 @@ export const RatingSection = () => {
 
     return (
         <div className="w-full">
+            {storageWarning ? (
+                <p role="alert" className="mb-5 rounded-xl border border-amber-400/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-200">
+                    Ratings could not be saved in this browser. Your current ratings remain in this tab. Export them before leaving.
+                </p>
+            ) : null}
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#30363D] bg-[#111827]/70 px-5 py-4">
                 <div>
                     <h2 className="text-lg font-[700] text-[#F0F6FC]">{t('title')}</h2>
@@ -654,7 +640,7 @@ export const RatingSection = () => {
                                 record={records[item.id] ?? { dims: {}, seconds: 0 }}
                                 disabled={false}
                                 paused={active !== null}
-                                onOpen={(id) => openArtifact(`/rating/artifacts/${id}.html`, id, id)}
+                                onOpen={(id) => openArtifact(contentUrl(`/rating/artifacts/${id}.html`), id, id)}
                                 onScore={onScore}
                                 onNote={(id, note) => updateRecord(id, { note })}
                             />
@@ -673,7 +659,7 @@ export const RatingSection = () => {
                                 id={item.id}
                                 bg={item.bg}
                                 paused={active !== null}
-                                onOpen={(id) => openArtifact(`/rating/browse/${id}.html`, id)}
+                                onOpen={(id) => openArtifact(contentUrl(`/rating/browse/${id}.html`), id)}
                             />
                         ))}
                     </div>

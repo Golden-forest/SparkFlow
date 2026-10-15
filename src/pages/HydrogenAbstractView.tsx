@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { AbstractSideToolbar } from '../components/simulation/AbstractSideToolbar';
 import {
     calculateEnergy,
@@ -18,6 +18,17 @@ interface ElectronState {
     x: number; // Fixed X position for this electron lane
     state: 'idle' | 'falling' | 'grounded';
     history: Transition[]; // History of transitions for drawing arrows
+    lastTransition?: Transition;
+}
+
+interface IncidentParticle {
+    id: number;
+    type: 'photon' | 'electron';
+    energy: number;
+    x: number;
+    y: number;
+    speed: number;
+    state: 'moving' | 'passed';
 }
 
 interface Arrow {
@@ -29,13 +40,141 @@ interface Arrow {
     opacity: number;
 }
 
+// Canvas dimensions
+const width = 800;
+const height = 600;
+const padding = { top: 60, bottom: 40, left: 60, right: 80 }; // Increased right padding to 80 for text
+
+// Constants for visualization
+// Map energy levels to Y coordinates
+// n=1 is at bottom, n=6 is at top (but below infinity)
+// We can map linear or by energy. The user said "abstract version", and "curves to lines"
+// Usually these are drawn with specific spacing.
+// Let's use a non-linear spacing that mimics 1/n^2 but easier to see?
+const getY = (n: number) => {
+    // Pedagogical Scaling:
+    // Instead of real energy 1/n^2, we map n=1..6 to fixed percentages of height
+    // to ensure good visibility.
+    // n=1 (Bottom): 100% (minus padding)
+    // n=6 (Top): 10%
+    // n=inf: 0%
+
+    // Manual slots for n=1 to 6 (from bottom up)
+    // Top of canvas is 0.
+    // Let's define normalized height (0 to 1) from bottom.
+    // n=1: 0.0 (Bottom line)
+    // n=2: 0.35 (Jump from 1 to 2 is big)
+    // n=3: 0.55
+    // n=4: 0.70
+    // n=5: 0.82
+    // n=6: 0.90
+    // n=inf: 0.98
+
+    const slots: Record<number, number> = {
+        1: 0.0,
+        2: 0.35,
+        3: 0.55,
+        4: 0.70,
+        5: 0.82,
+        6: 0.90,
+        Infinity: 0.98
+    };
+
+    let normalized = slots[n];
+    if (normalized === undefined) normalized = 0.95; // fallback
+
+    const drawHeight = height - padding.top - padding.bottom;
+    // Invert for Y coordinate (0 is top)
+    return (height - padding.bottom) - (normalized * drawHeight);
+};
+
+const levels = [1, 2, 3, 4, 5, 6].map(n => ({
+    n,
+    y: getY(n),
+    energy: calculateEnergy(n),
+    color: getLevelColor(n),
+}));
+
+// Helper to get Arrow X position (Deterministic)
+const getArrowX = (from: number, to: number) => {
+    // Right Zone: 50% to 100% width
+    const zoneStart = width * 0.55;
+    const zoneEnd = width * 0.95;
+    const zoneWidth = zoneEnd - zoneStart;
+
+    // Calculate total possible transitions for n=6 down to 1
+    // We want to group by 'toN' (destination)
+    // Group n->1, Group n->2, ... Group n->5
+
+    // Layout strategy:
+    // Group 1 (Dest n=1): 2->1, 3->1 ... 6->1
+    // Group 2 (Dest n=2): 3->2 ... 6->2
+    // Dest 3: 3 slots (6->3, 5->3, 4->3)
+    // Dest 4: 2 slots (6->4, 5->4)
+    // Dest 5: 1 slot (6->5)
+    // Total: 15 slots
+
+    // Find slot index
+    let slotIndex = 0;
+
+    // Count slots before this destination group
+    for (let d = 1; d < to; d++) {
+        // For destination d, how many sources? (6 - d)
+        slotIndex += (6 - d);
+        // Add small gap between groups?
+        slotIndex += 1; // 1 empty slot visual gap
+    }
+
+    // Inside group: Order by fromN (ascending or descending?)
+    // Standard: 2->1, 3->1...
+    // so offset = (from - (to + 1))
+    slotIndex += (from - (to + 1));
+
+    // Recalculate slotWidth with gaps
+    // Total slots + gaps (4 gaps)
+    const realTotalSlots = 15 + 4;
+    const realSlotWidth = zoneWidth / realTotalSlots;
+
+    return zoneStart + slotIndex * realSlotWidth + realSlotWidth / 2;
+};
+
+function createInitialElectrons(
+    initialLevel: number,
+    electronCount: 'single' | 'multi',
+    viewMode: 'spontaneous' | 'excitation',
+): ElectronState[] {
+    let count = 1;
+    let startLevel = 1;
+
+    if (viewMode === 'spontaneous') {
+        count = electronCount === 'single' ? 1 : 100;
+        startLevel = initialLevel;
+    } else {
+        // Excitation Mode: Always 1 electron, Ground state
+        count = 1;
+        startLevel = 1;
+    }
+
+    const zoneWidth = width * 0.4;
+    const startX = width * 0.05;
+
+    const newElectrons: ElectronState[] = [];
+    for (let i = 0; i < count; i++) {
+        newElectrons.push({
+            id: i,
+            currentN: startLevel,
+            targetN: null,
+            y: getY(startLevel),
+            x: count === 1 ? (width * 0.25) : startX + Math.random() * zoneWidth,
+            state: 'idle',
+            history: []
+        });
+    }
+    return newElectrons;
+}
+
 export default function HydrogenAbstractView() {
     const { t } = useTranslation();
-
-    // Canvas dimensions
-    const width = 800;
-    const height = 600;
-    const padding = { top: 60, bottom: 40, left: 60, right: 80 }; // Increased right padding to 80 for text
 
     // State
     const [initialLevel, setInitialLevel] = useState(4);
@@ -50,106 +189,27 @@ export default function HydrogenAbstractView() {
     const [incidentEnergy, setIncidentEnergy] = useState<number>(10.2); // Default to n=1->2
 
     // Simulation State
-    const [electrons, setElectrons] = useState<ElectronState[]>([]);
+    const [electrons, setElectrons] = useState<ElectronState[]>(() => createInitialElectrons(4, 'single', 'spontaneous'));
     const [arrows, setArrows] = useState<Arrow[]>([]);
-    const [incidentParticles, setIncidentParticles] = useState<any[]>([]); // New incident particles
+    const [incidentParticles, setIncidentParticles] = useState<IncidentParticle[]>([]); // New incident particles
     const [feedbackMessage, setFeedbackMessage] = useState<{ text: string, x: number, y: number, alpha: number } | null>(null);
 
 
     const requestRef = useRef<number | undefined>(undefined);
     const previousTimeRef = useRef<number | undefined>(undefined);
 
-    // Constants for visualization
-    // Map energy levels to Y coordinates
-    // n=1 is at bottom, n=6 is at top (but below infinity)
-    // We can map linear or by energy. The user said "abstract version", and "curves to lines"
-    // Usually these are drawn with specific spacing. 
-    // Let's use a non-linear spacing that mimics 1/n^2 but easier to see? 
-    const getY = (n: number) => {
-        // Pedagogical Scaling:
-        // Instead of real energy 1/n^2, we map n=1..6 to fixed percentages of height
-        // to ensure good visibility.
-        // n=1 (Bottom): 100% (minus padding)
-        // n=6 (Top): 10% 
-        // n=inf: 0%
-
-        // Manual slots for n=1 to 6 (from bottom up)
-        // Top of canvas is 0.
-        // Let's define normalized height (0 to 1) from bottom.
-        // n=1: 0.0 (Bottom line)
-        // n=2: 0.35 (Jump from 1 to 2 is big)
-        // n=3: 0.55
-        // n=4: 0.70
-        // n=5: 0.82
-        // n=6: 0.90
-        // n=inf: 0.98
-
-        const slots: Record<number, number> = {
-            1: 0.0,
-            2: 0.35,
-            3: 0.55,
-            4: 0.70,
-            5: 0.82,
-            6: 0.90,
-            Infinity: 0.98
-        };
-
-        let normalized = slots[n];
-        if (normalized === undefined) normalized = 0.95; // fallback
-
-        const drawHeight = height - padding.top - padding.bottom;
-        // Invert for Y coordinate (0 is top)
-        return (height - padding.bottom) - (normalized * drawHeight);
-    };
-
-    // Calculate level Y positions once
-    const levels = useMemo(() => {
-        return [1, 2, 3, 4, 5, 6].map(n => ({
-            n,
-            y: getY(n),
-            energy: calculateEnergy(n),
-            color: getLevelColor(n)
-        }));
-    }, []);
-
-    const groundY = levels[0].y; // n=1
-
     // Initialize/Reset
-    const initSimulation = () => {
+    const initSimulation = (
+        nextInitialLevel = initialLevel,
+        nextElectronCount = electronCount,
+        nextViewMode = viewMode,
+    ) => {
         setArrows([]);
         // Clean incident particles
         setIncidentParticles([]);
         setFeedbackMessage(null);
 
-        let count = 1;
-        let startLevel = 1;
-
-        if (viewMode === 'spontaneous') {
-            count = electronCount === 'single' ? 1 : 100;
-            startLevel = initialLevel;
-        } else {
-            // Excitation Mode: Always 1 electron, Ground state
-            count = 1;
-            startLevel = 1;
-        }
-
-        const zoneWidth = width * 0.4;
-        const startX = width * 0.05;
-        const stepX = count > 1 ? zoneWidth / (count - 1) : 0;
-
-        const newElectrons: ElectronState[] = [];
-        for (let i = 0; i < count; i++) {
-            newElectrons.push({
-                id: i,
-                currentN: startLevel,
-                targetN: null,
-                y: getY(startLevel),
-                x: count === 1 ? (width * 0.25) : startX + Math.random() * zoneWidth,
-                state: 'idle',
-                history: []
-            });
-        }
-        setElectrons(newElectrons);
+        setElectrons(createInitialElectrons(nextInitialLevel, nextElectronCount, nextViewMode));
         setIsRunning(false);
     };
 
@@ -164,7 +224,7 @@ export default function HydrogenAbstractView() {
         const targetElectron = electrons.find(e => e.state === 'idle'); // Target first idle
         const targetY = targetElectron ? getY(targetElectron.currentN) : getY(1);
 
-        const newParticle = {
+        const newParticle: IncidentParticle = {
             id: Date.now(),
             type: incidentType,
             energy: incidentEnergy,
@@ -178,63 +238,13 @@ export default function HydrogenAbstractView() {
         if (!isRunning) setIsRunning(true);
     };
 
-    // Effect to reset when config changes (if not running)
-    useEffect(() => {
-        if (!isRunning) {
-            initSimulation();
-        }
-    }, [initialLevel, electronCount, viewMode]); // Added viewMode dependency // Don't reset on allowSecondary change locally? logic says "switches" usually apply immediately or on reset. Let's apply on reset.
-
-    // Helper to get Arrow X position (Deterministic)
-    const getArrowX = (from: number, to: number) => {
-        // Right Zone: 50% to 100% width
-        const zoneStart = width * 0.55;
-        const zoneEnd = width * 0.95;
-        const zoneWidth = zoneEnd - zoneStart;
-
-        // Calculate total possible transitions for n=6 down to 1
-        // We want to group by 'toN' (destination)
-        // Group n->1, Group n->2, ... Group n->5
-
-        // Layout strategy:
-        // Group 1 (Dest n=1): 2->1, 3->1 ... 6->1
-        // Group 2 (Dest n=2): 3->2 ... 6->2
-        // Dest 3: 3 slots (6->3, 5->3, 4->3)
-        // Dest 4: 2 slots (6->4, 5->4)
-        // Dest 5: 1 slot (6->5)
-        // Total: 15 slots
-
-        // Find slot index
-        let slotIndex = 0;
-
-        // Count slots before this destination group
-        for (let d = 1; d < to; d++) {
-            // For destination d, how many sources? (6 - d)
-            slotIndex += (6 - d);
-            // Add small gap between groups?
-            slotIndex += 1; // 1 empty slot visual gap
-        }
-
-        // Inside group: Order by fromN (ascending or descending?)
-        // Standard: 2->1, 3->1...
-        // so offset = (from - (to + 1))
-        slotIndex += (from - (to + 1));
-
-        // Recalculate slotWidth with gaps
-        // Total slots + gaps (4 gaps)
-        const realTotalSlots = 15 + 4;
-        const realSlotWidth = zoneWidth / realTotalSlots;
-
-        return zoneStart + slotIndex * realSlotWidth + realSlotWidth / 2;
-    };
-
     // Animation Loop
-    const animate = (time: number) => {
+    const animate = useCallback(function animateFrame(time: number): void {
         if (previousTimeRef.current !== undefined) {
             const deltaTime = (time - previousTimeRef.current) / 1000; // seconds
 
             setIncidentParticles(prev => {
-                const nextParticles = [];
+                const nextParticles: IncidentParticle[] = [];
                 for (const p of prev) {
                     // Move
                     const newX = p.x + p.speed * deltaTime;
@@ -265,7 +275,7 @@ export default function HydrogenAbstractView() {
                                 // Must match deltaE exactly (tolerance 0.1 eV?)
                                 // Check for ionization first?
                                 // Ionization energy E_ion = 13.6 - currentE_binding? No, 13.6 is from ground.
-                                // Level energy is negative. E_1 = -13.6. 
+                                // Level energy is negative. E_1 = -13.6.
                                 // To ionize, Need E_incident + E_current >= 0.
 
                                 const finalEnergy = currentE + p.energy;
@@ -357,7 +367,6 @@ export default function HydrogenAbstractView() {
             });
 
             setElectrons(prev => {
-                let allDone = true;
 
                 const nextElectrons = prev.map(e => {
                     // Logic when idle
@@ -379,7 +388,6 @@ export default function HydrogenAbstractView() {
                         // In Excitation mode, we just sit there until particle hits.
 
                         if (canDecay) {
-                            allDone = false;
                             // Probability to fall
                             const prob = electronCount === 'single' ? 0.05 : 0.02;
                             if (Math.random() < prob) {
@@ -395,11 +403,9 @@ export default function HydrogenAbstractView() {
                         }
                     }
                     else if (e.state === 'falling' && e.targetN) {
-                        allDone = false;
 
                         // Handle Infinity (Ionization)
                         const isIonization = e.targetN === Infinity;
-                        const targetY = isIonization ? getY(8) : getY(e.targetN); // Target 8 (higher than 6) or just OFF screen (-50)
 
                         // If ionization, we fly WAY up. n=Infinity is at 0.98 height.
                         // Let's map targetY to y position of Infinity
@@ -438,7 +444,7 @@ export default function HydrogenAbstractView() {
                                     currentN: Infinity,
                                     state: 'idle' as const, // Idle at Infinity
                                     targetN: null
-                                } as any;
+                                };
                             }
 
                             const trans = calculateTransition(e.currentN, e.targetN!);
@@ -450,7 +456,7 @@ export default function HydrogenAbstractView() {
                                 state: 'idle' as const,
                                 targetN: null,
                                 lastTransition: (e.currentN > e.targetN!) ? trans : undefined
-                            } as any;
+                            };
                         }
 
                         return { ...e, y: newY };
@@ -465,9 +471,9 @@ export default function HydrogenAbstractView() {
 
                 const newArrows: Arrow[] = [];
                 const CLEAN_ELECTRONS = nextElectrons.map(e => {
-                    const ee = e as any;
+                    const ee = e;
                     if (ee.lastTransition) {
-                        const t = ee.lastTransition as Transition;
+                        const t = ee.lastTransition;
 
                         // Only add arrows if spontaneous mode
                         if (viewMode === 'spontaneous') {
@@ -484,8 +490,7 @@ export default function HydrogenAbstractView() {
                             });
                         }
 
-                        const { lastTransition, ...rest } = ee;
-                        return { ...rest, history: [...rest.history, t] };
+                        return { ...ee, lastTransition: undefined, history: [...ee.history, t] };
                     }
                     return e;
                 });
@@ -503,9 +508,9 @@ export default function HydrogenAbstractView() {
         }
         previousTimeRef.current = time;
         if (isRunning) {
-            requestRef.current = requestAnimationFrame(animate);
+            requestRef.current = requestAnimationFrame(animateFrame);
         }
-    };
+    }, [electronCount, electrons, isRunning, t, viewMode]);
 
     useEffect(() => {
         if (isRunning) {
@@ -517,7 +522,7 @@ export default function HydrogenAbstractView() {
         return () => {
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
         };
-    }, [isRunning, electrons, incidentParticles]); // Add electrons and incidentParticles to dependencies to re-run animate when they change
+    }, [isRunning, animate, incidentParticles]);
 
     // Handlers
     const handleTogglePlay = () => {
@@ -731,9 +736,15 @@ export default function HydrogenAbstractView() {
                 {/* Sidebar */}
                 <AbstractSideToolbar
                     initialLevel={initialLevel}
-                    onInitialLevelChange={setInitialLevel}
+                    onInitialLevelChange={(level) => {
+                        setInitialLevel(level);
+                        if (!isRunning) initSimulation(level);
+                    }}
                     electronCount={electronCount}
-                    onElectronCountChange={setElectronCount}
+                    onElectronCountChange={(count) => {
+                        setElectronCount(count);
+                        if (!isRunning) initSimulation(initialLevel, count);
+                    }}
                     allowSecondary={allowSecondary}
                     onAllowSecondaryChange={setAllowSecondary}
                     isRunning={isRunning}
@@ -745,7 +756,10 @@ export default function HydrogenAbstractView() {
                     onIncidentEnergyChange={setIncidentEnergy}
                     onFire={handleFire}
                     viewMode={viewMode}
-                    onViewModeChange={setViewMode}
+                    onViewModeChange={(mode) => {
+                        setViewMode(mode);
+                        if (!isRunning) initSimulation(initialLevel, electronCount, mode);
+                    }}
                 />
             </main>
         </div>

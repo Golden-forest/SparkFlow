@@ -129,6 +129,7 @@ function createSubdirectoryIndexItems(
     if (fs.existsSync(metaPath)) {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+        if (meta.archived === true) continue; // archived: files stay, gallery hides
         if (typeof meta.title === 'string' && meta.title.trim()) title = meta.title.trim();
         if (typeof meta.category === 'string' && meta.category.trim()) category = meta.category.trim();
         if (typeof meta.path === 'string' && /^https?:\/\//.test(meta.path)) externalPath = meta.path;
@@ -150,6 +151,46 @@ function createSubdirectoryIndexItems(
   return items.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+/** Short card title from a rating-manifest `bg` paragraph: cut at the first
+ * design-intent marker or punctuation, e.g. "碳-14 测年想做成考古情境：…" → "碳-14 测年". */
+function researchTitle(bg: string): string {
+  const head = bg.split(/想做成|想做|做成|想用|想呈现|想把|想给学生|想带/)[0];
+  const trimmed = head.trim().replace(/[，。：；！？、\s]+$/, '');
+  if (trimmed.length >= 2 && trimmed.length <= 20) return trimmed;
+  const clause = trimmed.split(/[，。：；！？]/)[0].trim();
+  return (clause || trimmed).slice(0, 20) || '实验动画';
+}
+
+/** Paper-lab artifacts from public/rating/ (flat .html files, listed in
+ * rating/manifest.json with task backgrounds). Surfaced as gallery cards under
+ * the dedicated 论文实验 tab; kept out of the 全部 tab by Home.tsx. */
+function createResearchItems(publicRoot: string): ManifestItem[] {
+  const manifestPath = path.join(publicRoot, 'rating', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return [];
+  const rating = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+    rateable?: Array<{ id: string; bg: string }>;
+    browse?: Array<{ id: string; bg: string }>;
+  };
+  const items: ManifestItem[] = [];
+  const groups: Array<['artifacts' | 'browse', Array<{ id: string; bg: string }> | undefined]> = [
+    ['artifacts', rating.rateable],
+    ['browse', rating.browse],
+  ];
+  for (const [subdir, entries] of groups) {
+    for (const entry of entries ?? []) {
+      const file = path.join(publicRoot, 'rating', subdir, `${entry.id}.html`);
+      if (!fs.existsSync(file)) continue;
+      items.push({
+        id: `rating-${entry.id}`,
+        title: researchTitle(entry.bg ?? ''),
+        path: `/rating/${subdir}/${entry.id}.html`,
+        category: 'research',
+      });
+    }
+  }
+  return items;
+}
+
 export function generateResourceManifest(projectRoot: string): ResourceManifest {
   const publicRoot = path.resolve(projectRoot, 'public');
   const coursewareRoot = path.resolve(publicRoot, 'courseware');
@@ -164,7 +205,7 @@ export function generateResourceManifest(projectRoot: string): ResourceManifest 
   const manifest: ResourceManifest = {
     generatedAt: new Date().toISOString(),
     courseware: createCoursewareItems(publicRoot, coursewareRoot),
-    simcanvas: createSimCanvasItems(publicRoot, simcanvasRoot),
+    simcanvas: [...createSimCanvasItems(publicRoot, simcanvasRoot), ...createResearchItems(publicRoot)],
     images: createItems(publicRoot, imagesRoot, IMAGE_EXTENSIONS, 'images'),
   };
 
