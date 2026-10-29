@@ -59,6 +59,8 @@ npx wrangler pages deploy dist --project-name=sparkflow
 
 > **重要**：import 脚本会自动外置 base64 内联资源到 `assets/inline-*.{ext}`，并校验单文件 ≤ 20MB（Cloudflare Pages 限制 25MB）。不要绕过脚本手动改 `public/courseware/`。
 
+对于已自包含的交互报告，可在 import 命令末尾加 `--keep-inline`，保留内嵌图片与字体，避免隔离作品窗口中的额外资源请求受路径或授权环境影响；仍执行单文件 20MB 上限检查。宝安工作坊报告 `00-baoan-ai-workshop` 必须使用此选项。
+
 ## 部署前检查清单
 
 部署前 AI 必须确认以下事项：
