@@ -6,28 +6,31 @@ import crypto from 'node:crypto';
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
 // --- CLI argument parsing ---
-function parseArgs(argv: string[]): { sourcePath: string; name?: string; force?: boolean } {
+function parseArgs(argv: string[]): { sourcePath: string; name?: string; force?: boolean; keepInline?: boolean } {
   const args = argv.slice(2);
   const positional: string[] = [];
   let name: string | undefined;
   let force = false;
+  let keepInline = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--name' && args[i + 1]) {
       name = args[++i];
     } else if (args[i] === '--force') {
       force = true;
+    } else if (args[i] === '--keep-inline') {
+      keepInline = true;
     } else if (!args[i].startsWith('--')) {
       positional.push(args[i]);
     }
   }
 
   if (positional.length !== 1) {
-    console.error('Usage: npx tsx scripts/import-courseware.ts <source.html> [--name <dir-name>] [--force]');
+    console.error('Usage: npx tsx scripts/import-courseware.ts <source.html> [--name <dir-name>] [--force] [--keep-inline]');
     process.exit(1);
   }
 
-  return { sourcePath: positional[0], name, force };
+  return { sourcePath: positional[0], name, force, keepInline };
 }
 
 // --- Directory name generation ---
@@ -149,7 +152,7 @@ function extractRelativePaths(htmlContent: string): string[] {
 }
 
 // --- Main import logic ---
-function importCourseware(sourcePath: string, nameOverride: string | undefined, force: boolean): void {
+function importCourseware(sourcePath: string, nameOverride: string | undefined, force: boolean, keepInline: boolean): void {
   const projectRoot = process.cwd();
   const sourceAbs = path.resolve(sourcePath);
   const sourceDir = path.dirname(sourceAbs);
@@ -188,7 +191,11 @@ function importCourseware(sourcePath: string, nameOverride: string | undefined, 
 
   // Read HTML and externalize inline base64 data URIs
   const htmlContent = fs.readFileSync(sourceAbs, 'utf-8');
-  const { html: rewrittenHtml, extracted: externalizedCount } = externalizeDataUris(htmlContent, targetDir);
+  // Portable reports can retain data URIs to work inside sandboxed document
+  // windows and avoid additional authenticated asset requests. Size limits still apply.
+  const { html: rewrittenHtml, extracted: externalizedCount } = keepInline
+    ? { html: htmlContent, extracted: 0 }
+    : externalizeDataUris(htmlContent, targetDir);
 
   // Write index.html (with data URIs replaced by asset references)
   const targetIndexHtml = path.join(targetDir, 'index.html');
@@ -242,5 +249,5 @@ function importCourseware(sourcePath: string, nameOverride: string | undefined, 
 }
 
 // --- Entry point ---
-const { sourcePath, name, force } = parseArgs(process.argv);
-importCourseware(sourcePath, name, force ?? false);
+const { sourcePath, name, force, keepInline } = parseArgs(process.argv);
+importCourseware(sourcePath, name, force ?? false, keepInline ?? false);

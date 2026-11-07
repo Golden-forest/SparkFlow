@@ -110,6 +110,7 @@ function createSubdirectoryIndexItems(
 
   const entries = fs.readdirSync(baseDirectory, { withFileTypes: true });
   const items: ManifestItem[] = [];
+  const pinnedIds = new Set<string>();
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -126,6 +127,7 @@ function createSubdirectoryIndexItems(
     let title = toTitleFromFilename(entry.name);
     let category: string | undefined;
     let externalPath: string | undefined;
+    let pinned = false;
     if (fs.existsSync(metaPath)) {
       try {
         const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
@@ -133,6 +135,7 @@ function createSubdirectoryIndexItems(
         if (typeof meta.title === 'string' && meta.title.trim()) title = meta.title.trim();
         if (typeof meta.category === 'string' && meta.category.trim()) category = meta.category.trim();
         if (typeof meta.path === 'string' && /^https?:\/\//.test(meta.path)) externalPath = meta.path;
+        if (meta.pinned === true) pinned = true;
       } catch {
         // malformed meta.json: fall back to filename-derived title
       }
@@ -140,15 +143,20 @@ function createSubdirectoryIndexItems(
 
     const publicDirPath = `/${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}`;
     const relative = `${path.relative(publicRoot, baseDirectory).split(path.sep).join('/')}/${entry.name}/index.html`;
+    const id = toIdFromRelativePath(relative, prefix);
+    if (pinned) pinnedIds.add(id);
     items.push({
-      id: toIdFromRelativePath(relative, prefix),
+      id,
       title,
       path: externalPath ?? `${publicDirPath}/`,
       ...(category ? { category } : {}),
     });
   }
 
-  return items.sort((a, b) => a.id.localeCompare(b.id));
+  // `pinned: true` in meta.json floats an entry to the top of its gallery tab
+  // (stable order among pinned entries still follows the id sort).
+  return items.sort((a, b) =>
+    Number(pinnedIds.has(b.id)) - Number(pinnedIds.has(a.id)) || a.id.localeCompare(b.id));
 }
 
 /** Short card title from a rating-manifest `bg` paragraph: cut at the first
