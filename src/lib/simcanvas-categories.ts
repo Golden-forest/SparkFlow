@@ -29,7 +29,7 @@ const META_TAB: Record<string, SimCanvasCategory> = {
     research: 'research',
 };
 
-const EXAM_SLUGS = ['charged-bead-parallel-plates', 'jumping-robot-guangdong-2026', 'charged-bead-exam-steps', 'jumping-robot-exam-steps'];
+const EXAM_SLUGS = ['charged-bead-parallel-plates', 'jumping-robot-guangdong-2026', 'charged-bead-exam-steps', 'jumping-robot-exam-steps', '00-conveyor-belt-inelastic-loop', 'conveyor-collision-loop'];
 
 export function simCanvasTopics(card: { href?: string; category?: string }): SimCanvasCategory[] {
     const slug = (card.href ?? '').replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() ?? '';

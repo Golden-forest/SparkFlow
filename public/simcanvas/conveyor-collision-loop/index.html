@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>传送带—碰撞—竖直圆轨道 · 逐问推演</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --sim-bg: #eef3f8;
+      --sim-surface: #ffffff;
+      --sim-surface-soft: #f8fafc;
+      --sim-text: #172033;
+      --sim-muted: #657188;
+      --sim-border: #dfe6ef;
+      --sim-grid: #e8edf4;
+      --sim-accent: #0f9fba;
+      --sim-accent-deep: #08758a;
+      --sim-accent-soft: #d9f4f7;
+      --sim-positive: #0f9fba;
+      --sim-warning: #d97706;
+      --sim-danger: #dc2626;
+      --sim-radius-sm: 10px;
+      --sim-radius-md: 16px;
+      --sim-radius-lg: 22px;
+      --sim-shadow: 0 18px 46px rgba(28, 43, 70, 0.10);
+      --sim-space-1: 4px;
+      --sim-space-2: 8px;
+      --sim-space-3: 12px;
+      --sim-space-4: 16px;
+      --sim-space-5: 24px;
+      --sim-space-6: 32px;
+      /* 语义色：P 物块（青）/ Q 物块（橙） */
+      --p-color: #0e7490;
+      --p-deep: #155e75;
+      --p-soft: #e0f2f7;
+      --q-color: #d97706;
+      --q-deep: #b45309;
+      --q-soft: #fdf1df;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--sim-text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(15, 159, 186, 0.13), transparent 30%),
+        radial-gradient(circle at 94% 6%, rgba(217, 119, 6, 0.09), transparent 26%),
+        var(--sim-bg);
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(15, 159, 186, 0.4); outline-offset: 2px; }
+
+    .app { width: min(1680px, 100%); height: 100vh; margin: 0 auto; padding: 14px 18px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px; overflow: hidden; }
+
+    /* ── 顶栏 ─────────────────────────────── */
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 54px; flex-wrap: wrap; }
+    .header h1 { margin: 0 0 4px; font-size: clamp(1.25rem, 1.9vw, 1.7rem); letter-spacing: -0.03em; line-height: 1.1; }
+    .header .sub { margin: 0; color: var(--sim-muted); font-size: 0.82rem; }
+    .qnav { display: flex; gap: 6px; align-items: center; }
+    .qnav button {
+      border: 1px solid var(--sim-border); border-radius: 999px; padding: 8px 14px;
+      background: var(--sim-surface); color: var(--sim-muted); cursor: pointer; font-weight: 700;
+      font-size: 0.84rem; transition: all .18s ease; white-space: nowrap;
+    }
+    .qnav button:hover { border-color: var(--sim-accent); color: var(--sim-accent-deep); }
+    .qnav button[aria-selected="true"] {
+      background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent));
+      border-color: var(--sim-accent-deep); color: #fff;
+      box-shadow: 0 8px 18px rgba(15, 159, 186, 0.25);
+    }
+    .status-wrap { display: flex; gap: 8px; align-items: center; }
+    .status { border: 1px solid rgba(15,159,186,.2); border-radius: 999px; padding: 8px 14px; background: var(--sim-accent-soft); color: var(--sim-accent-deep); font-weight: 750; font-size: 0.85rem; white-space: nowrap; }
+    .status.slow { border-color: rgba(217,119,6,.35); background: var(--q-soft); color: var(--q-deep); }
+    .status.done-ok  { border-color: rgba(15,159,186,.4); background: #d2f2ea; color: #065f52; }
+    .status.done-no  { border-color: rgba(220,38,38,.35); background: #fdeaea; color: #b91c1c; }
+
+    /* ── 主区 ─────────────────────────────── */
+    .main { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 34%); gap: 12px; }
+    .panel { min-width: 0; background: rgba(255,255,255,.95); border: 1px solid rgba(148,163,184,.22); border-radius: var(--sim-radius-lg); box-shadow: var(--sim-shadow); }
+    .scene-panel { min-height: 380px; padding: 12px 12px 8px; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 2px 4px 10px; }
+    .panel-head h2 { margin: 0; font-size: 0.98rem; }
+    .panel-head span { color: var(--sim-muted); font-size: 0.76rem; }
+    #scene { width: 100%; height: 100%; min-height: 320px; display: block; border: 1px solid rgba(15,159,186,.12); border-radius: 18px; background: linear-gradient(160deg, #fbfdff 0%, #f1f8fa 55%, #fdf8ee 100%); }
+
+    /* ── 证据面板 ─────────────────────────── */
+    .evidence { display: flex; flex-direction: column; overflow: hidden; }
+    .ev-head { padding: 14px 18px 10px; border-bottom: 1px solid var(--sim-border); }
+    .ev-head .qno { display: inline-block; font-size: 0.72rem; font-weight: 800; letter-spacing: .08em; color: var(--sim-accent-deep); background: var(--sim-accent-soft); border-radius: 999px; padding: 3px 10px; margin-bottom: 6px; }
+    .ev-head h3 { margin: 0; font-size: 1.02rem; }
+    .ev-body { padding: 12px 18px 16px; overflow-y: auto; flex: 1; min-height: 0; }
+    .eq { margin: 10px 0; padding: 9px 12px; border-left: 3px solid var(--sim-border); border-radius: 0 10px 10px 0; background: var(--sim-surface-soft); transition: border-color .3s ease, background .3s ease; }
+    .eq.active { border-left-color: var(--sim-accent); background: #eef9fb; }
+    .eq .eq-note { font-size: 0.74rem; color: var(--sim-muted); margin-bottom: 3px; }
+    .eq .eq-main { font-size: 1.0rem; font-weight: 640; letter-spacing: .01em; }
+    /* 分式（横线分数线）与根号（上划线）排版组件 */
+    .fr { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 3px; font-size: 0.94em; line-height: 1.25; }
+    .fr .num { padding: 0 5px 1px; }
+    .fr .den { padding: 1px 5px 0; border-top: 1.6px solid currentColor; }
+    .sqrt { display: inline-flex; align-items: stretch; vertical-align: middle; margin: 0 2px; }
+    .sqrt .rad { align-self: center; font-size: 1.18em; font-weight: 500; line-height: 1; margin-right: -1px; }
+    .sqrt .bar { border-top: 1.6px solid currentColor; padding: 0 3px 0 2px; margin-top: 1px; line-height: 1.25; }
+    .eq-main sub, .verdict sub, .d sub { font-size: 0.72em; line-height: 0; }
+    .mini-frac { font-variant-numeric: tabular-nums; }
+    .eq .eq-sub { font-size: 0.8rem; color: var(--sim-muted); margin-top: 3px; }
+    .eq .live { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--sim-accent-deep); }
+    .eq.branch-a.active { border-left-color: var(--p-color); }
+    .eq.branch-b.active { border-left-color: var(--q-color); }
+    .verdict { margin: 12px 0 4px; padding: 11px 14px; border-radius: 14px; font-size: 0.92rem; font-weight: 720; line-height: 1.55; border: 1px solid var(--sim-border); background: var(--sim-surface-soft); color: var(--sim-text); }
+    .verdict.ok   { border-color: rgba(15,159,186,.45); background: #e4f6f0; color: #065f52; }
+    .verdict.warn { border-color: rgba(220,38,38,.4);  background: #fdecec; color: #b91c1c; }
+    .verdict .big { font-size: 1.04rem; }
+    .givens { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--sim-border); font-size: 0.78rem; color: var(--sim-muted); line-height: 1.7; }
+    .givens b { color: var(--sim-text); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .chip { font-size: 0.76rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--sim-border); background: var(--sim-surface); color: var(--sim-muted); font-variant-numeric: tabular-nums; }
+    .chip.ok { border-color: rgba(15,159,186,.5); color: var(--sim-accent-deep); background: var(--sim-accent-soft); }
+    .chip.no { border-color: rgba(220,38,38,.45); color: #b91c1c; background: #fdecec; }
+    #vtChart { width: 100%; height: auto; display: block; border: 1px solid var(--sim-grid); border-radius: 12px; background: var(--sim-surface); margin-top: 6px; }
+    .mini-collide { width: 100%; height: auto; display: block; margin-top: 4px; }
+
+    /* ── 控制坞 ───────────────────────────── */
+    .controls { padding: 12px 16px; display: grid; grid-template-columns: auto minmax(300px, 1.2fr) minmax(280px, 1fr); gap: 18px; align-items: start; border-radius: 18px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button.std { border: 1px solid var(--sim-border); border-radius: var(--sim-radius-sm); padding: 9px 14px; color: var(--sim-text); background: var(--sim-surface-soft); cursor: pointer; font-weight: 740; font-size: 0.86rem; transition: transform .15s ease, background .15s ease, border-color .15s ease; white-space: nowrap; }
+    button.std:hover { border-color: #c7d2e2; background: #eef3f9; }
+    button.std:active { transform: scale(.97); }
+    button.std.primary { border-color: var(--sim-accent-deep); color: #fff; background: linear-gradient(135deg, var(--sim-accent-deep), var(--sim-accent)); box-shadow: 0 8px 18px rgba(15,159,186,.22); }
+    .seg { display: inline-flex; border: 1px solid var(--sim-border); border-radius: 10px; overflow: hidden; }
+    .seg button { border: 0; background: var(--sim-surface); padding: 7px 11px; cursor: pointer; font-weight: 720; font-size: 0.78rem; color: var(--sim-muted); transition: all .15s ease; }
+    .seg button + button { border-left: 1px solid var(--sim-border); }
+    .seg button[aria-pressed="true"] { background: var(--sim-accent-deep); color: #fff; }
+    .ctl-group-label { font-size: 0.7rem; font-weight: 800; letter-spacing: .06em; color: var(--sim-muted); margin-bottom: 6px; }
+    .params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .control { min-width: 0; }
+    .control label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 3px; font-size: 0.78rem; font-weight: 730; }
+    .control output { color: var(--sim-muted); font-variant-numeric: tabular-nums; font-weight: 720; }
+    .slider-wrap { position: relative; }
+    input[type="range"] { width: 100%; accent-color: var(--sim-accent); }
+    .tick { position: absolute; top: -4px; width: 0; border-left: 2px dashed var(--sim-warning); height: 20px; pointer-events: none; }
+    .tick span { position: absolute; top: -15px; left: -6px; font-size: 0.62rem; font-weight: 800; color: var(--sim-warning); }
+    .derived { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding-top: 6px; border-top: 1px dashed var(--sim-border); font-size: 0.8rem; }
+    .derived .d { font-variant-numeric: tabular-nums; font-weight: 720; }
+    .derived .d b { color: var(--sim-accent-deep); }
+    .outcome { margin-left: auto; padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: 0.82rem; border: 1px solid var(--sim-border); background: var(--sim-surface); color: var(--sim-muted); white-space: nowrap; }
+    .outcome.ok   { border-color: rgba(15,159,186,.5);  background: #d2f2ea; color: #065f52; }
+    .outcome.warn { border-color: rgba(220,38,38,.45);  background: #fdecec; color: #b91c1c; }
+    .outcome.turn { border-color: rgba(101,113,136,.5); background: #eef1f6; color: #475569; }
+    .slowmo-row { margin-top: 8px; font-size: 0.78rem; color: var(--sim-muted); display: flex; gap: 8px; align-items: center; }
+    .slowmo-row input { accent-color: var(--sim-accent); }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 1080px) {
+      .app { height: auto; min-height: 100vh; overflow: visible; }
+      .main { grid-template-columns: 1fr; }
+      .scene-panel { min-height: 0; }
+      #scene { min-height: 0; height: auto; aspect-ratio: 1180 / 560; }
+      .controls { grid-template-columns: 1fr; }
+      .evidence .ev-body { max-height: 420px; }
+      .header { flex-wrap: wrap; }
+      .qnav { flex-wrap: wrap; justify-content: flex-start; }
+      .qnav button { padding: 7px 10px; font-size: 0.76rem; }
+      .params { grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+    }
+    @media (max-width: 460px) {
+      .qnav button { padding: 6px 8px; font-size: 0.72rem; }
+      .params { grid-template-columns: 1fr; }
+      .status-wrap { width: 100%; justify-content: flex-start; }
+      .status { white-space: normal; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" data-layout="scene-first" data-model-tier="event-contact">
+    <header class="header" data-region="header">
+      <div>
+        <h1>传送带—碰撞—竖直圆轨道 · 逐问推演</h1>
+        <p class="sub">水平传送带（A→B，长 L，速度 v，摩擦因数 μ）→ B 端弹性碰撞 Q（质量 2m）→ 光滑水平面 → 半径 R 竖直圆轨道（最低点 C / 最高点 D）· g = 10 m/s²</p>
+      </div>
+      <div class="qnav" role="tablist" aria-label="设问导航">
+        <button id="qtab1" role="tab" aria-selected="true" type="button">问(1) 到达 B 的速度 u</button>
+        <button id="qtab2" role="tab" aria-selected="false" type="button">问(2) 碰后 Q 的速度</button>
+        <button id="qtab3" role="tab" aria-selected="false" type="button">问(3) 完整圆周的条件</button>
+      </div>
+      <div class="status-wrap">
+        <div id="slowBadge" class="status slow" role="status" style="display:none">慢放</div>
+        <div id="status" class="status" role="status" aria-live="polite">待运行</div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="panel scene-panel" data-region="stage" aria-labelledby="scene-title">
+        <div class="panel-head"><h2 id="scene-title">装置全景</h2><span id="phaseHint">P 静置于 A 端 · 按「开始」释放</span></div>
+        <svg id="scene" viewBox="0 0 1180 560" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="scene-title scene-desc">
+          <desc id="scene-desc">物块 P 在传送带 A 端由静止释放，被摩擦加速送到 B 端与静止物块 Q 弹性碰撞，Q 滑过光滑水平面进入竖直圆轨道。传送带在左，圆轨道在右，C 为轨道最低点，D 为最高点。</desc>
+          <defs>
+            <marker id="arrowInk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+            <marker id="arrowP" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--p-color)"/></marker>
+            <marker id="arrowQ" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--q-color)"/></marker>
+          </defs>
+
+          <!-- 圆轨道 -->
+          <circle id="loopTrack" cx="700" cy="268" r="132" fill="none" stroke="#64748b" stroke-width="7"/>
+          <circle cx="700" cy="268" r="132" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="2 6"/>
+          <line x1="700" y1="268" x2="700" y2="136" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 5"/>
+          <circle cx="700" cy="268" r="3.5" fill="#64748b"/>
+          <text x="712" y="212" font-size="15" font-style="italic" fill="#64748b">R</text>
+          <text x="688" y="128" font-size="17" font-weight="700" font-style="italic" fill="#334155">D</text>
+          <text x="712" y="428" font-size="17" font-weight="700" font-style="italic" fill="#334155">C</text>
+
+          <!-- 光滑水平面 -->
+          <line x1="444" y1="400" x2="700" y2="400" stroke="#334155" stroke-width="4"/>
+          <text x="565" y="430" font-size="13" fill="#657188">光滑水平面</text>
+
+          <!-- 传送带 -->
+          <path d="M146,400 L444,400 A26,26 0 0 1 444,452 L146,452 A26,26 0 0 1 146,400 Z" fill="#f8fafc" stroke="#64748b" stroke-width="3.5"/>
+          <line id="beltDash" x1="150" y1="400" x2="440" y2="400" stroke="#0f9fba" stroke-width="3.5" stroke-dasharray="13 11" opacity="0.85"/>
+          <circle cx="146" cy="426" r="9" fill="#e2e8f0" stroke="#64748b" stroke-width="3"/>
+          <circle cx="444" cy="426" r="9" fill="#e2e8f0" stroke="#64748b" stroke-width="3"/>
+          <text x="196" y="434" font-size="14" font-style="italic" fill="#657188">μ</text>
+          <text x="132" y="378" font-size="17" font-weight="700" font-style="italic" fill="#334155">A</text>
+          <text x="446" y="378" font-size="17" font-weight="700" font-style="italic" fill="#334155">B</text>
+          <line x1="282" y1="352" x2="330" y2="352" stroke="#475569" stroke-width="3" marker-end="url(#arrowInk)"/>
+          <text x="300" y="342" font-size="15" font-style="italic" font-weight="700" fill="#475569" text-anchor="middle">v</text>
+          <text x="220" y="486" font-size="13" fill="#657188">水平传送带（顺时针）</text>
+
+          <!-- s0 共速标记（问1） -->
+          <g id="s0Marker" style="display:none">
+            <line id="s0Line" x1="200" y1="368" x2="200" y2="400" stroke="var(--sim-warning)" stroke-width="2.2" stroke-dasharray="6 5"/>
+            <text id="s0Text" x="200" y="360" font-size="12.5" font-weight="750" fill="#a35d00" text-anchor="middle">s₀</text>
+          </g>
+
+          <!-- 轨迹 -->
+          <polyline id="trailP" fill="none" stroke="var(--p-color)" stroke-width="2" opacity="0.4"/>
+          <polyline id="trailQ" fill="none" stroke="var(--q-color)" stroke-width="2.6" opacity="0.5"/>
+
+          <!-- 事件标记 -->
+          <g id="summitMarker" style="display:none">
+            <circle cx="700" cy="136" r="5.5" fill="var(--sim-positive)" stroke="#fff" stroke-width="2"/>
+            <text id="summitText" x="722" y="150" font-size="12.5" font-weight="750" fill="#08758a"></text>
+          </g>
+          <g id="detachMarker" style="display:none">
+            <circle id="detachDot" cx="0" cy="0" r="6" fill="var(--sim-danger)"/>
+            <text id="detachText" font-size="12.5" font-weight="800" fill="#b91c1c"></text>
+          </g>
+          <g id="turnMarker" style="display:none">
+            <circle id="turnDot" cx="0" cy="0" r="6" fill="#475569"/>
+            <text id="turnText" font-size="12.5" font-weight="800" fill="#475569"></text>
+          </g>
+          <line id="qRadius" x1="700" y1="268" x2="700" y2="400" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 4" style="display:none"/>
+
+          <!-- 完整圆周定格标注：回到 C，切向向右，将继续绕圈（超纲） -->
+          <g id="completeNote" style="display:none">
+            <path d="M 648 442 Q 688 442 704 418" fill="none" stroke="var(--sim-positive)" stroke-width="2.6" marker-end="url(#arrowQ)"/>
+            <text id="completeText" x="672" y="470" font-size="12.5" font-weight="750" fill="#08758a" text-anchor="middle">完成整圈回到 C：速度大小仍为 v_Q（轨道光滑），将继续绕圈（超出本题范围）</text>
+          </g>
+
+          <!-- 碰撞闪现 -->
+          <g id="collideFx" opacity="0">
+            <g stroke="#f59e0b" stroke-width="3" stroke-linecap="round">
+              <line x1="452" y1="380" x2="464" y2="372"/><line x1="456" y1="392" x2="470" y2="392"/>
+              <line x1="452" y1="404" x2="464" y2="412"/><line x1="436" y1="380" x2="424" y2="372"/>
+              <line x1="432" y1="392" x2="418" y2="392"/><line x1="436" y1="404" x2="424" y2="412"/>
+            </g>
+          </g>
+          <text id="collideLabel" x="445" y="348" font-size="13.5" font-weight="800" fill="#b45309" text-anchor="middle" style="display:none">弹性碰撞</text>
+
+          <!-- 物块 -->
+          <g id="blockQ">
+            <rect x="-17" y="-26" width="34" height="26" rx="3.5" fill="var(--q-color)" stroke="var(--q-deep)" stroke-width="2"/>
+            <text y="-7" font-size="13" font-weight="800" fill="#fff" text-anchor="middle">Q</text>
+          </g>
+          <g id="blockP">
+            <rect x="-15" y="-22" width="30" height="22" rx="3.5" fill="var(--p-color)" stroke="var(--p-deep)" stroke-width="2"/>
+            <text y="-6" font-size="12.5" font-weight="800" fill="#fff" text-anchor="middle">P</text>
+          </g>
+
+          <!-- 速度箭头 -->
+          <g id="velP"><line id="velPLine" x1="0" y1="0" x2="40" y2="0" stroke="var(--p-color)" stroke-width="3" marker-end="url(#arrowP)"/><text id="velPText" x="46" y="4" font-size="13" font-weight="800" fill="var(--p-deep)"></text></g>
+          <g id="velQ"><line id="velQLine" x1="0" y1="0" x2="40" y2="0" stroke="var(--q-color)" stroke-width="3" marker-end="url(#arrowQ)"/><text id="velQText" x="46" y="4" font-size="13" font-weight="800" fill="var(--q-deep)"></text></g>
+
+          <!-- 相位时钟 / 注记 -->
+          <text id="scenePhase" x="22" y="32" font-size="15" font-weight="750" fill="#334155"></text>
+          <text id="scaleNote" x="1160" y="546" font-size="12" fill="#94a3b8" text-anchor="end">示意图（各段比例经教学压缩，非等比）· 计算均用真实参数 · g = 10 m/s²</text>
+        </svg>
+      </section>
+
+      <aside class="panel evidence" data-region="evidence" aria-label="推导证据面板">
+        <div class="ev-head">
+          <span class="qno" id="evQno">第 (1) 问 · 6 分</span>
+          <h3 id="evTitle">P 刚到达 B 端时的速度 u 与 v 的关系</h3>
+        </div>
+        <div class="ev-body" id="evBody"></div>
+      </aside>
+    </main>
+
+    <section class="panel controls" data-region="controls" aria-label="仿真控制">
+      <div class="actions">
+        <button id="startBtn" class="std primary" type="button">开始</button>
+        <button id="resetBtn" class="std" type="button">重置</button>
+        <div>
+          <div class="ctl-group-label">时间缩放</div>
+          <div class="seg" id="speedSeg" role="group" aria-label="时间缩放">
+            <button type="button" data-speed="0.25" aria-pressed="false">0.25×</button>
+            <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+            <button type="button" data-speed="1" aria-pressed="true">1×</button>
+          </div>
+          <div class="slowmo-row"><input type="checkbox" id="slowmoToggle" checked><label for="slowmoToggle">关键事件慢放（碰撞 / 过顶 / 脱离）</label></div>
+        </div>
+      </div>
+      <div class="params">
+        <div class="ctl-group-label" style="grid-column:1/-1">参数（改动后回合重置）· 橙色刻度 = 临界值</div>
+        <div class="control">
+          <label for="vInput">带速 v <output id="vOutput">7.0 m/s</output></label>
+          <div class="slider-wrap"><input id="vInput" type="range" min="1" max="12" step="0.1" value="7"><div class="tick" id="tickT" style="display:none"><span>T</span></div></div>
+        </div>
+        <div class="control">
+          <label for="muInput">摩擦因数 μ <output id="muOutput">0.50</output></label>
+          <div class="slider-wrap"><input id="muInput" type="range" min="0.1" max="1" step="0.05" value="0.5"><div class="tick" id="tickMu" style="display:none"><span>μ*</span></div></div>
+        </div>
+        <div class="control">
+          <label for="LInput">带长 L <output id="LOutput">6.0 m</output></label>
+          <div class="slider-wrap"><input id="LInput" type="range" min="1" max="10" step="0.1" value="6"><div class="tick" id="tickL" style="display:none"><span>L*</span></div></div>
+        </div>
+        <div class="control">
+          <label for="RInput">轨道半径 R <output id="ROutput">0.32 m</output></label>
+          <div class="slider-wrap"><input id="RInput" type="range" min="0.1" max="0.8" step="0.01" value="0.32"></div>
+        </div>
+      </div>
+      <div>
+        <div class="ctl-group-label">派生读数</div>
+        <div class="derived" id="derivedRow">
+          <span class="d">U=<span class="sqrt"><span class="rad">√</span><span class="bar">2μgL</span></span>=<b id="dU">7.75</b></span>
+          <span class="d">T=<span class="fr"><span class="num">3</span><span class="den">2</span></span><span class="sqrt"><span class="rad">√</span><span class="bar">5gR</span></span>=<b id="dT">6.00</b></span>
+          <span class="d">u=<b id="du">—</b></span>
+          <span class="d">v<sub>Q</sub>=<b id="dvQ">—</b></span>
+          <span class="d">v<sub>D</sub>=<b id="dvD">—</b></span>
+          <span class="d">N<sub>D</sub>=<b id="dND">—</b></span>
+          <span class="outcome" id="outcomeBadge">未运行</span>
+        </div>
+        <div class="chips" id="verdictChips"></div>
+      </div>
+    </section>
+  </div>
+  <script>
+  (() => {
+    "use strict";
+    /* ══════════ 常量与参数 ══════════ */
+    const DT = 1 / 240;            // 固定物理步长 (s)
+    const G = 10;                  // 重力加速度 (m/s²)
+    const DBC = 2;                 // B→C 光滑水平面长度 (m)，演示几何（光滑，不影响物理结论）
+    const Q0 = 0;                  // Q 静置于 B 端（与到达的 P 接触碰撞）
+    const SUB = 8;                 // 圆轨道相位每步细分子步数
+    const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
+    const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const parameterSchema = [
+      { key: "v",  label: "带速 v",     type: "slider", min: 1,   max: 12,  step: 0.1,  default: 7,    unit: "m/s" },
+      { key: "mu", label: "摩擦因数 μ", type: "slider", min: 0.1, max: 1,   step: 0.05, default: 0.5,  unit: "" },
+      { key: "L",  label: "带长 L",     type: "slider", min: 1,   max: 10,  step: 0.1,  default: 6,    unit: "m" },
+      { key: "R",  label: "轨道半径 R", type: "slider", min: 0.1, max: 0.8, step: 0.01, default: 0.32, unit: "m" }
+    ];
+    const params = { v: 7, mu: 0.5, L: 6, R: 0.32 };
+    let timeScale = 1;
+    let slowmoEnabled = !REDUCED;
+    let question = 1;
+
+    function derived(p = params) {
+      const U = Math.sqrt(2 * p.mu * G * p.L);       // u 的上限 √(2μgL)
+      const T = 1.5 * Math.sqrt(5 * G * p.R);        // 完整圆周对 u 的门槛 (3/2)√(5gR)
+      const s0 = p.v * p.v / (2 * p.mu * G);         // 共速位移
+      return { U, T, s0, possible: U >= T - 1e-12, Lcrit: 45 * p.R / (8 * p.mu), mucrit: 45 * p.R / (8 * p.L) };
+    }
+    const fmt = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "—");
+
+    /* ══════════ 场景几何（像素） ══════════ */
+    const GEO = {
+      beltPx: m => 146 + m * (298 / params.L),                       // P 在带上：米 → 像素
+      floorPx: m => 444 + m * (256 / DBC),                           // 地面段：米 → 像素
+      loopPx: th => ({ x: 700 + 132 * Math.sin(th), y: 268 + 132 * Math.cos(th) }),
+      loopScale: () => 132 / params.R                                // 圆轨道：米 → 像素
+    };
+
+    /* ══════════ 回合状态（唯一权威状态） ══════════ */
+    const ep = {
+      t: 0, running: false, done: false,
+      xP: 0, vP: 0, pStopped: false, pFade: 1, pStopAtReal: 0, pDim: 1,
+      qLaunched: false, qPhase: "idle", qFaded: false,
+      xQ: Q0, theta: 0, omega: 0,
+      fx: 0, fy: 0, fvx: 0, fvy: 0, detachT: 0,
+      u: null, vPpost: null, vQpost: null, coSpeed: null,
+      summit: null, detach: null, turn: null, exitSpeed: null, outcome: null,
+      slowRemain: 0, slowScale: 1, beltOffset: 0, collideAtReal: -1e9,
+      trailP: [], trailQ: [], chart: [], stepCount: 0
+    };
+    let pendingPause = null;   // { atSimT, msg }：问2 碰后 0.35 s 自动暂停
+    let autoPauseMsg = null;
+
+    function freshEpisode() {
+      ep.t = 0; ep.done = false;
+      ep.xP = 0; ep.vP = 0; ep.pStopped = false; ep.pFade = 1; ep.pStopAtReal = 0; ep.pDim = 1;
+      ep.qLaunched = false; ep.qPhase = "idle"; ep.qFaded = false;
+      ep.xQ = Q0; ep.theta = 0; ep.omega = 0;
+      ep.fx = 0; ep.fy = 0; ep.fvx = 0; ep.fvy = 0; ep.detachT = 0;
+      ep.u = null; ep.vPpost = null; ep.vQpost = null; ep.coSpeed = null;
+      ep.summit = null; ep.detach = null; ep.turn = null; ep.exitSpeed = null; ep.outcome = null;
+      ep.slowRemain = 0; ep.slowScale = 1; ep.beltOffset = 0; ep.collideAtReal = -1e9;
+      ep.trailP = []; ep.trailQ = []; ep.chart = []; ep.stepCount = 0;
+      pendingPause = null; autoPauseMsg = null;
+    }
+
+    function slowmo(scale, seconds) {
+      if (!slowmoEnabled) return;
+      ep.slowScale = Math.min(ep.slowScale === 1 ? scale : ep.slowScale, scale);
+      ep.slowRemain = Math.max(ep.slowRemain, seconds);
+    }
+    function autoPause(msg) { if (PREVIEW) return; ep.running = false; autoPauseMsg = msg; }
+
+    /* ══════════ 物理内核：两个独立 actor ══════════ */
+    // P：带上 x∈[0,L]。未碰：a=+μg 至共速后匀速，到 B 触发碰撞；碰后：同一动力学，返回 B 停止追踪。
+    function advanceP(dt) {
+      if (ep.pStopped) return { ev: null, used: 0 };
+      const a = params.mu * G;
+      let used = 0, rem = dt;
+      while (rem > 1e-12) {
+        if (ep.vP < params.v - 1e-12) {
+          const tC = (params.v - ep.vP) / a;
+          const disc = ep.vP * ep.vP + 2 * a * (params.L - ep.xP);
+          const tB = disc >= 0 ? (-ep.vP + Math.sqrt(disc)) / a : Infinity;
+          if (tC < tB - 1e-12 && tC < rem) {                       // 步内先共速
+            ep.xP += ep.vP * tC + 0.5 * a * tC * tC; ep.vP = params.v;
+            used += tC; rem -= tC;
+            if (!ep.qLaunched) ep.coSpeed = { x: ep.xP };
+            continue;
+          }
+          if (tB <= rem + 1e-12) {                                  // 先到 B
+            ep.xP = params.L; ep.vP += a * Math.min(tB, rem); used += Math.min(tB, rem);
+            return { ev: "atB", used };
+          }
+          ep.xP += ep.vP * rem + 0.5 * a * rem * rem; ep.vP += a * rem; used += rem; rem = 0;
+        } else {
+          const tB = (params.L - ep.xP) / params.v;
+          if (tB <= rem + 1e-12) { ep.xP = params.L; used += Math.min(tB, rem); return { ev: "atB", used }; }
+          ep.xP += params.v * rem; used += rem; rem = 0;
+        }
+      }
+      return { ev: null, used };
+    }
+
+    const qNormal = (th, om) => params.R * om * om + G * Math.cos(th);   // N/(2m)
+
+    function pendStep(th, om, h) {   // 单摆方程 θ'' = -(g/R)sinθ 的 RK4
+      const acc = t => -(G / params.R) * Math.sin(t);
+      const k1v = om, k1a = acc(th);
+      const k2v = om + h / 2 * k1a, k2a = acc(th + h / 2 * k1v);
+      const k3v = om + h / 2 * k2a, k3a = acc(th + h / 2 * k2v);
+      const k4v = om + h * k3a, k4a = acc(th + h * k3v);
+      return [th + h / 6 * (k1v + 2 * k2v + 2 * k3v + k4v), om + h / 6 * (k1a + 2 * k2a + 2 * k3a + k4a)];
+    }
+    const bisectOm = (th0, om0, h, pred) => {   // 在 (0,h] 内二分定位 pred(θ,ω) 变号点
+      let lo = 0, hi = h;
+      for (let k = 0; k < 24; k++) { const mid = (lo + hi) / 2, s = pendStep(th0, om0, mid); (pred(s[0], s[1]) ? hi = mid : lo = mid); }
+      return (lo + hi) / 2;
+    };
+
+    // Q：地面 → 圆轨道 → 结局（完整/脱离/折返）→ 续演（出轨滑回 / 抛体）
+    function advanceQ(dt) {
+      if (!ep.qLaunched || ep.qFaded || ep.done) return { ev: null, used: 0 };
+      let used = 0, rem = dt;
+      while (rem > 1e-12) {
+        if (ep.qPhase === "floor") {
+          const tC = (DBC - ep.xQ) / ep.vQpost;
+          if (tC <= rem + 1e-12) { ep.xQ = DBC; used += Math.min(tC, rem); return { ev: "atC", used }; }
+          ep.xQ += ep.vQpost * rem; used += rem; rem = 0;
+        } else if (ep.qPhase === "loop" || ep.qPhase === "slide") {
+          const down = ep.qPhase === "slide";
+          const h = rem / SUB;
+          let hit = null, hitT = 0;
+          for (let i = 0; i < SUB; i++) {
+            const th0 = ep.theta, om0 = ep.omega;
+            const [th1, om1] = pendStep(th0, om0, h);
+            let ev = null, tt = h;
+            if (!down) {
+              if (om0 > 0 && om1 <= 0) { tt = bisectOm(th0, om0, h, (t, w) => w <= 0); ev = "turn"; }
+              else if (th0 < Math.PI && th1 >= Math.PI) { tt = h * (Math.PI - th0) / (th1 - th0); ev = "summit"; }
+              else if (th0 > Math.PI / 2 - 1e-9 && qNormal(th0, om0) > 0 && qNormal(th1, om1) <= 0) { tt = bisectOm(th0, om0, h, (t, w) => qNormal(t, w) <= 0); ev = "detach"; }
+              else if (th1 >= 2 * Math.PI) { tt = h * (2 * Math.PI - th0) / (th1 - th0); ev = "complete"; }
+            } else {
+              if (th0 > 0 && th1 <= 0) { tt = h * th0 / (th0 - th1); ev = "exitC"; }
+            }
+            if (ev) {
+              const [thE, omE] = pendStep(th0, om0, tt);
+              ep.theta = Math.min(thE, down ? 1e-9 : 2 * Math.PI + 1e-9); ep.omega = omE;
+              used += tt; return { ev, used };
+            }
+            ep.theta = th1; ep.omega = om1; used += h;
+          }
+          rem = 0;
+        } else if (ep.qPhase === "free") {
+          const h = rem;
+          ep.fy += ep.fvy * h - 0.5 * G * h * h; ep.fvy -= G * h; ep.fx += ep.fvx * h;
+          used += h; rem = 0;
+          if (ep.fy < -0.45 * params.R || ep.t - ep.detachT > 0.75) return { ev: "end", used };
+        } else if (ep.qPhase === "exit") {
+          ep.xQ -= ep.exitSpeed * rem; used += rem; rem = 0;
+          if (ep.xQ <= 0.5) return { ev: "end", used };
+        } else { return { ev: null, used }; }
+      }
+      return { ev: null, used };
+    }
+
+    function collide() {   // 瞬时弹性碰撞（m 与 2m）
+      ep.u = ep.vP;
+      ep.vPpost = -ep.u / 3; ep.vQpost = (2 / 3) * ep.u;
+      ep.vP = ep.vPpost; ep.pDim = 0.62;
+      ep.xQ = 0; ep.qLaunched = true; ep.qPhase = "floor";
+      ep.collideAtReal = performance.now();
+      slowmo(0.18, 0.9);
+      if (question === 1) autoPause(`P 到达 B 端 · u = ${fmt(ep.u)} m/s`);
+      if (question === 2) pendingPause = { atSimT: ep.t + 0.35, msg: `碰后：v_P′ = ${fmt(ep.vPpost)} m/s（向左反弹），v_Q = ${fmt(ep.vQpost)} m/s` };
+    }
+
+    function handleQEvent(ev) {
+      if (ev === "atC") { ep.qPhase = "loop"; ep.theta = 0; ep.omega = ep.vQpost / params.R; return; }
+      if (ev === "summit") {
+        ep.summit = { vD: ep.omega * params.R, ND: qNormal(ep.theta, ep.omega) };
+        ep.outcome = "complete";
+        slowmo(0.45, 0.7);
+        if (question === 3) autoPause(`过最高点 D：v_D = ${fmt(ep.summit.vD)} m/s，N_D = ${fmt(ep.summit.ND / G)}×2mg ≥ 0 → 能完成完整圆周`);
+        return;
+      }
+      if (ev === "detach") {
+        ep.detach = { theta: ep.theta, v: ep.omega * params.R }; ep.detachT = ep.t;
+        ep.fx = params.R * Math.sin(ep.theta); ep.fy = params.R * (1 - Math.cos(ep.theta));
+        ep.fvx = ep.omega * params.R * Math.cos(ep.theta); ep.fvy = ep.omega * params.R * Math.sin(ep.theta);
+        ep.qPhase = "free"; ep.outcome = "detach";
+        slowmo(0.3, 0.8);
+        if (question === 3) autoPause(`N=0 脱离轨道！脱离角 θ_d = ${(ep.theta * 180 / Math.PI).toFixed(1)}°（未达最高点，不能完成完整圆周）`);
+        return;
+      }
+      if (ev === "turn") {
+        ep.turn = { theta: ep.theta }; ep.qPhase = "slide"; ep.outcome = "turn";
+        slowmo(0.5, 0.6);
+        if (question === 3) autoPause(`v=0 折返！最大摆角 θ = ${(ep.theta * 180 / Math.PI).toFixed(1)}° < 90°…未过顶，不能完成完整圆周`);
+        return;
+      }
+      if (ev === "complete") {   // 回到 C：切向向右，本将沿轨道继续绕圈（超出本题范围）→ 定格在 C
+        ep.exitSpeed = Math.abs(ep.omega) * params.R;
+        ep.qPhase = "done-loop"; ep.done = true; ep.running = false;
+        return;
+      }
+      if (ev === "exitC")    { ep.exitSpeed = Math.abs(ep.omega) * params.R; ep.qPhase = "exit"; return; }   // 折返：沿原路向左滑回
+      if (ev === "end")      { ep.done = true; ep.running = false; ep.qFaded = true; }
+    }
+
+    function stepPhysics(dt) {   // 单一权威时钟：P/Q 并行推进，事件在步内精确分割
+      if (ep.done) return;
+      const rP = advanceP(dt);
+      let qOffset = 0;
+      if (rP.ev === "atB") {
+        if (!ep.qLaunched) { collide(); qOffset = rP.used; }
+        else { ep.pStopped = true; ep.pStopAtReal = performance.now(); }
+      }
+      if (ep.qLaunched && !ep.qFaded && !ep.done && dt - qOffset > 0) {
+        const rQ = advanceQ(dt - qOffset);
+        if (rQ.ev) handleQEvent(rQ.ev);
+      }
+      ep.t += dt;
+      ep.beltOffset += params.v * (298 / params.L) * dt;   // 带面视觉移动（像素，随仿真时间）
+      ep.stepCount++;
+      if (pendingPause && ep.t >= pendingPause.atSimT) { const m = pendingPause.msg; pendingPause = null; autoPause(m); }
+      if (ep.stepCount % 2 === 0) sampleTrails();
+    }
+
+    function sampleTrails() {
+      const p = pxOfP(), q = pxOfQ();
+      if (ep.trailP.length === 0 || Math.hypot(p.x - ep.trailP[ep.trailP.length - 1][0], p.y - ep.trailP[ep.trailP.length - 1][1]) > 1.5) {
+        ep.trailP.push([p.x, p.y]); if (ep.trailP.length > 2600) ep.trailP.shift();
+      }
+      if (ep.qLaunched && !ep.qFaded && (ep.qPhase === "floor" || ep.qPhase === "loop" || ep.qPhase === "slide")) {
+        if (ep.trailQ.length === 0 || Math.hypot(q.x - ep.trailQ[ep.trailQ.length - 1][0], q.y - ep.trailQ[ep.trailQ.length - 1][1]) > 1.5) {
+          ep.trailQ.push([q.x, q.y]); if (ep.trailQ.length > 2600) ep.trailQ.shift();
+        }
+      }
+      if (!ep.qLaunched) ep.chart.push([ep.t, ep.vP]);
+    }
+    function pxOfP() { return { x: GEO.beltPx(ep.xP), y: 400 }; }
+    function pxOfQ() {
+      if (!ep.qLaunched) return { x: GEO.floorPx(ep.xQ), y: 400 };
+      if (ep.qPhase === "floor" || ep.qPhase === "exit") return { x: GEO.floorPx(Math.max(ep.xQ, 0)), y: 400 };
+      if (ep.qPhase === "free") return { x: 700 + ep.fx * GEO.loopScale(), y: 400 - ep.fy * GEO.loopScale() };
+      const p = GEO.loopPx(ep.theta); return p;
+    }
+
+    /* ══════════ 渲染 ══════════ */
+    const $ = id => document.getElementById(id);
+    const el = {};
+    const COL = { p: "var(--p-color)", q: "var(--q-color)" };
+    function cacheElements() {
+      ["status", "slowBadge", "phaseHint", "scenePhase", "blockP", "blockQ", "velP", "velPLine", "velPText", "velQ", "velQLine", "velQText",
+       "beltDash", "s0Marker", "s0Line", "s0Text", "trailP", "trailQ", "qRadius", "collideFx", "collideLabel",
+       "summitMarker", "summitText", "detachMarker", "detachDot", "detachText", "turnMarker", "turnDot", "turnText", "completeNote",
+       "startBtn", "resetBtn", "speedSeg", "slowmoToggle", "vInput", "muInput", "LInput", "RInput",
+       "vOutput", "muOutput", "LOutput", "ROutput", "tickT", "tickL", "tickMu",
+       "dU", "dT", "du", "dvQ", "dvD", "dND", "outcomeBadge", "verdictChips", "evQno", "evTitle", "evBody",
+       "qtab1", "qtab2", "qtab3", "scene"].forEach(id => { el[id] = $(id); });
+      // 速度文本移到场景根，避免随箭头旋转
+      el.scene.appendChild(el.velPText); el.scene.appendChild(el.velQText);
+    }
+    const SVGNS = "http://www.w3.org/2000/svg";
+    function setAttr(node, k, v) { node.setAttribute(k, v); }
+    function poly(points) {
+      let s = "";
+      for (const [x, y] of points) s += `${x.toFixed(1)},${y.toFixed(1)} `;
+      return s || "0,0";
+    }
+
+    function phaseLabel() {
+      const d = derived();
+      if (!ep.qLaunched) {
+        if (ep.coSpeed && Math.abs(ep.vP - params.v) < 1e-9) return "P 与传送带共速 · 匀速";
+        return "传送带加速 P：a = μg";
+      }
+      switch (ep.qPhase) {
+        case "floor": return `Q 沿光滑水平面滑向 C（v_Q = ${fmt(ep.vQpost)} m/s）`;
+        case "loop": return `Q 圆轨道内侧 · θ = ${(ep.theta * 180 / Math.PI).toFixed(0)}° · N = ${fmt(qNormal(ep.theta, ep.omega) / G)}×2mg`;
+        case "slide": return `Q 折返下滑 · θ = ${(ep.theta * 180 / Math.PI).toFixed(0)}°`;
+        case "free": return "Q 脱离轨道 · 抛体（续演）";
+        case "exit": return "Q 沿原路向左滑回（续演，渐隐）";
+      }
+      if (ep.outcome === "complete") return "完整圆周 ✓";
+      if (ep.outcome === "detach") return `脱离轨道（θ_d = ${(ep.detach.theta * 180 / Math.PI).toFixed(0)}°）`;
+      if (ep.outcome === "turn") return `折返（θ_max = ${(ep.turn.theta * 180 / Math.PI).toFixed(0)}°）`;
+      return "待运行";
+    }
+
+    function render() {
+      const d = derived();
+      const now = performance.now();
+      /* P 渐隐 */
+      if (ep.pStopped && ep.pFade > 0) ep.pFade = Math.max(0, 1 - (now - ep.pStopAtReal) / 450);
+      const pVis = !ep.pStopped || ep.pFade > 0;
+      const ppx = pxOfP();
+      el.blockP.style.display = pVis ? "" : "none";
+      if (pVis) {
+        setAttr(el.blockP, "transform", `translate(${ppx.x.toFixed(1)},400)`);
+        el.blockP.style.opacity = (ep.pStopped ? ep.pFade * 0.9 : ep.pDim).toFixed(2);
+      }
+      /* Q 位置与渐隐 */
+      let qVis = true, qOp = 1;
+      if (ep.qPhase === "exit") qOp = Math.max(0, Math.min(1, (ep.xQ - 0.5) / 0.9));
+      if (ep.qPhase === "free") qOp = Math.max(0.25, 1 - (ep.t - ep.detachT) / 0.75);
+      if (ep.qFaded && ep.done) qVis = qOp > 0;
+      const qpx = pxOfQ();
+      el.blockQ.style.display = qVis ? "" : "none";
+      if (qVis) {
+        setAttr(el.blockQ, "transform", `translate(${qpx.x.toFixed(1)},${qpx.y.toFixed(1)})`);
+        el.blockQ.style.opacity = qOp.toFixed(2);
+      }
+      /* 传送带动画（随仿真时间，暂停即停） */
+      setAttr(el.beltDash, "stroke-dashoffset", (-(ep.beltOffset % 24)).toFixed(1));
+      /* s₀ 标记 */
+      if (d.s0 < params.L) {
+        el.s0Marker.style.display = "";
+        const sx = GEO.beltPx(d.s0);
+        setAttr(el.s0Line, "x1", sx); setAttr(el.s0Line, "x2", sx);
+        setAttr(el.s0Text, "x", sx); el.s0Text.textContent = `s₀=${fmt(d.s0, 1)}m`;
+      } else el.s0Marker.style.display = "none";
+      /* 轨迹 */
+      setAttr(el.trailP, "points", poly(ep.trailP));
+      setAttr(el.trailQ, "points", poly(ep.trailQ));
+      setAttr(el.trailQ, "opacity", ep.qLaunched ? "0.5" : "0");
+      /* 速度箭头 P */
+      const pv = ep.vP;
+      if (pVis && Math.abs(pv) > 0.03 && !ep.done) {
+        const len = Math.max(14, Math.min(64, Math.abs(pv) * 9)) * Math.sign(pv);
+        setAttr(el.velP, "transform", `translate(${ppx.x.toFixed(1)},366)`);
+        setAttr(el.velPLine, "x2", len);
+        el.velPText.setAttribute("x", (Math.sign(pv) > 0 ? len + 6 : len - 6).toFixed(0));
+        el.velPText.setAttribute("text-anchor", Math.sign(pv) > 0 ? "start" : "end");
+        el.velPText.setAttribute("y", 4);
+        el.velPText.textContent = `v_P=${fmt(Math.abs(pv), 1)}`;
+        el.velP.style.display = "";
+      } else el.velP.style.display = "none";
+      /* 速度箭头 Q */
+      if (qVis && ep.qLaunched && !ep.done) {
+        let ang = 0, spd = 0;
+        if (ep.qPhase === "floor") { spd = ep.vQpost; ang = 0; }
+        else if (ep.qPhase === "exit") { spd = -ep.exitSpeed; ang = 0; }
+        else if (ep.qPhase === "free") { spd = Math.hypot(ep.fvx, ep.fvy); ang = Math.atan2(-ep.fvy, ep.fvx) * 180 / Math.PI; }
+        else {
+          spd = Math.abs(ep.omega) * params.R;
+          const s = Math.sign(ep.omega) || 1;
+          ang = Math.atan2(-Math.sin(ep.theta) * s, Math.cos(ep.theta) * s) * 180 / Math.PI;
+        }
+        const len = Math.max(14, Math.min(64, spd * 9));
+        setAttr(el.velQ, "transform", `translate(${qpx.x.toFixed(1)},${qpx.y.toFixed(1)}) rotate(${ang.toFixed(1)})`);
+        setAttr(el.velQLine, "x2", len);
+        el.velQText.setAttribute("x", (qpx.x + 10).toFixed(0));
+        el.velQText.setAttribute("y", (qpx.y - 32).toFixed(0));
+        el.velQText.setAttribute("text-anchor", "start");
+        let label = `v_Q=${fmt(spd, 1)}`;
+        if (ep.qPhase === "loop" || ep.qPhase === "slide") label += ` · θ=${(ep.theta * 180 / Math.PI).toFixed(0)}°`;
+        el.velQText.textContent = label;
+        el.velQ.style.display = "";
+      } else el.velQ.style.display = "none";
+      /* 圆轨道半径指示 */
+      if (ep.qPhase === "loop" || ep.qPhase === "slide") {
+        el.qRadius.style.display = "";
+        setAttr(el.qRadius, "x2", qpx.x.toFixed(1)); setAttr(el.qRadius, "y2", qpx.y.toFixed(1));
+      } else el.qRadius.style.display = "none";
+      /* 碰撞闪现（0.6 s 真实时间） */
+      const fxOn = now - ep.collideAtReal < 600;
+      el.collideFx.style.opacity = fxOn ? "1" : "0";
+      el.collideLabel.style.display = fxOn ? "" : "none";
+      /* 事件标记 */
+      if (ep.summit) { el.summitMarker.style.display = ""; el.summitText.textContent = `v_D=${fmt(ep.summit.vD)} · N_D=${fmt(ep.summit.ND / G)}×2mg`; }
+      if (ep.detach) {
+        const p = GEO.loopPx(ep.detach.theta), n = { x: Math.sin(ep.detach.theta), y: Math.cos(ep.detach.theta) };
+        el.detachMarker.style.display = "";
+        setAttr(el.detachDot, "cx", p.x); setAttr(el.detachDot, "cy", p.y);
+        setAttr(el.detachText, "x", p.x + n.x * 30); setAttr(el.detachText, "y", p.y + n.y * 30 + 4);
+        setAttr(el.detachText, "text-anchor", Math.sin(ep.detach.theta) >= 0 ? "start" : "end");
+        el.detachText.textContent = `N=0 脱离 θ_d=${(ep.detach.theta * 180 / Math.PI).toFixed(0)}°`;
+      }
+      if (ep.outcome === "complete" && ep.done) el.completeNote.style.display = "";
+      if (ep.turn) {
+        const p = GEO.loopPx(ep.turn.theta);
+        el.turnMarker.style.display = "";
+        setAttr(el.turnDot, "cx", p.x); setAttr(el.turnDot, "cy", p.y);
+        setAttr(el.turnText, "x", p.x + 24); setAttr(el.turnText, "y", p.y + 26);
+        el.turnText.textContent = `v=0 折返 θ=${(ep.turn.theta * 180 / Math.PI).toFixed(0)}°`;
+      }
+      /* 相位时钟 / 状态 */
+      el.scenePhase.textContent = `${phaseLabel()} · t = ${fmt(ep.t)} s`;
+      updateStatus(d);
+      updateDerivedRow(d);
+      updateEvidenceLive(d);
+      if (question === 1) renderChart(d);
+    }
+
+    function updateStatus(d) {
+      const slow = ep.slowRemain > 0 && ep.running;
+      el.slowBadge.style.display = slow ? "" : "none";
+      el.slowBadge.textContent = `慢放 ×${ep.slowScale}`;
+      el.status.className = "status";
+      if (autoPauseMsg) { el.status.textContent = autoPauseMsg; }
+      else if (ep.done) {
+        if (ep.outcome === "complete") { el.status.textContent = `完整圆周运动 ✓（回到 C，速度大小仍为 ${fmt(ep.exitSpeed)} m/s）`; el.status.classList.add("done-ok"); }
+        else if (ep.outcome === "detach") { el.status.textContent = `脱离轨道（θ_d = ${(ep.detach.theta * 180 / Math.PI).toFixed(1)}°）`; el.status.classList.add("done-no"); }
+        else { el.status.textContent = `折返（θ_max = ${(ep.turn.theta * 180 / Math.PI).toFixed(1)}° < 90°…未过顶）`; el.status.classList.add("done-no"); }
+      }
+      else if (ep.running) el.status.textContent = `运行中 · ${phaseLabel()}`;
+      else if (ep.t > 0) el.status.textContent = "已暂停";
+      else el.status.textContent = "待运行";
+      el.startBtn.textContent = ep.running ? "暂停" : (autoPauseMsg || ep.t > 0 ? "继续" : "开始");
+    }
+
+    function updateDerivedRow(d) {
+      el.dU.textContent = fmt(d.U); el.dT.textContent = fmt(d.T);
+      el.du.textContent = ep.u === null ? "—" : fmt(ep.u);
+      el.dvQ.textContent = ep.vQpost === null ? "—" : fmt(ep.vQpost);
+      el.dvD.textContent = ep.summit ? fmt(ep.summit.vD) : (ep.outcome === "detach" || ep.outcome === "turn" ? "未过顶" : "—");
+      el.dND.textContent = ep.summit ? `${fmt(ep.summit.ND / G)}×2mg` : "—";
+      const b = el.outcomeBadge;
+      b.className = "outcome";
+      if (ep.outcome === "complete") { b.textContent = "结局：完整圆周 ✓"; b.classList.add("ok"); }
+      else if (ep.outcome === "detach") { b.textContent = `结局：脱离 θ_d=${(ep.detach.theta * 180 / Math.PI).toFixed(0)}°`; b.classList.add("warn"); }
+      else if (ep.outcome === "turn") { b.textContent = `结局：折返 θ=${(ep.turn.theta * 180 / Math.PI).toFixed(0)}°`; b.classList.add("turn"); }
+      else if (!d.possible) { b.textContent = `预判：U<T 不可能`; b.classList.add("warn"); }
+      else b.textContent = ep.t > 0 ? "运行中…" : `预判：可行（需 v ≥ T=${fmt(d.T)}）`;
+      /* 判定 chips */
+      const chips = [];
+      chips.push(`<span class="chip ${d.s0 <= params.L ? "ok" : "no"}">s₀=${fmt(d.s0, 1)}m ${d.s0 <= params.L ? "≤" : ">"} L=${fmt(params.L, 1)}m ${d.s0 <= params.L ? "中途共速" : "未共速"}</span>`);
+      chips.push(`<span class="chip ${params.v >= d.T ? "ok" : "no"}">v=${fmt(params.v, 1)} ${params.v >= d.T ? "≥" : "<"} T=${fmt(d.T)}</span>`);
+      chips.push(`<span class="chip ${d.possible ? "ok" : "no"}">U=${fmt(d.U)} ${d.possible ? "≥" : "<"} T=${fmt(d.T)} ${d.possible ? "" : "→ 不可能"}</span>`);
+      el.verdictChips.innerHTML = chips.join("");
+    }
+
+    /* ══════════ v–t 图（问1 证据） ══════════ */
+    let chartKey = "";
+    function chartLayout(d) {
+      const beltDur = d.s0 <= params.L ? params.v / (params.mu * G) + (params.L - d.s0) / params.v : Math.sqrt(2 * params.L / (params.mu * G));
+      return { tEnd: Math.max(2, beltDur * 1.12), vEnd: Math.max(params.v, d.U) * 1.18, beltDur };
+    }
+    function renderChart(d) {
+      const svg = $("vtChart"); if (!svg) return;
+      const L = chartLayout(d);
+      const key = `${params.v}|${params.mu}|${params.L}`;
+      const X = t => 44 + t / L.tEnd * 282, Y = v => 158 - v / L.vEnd * 126;
+      if (key !== chartKey) {
+        chartKey = key;
+        let grid = "";
+        for (let t = 0; t <= L.tEnd + 1e-9; t += L.tEnd > 6 ? 2 : 1) grid += `<line x1="${X(t)}" y1="22" x2="${X(t)}" y2="158" stroke="var(--sim-grid)"/><text x="${X(t)}" y="172" font-size="10" fill="#94a3b8" text-anchor="middle">${t}</text>`;
+        const vStep = L.vEnd > 9 ? 3 : 1;
+        for (let v = 0; v <= L.vEnd + 1e-9; v += vStep) grid += `<line x1="44" y1="${Y(v)}" x2="326" y2="${Y(v)}" stroke="var(--sim-grid)"/><text x="38" y="${Y(v) + 3}" font-size="10" fill="#94a3b8" text-anchor="end">${v}</text>`;
+        svg.innerHTML = `<text x="185" y="186" font-size="11" fill="#657188" text-anchor="middle">t / s</text>` +
+          `<text x="14" y="90" font-size="11" fill="#657188" text-anchor="middle" transform="rotate(-90 14 90)">v / (m·s⁻¹)</text>` +
+          grid +
+          `<line x1="44" y1="22" x2="326" y2="158" stroke="#0f9fba" stroke-width="0"/>` +
+          `<line x1="44" y1="158" x2="326" y2="158" stroke="#94a3b8" stroke-width="1.4"/><line x1="44" y1="22" x2="44" y2="158" stroke="#94a3b8" stroke-width="1.4"/>` +
+          `<line x1="44" y1="${Y(params.v)}" x2="326" y2="${Y(params.v)}" stroke="#64748b" stroke-width="1.8" stroke-dasharray="6 5"/>` +
+          `<text x="328" y="${Y(params.v) - 5}" font-size="11" font-weight="700" fill="#64748b" text-anchor="end">带速 v=${fmt(params.v, 1)}</text>` +
+          `<polyline id="chartVP" fill="none" stroke="var(--p-color)" stroke-width="2.6"/>` +
+          `<circle id="chartCos" r="4.5" fill="var(--sim-warning)" stroke="#fff" stroke-width="1.5" style="display:none"/>` +
+          `<text id="chartCosT" font-size="10.5" font-weight="750" fill="#a35d00" style="display:none"></text>` +
+          `<circle id="chartEnd" r="4.5" fill="var(--sim-positive)" stroke="#fff" stroke-width="1.5" style="display:none"/>` +
+          `<text id="chartEndT" font-size="11" font-weight="800" fill="#08758a" style="display:none"></text>` +
+          `<line id="chartNow" x1="44" y1="22" x2="44" y2="158" stroke="#0f9fba" stroke-width="1.2" stroke-dasharray="3 4" opacity="0.7"/>`;
+      }
+      const pts = ep.chart.map(([t, v]) => `${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+      const pl = $("chartVP"); if (pl) setAttr(pl, "points", pts);
+      const cn = $("chartNow");
+      if (cn && !ep.qLaunched && ep.chart.length) { setAttr(cn, "x1", X(ep.t)); setAttr(cn, "x2", X(ep.t)); cn.style.display = ""; }
+      else if (cn) cn.style.display = "none";
+      const cos = $("chartCos"), cosT = $("chartCosT");
+      if (ep.coSpeed && d.s0 <= params.L) {
+        const tc = params.v / (params.mu * G);
+        cos.style.display = ""; setAttr(cos, "cx", X(tc)); setAttr(cos, "cy", Y(params.v));
+        cosT.style.display = ""; setAttr(cosT, "x", X(tc) + 6); setAttr(cosT, "y", Y(params.v) - 7);
+        cosT.textContent = `共速 t=v/μg=${fmt(tc)}s`;
+      }
+      const end = $("chartEnd"), endT = $("chartEndT");
+      if (ep.u !== null) {
+        end.style.display = ""; setAttr(end, "cx", X(L.beltDur)); setAttr(end, "cy", Y(ep.u));
+        endT.style.display = ""; setAttr(endT, "x", X(L.beltDur) - 6); setAttr(endT, "y", Y(ep.u) + 16);
+        setAttr(endT, "text-anchor", "end");
+        endT.textContent = `到 B：u=${fmt(ep.u)}`;
+      }
+    }
+
+    /* ══════════ 证据面板（按问构建 + 实时刷新） ══════════ */
+    const FR = (n, d) => `<span class="fr"><span class="num">${n}</span><span class="den">${d}</span></span>`;   // 横线分式
+    const SQ = (x) => `<span class="sqrt"><span class="rad">√</span><span class="bar">${x}</span></span>`;      // 根号上划线
+    const SB = (s) => `<sub>${s}</sub>`;
+    function buildEvidence() {
+      const d = derived();
+      const givens = `<div class="givens">已知：<b>P 质量 m</b>（质点），<b>Q 质量 2m</b> 静置于水平面；μ、L、R、v 可调；<b>g = 10 m/s²</b>；水平面与圆轨道<b>光滑</b>；碰撞为<b>弹性正碰</b>；不计空气阻力。</div>`;
+      if (question === 1) {
+        el.evQno.textContent = "第 (1) 问 · 6 分";
+        el.evTitle.textContent = "P 刚到达 B 端时速度 u 与 v 的关系";
+        el.evBody.innerHTML = `
+          <svg id="vtChart" viewBox="0 0 340 192" role="img" aria-label="P 的速度-时间图"></svg>
+          <div class="eq" id="eq1a"><div class="eq-note">P 相对传送带向左滑 → 滑动摩擦 f = μmg 方向向右</div>
+            <div class="eq-main">a = ${FR("f", "m")} = μg = <span class="live" id="liveAg"></span> m/s²</div></div>
+          <div class="eq" id="eq1b"><div class="eq-note">加速到带速所需的位移（与带长 L 比较）</div>
+            <div class="eq-main">s₀ = ${FR("v²", "2μg")} = <span class="live" id="liveS0"></span> m <span class="live" id="liveS0cmp" style="font-size:.82rem"></span></div></div>
+          <div class="eq branch-a" id="eq1c"><div class="eq-note">情形 A：中途共速，之后随带匀速</div>
+            <div class="eq-main">v ≤ ${SQ("2μgL")} ⇒ u = v = <span class="live" id="liveUa"></span> m/s</div></div>
+          <div class="eq branch-b" id="eq1d"><div class="eq-note">情形 B：带不够长，全程未共速（动能定理 μmgL = ${FR("1", "2")}mu²）</div>
+            <div class="eq-main">v > ${SQ("2μgL")} ⇒ u = ${SQ("2μgL")} = <span class="live" id="liveUb"></span> m/s</div></div>
+          <div class="verdict ok" style="margin-top:8px">u = min(v, ${SQ("2μgL")}) = <span class="big" id="liveU"></span></div>${givens}`;
+        chartKey = "";
+      } else if (question === 2) {
+        el.evQno.textContent = "第 (2) 问 · 5 分";
+        el.evTitle.textContent = "碰后瞬间 Q 的速度大小 v_Q";
+        el.evBody.innerHTML = `
+          <svg class="mini-collide" viewBox="0 0 340 128" role="img" aria-label="碰撞前后速度示意">
+            <text x="10" y="26" font-size="12" font-weight="750" fill="#657188">碰前</text>
+            <rect x="52" y="34" width="30" height="22" rx="3" fill="var(--p-color)"/><text x="67" y="50" font-size="12" font-weight="800" fill="#fff" text-anchor="middle">P</text>
+            <line x1="88" y1="45" x2="124" y2="45" stroke="var(--p-color)" stroke-width="2.6" marker-end="url(#arrowP)"/>
+            <text x="132" y="49" font-size="12.5" font-weight="800" fill="var(--p-deep)" id="mcU">u</text>
+            <rect x="222" y="34" width="34" height="26" rx="3" fill="var(--q-color)"/><text x="239" y="52" font-size="12" font-weight="800" fill="#fff" text-anchor="middle">Q</text>
+            <text x="272" y="49" font-size="12" fill="#94a3b8">静止</text>
+            <text x="10" y="86" font-size="12" font-weight="750" fill="#657188">碰后</text>
+            <rect x="120" y="92" width="30" height="22" rx="3" fill="var(--p-color)"/><text x="135" y="108" font-size="12" font-weight="800" fill="#fff" text-anchor="middle">P</text>
+            <line x1="114" y1="103" x2="82" y2="103" stroke="var(--p-color)" stroke-width="2.6" marker-end="url(#arrowP)"/>
+            <text x="12" y="107" font-size="12.5" font-weight="800" fill="var(--p-deep)" id="mcVP">−u/3</text>
+            <rect x="196" y="90" width="34" height="26" rx="3" fill="var(--q-color)"/><text x="213" y="108" font-size="12" font-weight="800" fill="#fff" text-anchor="middle">Q</text>
+            <line x1="236" y1="103" x2="272" y2="103" stroke="var(--q-color)" stroke-width="2.6" marker-end="url(#arrowQ)"/>
+            <text x="278" y="107" font-size="12.5" font-weight="800" fill="var(--q-deep)" id="mcVQ">2u/3</text>
+          </svg>
+          <div class="eq" id="eq2a"><div class="eq-note">水平面光滑 → 系统（P+Q）动量守恒（取向右为正）</div>
+            <div class="eq-main">mu = mv${SB("P")}′ + 2m·v${SB("Q")}</div></div>
+          <div class="eq" id="eq2b"><div class="eq-note">弹性碰撞 → 机械能（动能）守恒</div>
+            <div class="eq-main">${FR("1", "2")}mu² = ${FR("1", "2")}mv${SB("P")}′² + ${FR("1", "2")}(2m)v${SB("Q")}²</div></div>
+          <div class="eq" id="eq2c"><div class="eq-note">联立解得（P 质量小、Q 质量大 → P 反弹）</div>
+            <div class="eq-main">v${SB("Q")} = ${FR("2u", "3")} = <span class="live" id="liveVQ"></span>，v${SB("P")}′ = −${FR("u", "3")} = <span class="live" id="liveVPp"></span></div></div>
+          <div class="chips">
+            <span class="chip" id="chipMom">动量：p前 = m·<b id="momA">—</b>，p后 = m·<b id="momB">—</b> <b id="momOk"></b></span>
+            <span class="chip" id="chipKE">动能：前 = m·<b id="keA">—</b>，后 = m·<b id="keB">—</b> <b id="keOk"></b></span>
+          </div>${givens}`;
+      } else {
+        el.evQno.textContent = "第 (3) 问 · 9 分";
+        el.evTitle.textContent = "Q 完成完整圆周运动时 v 的条件（含不可能情形）";
+        el.evBody.innerHTML = `
+          <div class="eq" id="eq3a"><div class="eq-note">最高点 D：重力 2mg 与轨道弹力 N 都指向圆心（沿内侧）</div>
+            <div class="eq-main">${FR("2m·v" + SB("D") + "²", "R")} = 2mg + N ≥ 2mg ⇒ v${SB("D")} ≥ ${SQ("gR")} = <span class="live" id="liveSgr"></span> m/s</div></div>
+          <div class="eq" id="eq3b"><div class="eq-note">C → D 只有重力做功，机械能守恒</div>
+            <div class="eq-main">v${SB("Q")}² = v${SB("D")}² + 4gR ⇒ v${SB("Q")} ≥ ${SQ("5gR")} = <span class="live" id="liveS5gr"></span> m/s</div></div>
+          <div class="eq" id="eq3c"><div class="eq-note">代入第 (2) 问 v${SB("Q")} = ${FR("2", "3")}u</div>
+            <div class="eq-main">u ≥ ${FR("3", "2")}${SQ("5gR")} ≡ T = <span class="live" id="liveT"></span> m/s</div></div>
+          <div class="eq" id="eq3d"><div class="eq-note">而第 (1) 问 u = min(v, ${SQ("2μgL")}) ≤ U（u 有上限！）</div>
+            <div class="eq-main">U = ${SQ("2μgL")} = <span class="live" id="liveU3"></span> m/s</div></div>
+          <div id="q3verdict"></div>
+          <div class="chips" id="q3live"></div>${givens}`;
+      }
+      updateEvidenceLive(d);
+    }
+
+    function updateEvidenceLive(d) {
+      if (question === 1) {
+        const set = (id, v) => { const n = $(id); if (n) n.textContent = v; };
+        set("liveAg", fmt(params.mu * G, 1));
+        set("liveS0", fmt(d.s0));
+        const cmp = $("liveS0cmp");
+        if (cmp) {
+          cmp.textContent = d.s0 <= params.L ? `（≤ L=${fmt(params.L, 1)} m → 中途共速）` : `（> L=${fmt(params.L, 1)} m → 全程未共速）`;
+          cmp.style.color = d.s0 <= params.L ? "#0f766e" : "#b45309";
+        }
+        set("liveUa", fmt(params.v)); set("liveUb", fmt(d.U));
+        for (const [id, on] of [["eq1c", params.v <= d.U + 1e-12], ["eq1d", params.v > d.U + 1e-12],
+          ["eq1a", !ep.qLaunched && ep.coSpeed === null], ["eq1b", !ep.qLaunched && ep.coSpeed !== null]]) {
+          const n = $(id); if (n) n.classList.toggle("active", on);
+        }
+        const liveU = $("liveU");
+        if (liveU) liveU.innerHTML = ep.u === null ? `min(${fmt(params.v, 1)}, ${fmt(d.U)})` : `${fmt(ep.u)} m/s`;
+      } else if (question === 2) {
+        const set = (id, v) => { const n = $(id); if (n) n.textContent = v; };
+        if (ep.u !== null) {
+          set("mcU", `u=${fmt(ep.u)}`); set("mcVP", `${fmt(ep.vPpost)}`); set("mcVQ", `${fmt(ep.vQpost)}`);
+          set("liveVQ", `${fmt(ep.vQpost)} m/s`); set("liveVPp", `${fmt(ep.vPpost)} m/s`);
+          set("momA", fmt(ep.u)); set("momB", fmt(ep.vPpost + 2 * ep.vQpost));
+          set("momOk", Math.abs(ep.u - (ep.vPpost + 2 * ep.vQpost)) < 1e-9 ? "✓ 守恒" : "✗");
+          set("keA", fmt(0.5 * ep.u * ep.u, 3)); set("keB", fmt(0.5 * ep.vPpost * ep.vPpost + ep.vQpost * ep.vQpost, 3));
+          set("keOk", Math.abs(0.5 * ep.u * ep.u - (0.5 * ep.vPpost ** 2 + ep.vQpost ** 2)) < 1e-9 ? "✓ 守恒" : "✗");
+          const e2a = $("eq2a"), e2b = $("eq2b");
+          if (e2a) e2a.classList.add("active"); if (e2b) e2b.classList.remove("active");
+        }
+      } else {
+        const set = (id, v) => { const n = $(id); if (n) n.textContent = v; };
+        set("liveSgr", fmt(Math.sqrt(G * params.R)));
+        set("liveS5gr", fmt(Math.sqrt(5 * G * params.R)));
+        set("liveT", fmt(d.T)); set("liveU3", fmt(d.U));
+        const v = $("q3verdict");
+        if (v) {
+          if (d.possible) v.innerHTML = `<div class="verdict ok">U ≥ T（即 2μgL ≥ ${FR("45gR", "4")}，L ≥ ${FR("45R", "8μ")}）→ 存在可行区间，需 <span class="big">v ≥ T = ${fmt(d.T)} m/s</span><br>当前 v = ${fmt(params.v, 1)} m/s ${params.v >= d.T ? "≥ T ✓ 满足" : "< T ✗ 不满足（将脱离/折返）"}</div>`;
+          else v.innerHTML = `<div class="verdict warn">U < T（2μgL < ${FR("45gR", "4")}，即 L < ${FR("45R", "8μ")} = ${fmt(d.Lcrit)} m）<br><span class="big">无论 v 多大，u ≤ U < T ⇒ 不可能完成完整圆周运动</span></div>`;
+        }
+        const live = $("q3live");
+        if (live) {
+          const items = [];
+          if (ep.qPhase === "loop") items.push(`<span class="chip">实时：θ = ${(ep.theta * 180 / Math.PI).toFixed(0)}°，N = ${fmt(qNormal(ep.theta, ep.omega) / G)}×2mg</span>`);
+          if (ep.summit) items.push(`<span class="chip ok">v${SB("D")} = ${fmt(ep.summit.vD)} m/s，N${SB("D")} = ${fmt(ep.summit.ND / G)}×2mg ≥ 0 ✓</span>`);
+          if (ep.detach) items.push(`<span class="chip no">θ_d = ${(ep.detach.theta * 180 / Math.PI).toFixed(1)}° 处 N=0 脱离 ✗</span>`);
+          if (ep.turn) items.push(`<span class="chip no">θ_max = ${(ep.turn.theta * 180 / Math.PI).toFixed(1)}° < 180° 折返 ✗</span>`);
+          live.innerHTML = items.join("");
+        }
+        for (const [id, on] of [["eq3a", ep.qPhase === "loop" && ep.theta > Math.PI / 2], ["eq3b", ep.qPhase === "loop" && ep.theta > 0]]) {
+          const n = $(id); if (n) n.classList.toggle("active", on);
+        }
+      }
+    }
+
+    /* ══════════ 控制与生命周期 ══════════ */
+    function setParameters(values) {
+      let changed = false;
+      for (const def of parameterSchema) {
+        if (values[def.key] === undefined) continue;
+        const raw = Number(values[def.key]);
+        if (!Number.isFinite(raw)) continue;
+        const clamped = Math.min(def.max, Math.max(def.min, raw));
+        if (Math.abs(params[def.key] - clamped) > 1e-12) { params[def.key] = clamped; changed = true; }
+      }
+      el.vInput.value = String(params.v); el.muInput.value = String(params.mu);
+      el.LInput.value = String(params.L); el.RInput.value = String(params.R);
+      el.vOutput.textContent = `${fmt(params.v, 1)} m/s`;
+      el.muOutput.textContent = fmt(params.mu, 2);
+      el.LOutput.textContent = `${fmt(params.L, 1)} m`;
+      el.ROutput.textContent = `${fmt(params.R, 2)} m`;
+      const d = derived();
+      const place = (tick, val, min, max) => {
+        const frac = (val - min) / (max - min);
+        if (frac >= 0.02 && frac <= 0.98) { tick.style.display = ""; tick.style.left = `${(frac * 100).toFixed(1)}%`; }
+        else tick.style.display = "none";
+      };
+      place(el.tickT, d.T, 1, 12);
+      place(el.tickL, d.Lcrit, 1, 10);
+      place(el.tickMu, d.mucrit, 0.1, 1);
+      if (changed) reset();
+      else render();
+    }
+
+    function setQuestion(q) {
+      question = q;
+      [el.qtab1, el.qtab2, el.qtab3].forEach((b, i) => setAttr(b, "aria-selected", String(i + 1 === q)));
+      el.phaseHint.textContent = ["", "P 从 A 静止释放 → 看 v–t 图的斜率与共速平台；到 B 自动暂停", "P 到 B 与 Q 弹性碰撞（慢放）→ 碰后 0.35 s 自动暂停，对照守恒式", "完整因果链演示；在过顶 / 脱离 / 折返处自动暂停"][q];
+      buildEvidence();
+      reset();
+    }
+
+    function reset() {
+      ep.running = false;
+      freshEpisode();
+      el.summitMarker.style.display = "none";
+      el.detachMarker.style.display = "none";
+      el.turnMarker.style.display = "none";
+      el.completeNote.style.display = "none";
+      chartKey = "";
+      render();
+    }
+    function start() {
+      if (ep.done) reset();
+      autoPauseMsg = null;
+      ep.running = true;
+      render();
+    }
+    function pause() { ep.running = false; render(); }
+    function update(dtReal) {
+      if (!ep.running) { ep.lastTs = null; return; }
+      if (ep.slowRemain > 0) { ep.slowRemain -= dtReal; if (ep.slowRemain <= 0) { ep.slowRemain = 0; ep.slowScale = 1; } }
+      const factor = timeScale * (ep.slowRemain > 0 ? ep.slowScale : 1);
+      ep.acc = Math.min((ep.acc || 0) + dtReal * factor, 0.5);
+      let guard = 1500;
+      while (ep.acc >= DT && guard-- > 0) { stepPhysics(DT); ep.acc -= DT; if (!ep.running || ep.done) { ep.acc = 0; break; } }
+    }
+
+    let lastTs = null, previewRestartAt = null;
+    function frame(ts) {
+      if (lastTs === null) lastTs = ts;
+      const dtReal = Math.min(Math.max((ts - lastTs) / 1000, 0), 0.05);
+      lastTs = ts;
+      update(dtReal);
+      render();
+      if (PREVIEW && ep.done) {
+        if (previewRestartAt === null) previewRestartAt = ts + 2500;
+        else if (ts >= previewRestartAt) { previewRestartAt = null; reset(); start(); }
+      } else previewRestartAt = null;
+      requestAnimationFrame(frame);
+    }
+
+    function bindControls() {
+      el.startBtn.addEventListener("click", () => { ep.running ? pause() : start(); });
+      el.resetBtn.addEventListener("click", reset);
+      el.speedSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+        timeScale = Number(b.dataset.speed);
+        el.speedSeg.querySelectorAll("button").forEach(x => setAttr(x, "aria-pressed", String(x === b)));
+      }));
+      el.slowmoToggle.addEventListener("change", () => { slowmoEnabled = el.slowmoToggle.checked && !REDUCED; });
+      el.vInput.addEventListener("input", () => setParameters({ v: el.vInput.value }));
+      el.muInput.addEventListener("input", () => setParameters({ mu: el.muInput.value }));
+      el.LInput.addEventListener("input", () => setParameters({ L: el.LInput.value }));
+      el.RInput.addEventListener("input", () => setParameters({ R: el.RInput.value }));
+      el.qtab1.addEventListener("click", () => { if (question !== 1) setQuestion(1); });
+      el.qtab2.addEventListener("click", () => { if (question !== 2) setQuestion(2); });
+      el.qtab3.addEventListener("click", () => { if (question !== 3) setQuestion(3); });
+    }
+
+    function getState() { return JSON.parse(JSON.stringify(ep)); }
+    function getReadouts() {
+      const d = derived();
+      return {
+        t: ep.t, phase: phaseLabel(), running: ep.running, done: ep.done,
+        vP: ep.vP, u: ep.u, vPpost: ep.vPpost, vQpost: ep.vQpost,
+        theta: ep.theta, omega: ep.omega,
+        N_over_2mg: (ep.qPhase === "loop" || ep.qPhase === "slide") ? qNormal(ep.theta, ep.omega) / G : null,
+        summit: ep.summit, detach: ep.detach, turn: ep.turn, outcome: ep.outcome,
+        U: d.U, T: d.T, possible: d.possible, params: { ...params }
+      };
+    }
+
+    /* ══════════ Oracle 检查 ══════════ */
+    function runEpisode(p, dtStep = DT) {
+      const savedParams = { ...params }, savedEp = JSON.parse(JSON.stringify(ep));
+      Object.assign(params, p);
+      freshEpisode();
+      let guard = 30000;
+      while (!ep.done && ep.t < guard) stepPhysics(dtStep);
+      const out = JSON.parse(JSON.stringify({
+        u: ep.u, vPpost: ep.vPpost, vQpost: ep.vQpost, summit: ep.summit,
+        detach: ep.detach, turn: ep.turn, outcome: ep.outcome, tEnd: ep.t
+      }));
+      Object.assign(params, savedParams);
+      Object.assign(ep, JSON.parse(JSON.stringify(savedEp)));
+      render();
+      return out;
+    }
+    function runModelChecks() {
+      const base = { v: 7, mu: 0.5, L: 6, R: 0.32 };
+      const U0 = Math.sqrt(2 * 0.5 * G * 6), T0 = 1.5 * Math.sqrt(5 * G * 0.32);
+      const checks = [];
+      const near = (name, actual, expected, tol) => checks.push({ name, pass: Math.abs(actual - expected) <= tol, expected: fmt(expected, 4), actual: fmt(actual, 4), tolerance: `±${tol}` });
+
+      const r1 = runEpisode({ ...base, v: 3 });           // v < √(2μgL)：共速，u = v
+      near("问1 · v<U 时 u=v（共速截断）", r1.u, 3, 1e-6);
+      const r2 = runEpisode({ ...base, v: 9 });           // v > √(2μgL)：全程加速，u = √(2μgL)
+      near("问1 · v>U 时 u=√(2μgL)", r2.u, U0, 1e-6);
+      const r3 = runEpisode({ ...base, v: U0 });          // 边界：两式一致
+      near("问1 · 边界 v=U", r3.u, U0, 1e-6);
+
+      // 问2：碰撞双守恒（以 m 为单位）
+      const mom = Math.abs(r1.u - (r1.vPpost + 2 * r1.vQpost));
+      const kin = Math.abs(0.5 * r1.u * r1.u - (0.5 * r1.vPpost ** 2 + r1.vQpost ** 2));
+      checks.push({ name: "问2 · 动量守恒 |p前−p后|/m", pass: mom < 1e-9, expected: "0", actual: mom.toExponential(2), tolerance: "1e-9" });
+      checks.push({ name: "问2 · 动能守恒 |E前−E后|/m", pass: kin < 1e-9, expected: "0", actual: kin.toExponential(2), tolerance: "1e-9" });
+      near("问2 · v_Q = 2u/3", r1.vQpost, (2 / 3) * r1.u, 1e-12);
+      near("问2 · v_P′ = −u/3", r1.vPpost, -r1.u / 3, 1e-12);
+
+      const r5 = runEpisode({ ...base, v: T0 });          // 临界：恰过顶，N_D ≈ 0
+      near("问3 · 临界 v=T 时 v_D=√(gR)", r5.summit.vD, Math.sqrt(G * 0.32), 5e-3);
+      checks.push({ name: "问3 · 临界 N_D/(2mg) ≈ 0", pass: r5.summit.ND / G < 0.05 && r5.outcome === "complete", expected: "≈0 且 complete", actual: `${(r5.summit.ND / G).toFixed(4)} / ${r5.outcome}`, tolerance: "N_D<0.05×2mg" });
+
+      const r6 = runEpisode({ ...base, v: 5 });           // 脱离：θ_d 理论值 arccos((2gR−v_Q²)/(3gR))
+      const vq6 = (2 / 3) * 5, thd6 = Math.acos((2 * G * 0.32 - vq6 * vq6) / (3 * G * 0.32));
+      near("问3 · 脱离角 θ_d", r6.detach.theta, thd6, 0.0175);
+      checks.push({ name: "问3 · 脱离判级 v_Q²∈(2gR,5gR)", pass: r6.outcome === "detach", expected: "detach", actual: r6.outcome, tolerance: "分支" });
+
+      const r7 = runEpisode({ ...base, v: 2 });           // 折返：θ_s = arccos(1−v_Q²/(2gR))
+      const vq7 = (2 / 3) * 2, ths7 = Math.acos(Math.max(-1, 1 - vq7 * vq7 / (2 * G * 0.32)));
+      near("问3 · 折返角 θ_max", r7.turn.theta, ths7, 0.0175);
+      checks.push({ name: "问3 · 折返判级 v_Q²≤2gR", pass: r7.outcome === "turn", expected: "turn", actual: r7.outcome, tolerance: "分支" });
+
+      const r8 = runEpisode({ v: 12, mu: 0.5, L: 3, R: 0.32 });  // 不可能：U<T，即使 v 拉满
+      const U8 = Math.sqrt(2 * 0.5 * G * 3);
+      near("问3 · 不可能情形 u 仍=U", r8.u, U8, 1e-6);
+      checks.push({ name: "问3 · U<T ⇒ 不可能完整圆周", pass: r8.outcome !== "complete" && U8 < T0, expected: "not complete", actual: r8.outcome, tolerance: "分支" });
+
+      // 能量守恒（圆轨道段，RK4 漂移）：同一回合 v_Q² = v_D² + 4gR
+      const e0 = r5.vQpost * r5.vQpost, e1 = r5.summit.vD * r5.summit.vD + 4 * G * 0.32;
+      near("圆轨道 · v_Q² vs v_D²+4gR（能量）", e1, e0, 5e-3 * e0);
+
+      // 步长减半收敛：过顶速度差
+      const ra = runEpisode({ ...base, v: 7 }, DT);
+      const rb = runEpisode({ ...base, v: 7 }, DT / 2);
+      near("数值 · 步长减半 v_D 收敛", rb.summit.vD, ra.summit.vD, 0.002 * ra.summit.vD);
+      return checks;
+    }
+
+    function init() {
+      cacheElements();
+      bindControls();
+      setParameters({ v: 7, mu: 0.5, L: 6, R: 0.32 });
+      setQuestion(1);
+      if (PREVIEW) start();
+      requestAnimationFrame(frame);
+    }
+
+    window.simulation = { init, start, pause, reset, update, render, setParameters, getState, getReadouts, runModelChecks };
+    init();
+  })();
+  </script>
+</body>
+</html>
